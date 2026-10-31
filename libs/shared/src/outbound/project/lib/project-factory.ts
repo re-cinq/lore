@@ -5,6 +5,7 @@ import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js"
 import type { LeasePool } from "../leases/lease-backends.js";
 import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import { Project } from "./project.js";
+import { floorClientFrom, floorConfigured } from "../../floor/floor-client.js";
 
 /** Builds a Project from a repo fullName + two DB connections; Project owns port init (every adapter is constructed here via dynamic import so no heavy dep loads statically). Boot-time composition root, called once per repo. */
 export interface ProjectOptions {
@@ -138,7 +139,7 @@ async function registerLedgerPorts(
 ): Promise<void> {
   const [audit, usage] = await ledgerModules();
 
-  ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
+  ports.set("agentDefs", await agentDefsForEnv(env));
   ports.set(
     "audit",
     fromPipelineOrDefault(
@@ -158,17 +159,22 @@ function ledgerModules() {
   ]);
 }
 
-// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> the shipped files, read-only.
-async function agentDefsForEnv(
-  env: NodeJS.ProcessEnv,
-  pgPool: PgPool,
-): Promise<unknown> {
-  if (env.LORE_DB_HOST) {
-    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-
-    return new PgAgentDefs(pgPool);
+// Agent definitions port, by environment: the floor is their only store (#3995), so a floor -> FloorAgentDefs, else the API -> AgentDefsHttp, else the shipped files, read-only.
+async function agentDefsForEnv(env: NodeJS.ProcessEnv): Promise<unknown> {
+  if (floorConfigured(env)) {
+    return floorAgentDefs(env);
   }
 
+  return readOnlyAgentDefs(env);
+}
+
+async function floorAgentDefs(env: NodeJS.ProcessEnv): Promise<unknown> {
+  const { FloorAgentDefs } = await import("../agents/agent-defs-floor.js");
+
+  return new FloorAgentDefs(floorClientFrom(env).agentDefinitions);
+}
+
+async function readOnlyAgentDefs(env: NodeJS.ProcessEnv): Promise<unknown> {
   if (env.LORE_API_URL) {
     const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
 

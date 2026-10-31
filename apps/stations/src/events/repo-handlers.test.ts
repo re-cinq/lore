@@ -316,6 +316,26 @@ describe("repoEventHandlers — issue-triage label dispatch (T006)", () => {
     expect(reportIdx).toBeGreaterThanOrEqual(0);
     expect(reportIdx).toBeLessThan(activeIdx);
   });
+
+  it("priority:high on a parked triage run reports to the human-gate visit visit-abc", async () => {
+    const reported: string[] = [];
+    const { fire } = triageScene({
+      findParkedTriageVisit: () => Promise.resolve("visit-abc"),
+      reportTriageGate: (visitId) => {
+        reported.push(visitId);
+
+        return Promise.resolve();
+      },
+    });
+
+    await fire("github.issues.labeled", {
+      repo: "acme/widgets",
+      label: "priority:high",
+      issue: { number: 99, labels: ["priority:high"] },
+    });
+
+    expect(reported).toEqual(["visit-abc"]);
+  });
 });
 
 describe("repoEventHandlers — reporter comment re-triage loop (T017, FR26)", () => {

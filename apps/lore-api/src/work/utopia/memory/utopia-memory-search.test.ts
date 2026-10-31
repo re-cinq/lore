@@ -87,7 +87,9 @@ function readsAnswering(pages: Record<string, SearchHit[]>) {
   return { reads, searched };
 }
 
-const ask = (overrides: { repo?: string; limit?: number } = {}) => ({
+const ask = (
+  overrides: { repo?: string; limit?: number; repoFirst?: boolean } = {},
+) => ({
   query: "gotchas",
   limit: 10,
   ...overrides,
@@ -176,6 +178,24 @@ describe("searchUtopiaMemories", () => {
     );
 
     expect(answer?.map(({ key }) => key)).toEqual(["one"]);
+  });
+
+  it("answers the repo base's hit before the org base's higher scored one when repoFirst, the scores still scaled to the best", async () => {
+    const { reads } = readsAnswering({
+      "kb-repo": [hit("memory:a/repo-note", "repo-note\n\nv", 0.4, "mem-repo")],
+      "kb-org": [hit("memory:a/org-note", "org-note\n\nv", 0.9, "mem-org")],
+    });
+    const answer = await searchUtopiaMemories(
+      poolHolding(REPO_AND_ORG_HELD),
+      reads,
+      ask({ repo: "re-cinq/lore", repoFirst: true }),
+      ENV,
+    );
+
+    expect(answer?.map(({ key, score }) => ({ key, score }))).toEqual([
+      { key: "repo-note", score: 0.4 / 0.9 },
+      { key: "org-note", score: 1 },
+    ]);
   });
 
   it("searches the repo base once when the org names no GITHUB_ORG", async () => {

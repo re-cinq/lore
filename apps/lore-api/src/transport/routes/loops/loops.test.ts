@@ -107,6 +107,82 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     ).toEqual([true, true, true, false, false, true, false]);
   });
 
+  it("GET shows a paused implementation loop as switched on", async () => {
+    const res = await get(
+      poolWithRepo({
+        implementation_loop: { enabled: true },
+        loop_pauses: {
+          implementation: {
+            reason: "model credit exhausted",
+            run_id: "run-1",
+            at: "2026-10-30T10:00:00.000Z",
+            until: null,
+          },
+        },
+      }),
+    );
+
+    expect(JSON.parse(res.payload).loops[0]).toMatchObject({
+      key: "implementation",
+      enabled: true,
+      paused: { reason: "model credit exhausted", run_id: "run-1" },
+    });
+  });
+
+  it("PUT implementation on forgets the implementation pause", async () => {
+    const pool = poolWithRepo();
+
+    await put("implementation", { enabled: true }, pool);
+    const resume = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("#- ARRAY['loop_pauses'"),
+    );
+
+    expect(resume?.[1]).toEqual(["re-cinq/lore", "implementation"]);
+  });
+
+  it("PUT review off leaves the review pause alone", async () => {
+    const pool = poolWithRepo();
+
+    await put("review", { enabled: false }, pool);
+
+    expect(
+      pool.query.mock.calls.some(([sql]) => String(sql).includes("#-")),
+    ).toBe(false);
+  });
+
+  it("DELETE review pause forgets it and echoes the key", async () => {
+    const pool = poolWithRepo();
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "DELETE",
+      url: "/api/repos/re-cinq/lore/loops/review/pause",
+      headers: AUTH,
+    });
+    const resume = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("#- ARRAY['loop_pauses'"),
+    );
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      params: resume?.[1],
+    }).toEqual({
+      status: 200,
+      body: { ok: true, key: "review", rerun_run_id: null },
+      params: ["re-cinq/lore", "review"],
+    });
+  });
+
+  it("DELETE a pause on a repo with no row answers 404", async () => {
+    const res = await buildServer(() => makePool() as never).inject({
+      method: "DELETE",
+      url: "/api/repos/re-cinq/lore/loops/review/pause",
+      headers: AUTH,
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
   it("PUT upkeep off writes spec_upkeep.enabled false", async () => {
     const pool = poolWithRepo();
 
@@ -230,7 +306,10 @@ describe("/api/repos/{owner}/{repo}/loops", () => {
     }).toEqual({
       status: 200,
       switched: true,
-      params: [["re-cinq/lore", true]],
+      params: [
+        ["re-cinq/lore", true],
+        ["re-cinq/lore", "merge"],
+      ],
     });
   });
 

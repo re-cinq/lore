@@ -198,6 +198,8 @@ stations:
         kind: file
       - name: issue_scope
         kind: file
+      - name: issue_thread
+        kind: file
       - name: test_report
         kind: file
   triage-assess-implementation:
@@ -276,6 +278,9 @@ stations:
       - name: issue_scope
         kind: file
         path: issue-scope.md
+      - name: issue_thread
+        kind: file
+        path: issue-thread.md
       - name: issue_url
         kind: value
       - name: diagnosis
@@ -306,6 +311,9 @@ stations:
       - name: issue_scope
         kind: file
         path: issue-scope.md
+      - name: issue_thread
+        kind: file
+        path: issue-thread.md
       - name: issue_url
         kind: value
     produces:
@@ -329,6 +337,9 @@ stations:
       - name: issue_scope
         kind: file
         path: issue-scope.md
+      - name: issue_thread
+        kind: file
+        path: issue-thread.md
       - name: issue_url
         kind: value
     produces:
@@ -354,6 +365,9 @@ stations:
       - name: issue_scope
         kind: file
         path: issue-scope.md
+      - name: issue_thread
+        kind: file
+        path: issue-thread.md
       - name: diagnosis
         kind: file
         path: diagnosis.md

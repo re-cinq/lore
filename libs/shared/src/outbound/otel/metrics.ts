@@ -122,7 +122,8 @@ export function recordFloorStart(
 }
 
 /** How the implementation loop left a ticket: merged, closed because the work was already done, parked for a person, or deferred to the next tick after an infrastructure failure. The repository is named as the floor names it (`github.com/<owner>/<name>`, lowercase), so one board filter matches this and the floor's own series. */
-export type LoopTicketResult = "merged" | "closed_done" | "parked" | "deferred";
+export type LoopTicketResult =
+  "merged" | "closed_done" | "parked" | "deferred" | "requeued";
 
 export function recordLoopTicket(repo: string, result: LoopTicketResult): void {
   instruments().loopTickets.add(1, { repo: floorRepoOf(repo), result });
@@ -271,7 +272,7 @@ function floorInstruments(meter: Meter) {
     }),
     loopTickets: meter.createCounter("lore.loop.tickets", {
       description:
-        "Implementation loop tickets settled, by repository and result (merged, closed_done, parked, deferred)",
+        "Implementation loop tickets settled, by repository and result (merged, closed_done, parked, deferred, requeued)",
     }),
     utopiaMirrorFailures: meter.createCounter("lore.utopia.mirror_failures", {
       description:

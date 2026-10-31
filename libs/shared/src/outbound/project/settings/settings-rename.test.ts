@@ -53,17 +53,17 @@ describe("InMemorySettings.renameRepo", () => {
     expect(await port.allRepos()).toEqual(["re-cinq/HALEngine"]);
   });
 
-  it("merges re-cinq/HAL-engine into re-cinq/HALEngine, moving its reviewer definition and dropping its conflicting implementation definition", async () => {
+  it("merges re-cinq/HAL-engine into re-cinq/HALEngine, keeping HALEngine's settings and dropping HAL-engine's row", async () => {
     const port = new InMemorySettings([
       {
         id: OLD_ID,
         full_name: "re-cinq/HAL-engine",
-        agent_definitions: ["implementation", "reviewer"],
+        settings: { trust: { level: "docs" } },
       },
       {
         id: NEW_ID,
         full_name: "re-cinq/HALEngine",
-        agent_definitions: ["implementation"],
+        settings: { trust: { level: "full" } },
       },
     ]);
 
@@ -74,7 +74,7 @@ describe("InMemorySettings.renameRepo", () => {
       {
         id: NEW_ID,
         full_name: "re-cinq/HALEngine",
-        agent_definitions: ["implementation", "reviewer"],
+        settings: { trust: { level: "full" } },
       },
     ]);
   });
@@ -193,7 +193,7 @@ describe("PgSettings.renameRepo", () => {
     ]);
   });
 
-  it("moves non-conflicting agent definitions to re-cinq/HALEngine's id and deletes re-cinq/HAL-engine's row inside one transaction when both rows exist", async () => {
+  it("inherits empty settings and deletes re-cinq/HAL-engine's row inside one transaction when both rows exist", async () => {
     const capture: CapturedQuery[] = [];
     const store = new PgSettings(
       transactionalPool(capture, [
@@ -208,10 +208,6 @@ describe("PgSettings.renameRepo", () => {
     expect(capture).toMatchObject([
       { text: "BEGIN" },
       { params: [["re-cinq/HAL-engine", "re-cinq/HALEngine"]] },
-      {
-        text: expect.stringContaining("UPDATE lore.agent_definitions"),
-        params: [OLD_ID, NEW_ID],
-      },
       {
         text: expect.stringContaining("SET settings = source.settings"),
         params: [OLD_ID, NEW_ID],

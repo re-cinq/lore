@@ -2,7 +2,13 @@
 
 import type { Pool } from "pg";
 import type { UtopiaEnv } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import type { UtopiaReads } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
+import {
+  utopiaReadsFrom,
+  type UtopiaReads,
+} from "@re-cinq/lore-shared/utopia/utopia-reads.js";
+import type { UtopiaMirror } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia.js";
+import type { UtopiaMemoryRead } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia-memory.js";
+import type { AssembleOptions } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import type { MemorySearchResult } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import {
   normalizeHitScores,
@@ -20,11 +26,14 @@ export interface UtopiaMemoryQuery {
   agentId?: string;
   repo?: string;
   limit: number;
+  /** Rank the repo base's hits ahead of the org base's whatever their scores, for a reader that wants the repo's own memories first. */
+  repoFirst?: boolean;
 }
 
 const PAGE = { topK: 50, offset: 0 };
 
 interface SearchableBase {
+  name: string;
   kbId: string;
   sources: MemorySourceIds;
 }
@@ -48,7 +57,7 @@ export async function searchUtopiaMemories(
     bases.map((base) => searchBase(reads, base, asked)),
   );
 
-  return rankedHits(hits.flat(), asked.limit);
+  return rankedHits(hits, bases, asked);
 }
 
 async function searchBase(
@@ -64,13 +73,25 @@ async function searchBase(
   });
 }
 
-/** The bases' hits ranked together by Utopia's own scores, cut to the limit, and only then scaled so the best is 1. */
+/** The bases' hits ranked together by Utopia's own scores (the repo base's ahead of the rest when asked), cut to the limit, and only then scaled so the best is 1. */
 function rankedHits(
-  hits: MemorySearchResult[],
-  limit: number,
+  hitsPerBase: MemorySearchResult[][],
+  bases: SearchableBase[],
+  asked: UtopiaMemoryQuery,
 ): MemorySearchResult[] {
+  const byScore = (a: MemorySearchResult, b: MemorySearchResult) =>
+    b.score - a.score;
+  const ranked = asked.repoFirst
+    ? hitsPerBase.flatMap((hits, index) =>
+        bases[index].name === asked.repo ? [...hits].sort(byScore) : [],
+      )
+    : [];
+  const rest = hitsPerBase.flatMap((hits, index) =>
+    asked.repoFirst && bases[index].name === asked.repo ? [] : hits,
+  );
+
   return normalizeHitScores(
-    [...hits].sort((a, b) => b.score - a.score).slice(0, limit),
+    [...ranked, ...rest.sort(byScore)].slice(0, asked.limit),
   );
 }
 
@@ -98,6 +119,44 @@ async function storedSources(
   const kbId = (memories ?? episodes)?.kbId;
 
   return kbId
-    ? { kbId, sources: { memories: idOf(memories), episodes: idOf(episodes) } }
+    ? {
+        name: base,
+        kbId,
+        sources: { memories: idOf(memories), episodes: idOf(episodes) },
+      }
     : null;
+}
+
+/** What an assembly needs to read Utopia: the reader, the repo's mirror and the memory search its `memories` and `episodes` sections go through; the search is absent without a reader. */
+export function utopiaAssemblyOptions(
+  pool: Pool,
+  repo: string | undefined,
+  utopiaMirror: UtopiaMirror | undefined,
+  env: UtopiaEnv = process.env,
+): Pick<AssembleOptions, "utopiaReads" | "utopiaMirror" | "utopiaMemories"> {
+  const utopiaReads = utopiaReadsFrom(env);
+
+  return {
+    utopiaReads,
+    utopiaMirror,
+    utopiaMemories: utopiaReads
+      ? repoFirstSearch(pool, utopiaReads, repo, env)
+      : undefined,
+  };
+}
+
+/** The memory search with the repo's own memories ahead of the org's. */
+function repoFirstSearch(
+  pool: Pool,
+  reads: UtopiaReads,
+  repo: string | undefined,
+  env: UtopiaEnv,
+): UtopiaMemoryRead {
+  return (query, limit) =>
+    searchUtopiaMemories(
+      pool,
+      reads,
+      { query, repo, limit, repoFirst: true },
+      env,
+    );
 }

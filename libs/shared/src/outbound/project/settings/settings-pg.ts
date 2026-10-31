@@ -1,4 +1,7 @@
 import { enforceTrue } from "../../../lib/enforce.js";
+import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
+import type { LoopPause } from "../../../domain/loops/loop-pause.js";
+import { storedBlock } from "./settings-sql.js";
 import { selectList, fromRow } from "../../../lib/row.js";
 import { REPO_COLUMNS } from "../../../domain/models/repo.js";
 import type { PgPool } from "../../memory-store.js";
@@ -43,12 +46,6 @@ const REPOINT_CROSS_REPO_LINKS_SQL = `UPDATE lore.repos
              FROM jsonb_array_elements(settings->'cross_repo_repos') AS link))
   WHERE settings->'cross_repo_repos' @> jsonb_build_array($1::text)`;
 
-const MOVE_AGENT_DEFINITIONS_SQL = `UPDATE lore.agent_definitions moved
-    SET project_id = $2
-  WHERE moved.project_id = $1
-    AND NOT EXISTS (SELECT 1 FROM lore.agent_definitions kept
-                     WHERE kept.project_id = $2 AND kept.name = moved.name)`;
-
 /** lore.plans.repo is a free-text column with no FK to lore.repos; without this a rename orphans every existing plan under the stale name. */
 const MOVE_PLANS_SQL = "UPDATE lore.plans SET repo = $2 WHERE repo = $1";
 
@@ -89,13 +86,12 @@ async function renameRepoRowInPlace(
   return "renamed";
 }
 
-/** The new row keeps its own definition where both rows define one name, and its own settings unless it has none; the old row's leftovers cascade with it. */
+/** The new row keeps its own settings unless it has none; the old row's leftovers cascade with it. */
 async function mergeRepoRows(
   db: PgPool,
   sourceId: string,
   targetId: string,
 ): Promise<RepoRenameOutcome> {
-  await db.query(MOVE_AGENT_DEFINITIONS_SQL, [sourceId, targetId]);
   await db.query(INHERIT_EMPTY_SETTINGS_SQL, [sourceId, targetId]);
   await db.query("DELETE FROM lore.repos WHERE id = $1", [sourceId]);
 
@@ -166,6 +162,24 @@ export class PgSettings implements SettingsPort {
     await this.pool.query(
       "UPDATE lore.repos SET settings = $1 WHERE full_name = $2",
       [JSON.stringify(settings), repo],
+    );
+  }
+
+  async pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void> {
+    await this.pool.query(
+      `UPDATE lore.repos
+          SET settings = (CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END)
+            || jsonb_build_object('loop_pauses',
+                 ${storedBlock("loop_pauses")} || jsonb_build_object($2::text, $3::jsonb))
+        WHERE full_name = $1`,
+      [repo, key, JSON.stringify(pause)],
+    );
+  }
+
+  async resumeLoop(repo: string, key: LoopKey): Promise<void> {
+    await this.pool.query(
+      "UPDATE lore.repos SET settings = settings #- ARRAY['loop_pauses', $2::text] WHERE full_name = $1",
+      [repo, key],
     );
   }
 

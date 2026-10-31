@@ -40,20 +40,49 @@ describe("codeFileItems", () => {
         s: [
           relation("re-cinq/lore", "contains", FILE),
           attribute(FILE, "path", "src/x/b.ts"),
+          attribute(FILE, "known_as", "b.ts"),
+          attribute(FILE, "known_as", "src/x/b.ts"),
           attribute(FILE, "permalink", `${BLOB}/src/x/b.ts`),
           relation(FILE, "defines", ADVANCE),
           attribute(ADVANCE, "symbol", "advance"),
+          attribute(ADVANCE, "known_as", "advance"),
           attribute(ADVANCE, "line_start", "3"),
           attribute(ADVANCE, "line_end", "9"),
           attribute(ADVANCE, "permalink", `${BLOB}/src/x/b.ts#L3-L9`),
           relation(ADVANCE, "references", STEP),
           relation(FILE, "defines", STEP),
           attribute(STEP, "symbol", "step"),
+          attribute(STEP, "known_as", "step"),
           attribute(STEP, "line_start", "11"),
           attribute(STEP, "line_end", "14"),
           attribute(STEP, "permalink", `${BLOB}/src/x/b.ts#L11-L14`),
         ],
       },
+    ]);
+  });
+
+  it("returns known_as advance for the definition and known_as b.ts and src/x/b.ts for the file when b.ts defines advance", () => {
+    const pushed = build([
+      { name: "advance", startLine: 3, endLine: 9, calls: [] },
+    ]);
+
+    expect(relationsOf(pushed, "known_as")).toEqual([
+      attribute(FILE, "known_as", "b.ts"),
+      attribute(FILE, "known_as", "src/x/b.ts"),
+      attribute(ADVANCE, "known_as", "advance"),
+    ]);
+  });
+
+  it("returns one known_as index.ts equal to the path when the file sits at the repo root", () => {
+    const [rootFileItem] = codeFileItems({
+      repo: "re-cinq/lore",
+      path: "index.ts",
+      symbols: [],
+      imports: [],
+    });
+
+    expect(relationsOf([rootFileItem], "known_as")).toEqual([
+      attribute("re-cinq/lore:index.ts", "known_as", "index.ts"),
     ]);
   });
 

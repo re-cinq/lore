@@ -19,7 +19,11 @@ import {
 } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
-import { autoSetUpRepo, autoUpgradeOntology } from "./utopia-auto-setup.js";
+import {
+  autoSetUpRepo,
+  autoSilenceExtraction,
+  autoUpgradeOntology,
+} from "./utopia-auto-setup.js";
 
 /** The id of the knowledge base a repo's mirrors push to, the repo set up first where the deployment may; null when it has none. */
 export async function repoKnowledgeBase(
@@ -43,6 +47,7 @@ export async function knowledgeBaseToMirror(
 
   if (utopiaConfigured(env) && mirror.success) {
     await upgradeOntologyQuietly(pool, repo, mirror.data, env);
+    await silenceExtractionQuietly(pool, repo, mirror.data, env);
 
     return mirror.data.kb_id;
   }
@@ -58,15 +63,39 @@ async function upgradeOntologyQuietly(
   env: UtopiaEnv,
 ): Promise<void> {
   if (ontologyUpgradable(mirror, env)) {
-    await autoUpgradeOntology(pool, repo, mirror, env).catch(
-      (error: unknown) => {
-        console.error(
-          `[utopia-mirror] ${repo} ontology upgrade: ${errorMessage(error)}`,
-        );
-        recordUtopiaMirrorFailure(repo);
-      },
+    await countingFailure(
+      repo,
+      "ontology upgrade",
+      autoUpgradeOntology(pool, repo, mirror, env),
     );
   }
+}
+
+/** Once per repo: its existing `git-history` and `github` sources stop extracting entities (ADR-052); failed like an upgrade, the next ingest tries again. */
+async function silenceExtractionQuietly(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  if (!mirror.sources_extract_off && utopiaAutoSetupConfigured(env)) {
+    await countingFailure(
+      repo,
+      "source extraction switch",
+      autoSilenceExtraction(pool, repo, mirror, env),
+    );
+  }
+}
+
+function countingFailure(
+  repo: string,
+  step: string,
+  work: Promise<void>,
+): Promise<void> {
+  return work.catch((error: unknown) => {
+    console.error(`[utopia-mirror] ${repo} ${step}: ${errorMessage(error)}`);
+    recordUtopiaMirrorFailure(repo);
+  });
 }
 
 function ontologyUpgradable(

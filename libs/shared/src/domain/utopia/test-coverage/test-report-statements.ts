@@ -10,7 +10,9 @@ import { joinFragments, splitToFit, type Fragment } from "../fragments.js";
 import { blobUrl, fileName, statementName, testName } from "../names.js";
 import {
   attribute,
+  knownAs,
   relation,
+  sourceFileStatements,
   tombstone,
   type Statement,
   type StatementItem,
@@ -64,7 +66,7 @@ function fileHead(repo: string, path: string): Fragment {
       [repo, "Repository", true],
       [file, "SourceFile", true],
     ],
-    s: [relation(repo, "contains", file), attribute(file, "path", path)],
+    s: [relation(repo, "contains", file), ...sourceFileStatements(file, path)],
   };
 }
 
@@ -99,6 +101,7 @@ function testAttributes(
     s: [
       relation(fileName(input.repo, descriptor.file), "contains", test),
       attribute(test, "title", title),
+      knownAs(test, title),
       attribute(test, "path", descriptor.file),
       ...lineAttributes(test, descriptor),
       attribute(test, "permalink", permalinkOf(input, descriptor)),
@@ -170,7 +173,7 @@ function coverageFragments(
       e: [[file, "SourceFile", true]],
       s: [
         relation(test, "covers", file, { lines }),
-        attribute(file, "path", path),
+        ...sourceFileStatements(file, path),
       ],
     };
   });

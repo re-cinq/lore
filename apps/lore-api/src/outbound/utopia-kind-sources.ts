@@ -10,6 +10,12 @@ export interface StoredSource extends UtopiaSource {
 
 export type MirrorKind = "docs" | "test-coverage" | "git-history" | "github";
 
+/** The kinds whose text is searched but never mined for entities: extraction over issues, pull requests and commits only fed Utopia's duplicate-review queue (ADR-052). */
+export const EXTRACTION_OFF_KINDS: readonly MirrorKind[] = [
+  "git-history",
+  "github",
+];
+
 export interface KindSourceKey {
   repo: string;
   kind: MirrorKind;

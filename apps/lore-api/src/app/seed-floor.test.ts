@@ -20,6 +20,7 @@ function seeding(overrides: Partial<SeedDeps>) {
   const deps: SeedDeps = {
     files: () => Promise.resolve([{ name: "walk.yaml", text: LINE }]),
     env: {},
+    heldAgentDefinitions: () => Promise.resolve([]),
     importPipeline: (pipeline) => {
       const id = pipeline.line?.id ?? "";
 

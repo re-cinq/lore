@@ -9,6 +9,7 @@ import {
   utopiaDocuments,
   utopiaSectionReader,
 } from "./context-assembly-utopia.js";
+import type { UtopiaMemoryRead } from "./context-assembly-utopia-memory.js";
 
 const DOCS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
 const SPEC = "specs/utopia-graph-mirror/spec.md";
@@ -203,7 +204,7 @@ describe("utopiaSectionReader", () => {
     });
   });
 
-  it("answers code: no Utopia reader yet for the code section", async () => {
+  it("leaves the code section out and asks Utopia nothing", async () => {
     const windows: SearchWindow[] = [];
     const read = utopiaSectionReader(
       {
@@ -222,11 +223,113 @@ describe("utopiaSectionReader", () => {
       }),
       windows,
     }).toEqual({
-      code: {
-        sources: [{ text: "code: no Utopia reader yet", tokens: 7 }],
-        status: "ok",
-      },
+      code: { sources: [], status: "disabled" },
       windows: [],
+    });
+  });
+});
+
+describe("utopiaSectionReader memories and episodes", () => {
+  const memoryHit = (
+    source: "memory" | "episode",
+    key: string,
+    score: number,
+  ) => ({
+    key,
+    value: `${key} text`,
+    score,
+    agent_id: "a",
+    source,
+    backend: "utopia" as const,
+  });
+  const noSearch: UtopiaReads = {
+    async search() {
+      return { hits: [], hasMore: false, vectorUsed: true };
+    },
+    async documentByExternalId() {
+      return null;
+    },
+  };
+  const armWith = (memories?: UtopiaMemoryRead) => ({
+    reads: noSearch,
+    kbId: "kb",
+    docsSourceId: DOCS,
+    memories,
+  });
+  const section = (source: string) =>
+    ({
+      source,
+    }) as Parameters<ReturnType<typeof utopiaSectionReader>>[0];
+
+  it("fills memories with the memory hit and episodes with the episode hit of one search for 'deploy'", async () => {
+    const asked: [string, number][] = [];
+    const reader = utopiaSectionReader(
+      armWith(async (query, limit) => {
+        asked.push([query, limit]);
+
+        return [
+          memoryHit("memory", "note", 1),
+          memoryHit("episode", "episode-7", 0.5),
+        ];
+      }),
+      "deploy",
+    );
+    const [memories, episodes] = await Promise.all([
+      reader(section("memories")),
+      reader(section("episodes")),
+    ]);
+
+    expect({
+      asked,
+      memories: memories.sources.map(({ text, source_path }) => ({
+        text,
+        source_path,
+      })),
+      episodes: episodes.sources.map(({ text, content_type }) => ({
+        text,
+        content_type,
+      })),
+      statuses: [memories.status, episodes.status],
+    }).toEqual({
+      asked: [["deploy", 30]],
+      memories: [{ text: "**note** (memory): note text", source_path: "note" }],
+      episodes: [
+        { text: "**episode-7**: episode-7 text", content_type: "episode" },
+      ],
+      statuses: ["ok", "ok"],
+    });
+  });
+
+  it("answers disabled for memories when the arm has no memory search", async () => {
+    expect(
+      await utopiaSectionReader(armWith(), "deploy")(section("memories")),
+    ).toEqual({
+      sources: [],
+      status: "disabled",
+    });
+  });
+
+  it("answers disabled for episodes when no base holds a memory source", async () => {
+    const reader = utopiaSectionReader(
+      armWith(async () => null),
+      "deploy",
+    );
+
+    expect(await reader(section("episodes"))).toEqual({
+      sources: [],
+      status: "disabled",
+    });
+  });
+
+  it("answers empty for episodes when the search found memories only", async () => {
+    const reader = utopiaSectionReader(
+      armWith(async () => [memoryHit("memory", "note", 1)]),
+      "deploy",
+    );
+
+    expect(await reader(section("episodes"))).toEqual({
+      sources: [],
+      status: "empty",
     });
   });
 });

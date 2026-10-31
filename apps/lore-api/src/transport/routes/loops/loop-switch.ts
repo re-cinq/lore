@@ -3,6 +3,15 @@ import { BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { LoopKey } from "@re-cinq/lore-shared/loops/loop-kinds.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { loopPause } from "@re-cinq/lore-shared/loops/loop-pause.js";
+import {
+  resumeLoop,
+  type ResumeLoopDeps,
+} from "../../../work/loops/resume-loop.js";
+import { handleRunNode } from "../floor/run-node.js";
+import { storedBlock } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { disarmAutoMerge } from "../repos/auto-merge-gate.js";
 
@@ -20,11 +29,6 @@ const SWITCH_SQL: Record<LoopKey, string> = {
   tickets: blockSwitchSql("spec_tickets"),
 };
 
-/** The block as stored, or an empty one when it is absent or was cleared to null: `null || {…}` would make a JSONB array. */
-export function storedBlock(block: string): string {
-  return `(CASE WHEN jsonb_typeof(settings->'${block}') = 'object' THEN settings->'${block}' ELSE '{}'::jsonb END)`;
-}
-
 /** Merges rather than replaces at BOTH levels — the repo's other settings and the block's own other keys must survive a switch. */
 function blockSwitchSql(block: string): string {
   return `UPDATE lore.repos
@@ -35,13 +39,17 @@ function blockSwitchSql(block: string): string {
           WHERE full_name = $1`;
 }
 
-/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
+/** Flips one loop's switch on a repository the caller has already found (`enforceRepoRow`). Switching a loop on also forgets its pause; switching the implementation loop on also seeds its labels; switching auto merge off takes back the auto-merge Lore armed. */
 export async function switchLoop(
   pool: Pool,
   repo: string,
   { key, enabled }: { key: LoopKey; enabled: boolean },
 ): Promise<void> {
   await pool.query(SWITCH_SQL[key], [repo, enabled]);
+
+  if (enabled) {
+    await resumeLoopOf(pool, repo, key);
+  }
 
   if (key === "implementation" && enabled) {
     await seedBacklogLabels(repo);
@@ -50,6 +58,38 @@ export async function switchLoop(
   if (key === "merge" && !enabled) {
     await disarmAutoMerge(repo);
   }
+}
+
+/** Resumes the repo's loop the way its Resume does: the station its pause starved runs again first, for a loop started once per item. Answers the run started again, or null. */
+export async function resumeLoopOf(
+  pool: Pool,
+  repo: string,
+  key: LoopKey,
+): Promise<string | null> {
+  const settings = new PgSettings(pool);
+  const pause = loopPause(key, await settings.rawSettings(repo));
+
+  return resumeLoop(key, pause, {
+    resume: () => settings.resumeLoop(repo, key),
+    ...floorRerun(pool),
+  });
+}
+
+/** Who a station run again on resume is recorded as asked by. */
+const RESUME_ACTOR = "lore:loop-resume";
+
+/** Reads a run's visits from the floor and runs one of its stations again, as a start by hand does. */
+function floorRerun(pool: Pool): Omit<ResumeLoopDeps, "resume"> {
+  return {
+    visits: (runId) => floorClient().stationRuns.list({ run: runId }),
+    rerun: async (runId, nodeId) => {
+      await handleRunNode(floorClient(), pool, {
+        runId,
+        nodeId,
+        actor: RESUME_ACTOR,
+      });
+    },
+  };
 }
 
 export async function enforceRepoRow(pool: Pool, repo: string): Promise<void> {

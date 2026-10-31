@@ -1,13 +1,13 @@
 import type { ResolvedAgentDefinition } from "../../../domain/models/agent-definition.js";
-// Agent definitions port (configuration side, project.agentDefs). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org (lore-api seeds the org rows from libs/shared/src/agent-defaults).
+// Agent definitions port (configuration side, project.agentDefs). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org. The floor holds both (#3995): the org default is a definition's settings, an override its variant.
 
-/** The resolved per-task-type config; shape lives with the table in models/agent-definition.ts — this is the merged projection, so no id or timestamps. */
+/** The resolved per-task-type config; shape lives in models/agent-definition.ts. */
 export type AgentDefinition = ResolvedAgentDefinition;
 
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;
 
-/** A write touching config.pod_resources (the one key the Agents UI owns); merged over the row's config inside the upsert (atomic under the row lock) with inheritedConfig as fallback since config is whole-object across layers. */
+/** A write touching config.pod_resources (the one key the Agents UI owns); merged over the layer's own config with inheritedConfig as fallback since config is whole-object across layers. */
 export interface PodResourcesWrite {
   podResources: Record<string, unknown> | null;
   inheritedConfig: Record<string, unknown> | null;
@@ -21,7 +21,7 @@ export interface AgentDefsReadPort {
   list(repo: string): Promise<AgentDefinition[]>;
 }
 
-/** Write surface implemented only by PgAgentDefs; runner adapters do not carry these methods. */
+/** Write surface implemented only by FloorAgentDefs; the read-only adapters do not carry these methods. */
 export interface AgentDefsWritePort extends AgentDefsReadPort {
   create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition>;
   update(

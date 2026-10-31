@@ -2,7 +2,7 @@
 
 import type { Pool } from "pg";
 import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
-import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
+import { utopiaAssemblyOptions } from "../utopia/memory/utopia-memory-search.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
@@ -39,17 +39,52 @@ export async function assembleForEval(
   question: string,
   backend?: KnowledgeBackend,
 ): Promise<AssembledForEval> {
+  const result = await assembled(pool, { repo, query: question, backend });
+
+  return { text: result.text, sources: sourcesOf(result.trace) };
+}
+
+/** What an implementer of a ticket is handed: the `implementation` template at the default budget, and the names of the sections that kept content. */
+export async function assembleForTicket(
+  pool: Pool,
+  repo: string,
+  query: string,
+  backend: KnowledgeBackend,
+): Promise<{ text: string; sections: string[] }> {
+  const result = await assembled(pool, {
+    repo,
+    query,
+    backend,
+    templateName: "implementation",
+  });
+  const kept = (result.trace?.sections ?? []).filter(
+    (section) => section.included && section.items.length > 0,
+  );
+
+  return { text: result.text, sections: kept.map((section) => section.source) };
+}
+
+interface AssemblyRequest {
+  repo: string;
+  query: string;
+  backend: KnowledgeBackend | undefined;
+  templateName?: string;
+}
+
+async function assembled(
+  pool: Pool,
+  { repo, query, backend, templateName }: AssemblyRequest,
+): Promise<Awaited<ReturnType<typeof assembleContext>>> {
   const settings = await repoContextSettings(pool, repo);
-  const result = await assembleContext(pool, question, {
+
+  return assembleContext(pool, query, {
+    templateName,
     repo,
     crossRepo: settings.crossRepo,
     backend: resolveBackend(backend, settings.contextBackend),
-    utopiaReads: utopiaReadsFrom(process.env),
-    utopiaMirror: settings.utopiaMirror,
+    ...utopiaAssemblyOptions(pool, repo, settings.utopiaMirror),
     graph: traceFromEnv(process.env),
     debug: true,
     passive: true,
   });
-
-  return { text: result.text, sources: sourcesOf(result.trace) };
 }

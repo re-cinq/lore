@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
+import type { LoopPause } from "../../../domain/loops/loop-pause.js";
 import type {
   SettingsPort,
   OnboardedRepo,
@@ -7,6 +9,16 @@ import type {
   RepoRecord,
   RepoRenameOutcome,
 } from "./settings-port.js";
+
+function pausesOf(
+  settings: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const pauses = settings?.loop_pauses;
+
+  return typeof pauses === "object" && pauses !== null
+    ? (pauses as Record<string, unknown>)
+    : {};
+}
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
 function hasSettings(settings: SeedRepo["settings"]): boolean {
@@ -23,8 +35,6 @@ export interface SeedRepo {
   last_ingested_at?: Date | null;
   onboarding_pr_merged?: boolean;
   onboarded_at?: Date | null;
-  /** Names of the per-repo `lore.agent_definitions` rows keyed to this repo's id. */
-  agent_definitions?: string[];
 }
 
 function toRepoRecord(row: SeedRepo): RepoRecord {
@@ -133,6 +143,27 @@ export class InMemorySettings implements SettingsPort {
     }
 
     return row.settings ?? null;
+  }
+
+  async pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void> {
+    const row = this.row(repo);
+
+    if (row) {
+      row.settings = {
+        ...row.settings,
+        loop_pauses: { ...pausesOf(row.settings), [key]: pause },
+      };
+    }
+  }
+
+  async resumeLoop(repo: string, key: LoopKey): Promise<void> {
+    const row = this.row(repo);
+
+    if (row?.settings) {
+      const { [key]: _resumed, ...kept } = pausesOf(row.settings);
+
+      row.settings = { ...row.settings, loop_pauses: kept };
+    }
   }
 
   async updateSettings(
@@ -255,12 +286,6 @@ export class InMemorySettings implements SettingsPort {
   }
 
   private mergeRepoRows(source: SeedRepo, target: SeedRepo): RepoRenameOutcome {
-    const targetNames = target.agent_definitions ?? [];
-    const moved = (source.agent_definitions ?? []).filter(
-      (name) => !targetNames.includes(name),
-    );
-
-    target.agent_definitions = [...targetNames, ...moved];
     target.settings = hasSettings(target.settings)
       ? target.settings
       : source.settings;

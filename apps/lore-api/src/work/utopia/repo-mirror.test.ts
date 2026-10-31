@@ -27,6 +27,8 @@ const ANSWERS: Record<string, unknown> = {
   "POST /api/v1/workspaces/ws-lore/kbs": { id: "kb-new", name: "re-cinq/lore" },
   "POST /api/v1/kbs/kb-new/ontology/imports": { import_id: "imp-1", plan: {} },
   "POST /api/v1/kbs/kb-1/ontology/imports": { import_id: "imp-2", plan: {} },
+  "PATCH /api/v1/kbs/kb-1/sources/src-git-history": { id: "src-git-history" },
+  "PATCH /api/v1/kbs/kb-1/sources/src-github": { id: "src-github" },
 };
 
 const statusOf = (key: string): number => {
@@ -241,5 +243,63 @@ describe("knowledgeBaseToMirror on a base set up at ontology version 1", () => {
       before: 0,
       failures: [{ attributes: { repo: "re-cinq/lore" }, value: 1 }],
     });
+  });
+});
+
+describe("knowledgeBaseToMirror on a base whose git-history and github sources still extract", () => {
+  const poolHoldingSources = () => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string, params: string[]) => {
+      const isSourceRead = /FROM lore\.utopia_kind_sources/.test(sql);
+
+      return {
+        rows: isSourceRead
+          ? [{ id: `src-${params[1]}`, key: "utp_k", kbId: "kb-1" }]
+          : [],
+      };
+    });
+
+    return pool;
+  };
+
+  it("patches src-git-history and src-github of kb-1 to extract false once for two concurrent ingests, then stores sources_extract_off", async () => {
+    const pool = poolHoldingSources();
+
+    await Promise.all([
+      mirrorOf(pool, "re-cinq/lore", SETTINGS),
+      mirrorOf(pool, "re-cinq/Lore", SETTINGS),
+    ]);
+
+    expect({ calls: seen.sort(), writes: writesOf(pool) }).toEqual({
+      calls: [
+        "PATCH /api/v1/kbs/kb-1/sources/src-git-history Bearer utp_pat_lore",
+        "PATCH /api/v1/kbs/kb-1/sources/src-github Bearer utp_pat_lore",
+      ],
+      writes: [{ utopia: { kb_id: "kb-1", sources_extract_off: true } }],
+    });
+  });
+
+  it("patches nothing when settings carry sources_extract_off true", async () => {
+    const pool = poolHoldingSources();
+
+    await mirrorOf(pool, "re-cinq/lore", {
+      utopia: { ...SETTINGS.utopia, sources_extract_off: true },
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  it("answers kb-1, counts one mirror failure for re-cinq/lore and stores nothing when Utopia refuses the patch with 403", async () => {
+    refusedPaths = ["/sources/src-github"];
+    const pool = poolHoldingSources();
+    const before = (await mirrorFailures()).at(0)?.value as number;
+    const kbId = await mirrorOf(pool, "re-cinq/lore", SETTINGS);
+
+    expect({
+      kbId,
+      writes: writesOf(pool),
+      failures: ((await mirrorFailures()).at(0)?.value as number) - before,
+    }).toEqual({ kbId: "kb-1", writes: [], failures: 1 });
   });
 });

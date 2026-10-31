@@ -10,12 +10,14 @@ const loops = [
     label: "Implementation loop",
     description: "",
     enabled: false,
+    paused: null,
   },
   {
     key: "triage" as const,
     label: "Issue triage",
     description: "",
     enabled: true,
+    paused: null,
   },
 ];
 
@@ -84,5 +86,29 @@ describe("PendingMark", () => {
       pendingName: "Loading",
       idle: null,
     });
+  });
+
+  it("paints a paused loop's dot amber while its switch stays on", () => {
+    const { getAllByTestId } = render(
+      <LoopPicker
+        loops={[
+          {
+            ...loops[1],
+            paused: {
+              reason: "model credit exhausted",
+              run_id: "run-7",
+              at: "2026-10-31T09:00:00.000Z",
+              until: null,
+            },
+          },
+        ]}
+        selected="all"
+        base="/repos/re-cinq/lore/loops"
+      />,
+    );
+
+    expect(getAllByTestId("state-dot").map((d) => d.dataset.state)).toEqual([
+      "paused",
+    ]);
   });
 });

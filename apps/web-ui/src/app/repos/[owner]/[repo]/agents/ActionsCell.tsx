@@ -1,4 +1,4 @@
-import Link from "next/link";
+import EditLink from "@/components/EditLink";
 import RemoveOverrideButton from "./RemoveOverrideButton";
 import styles from "./agents.module.css";
 
@@ -26,9 +26,7 @@ export default function ActionsCell({
 
   return (
     <td className={styles.actions}>
-      <Link className="btn-secondary" href={href}>
-        Edit
-      </Link>
+      <EditLink className="btn-secondary" href={href} />
       {isProject && remove ? (
         <RemoveOverrideButton name={name} remove={remove.bind(null, name)} />
       ) : null}

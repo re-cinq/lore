@@ -55,6 +55,7 @@ function scene(
   const deps: RunSettledDeps = {
     run: () => Promise.resolve(settled),
     failedAgentVisit: () => Promise.resolve(failure),
+    ranOutOfCredit: async () => false,
     addLabel: () => Promise.resolve(),
     project: (repo) => {
       repos.push(repo);

@@ -204,7 +204,7 @@ describe("AgentList", () => {
       <AgentList base={null} agents={[org]} usage={usageOf({})} orgEditable />,
     );
 
-    expect(getByText("Edit").getAttribute("href")).toBe(
+    expect(getByText("Edit").closest("a")?.getAttribute("href")).toBe(
       `/agents/edit/${org.name}`,
     );
     expect(

@@ -1,18 +1,21 @@
+import { loopPaused } from "./loop-pause.js";
+import { parsedSettings } from "./raw-settings.js";
+
 /** The per-repo `implementation_loop.enabled` opt-in (FR7); a plain setting, since the loop never merges and needs no two-key CODEOWNERS ceremony. */
-export function implementationLoopEnabled(rawSettings: unknown): boolean {
-  const parsed =
-    typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;
+export function implementationLoopSwitchedOn(rawSettings: unknown): boolean {
   const block = (
-    parsed as { implementation_loop?: { enabled?: unknown } } | null
+    parsedSettings(rawSettings) as {
+      implementation_loop?: { enabled?: unknown };
+    } | null
   )?.implementation_loop;
 
   return block?.enabled === true;
 }
 
-function safeParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+/** Whether the implementation loop may start work: switched on and not paused. */
+export function implementationLoopEnabled(rawSettings: unknown): boolean {
+  return (
+    implementationLoopSwitchedOn(rawSettings) &&
+    !loopPaused("implementation", rawSettings)
+  );
 }

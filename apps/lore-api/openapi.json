@@ -112,7 +112,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Every org-default agent definition — the org rows, no per-repo layer",
+            "description": "Every org-default agent definition — the floor's settings, no per-repo variant",
             "content": {
               "application/json": {
                 "schema": {
@@ -2292,6 +2292,93 @@
           }
         },
         "x-required-scope": "read"
+      }
+    },
+    "/api/context-evals/ticket": {
+      "post": {
+        "operationId": "post_api_context-evals_ticket",
+        "summary": "POST /api/context-evals/ticket",
+        "tags": ["Context"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "One ticket's context eval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketEval"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                  },
+                  "ticket": {
+                    "type": "object",
+                    "properties": {
+                      "number": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65000
+                      }
+                    },
+                    "required": ["number", "title", "body"],
+                    "additionalProperties": false
+                  },
+                  "backend": {
+                    "type": "string",
+                    "enum": ["lore", "utopia", "both"]
+                  }
+                },
+                "required": ["repo", "ticket"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/docs": {
@@ -6485,6 +6572,76 @@
             }
           }
         }
+      }
+    },
+    "/api/repos/{owner}/{repo}/loops/{key}/pause": {
+      "delete": {
+        "operationId": "delete_api_repos_owner_repo_loops_key_pause",
+        "summary": "DELETE /api/repos/{owner}/{repo}/loops/{key}/pause",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep) first runs again the station whose model credit ran out, and answers that run's id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopResume"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/repos/{owner}/{repo}/onboarded": {
@@ -15836,6 +15993,32 @@
       "LoginRedirect": {
         "type": "null"
       },
+      "LoopResume": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "key": {
+            "type": "string",
+            "enum": [
+              "implementation",
+              "review",
+              "merge",
+              "triage",
+              "upkeep",
+              "digest",
+              "tickets"
+            ]
+          },
+          "rerun_run_id": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["ok", "key", "rerun_run_id"],
+        "additionalProperties": false
+      },
       "LoopSwitch": {
         "type": "object",
         "properties": {
@@ -17287,6 +17470,9 @@
                       },
                       "docs_source_id": {
                         "type": "string"
+                      },
+                      "sources_extract_off": {
+                        "type": "boolean"
                       }
                     },
                     "required": ["kb_id"],
@@ -17724,6 +17910,9 @@
                             },
                             "docs_source_id": {
                               "type": "string"
+                            },
+                            "sources_extract_off": {
+                              "type": "boolean"
                             }
                           },
                           "required": ["kb_id"],
@@ -17821,9 +18010,35 @@
                 },
                 "enabled": {
                   "type": "boolean"
+                },
+                "paused": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string"
+                        },
+                        "run_id": {
+                          "type": ["string", "null"]
+                        },
+                        "at": {
+                          "type": "string"
+                        },
+                        "until": {
+                          "type": ["string", "null"]
+                        }
+                      },
+                      "required": ["reason", "run_id", "at", "until"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
-              "required": ["key", "label", "description", "enabled"],
+              "required": ["key", "label", "description", "enabled", "paused"],
               "additionalProperties": false
             }
           }
@@ -21127,6 +21342,149 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "TicketEval": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "useful": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "noise": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "latency_ms": {
+                "type": "number"
+              },
+              "chars": {
+                "type": "number"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "score",
+              "useful",
+              "noise",
+              "model",
+              "latency_ms",
+              "chars",
+              "sections"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "lore": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "useful": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "noise": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  },
+                  "chars": {
+                    "type": "number"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "score",
+                  "useful",
+                  "noise",
+                  "model",
+                  "latency_ms",
+                  "chars",
+                  "sections"
+                ],
+                "additionalProperties": false
+              },
+              "utopia": {
+                "type": "object",
+                "properties": {
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "useful": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "noise": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "latency_ms": {
+                    "type": "number"
+                  },
+                  "chars": {
+                    "type": "number"
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "score",
+                  "useful",
+                  "noise",
+                  "model",
+                  "latency_ms",
+                  "chars",
+                  "sections"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["lore", "utopia"],
+            "additionalProperties": false
+          }
+        ]
       },
       "TokenList": {
         "type": "object",

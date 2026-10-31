@@ -13,6 +13,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { creditFailureOf } from "@re-cinq/lore-shared/loops/credit-failure.js";
 import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { ReviewPoster } from "../post-review/post-review.js";
 import {
@@ -21,8 +22,9 @@ import {
   signed,
 } from "../post-review/post-review.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { taskStore } from "../../outbound/queues.js";
+import { settings, taskStore } from "../../outbound/queues.js";
 import { postSessionSummary } from "../../outbound/session-summary.js";
+import { pausingLoopsOnCredit, type CreditPauseDeps } from "./credit-pause.js";
 import { settlingLoopTickets } from "./loop-closed.js";
 import { loopClosedDeps } from "./loop-closed-deps.js";
 import { settlingTasks, type SettleTaskDeps } from "./settle-task.js";
@@ -52,6 +54,8 @@ export interface SettledProject extends Pick<
 export interface RunSettledDeps {
   run(runId: string): Promise<RunView | null>;
   failedAgentVisit(runId: string): Promise<FailedAgentVisit | null>;
+  /** Whether a station of the run ran out of model credit: the loop is paused for it, and its item must not read as failed (specs/loop-pause FR4). */
+  ranOutOfCredit(runId: string): Promise<boolean>;
   project(repo: string): Promise<SettledProject>;
   addLabel(repo: string, issueNumber: number, label: string): Promise<void>;
 }
@@ -92,7 +96,7 @@ async function applyTriageFailed(
   }
   const issueNumberStr = startValueOf(run, "issue_number");
 
-  if (!issueNumberStr) {
+  if (!issueNumberStr || (await deps.ranOutOfCredit(runId))) {
     return;
   }
   await deps.addLabel(
@@ -160,6 +164,9 @@ const productionDeps: RunSettledDeps = {
   run: async (runId) => (await floorClient().runs.get(runId))?.run ?? null,
   failedAgentVisit: async (runId) =>
     failedAgentVisitOf(await floorClient().stationRuns.list({ run: runId })),
+  ranOutOfCredit: async (runId) =>
+    creditFailureOf(await floorClient().stationRuns.list({ run: runId })) !==
+    null,
   project: async (repo) => {
     const { pulls, repo: repository } = await projectFor(repo);
 
@@ -215,15 +222,25 @@ const episodeDeps: RunEpisodeDeps = {
   warn: (message) => console.warn(message),
 };
 
+const creditPauseDeps: CreditPauseDeps = {
+  run: productionDeps.run,
+  visits: (runId) => floorClient().stationRuns.list({ run: runId }),
+  pauseLoop: (repo, key, pause) => settings().pauseLoop(repo, key, pause),
+  now: () => new Date(),
+};
+
 export function startRunSettledStation(): RunningStation {
   return defineStation(
     "run-settled",
-    // The task first: the loop's re-armed tick must find it settled. The episode last: memory waits on nothing a person sees.
-    settlingTasks(
-      taskDeps,
-      settlingLoopTickets(
-        loopClosedDeps,
-        recordingRunEpisode(episodeDeps, runSettledHandle(productionDeps)),
+    // The pause first: the loop's re-armed tick must find a loop that ran out of credit paused. Then the task: that tick must find it settled. The episode last: memory waits on nothing a person sees.
+    pausingLoopsOnCredit(
+      creditPauseDeps,
+      settlingTasks(
+        taskDeps,
+        settlingLoopTickets(
+          loopClosedDeps,
+          recordingRunEpisode(episodeDeps, runSettledHandle(productionDeps)),
+        ),
       ),
     ),
   );

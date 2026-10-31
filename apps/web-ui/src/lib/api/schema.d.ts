@@ -736,6 +736,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/context-evals/ticket": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/context-evals/ticket */
+    post: operations["post_api_context-evals_ticket"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/docs": {
     parameters: {
       query?: never;
@@ -1742,6 +1759,23 @@ export interface paths {
     put: operations["put_api_repos_owner_repo_loops_key"];
     post?: never;
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/loops/{key}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** DELETE /api/repos/{owner}/{repo}/loops/{key}/pause */
+    delete: operations["delete_api_repos_owner_repo_loops_key_pause"];
     options?: never;
     head?: never;
     patch?: never;
@@ -4189,6 +4223,20 @@ export interface components {
       };
     };
     LoginRedirect: null;
+    LoopResume: {
+      /** @constant */
+      ok: true;
+      /** @enum {string} */
+      key:
+        | "implementation"
+        | "review"
+        | "merge"
+        | "triage"
+        | "upkeep"
+        | "digest"
+        | "tickets";
+      rerun_run_id: string | null;
+    };
     LoopSwitch: {
       /** @constant */
       ok: true;
@@ -4627,6 +4675,7 @@ export interface components {
               commits_head?: string;
               tracker_since?: string;
               docs_source_id?: string;
+              sources_extract_off?: boolean;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -4760,6 +4809,7 @@ export interface components {
                 commits_head?: string;
                 tracker_since?: string;
                 docs_source_id?: string;
+                sources_extract_off?: boolean;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";
@@ -4791,6 +4841,12 @@ export interface components {
         label: string;
         description: string;
         enabled: boolean;
+        paused: {
+          reason: string;
+          run_id: string | null;
+          at: string;
+          until: string | null;
+        } | null;
       }[];
     };
     RepoOnboarded: {
@@ -5645,6 +5701,36 @@ export interface components {
     TaskWriteResult: {
       [key: string]: unknown;
     };
+    TicketEval:
+      | {
+          score: number;
+          useful: string[];
+          noise: string;
+          model: string;
+          latency_ms: number;
+          chars: number;
+          sections: string[];
+        }
+      | {
+          lore: {
+            score: number;
+            useful: string[];
+            noise: string;
+            model: string;
+            latency_ms: number;
+            chars: number;
+            sections: string[];
+          };
+          utopia: {
+            score: number;
+            useful: string[];
+            noise: string;
+            model: string;
+            latency_ms: number;
+            chars: number;
+            sections: string[];
+          };
+        };
     TokenList: {
       tokens: {
         id: string;
@@ -5955,7 +6041,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every org-default agent definition — the org rows, no per-repo layer */
+      /** @description Every org-default agent definition — the floor's settings, no per-repo variant */
       200: {
         headers: {
           [name: string]: unknown;
@@ -7116,6 +7202,45 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_context-evals_ticket": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo: string;
+          ticket: {
+            number: number;
+            title: string;
+            body: string;
+          };
+          /** @enum {string} */
+          backend?: "lore" | "utopia" | "both";
+        };
+      };
+    };
+    responses: {
+      /** @description One ticket's context eval */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TicketEval"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -9098,6 +9223,36 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  delete_api_repos_owner_repo_loops_key_pause: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Resume one of the repository's loops: forget its pause and leave its switch as it is. A loop started once per item (spec tickets, spec upkeep) first runs again the station whose model credit ran out, and answers that run's id. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopResume"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

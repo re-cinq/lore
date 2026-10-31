@@ -76,7 +76,7 @@ async function conflictIdRows(pool: PgPool, factIds: string[]) {
   return rows;
 }
 
-function toMemoryItem(
+export function toMemoryItem(
   result: MemorySearchResult,
   conflictSet: Set<string>,
 ): SourceItem {
@@ -122,7 +122,7 @@ function measured(result: MemorySearchResult): { similarity?: number } {
     : { similarity: result.similarity };
 }
 
-function toEpisodeItem(result: MemorySearchResult): SourceItem {
+export function toEpisodeItem(result: MemorySearchResult): SourceItem {
   return mkItem(`**${result.key}**: ${result.value}`, {
     source_path: result.key,
     content_type: "episode",

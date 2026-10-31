@@ -35,13 +35,13 @@ function scene(
         Object.keys(specs).map((path) => ({ path, patch: null })),
       ),
     readSpec: (_repo, path) => Promise.resolve(specs[path] ?? null),
-    openRunKeys: () => Promise.resolve([]),
+    openRuns: () => Promise.resolve([]),
     ...overrides,
   };
   const started = () =>
     recorded.requests.filter(({ path }) => path.endsWith("/start"));
 
-  return { deps, started };
+  return { deps, started, recorded };
 }
 
 describe("mergedSpecPaths", () => {
@@ -214,8 +214,10 @@ describe("startSpecTicketRuns", () => {
     const { deps, started } = scene(
       { "specs/a/spec.md": IN_PROGRESS },
       {
-        openRunKeys: () =>
-          Promise.resolve(["acme/widgets:specs/a/spec.md@abc123"]),
+        openRuns: () =>
+          Promise.resolve([
+            { id: "run-1", key: "acme/widgets:specs/a/spec.md@abc123" },
+          ]),
       },
     );
 
@@ -223,5 +225,32 @@ describe("startSpecTicketRuns", () => {
 
     expect(summary).toBe("spec tickets: started 0, skipped 1");
     expect(started()).toEqual([]);
+  });
+
+  it("cancels the open run of an earlier merge of specs/a/spec.md as superseded and starts one keyed on the new merge", async () => {
+    const { deps, started, recorded } = scene(
+      { "specs/a/spec.md": IN_PROGRESS },
+      {
+        openRuns: () =>
+          Promise.resolve([
+            { id: "run-old", key: "acme/widgets:specs/a/spec.md@000aaa" },
+            { id: "run-b", key: "acme/widgets:specs/b/spec.md@000aaa" },
+          ]),
+      },
+    );
+
+    const summary = await startSpecTicketRuns(MERGE, deps);
+
+    expect(summary).toBe("spec tickets: started 1, skipped 0");
+    expect(
+      recorded.requests
+        .filter(({ path }) => path.endsWith("/cancel"))
+        .map(({ path, body }) => ({ path, body })),
+    ).toEqual([
+      { path: "/assembly-runs/run-old/cancel", body: { reason: "superseded" } },
+    ]);
+    expect(started().map((request) => request.body)).toMatchObject([
+      { startItems: { key: { ref: "acme/widgets:specs/a/spec.md@abc123" } } },
+    ]);
   });
 });
