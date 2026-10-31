@@ -467,7 +467,7 @@ describe("utopiaSectionReader code search by the ticket's names (FR13.9)", () =>
 
       return {
         hits:
-          q === "pr-body.ts prFooter"
+          q === "pr-body.ts pr-body prFooter"
             ? [hit(`code:${FOOTER}`, codeText, 0.02, { sourceId: COVERAGE })]
             : [hit(`doc:${SPEC}`, specFirst, 0.03)],
         hasMore: false,
@@ -477,7 +477,7 @@ describe("utopiaSectionReader code search by the ticket's names (FR13.9)", () =>
     documentByExternalId: async () => null,
   });
 
-  it("asks a second search 'pr-body.ts prFooter' for code, both its pages at once, and fills it with pr-body.ts, while repo reads the ticket's own search", async () => {
+  it("asks a second search 'pr-body.ts pr-body prFooter' for code, both its pages at once, and fills it with pr-body.ts, while repo reads the ticket's own search", async () => {
     const asked: string[] = [];
     const read = utopiaSectionReader(
       {
@@ -498,7 +498,7 @@ describe("utopiaSectionReader code search by the ticket's names (FR13.9)", () =>
       code: code.sources.map(({ source_path }) => source_path),
       repo: repo.sources.map(({ source_path }) => source_path),
     }).toEqual({
-      asked: [TICKET, "pr-body.ts prFooter"],
+      asked: [TICKET, "pr-body.ts pr-body prFooter"],
       code: [FOOTER],
       repo: [SPEC],
     });
