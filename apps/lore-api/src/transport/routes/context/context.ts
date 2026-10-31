@@ -192,6 +192,6 @@ async function assembleForQuery(
     debug: opts.debug,
     graph: traceFromEnv(process.env),
     backend: resolveBackend(opts.backend, settings.contextBackend),
-    ...utopiaAssemblyOptions(pool, repo, settings.utopiaMirror),
+    ...(await utopiaAssemblyOptions(pool, repo, settings.utopiaMirror)),
   });
 }

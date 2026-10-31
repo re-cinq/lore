@@ -82,7 +82,7 @@ async function assembled(
     repo,
     crossRepo: settings.crossRepo,
     backend: resolveBackend(backend, settings.contextBackend),
-    ...utopiaAssemblyOptions(pool, repo, settings.utopiaMirror),
+    ...(await utopiaAssemblyOptions(pool, repo, settings.utopiaMirror)),
     graph: traceFromEnv(process.env),
     debug: true,
     passive: true,
