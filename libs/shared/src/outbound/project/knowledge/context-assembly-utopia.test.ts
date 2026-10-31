@@ -203,28 +203,112 @@ describe("utopiaSectionReader", () => {
       adrs: [ADR],
     });
   });
+});
 
-  it("leaves the code section out and asks Utopia nothing", async () => {
+describe("utopiaSectionReader code and coupling", () => {
+  const COVERAGE = "c0c0c0c0-5a49";
+  const FOOTER = "libs/shared/src/domain/pr-body.ts";
+  const tuple = (rows: unknown[], entities: unknown[], id: string) =>
+    JSON.stringify({ e: entities, s: rows, external_id: id });
+  const attr = (subject: string, phrase: string, value: string) => [
+    null,
+    subject,
+    phrase,
+    null,
+    value,
+    {},
+    null,
+    null,
+  ];
+  const codeText = tuple(
+    [
+      attr("f", "path", FOOTER),
+      [null, "f", "defines", "f#prFooter", null, {}, null, null],
+      attr("f#prFooter", "symbol", "prFooter"),
+      attr("f#prFooter", "line_start", "20"),
+      attr("f#prFooter", "line_end", "31"),
+    ],
+    [["f", "SourceFile", true]],
+    `code:${FOOTER}`,
+  );
+  const stmtText = tuple(
+    [attr("s", "text", "A PR footer names its task.")],
+    [["s", "Statement", true]],
+    `stmt:${SPEC}#0146`,
+  );
+  const hits = [
+    hit(`code:${FOOTER}`, codeText, 0.032, { sourceId: COVERAGE }),
+    hit(`code:stale.ts`, codeText, 0.04, { sourceId: "test-coverage-unused" }),
+    hit(`stmt:${SPEC}#0146`, stmtText, 0.016, { sourceId: COVERAGE }),
+    hit(`doc:${SPEC}`, specFirst, 0.03),
+  ];
+  const read = utopiaSectionReader(
+    {
+      reads: searchOver(hits),
+      kbId: "kb-1",
+      docsSourceId: DOCS,
+      coverageSourceId: COVERAGE,
+    },
+    "prFooter",
+  );
+  const section = (source: string) =>
+    ({ source }) as Parameters<ReturnType<typeof utopiaSectionReader>>[0];
+
+  it("fills code with libs/shared/src/domain/pr-body.ts and prFooter at L20-L31 from the code: hit of the coverage source, the set-aside copy's stale.ts left out", async () => {
+    expect(await read(section("code"))).toMatchObject({
+      status: "ok",
+      sources: [
+        {
+          text: `${FOOTER}\n  defines prFooter (L20-L31)`,
+          source_path: FOOTER,
+          content_type: "code",
+          score: 1,
+        },
+      ],
+    });
+  });
+
+  it("fills coupling with the stmt: hit specs/utopia-graph-mirror/spec.md#0146 and its text, the doc: hit left out", async () => {
+    expect(await read(section("coupling"))).toMatchObject({
+      status: "ok",
+      sources: [
+        {
+          text: `${SPEC}#0146: A PR footer names its task.`,
+          source_path: `${SPEC}#0146`,
+          content_type: "coupling",
+          score: 1,
+        },
+      ],
+    });
+  });
+
+  it("leaves code out and asks Utopia nothing when the repo has no test-coverage source", async () => {
     const windows: SearchWindow[] = [];
-    const read = utopiaSectionReader(
-      {
-        reads: searchOver(SPEC_THEN_ADR, windows),
-        kbId: "kb-1",
-        docsSourceId: DOCS,
-      },
-      "chunk search",
+    const bare = utopiaSectionReader(
+      { reads: searchOver(hits, windows), kbId: "kb-1", docsSourceId: DOCS },
+      "prFooter",
     );
 
-    expect({
-      code: await read({
-        header: "Relevant Code",
-        source: "code",
-        priority: 2,
-      }),
-      windows,
-    }).toEqual({
+    expect({ code: await bare(section("code")), windows }).toEqual({
       code: { sources: [], status: "disabled" },
       windows: [],
+    });
+  });
+
+  it("answers empty for code when the search holds no code: hit", async () => {
+    const none = utopiaSectionReader(
+      {
+        reads: searchOver([]),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        coverageSourceId: COVERAGE,
+      },
+      "prFooter",
+    );
+
+    expect(await none(section("code"))).toEqual({
+      sources: [],
+      status: "empty",
     });
   });
 });

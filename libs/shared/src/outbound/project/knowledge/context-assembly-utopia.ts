@@ -15,12 +15,18 @@ import {
   memorySectionReader,
   type UtopiaMemoryRead,
 } from "./context-assembly-utopia-memory.js";
+import {
+  COVERAGE_SECTIONS,
+  coverageItems,
+} from "./context-assembly-utopia-coverage.js";
 import type { SectionReader } from "./context-assembly-types.js";
 
 /** Where a repository's mirror lives: its knowledge base and the `docs` source its documents were pushed to (`settings.utopia`). */
 export interface UtopiaMirror {
   kbId: string;
   docsSourceId: string;
+  /** The stored `test-coverage` source behind the `code` and `coupling` sections; without it they answer disabled. */
+  coverageSourceId?: string;
 }
 
 /** What the Utopia arm reads with; absent when the deployment has no reader or the repository no mirror. */
@@ -64,20 +70,41 @@ function docsSectionReader(arm: UtopiaArm, query: string): SectionReader {
   const page = searchPages(arm, query);
 
   return async ({ source }) => {
-    const section = SECTIONS[source];
+    const read = hitsReader(arm, source);
 
-    if (!section) {
+    if (!read) {
       return { sources: [], status: "disabled" };
     }
-    const filter = { docsSourceId: arm.docsSourceId, ...section };
-    const sources = await sectionDocuments(
-      page,
-      (hits) => utopiaDocuments(hits, filter),
-      filter.limit,
-    );
+    const sources = await sectionDocuments(page, read.itemsOf, read.limit);
 
     return { sources, status: sources.length > 0 ? "ok" : "empty" };
   };
+}
+
+function hitsReader(arm: UtopiaArm, source: string): HitsReader | null {
+  const docs = SECTIONS[source];
+
+  if (docs) {
+    return {
+      itemsOf: (hits) =>
+        utopiaDocuments(hits, { docsSourceId: arm.docsSourceId, ...docs }),
+      limit: docs.limit,
+    };
+  }
+  const coverage = COVERAGE_SECTIONS[source];
+  const sourceId = arm.coverageSourceId;
+
+  return coverage && sourceId
+    ? {
+        itemsOf: (hits) => coverageItems(hits, sourceId, coverage),
+        limit: coverage.limit,
+      }
+    : null;
+}
+
+interface HitsReader {
+  itemsOf: (hits: SearchHit[]) => SourceItem[];
+  limit: number;
 }
 
 /** The search's pages, each asked for once however many sections read it; Utopia refuses a window past 100, so there are two. */

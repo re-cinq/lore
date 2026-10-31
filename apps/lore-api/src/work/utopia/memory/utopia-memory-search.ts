@@ -19,6 +19,7 @@ import {
   memorySourceFor,
   type StoredMemorySource,
 } from "../../../outbound/utopia-memory-sources.js";
+import { kindSourceFor } from "../../../outbound/utopia-kind-sources.js";
 import { orgMemoryBase } from "./utopia-memory-base.js";
 
 export interface UtopiaMemoryQuery {
@@ -128,21 +129,35 @@ async function storedSources(
 }
 
 /** What an assembly needs to read Utopia: the reader, the repo's mirror and the memory search its `memories` and `episodes` sections go through; the search is absent without a reader. */
-export function utopiaAssemblyOptions(
+export async function utopiaAssemblyOptions(
   pool: Pool,
   repo: string | undefined,
   utopiaMirror: UtopiaMirror | undefined,
   env: UtopiaEnv = process.env,
-): Pick<AssembleOptions, "utopiaReads" | "utopiaMirror" | "utopiaMemories"> {
+): Promise<
+  Pick<AssembleOptions, "utopiaReads" | "utopiaMirror" | "utopiaMemories">
+> {
   const utopiaReads = utopiaReadsFrom(env);
 
   return {
     utopiaReads,
-    utopiaMirror,
+    utopiaMirror: await withCoverageSource(pool, repo, utopiaMirror),
     utopiaMemories: utopiaReads
       ? repoFirstSearch(pool, utopiaReads, repo, env)
       : undefined,
   };
+}
+
+/** The mirror with the id of the repo's `test-coverage` source, which its `code` and `coupling` sections read; as it was when the repo has none. */
+async function withCoverageSource(
+  pool: Pool,
+  repo: string | undefined,
+  mirror: UtopiaMirror | undefined,
+): Promise<UtopiaMirror | undefined> {
+  const source =
+    mirror && repo ? await kindSourceFor(pool, repo, "test-coverage") : null;
+
+  return mirror && source ? { ...mirror, coverageSourceId: source.id } : mirror;
 }
 
 /** The memory search with the repo's own memories ahead of the org's. */
