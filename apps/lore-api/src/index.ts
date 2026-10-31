@@ -41,6 +41,7 @@ async function main() {
     await seedShippedSkills(state.pool);
   }
   await seedFloor();
+
   if (state.pool) {
     await moveOverridesAtBoot(state.pool);
   }

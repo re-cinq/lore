@@ -3,12 +3,20 @@ import { isDeepStrictEqual } from "node:util";
 import type { FloorAgentDefs } from "./agent-defs-floor.js";
 import type { AgentDefinition } from "./agent-defs-port.js";
 
-const MOVED_FIELDS = ["model", "timeout_minutes", "prompt", "image", "config"] as const;
+const MOVED_FIELDS = [
+  "model",
+  "timeout_minutes",
+  "prompt",
+  "image",
+  "config",
+] as const;
 
 type MovedField = (typeof MOVED_FIELDS)[number];
 
 /** A stored row; `repo` is null for the org default. */
-export type StoredAgentRow = Pick<AgentDefinition, "name" | MovedField> & { repo: string | null };
+export type StoredAgentRow = Pick<AgentDefinition, "name" | MovedField> & {
+  repo: string | null;
+};
 
 export interface OverrideMove {
   repo: string;
@@ -24,17 +32,30 @@ export interface MoveReport {
 }
 
 export function overrideMoves(rows: readonly StoredAgentRow[]): OverrideMove[] {
-  const orgRows = new Map(rows.filter((row) => row.repo === null).map((row) => [row.name, row]));
+  const orgRows = new Map(
+    rows.filter((row) => row.repo === null).map((row) => [row.name, row]),
+  );
 
   return rows
-    .filter((row): row is StoredAgentRow & { repo: string } => row.repo !== null)
-    .map((row) => ({ repo: row.repo, name: row.name, patch: changedFrom(row, orgRows.get(row.name)) }))
+    .filter(
+      (row): row is StoredAgentRow & { repo: string } => row.repo !== null,
+    )
+    .map((row) => ({
+      repo: row.repo,
+      name: row.name,
+      patch: changedFrom(row, orgRows.get(row.name)),
+    }))
     .filter((move) => Object.keys(move.patch).length > 0);
 }
 
-function changedFrom(row: StoredAgentRow, org: StoredAgentRow | undefined): OverrideMove["patch"] {
+function changedFrom(
+  row: StoredAgentRow,
+  org: StoredAgentRow | undefined,
+): OverrideMove["patch"] {
   const changed = MOVED_FIELDS.filter(
-    (field) => row[field] !== null && !isDeepStrictEqual(row[field], org?.[field] ?? null),
+    (field) =>
+      row[field] !== null &&
+      !isDeepStrictEqual(row[field], org?.[field] ?? null),
   );
 
   return Object.fromEntries(changed.map((field) => [field, row[field]]));
@@ -53,7 +74,11 @@ export async function moveOverridesToFloor(
   return report;
 }
 
-async function moveOne(move: OverrideMove, floor: FloorAgentDefs, report: MoveReport): Promise<void> {
+async function moveOne(
+  move: OverrideMove,
+  floor: FloorAgentDefs,
+  report: MoveReport,
+): Promise<void> {
   const label = `${move.name}@${move.repo}`;
   const resolved = await floor.resolve(move.repo, move.name);
 
@@ -63,7 +88,9 @@ async function moveOne(move: OverrideMove, floor: FloorAgentDefs, report: MoveRe
     return;
   }
   const fields = Object.keys(move.patch) as MovedField[];
-  const pending = fields.filter((field) => !isDeepStrictEqual(resolved[field], move.patch[field]));
+  const pending = fields.filter(
+    (field) => !isDeepStrictEqual(resolved[field], move.patch[field]),
+  );
 
   if (pending.length === 0) {
     return;
