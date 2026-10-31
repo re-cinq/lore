@@ -26,7 +26,12 @@ export function EditButtonView({
   onEdit: () => void;
 }) {
   return (
-    <button type="button" onClick={onEdit} disabled={pending} aria-busy={pending}>
+    <button
+      type="button"
+      onClick={onEdit}
+      disabled={pending}
+      aria-busy={pending}
+    >
       Edit
       {pending && (
         <span className="chip-spinner" role="status" aria-label="Loading" />
