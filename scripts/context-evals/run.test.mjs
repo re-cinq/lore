@@ -7,6 +7,7 @@ import {
   runEval,
   summarize,
 } from "./run.mjs";
+import { runTickets } from "./tickets.mjs";
 
 const ENV = { LORE_API_URL: "https://lore.example", LORE_INGEST_TOKEN: "tok" };
 const ADR = (n) => `adrs/ADR-${n}.md`;
@@ -490,4 +491,120 @@ test("renders Lore's and Utopia's rows side by side, the mean overlap, a verdict
       "| adrs/ADR-2.md | What does adrs/ADR-2.md decide? | yes | no | 50% | Contradicts the ADR. |",
     ],
   );
+});
+
+const issue = (number, label = "priority:high") => ({
+  number,
+  title: `Ticket ${number}`,
+  body: `Body of ${number}`,
+  labels: [{ name: label }],
+});
+
+const graded = (score, over = {}) => ({
+  score,
+  useful: [`fact ${score}`],
+  noise: "generic background",
+  model: "gemini-4-argon",
+  latency_ms: 100 * score,
+  chars: 1000 * score,
+  sections: ["adrs"],
+  ...over,
+});
+
+function ticketApi(answer) {
+  const requests = [];
+  const fetchFn = async (url, init) => {
+    requests.push({
+      pathname: new URL(url).pathname,
+      body: JSON.parse(init.body),
+    });
+
+    return Response.json(answer(requests.length));
+  };
+
+  return { fetchFn, requests };
+}
+
+const runTicketEval = (api, issues, over = {}) =>
+  runTickets({
+    env: ENV,
+    pause: async () => {},
+    fetchFn: api.fetchFn,
+    repo: "re-cinq/lore",
+    count: 2,
+    listIssues: async () => issues,
+    ...over,
+  });
+
+test("posts the 2 newest priority tickets and skips the issue without a priority label", async () => {
+  const api = ticketApi(() => graded(2));
+
+  await runTicketEval(api, [issue(9, "bug"), issue(8), issue(7), issue(6)]);
+
+  assert.deepEqual(api.requests, [
+    {
+      pathname: "/api/context-evals/ticket",
+      body: {
+        repo: "re-cinq/lore",
+        ticket: { number: 8, title: "Ticket 8", body: "Body of 8" },
+        backend: "lore",
+      },
+    },
+    {
+      pathname: "/api/context-evals/ticket",
+      body: {
+        repo: "re-cinq/lore",
+        ticket: { number: 7, title: "Ticket 7", body: "Body of 7" },
+        backend: "lore",
+      },
+    },
+  ]);
+});
+
+test("renders the lore table with a mean score of 2.50, 1500 chars, a p50 of 200 ms and each ticket's useful items", async () => {
+  const api = ticketApi((n) => graded(n === 1 ? 2 : 3));
+  const { markdown } = await runTicketEval(api, [issue(8), issue(7)]);
+
+  assert.deepEqual(markdown.split("\n").slice(2, 10), [
+    "### lore",
+    "",
+    "Mean score 2.50, mean block 2500 chars, p50 latency 200 ms.",
+    "",
+    "| Ticket | Score | Useful | Noise |",
+    "| --- | --- | --- | --- |",
+    "| #8 Ticket 8 | 2 | fact 2 | generic background |",
+    "| #7 Ticket 7 | 3 | fact 3 | generic background |",
+  ]);
+});
+
+test("renders a table per store and keeps both verdicts when the backend is both", async () => {
+  const api = ticketApi(() => ({ lore: graded(3), utopia: graded(1) }));
+  const { results, markdown } = await runTicketEval(api, [issue(8)], {
+    backend: "both",
+    count: 1,
+  });
+
+  assert.deepEqual(
+    {
+      sides: Object.keys(results[0]).slice(2),
+      means: markdown.match(/Mean score \d\.\d\d/g),
+    },
+    {
+      sides: ["lore", "utopia"],
+      means: ["Mean score 3.00", "Mean score 1.00"],
+    },
+  );
+});
+
+test("asks again when lore-api answers 503 for a ticket", async () => {
+  let asked = 0;
+  const fetchFn = async () =>
+    ++asked === 1
+      ? Response.json({ error: "busy" }, { status: 503 })
+      : Response.json(graded(2));
+  const { results } = await runTicketEval({ fetchFn }, [issue(8)], {
+    count: 1,
+  });
+
+  assert.equal(results[0].lore.score, 2);
 });
