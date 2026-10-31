@@ -99,6 +99,20 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     return resolvedFor(name, next, null);
   }
 
+  /** A renamed repository's overrides follow it: each definition with a variant under `from` gets a version with it under `to`, unless `to` already has one. Answers the definitions moved. */
+  async renameRepo(from: string, to: string): Promise<string[]> {
+    const rows = await this.definitions.list();
+    const movable = rows.filter(
+      (row) => variantEntry(row.body, from) && !variantEntry(row.body, to),
+    );
+
+    for (const row of movable) {
+      await this.putChecked(row.id, renamedVariant(row.body, from, to));
+    }
+
+    return movable.map((row) => row.id);
+  }
+
   private async bodyOf(name: string): Promise<AgentDefinitionBody> {
     const row = await this.definitions.get(name);
 
@@ -247,4 +261,14 @@ function withPodResources(target: Variant, write: PodResourcesWrite): Variant {
     "config",
     Object.keys(config).length > 0 ? config : null,
   );
+}
+
+function renamedVariant(
+  body: AgentDefinitionBody,
+  from: string,
+  to: string,
+): AgentDefinitionBody {
+  const variant = variantEntry(body, from)?.variant ?? {};
+
+  return withVariant(withVariant(body, from, {}), to, variant);
 }
