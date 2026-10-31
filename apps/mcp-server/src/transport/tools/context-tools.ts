@@ -72,23 +72,34 @@ interface CorpusSearch {
 
 /** A Utopia read goes to the API or is refused: the local paths read Lore's stores alone. */
 async function searchContextFor(requested: CorpusSearch, mode: ServerMode) {
-  const refusal =
-    invalidRepoRefusal(requested.repo) ??
-    (mode === "agent" && !requested.repo ? NO_REPO_GIVEN : null);
+  const refusal = repoRefusal(requested.repo, mode);
 
   if (refusal) {
     return textResult(refusal);
   }
   const search = withDetectedRepo(requested, mode);
-  const { query, team, limit, backend } = search;
 
-  logDetectedRepo(team, mode);
+  logDetectedRepo(search.team, mode);
 
-  if (readsUtopia(backend)) {
-    return (
-      (await searchApiContext(search)) ?? textResult(backendNeedsApi(backend))
-    );
-  }
+  return readsUtopia(search.backend)
+    ? ((await searchApiContext(search)) ??
+        textResult(backendNeedsApi(search.backend)))
+    : searchLoreStores(search);
+}
+
+/** A repo that is not owner/name, or none at all in the shared gateway, is refused before anything is read. */
+function repoRefusal(
+  repo: string | undefined,
+  mode: ServerMode,
+): string | null {
+  return (
+    invalidRepoRefusal(repo) ??
+    (mode === "agent" && !repo ? NO_REPO_GIVEN : null)
+  );
+}
+
+async function searchLoreStores(search: CorpusSearch) {
+  const { query, team, limit } = search;
 
   if (await isDbAvailable()) {
     return searchDbContext(query, team, limit);
