@@ -3,7 +3,10 @@ import type { Pool } from "pg";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import type { SearchHit } from "@re-cinq/lore-shared/utopia/read-shapes.js";
 import type { UtopiaReads } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
-import { searchUtopiaMemories } from "./utopia-memory-search.js";
+import {
+  searchUtopiaMemories,
+  utopiaAssemblyOptions,
+} from "./utopia-memory-search.js";
 
 const ENV = { GITHUB_ORG: "re-cinq" };
 
@@ -209,5 +212,32 @@ describe("searchUtopiaMemories", () => {
     );
 
     expect(searched).toEqual([{ kbId: "kb-repo", q: "gotchas" }]);
+  });
+});
+
+describe("utopiaAssemblyOptions", () => {
+  const mirror = { kbId: "kb-repo", docsSourceId: "docs-1" };
+  const optionsWith = (rows: unknown[]) => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows });
+
+    return utopiaAssemblyOptions(
+      pool as unknown as Pool,
+      "re-cinq/lore",
+      mirror,
+      ENV,
+    );
+  };
+
+  it("adds the test-coverage source cov-1 the repo's kind-source row holds to its mirror", async () => {
+    expect((await optionsWith([{ id: "cov-1" }])).utopiaMirror).toEqual({
+      ...mirror,
+      coverageSourceId: "cov-1",
+    });
+  });
+
+  it("leaves the mirror as it is when the repo has no test-coverage source", async () => {
+    expect((await optionsWith([])).utopiaMirror).toEqual(mirror);
   });
 });
