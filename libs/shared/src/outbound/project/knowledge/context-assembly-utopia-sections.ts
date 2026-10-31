@@ -31,9 +31,12 @@ function inFileOrder(blocks: Map<number, string>): string[] {
   return [...blocks].sort(([a], [b]) => a - b).map(([, text]) => text);
 }
 
-/** The line the chunk's first words stand on; null when the document has no such line. */
+/** The line the chunk's first words of prose stand on; null when the document has no such line. Utopia leads a chunk with the path of headings above it, so the anchor is the chunk's first line that is no heading. */
 function lineOf(lines: string[], chunk: string): number | null {
-  const words = chunk.trim().split(/\s+/).slice(0, 6).join(" ");
+  const prose = chunk
+    .split("\n")
+    .find((line) => line.trim() !== "" && !HEADING_RE.test(line));
+  const words = (prose ?? "").trim().split(/\s+/).slice(0, 6).join(" ");
   const index = lines.findIndex((line) => normalized(line).includes(words));
 
   return words && index >= 0 ? index : null;
