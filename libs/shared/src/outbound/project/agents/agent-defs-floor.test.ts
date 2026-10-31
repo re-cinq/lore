@@ -255,19 +255,28 @@ describe("FloorAgentDefs.renameRepo", () => {
 
     const moved = await defs.renameRepo("re-cinq/otto", "re-cinq/otto2");
 
-    expect({ moved, versions: (await floor.versions("code-review")).length }).toEqual({ moved: [], versions: 1 });
+    expect({
+      moved,
+      versions: (await floor.versions("code-review")).length,
+    }).toEqual({ moved: [], versions: 1 });
   });
 
   it("keeps both variants of loop-tdd when re-cinq/otto2 already has one", async () => {
     const both: AgentDefinitionBody = {
       ...ottoVariant,
-      variants: { ...ottoVariant.variants, "github.com/re-cinq/otto2": { model: "claude-sonnet-4-6" } },
+      variants: {
+        ...ottoVariant.variants,
+        "github.com/re-cinq/otto2": { model: "claude-sonnet-4-6" },
+      },
     };
     const { floor, defs } = await floorWith({ "loop-tdd": both });
 
     const moved = await defs.renameRepo("re-cinq/otto", "re-cinq/otto2");
     const stored = await floor.get("loop-tdd");
 
-    expect({ moved, variants: stored?.body.variants }).toEqual({ moved: [], variants: both.variants });
+    expect({ moved, variants: stored?.body.variants }).toEqual({
+      moved: [],
+      variants: both.variants,
+    });
   });
 });
