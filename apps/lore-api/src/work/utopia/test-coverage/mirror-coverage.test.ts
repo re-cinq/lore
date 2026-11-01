@@ -151,7 +151,11 @@ describe("mirrorReportFor", () => {
         "POST /api/v1/kbs/kb-1/sources Bearer utp_pat_lore",
         "POST /api/v1/sources/src-new/statements Bearer utp_new",
       ],
-      created: { kind: "statements", name: "test-coverage", config: {} },
+      created: {
+        kind: "statements",
+        name: "test-coverage",
+        config: { names: "identity" },
+      },
     });
   });
 
