@@ -151,14 +151,14 @@ async function createKindSource(
   return source;
 }
 
-/** The statements kind takes structured items, the others whole text documents. */
+/** The statements kind takes structured items, each name an identity Lore already knows to be unique (a path, a test title, a statement id), the others whole text documents. */
 function newSource(
   session: ReturnType<typeof loreSession>,
   kbId: string,
   kind: MirrorKind,
 ): Promise<UtopiaSource> {
   return kind === "test-coverage"
-    ? session.createStatementsSource(kbId, kind)
+    ? session.createStatementsSource(kbId, kind, { names: "identity" })
     : session.createApiSource(
         kbId,
         kind,

@@ -55,7 +55,11 @@ export interface UtopiaSession {
     filename: string,
   ): Promise<{ importId: string }>;
   bindKindWord(kbId: string, word: string, classKey: string): Promise<void>;
-  createStatementsSource(kbId: string, name: string): Promise<UtopiaSource>;
+  createStatementsSource(
+    kbId: string,
+    name: string,
+    config?: SourceConfig,
+  ): Promise<UtopiaSource>;
   createApiSource(
     kbId: string,
     name: string,
@@ -278,8 +282,8 @@ function sessionOf(request: Requester, bearer: string): UtopiaSession {
       importOntology(call, kbId, { turtle, filename }),
     bindKindWord: (kbId, word, classKey) =>
       bindKindWord(call, kbId, word, classKey),
-    createStatementsSource: (kbId, name) =>
-      createSource(call, kbId, { kind: "statements", name }),
+    createStatementsSource: (kbId, name, config = {}) =>
+      createSource(call, kbId, { kind: "statements", name, config }),
     createApiSource: (kbId, name, config = {}) =>
       createSource(call, kbId, { kind: "api", name, config }),
     patchSourceConfig: (kbId, sourceId, config) =>

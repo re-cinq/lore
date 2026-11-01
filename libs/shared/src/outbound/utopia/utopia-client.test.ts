@@ -359,6 +359,18 @@ describe("withCredential", () => {
     });
   });
 
+  it("creates a statements source with config names identity when asked", async () => {
+    await client()
+      .withCredential("jwt-1")
+      .createStatementsSource("kb-1", "test-coverage", { names: "identity" });
+
+    expect(JSON.parse(seen[0].body)).toEqual({
+      kind: "statements",
+      name: "test-coverage",
+      config: { names: "identity" },
+    });
+  });
+
   it("creates an api source named memories and returns its id with the ingest token as the key", async () => {
     const source = await client()
       .withCredential("jwt-1")

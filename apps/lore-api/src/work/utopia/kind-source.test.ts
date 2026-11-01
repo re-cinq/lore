@@ -154,13 +154,17 @@ describe("kindSourceOf", () => {
     ]);
   });
 
-  it("creates test-coverage as a statements source, not an api one", async () => {
+  it("creates test-coverage as a statements source whose names are identities, not an api one", async () => {
     const pool = poolHolding({});
 
     await kindSourceOf(asPool(pool), "re-cinq/lore", "test-coverage", env);
 
     expect(bodies).toEqual([
-      { kind: "statements", name: "test-coverage", config: {} },
+      {
+        kind: "statements",
+        name: "test-coverage",
+        config: { names: "identity" },
+      },
     ]);
   });
 
