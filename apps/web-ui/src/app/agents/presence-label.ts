@@ -12,21 +12,22 @@ export function presenceLabel(presence: AgentPresence): string {
     return "On no cluster yet";
   }
 
+  return partialLabel(presence.clusters);
+}
+
+function partialLabel(clusters: ClusterPresence[]): string {
+  const older = clusters.filter((cluster) => !cluster.current && cluster.hash);
+
   return [
     "Not live everywhere yet",
     group(
       "Latest",
-      presence.clusters.filter((cluster) => cluster.current),
+      clusters.filter((cluster) => cluster.current),
     ),
-    group(
-      "Older version",
-      presence.clusters.filter(
-        (cluster) => !cluster.current && cluster.hash !== null,
-      ),
-    ),
+    group("Older version", older),
     group(
       "None",
-      presence.clusters.filter((cluster) => cluster.hash === null),
+      clusters.filter((cluster) => cluster.hash === null),
     ),
   ]
     .filter(Boolean)

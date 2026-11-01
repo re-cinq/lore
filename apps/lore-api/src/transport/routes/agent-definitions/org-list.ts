@@ -34,17 +34,16 @@ export function orgAgentDefinitionsRoute(
       description:
         "Every org-default agent definition — the floor's settings, no per-repo variant",
     }),
-    // The floor is the only store of agent definitions (#3995): with no floor there is nothing to list.
-    handler: async (_request, h) => {
-      const floor = definitions();
-
-      enforceTrue(
-        floor,
-        apiError(503, { detail: NO_FLOOR_DETAIL }),
-        "no_floor",
-      );
-
-      return h.response({ agents: await new FloorAgentDefs(floor).list("") });
-    },
+    handler: async (_request, h) =>
+      h.response({ agents: await listOrgAgents(definitions) }),
   };
+}
+
+// The floor is the only store of agent definitions (#3995): with no floor there is nothing to list.
+async function listOrgAgents(definitions: FloorDefinitions) {
+  const floor = definitions();
+
+  enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
+
+  return new FloorAgentDefs(floor).list("");
 }

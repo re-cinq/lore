@@ -71,20 +71,16 @@ function AgentCard({
   title,
   catalog,
 }: AgentCardProps & { title: string }) {
-  const editHref = `/agents/edit/${encodeURIComponent(agent.name)}`;
-
   return (
     <div className={styles.agentCard} data-vendor={modelVendor(agent.model)}>
       <SettingsCard
         id={`agent-${agent.name}`}
-        title={
-          <CardTitle title={title} presence={catalog.presence?.[agent.name]} />
-        }
+        title={<CardTitle title={title} {...{ agent, catalog }} />}
         description={rowCells(agent, catalog.usage).use.text}
         headingLevel={3}
       >
         <AgentFacts agent={agent} catalog={catalog} />
-        <EditAction href={editHref} />
+        <EditAction href={`/agents/edit/${encodeURIComponent(agent.name)}`} />
       </SettingsCard>
     </div>
   );
@@ -92,11 +88,11 @@ function AgentCard({
 
 function CardTitle({
   title,
-  presence,
-}: {
-  title: string;
-  presence?: AgentPresence;
-}) {
+  agent,
+  catalog,
+}: AgentCardProps & { title: string }) {
+  const presence = catalog.presence?.[agent.name];
+
   return (
     <>
       {title}
