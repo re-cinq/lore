@@ -11,13 +11,13 @@ import type { Pool } from "pg";
 import {
   EXTRACTION_OFF_KINDS,
   kindSourceFor,
-} from "../../outbound/utopia-kind-sources.js";
-import { saveUtopiaMirrorSettings } from "../../outbound/utopia-sources.js";
+} from "../../../outbound/utopia/kind-sources.js";
+import { saveUtopiaMirrorSettings } from "../../../outbound/utopia/sources.js";
 import {
   installOntology,
   setUpRepoInUtopia,
   storeUtopiaSetup,
-} from "./utopia-setup.js";
+} from "./setup.js";
 
 const settingUp = new Map<string, Promise<string>>();
 const upgrading = new Map<string, Promise<void>>();

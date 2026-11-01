@@ -5,10 +5,13 @@ import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/tracker-summary.js";
 import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
-import { saveUtopiaTrackerSince } from "../../../outbound/utopia-sources.js";
+import { saveUtopiaTrackerSince } from "../../../outbound/utopia/sources.js";
 import { lazyKindDocumentDeps } from "../kind-source.js";
 import { storedCursor, type WalkSource } from "../walk-source.js";
-import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
+import {
+  queuedPerRepo,
+  walkInOrder,
+} from "@re-cinq/lore-shared/utopia/cursor-walk.js";
 
 export interface TrackerDeps {
   repo: string;

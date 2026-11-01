@@ -1,8 +1,8 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { UtopiaReleasesSummarySchema } from "@re-cinq/lore-shared/utopia/releases-summary.js";
-import { mirrorReleases } from "../../../work/utopia/github/utopia-releases.js";
-import { utopiaWalkRoute } from "./utopia-walk-route.js";
+import { mirrorReleases } from "../../../../work/utopia/github/utopia-releases.js";
+import { utopiaWalkRoute } from "./walk-route.js";
 
 /** POST /api/repos/{owner}/{repo}/utopia/releases — the repo's tags and published releases, mirrored into its Utopia knowledge base (specs/utopia-graph-mirror FR15). */
 export function utopiaReleasesRoute(getPool: () => Pool | null): ServerRoute {

@@ -8,8 +8,11 @@ import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-text.js"
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaCommitsSummary } from "@re-cinq/lore-shared/utopia/commits-summary.js";
 import { mirrorCommit } from "@re-cinq/lore-shared/utopia/mirror-commits.js";
-import { saveUtopiaCommitsHead } from "../../../outbound/utopia-sources.js";
-import { queuedPerRepo, walkInOrder } from "../cursor-walk.js";
+import { saveUtopiaCommitsHead } from "../../../outbound/utopia/sources.js";
+import {
+  queuedPerRepo,
+  walkInOrder,
+} from "@re-cinq/lore-shared/utopia/cursor-walk.js";
 import { lazyKindDocumentDeps } from "../kind-source.js";
 import { storedCursor, type WalkSource } from "../walk-source.js";
 

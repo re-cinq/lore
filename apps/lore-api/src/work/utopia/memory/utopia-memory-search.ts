@@ -18,8 +18,8 @@ import {
 import {
   memorySourceFor,
   type StoredMemorySource,
-} from "../../../outbound/utopia-memory-sources.js";
-import { kindSourceFor } from "../../../outbound/utopia-kind-sources.js";
+} from "../../../outbound/utopia/memory-sources.js";
+import { kindSourceFor } from "../../../outbound/utopia/kind-sources.js";
 import { orgMemoryBase } from "./utopia-memory-base.js";
 
 export interface UtopiaMemoryQuery {

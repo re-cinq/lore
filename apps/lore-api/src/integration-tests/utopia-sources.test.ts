@@ -8,7 +8,7 @@ import {
   saveUtopiaMirrorSettings,
   saveUtopiaTrackerSince,
   utopiaBaseFor,
-} from "../outbound/utopia-sources.js";
+} from "../outbound/utopia/sources.js";
 
 const cleanUp = async (pool: pg.Pool) => {
   await pool.query(

@@ -8,15 +8,15 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { UtopiaBackfillSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
-import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope } from "../../http/bearer-scope.js";
-import { withPool } from "../with-pool.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { withPool } from "../../with-pool.js";
 import {
   backfillDepsFor,
   backfillRepo,
   type BackfillDeps,
-} from "../../../work/utopia/utopia-backfill.js";
-import { enforceRepoHeld, enforceUtopiaConfigured } from "./utopia-setup.js";
+} from "../../../../work/utopia/utopia-backfill.js";
+import { enforceRepoHeld, enforceUtopiaConfigured } from "./setup.js";
 
 /** POST /api/repos/{owner}/{repo}/utopia/backfill — every spec and ADR on the repo's default branch, mirrored into its Utopia knowledge base (specs/utopia-graph-mirror). */
 export function utopiaBackfillRoute(getPool: () => Pool | null): ServerRoute {

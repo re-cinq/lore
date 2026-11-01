@@ -1,11 +1,11 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope } from "../../http/bearer-scope.js";
-import { withPool } from "../with-pool.js";
-import { clearUtopiaCursors } from "../../../outbound/utopia-sources.js";
-import { enforceRepoHeld, enforceUtopiaConfigured } from "./utopia-setup.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { withPool } from "../../with-pool.js";
+import { clearUtopiaCursors } from "../../../../outbound/utopia/sources.js";
+import { enforceRepoHeld, enforceUtopiaConfigured } from "./setup.js";
 
 const UtopiaResetSummarySchema = z.object({
   /** The walk cursors dropped from `settings.utopia`. */
