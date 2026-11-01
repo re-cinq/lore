@@ -140,4 +140,26 @@ describe("an explicit repo is validated before any API path is built from it", (
       called: 0,
     });
   });
+
+  it("hands the read the repo re-cinq/lore the call names", async () => {
+    const result = await withRepo(
+      { repo: "re-cinq/lore", spec: "a.md" },
+      "agent",
+      async (a) => a,
+    );
+
+    expect(result).toEqual({ repo: "re-cinq/lore", spec: "a.md" });
+  });
+
+  it("answers that the gateway needs the repo named when an agent call omits it", async () => {
+    const read = vi.fn();
+    const result = (await withRepo({}, "agent", async (a) => read(a))) as {
+      content: { text: string }[];
+    };
+
+    expect({
+      text: result.content[0].text,
+      called: read.mock.calls.length,
+    }).toEqual({ text: NO_REPO_GIVEN, called: 0 });
+  });
 });

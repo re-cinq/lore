@@ -1,15 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerMemoryTools } from "./tools/memory/memory-tools.js";
-import { registerPlanTools } from "./tools/plan/plan-tools.js";
-import { registerContextTools } from "./tools/context/context-tools.js";
-import { registerPipelineTools } from "./tools/pipeline/pipeline-tools.js";
-import { registerRepoTools } from "./tools/repo/repo-tools.js";
-import { registerUsageTools } from "./tools/usage/usage-tools.js";
-import { registerSpecTraceTools } from "./tools/spec-trace/spec-trace-tools.js";
-import { registerLocalRunnerTools } from "./tools/local-runner/local-runner-tools.local.js";
-import { registerSpecTraceLocalTools } from "./tools/spec-trace/spec-trace-tools.local.js";
-import { registerUpdateTools } from "./tools/update/update-tools.js";
-import { registerCiTools } from "./tools/ci/ci-tools.js";
+import { registerMemoryTools } from "./tools/memory/index.js";
+import { registerPlanTools } from "./tools/plan/index.js";
+import { registerContextTools } from "./tools/context/index.js";
+import { registerPipelineTools } from "./tools/pipeline/index.js";
+import { registerRepoTools } from "./tools/repo/index.js";
+import { registerUsageTools } from "./tools/usage/index.js";
+import { registerSpecTraceTools } from "./tools/spec-trace/index.js";
+import { registerLocalRunnerTools } from "./tools/local-runner/index.local.js";
+import { registerSpecTraceLocalTools } from "./tools/spec-trace/index.local.js";
+import { registerUpdateTools } from "./tools/update/index.js";
+import { registerCiTools } from "./tools/ci/index.js";
 import type { ServerMode } from "./tools/shared/repo-scope.js";
 
 // Conventions that hold for every lore_ tool, stated once here instead of in each tool description to keep the always-loaded tool schema small.

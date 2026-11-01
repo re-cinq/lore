@@ -1,4 +1,8 @@
-import { ASSEMBLY_PROXY_LIMITS, proxyMemory, withReadCache } from "../../shared/deps.js";
+import {
+  ASSEMBLY_PROXY_LIMITS,
+  proxyMemory,
+  withReadCache,
+} from "../../shared/deps.js";
 import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
 /** What the memory tools resolve to. `textResult` returns a one-element tuple and the proxy interpreter returns an array; naming the wider shape lets both flow out of one function. */
