@@ -22,7 +22,7 @@ pending cache.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L74)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/skip-task.ts)).
 
 - **name**: `lore_skip_task`
 - **description** (verbatim):
@@ -61,7 +61,7 @@ message. Never throws.
 ## Acceptance Criteria
 
 Skipping a task removes only the entry matching the given id from the pending
-list, leaving the others. ([validated by `runner.local.test.ts:148`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L152))
+list, leaving the others. ([validated by `runner.local.test.ts:148`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L152), [validated by removes task t1 from the pending cache and keeps t2](apps/mcp-server/src/transport/tools/pipeline/skip-task.test.ts#L22), [validated by returns the error text when the ~/.lore directory is missing](apps/mcp-server/src/transport/tools/pipeline/skip-task.test.ts#L37))
 
 The dynamic import and the success/error message framing run only inside the
 tool handler. *(untested: `skipTask` reads/writes a `~/.lore/pending-tasks.json`

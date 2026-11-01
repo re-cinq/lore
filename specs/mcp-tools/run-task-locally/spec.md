@@ -23,7 +23,7 @@ and PID — the session continues while the task runs and eventually opens a PR.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.ts)).
 
 - **name**: `lore_run_task_locally`
 - **description** (verbatim):
@@ -87,7 +87,7 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L201))
+([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L201), [validated by refuses outside a git checkout with a GitHub remote](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L45))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
 ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
@@ -96,7 +96,7 @@ The repo-mismatch error names both repos and suggests a `cd`.
 ([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L213))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224))
+([validated by passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224), [validated by warns when the description names acme/gadget but the checkout is acme/widget](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L55), [validated by starts a run on a lore/local branch in a worktree when the description names the checkout's own repo](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L67), [validated by starts a run when the description names no repo at all](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L85), [validated by reports the error when ~/.lore/worktrees is a file, not a directory](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L98))
 
 The `<slug>` segment normalizes the description: lowercased, every run of
 non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,

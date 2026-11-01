@@ -13,7 +13,7 @@ The `lore-query-trace` MCP tool proxies a read to the remote `/trace/document` r
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L107)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
 
 - **name**: `lore-query-trace`
 - **description** (verbatim):
@@ -54,9 +54,9 @@ resolves the repo, issues one GET via the proxy, and formats the result
 the projection itself is a pure function
 ([`formatTraceQuery`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L10));
 the GET proxy reuses the shared retry/config machinery
-([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/deps.ts#L18)); the tool is
+([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/shared/deps.ts#L18)); the tool is
 registered read-only on the shared surface
-([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace-tools.ts#L107)).
+([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
 
 ## Acceptance Criteria
 
@@ -78,7 +78,7 @@ instead; and a selector matching nothing returns a no-match message.
 
 The tool proxies a GET to the repo's `trace/document` route and formats the
 returned document.
-([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L210))
+([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L210), [validated by reads the document of spec specs/auth/spec.md through the read cache path](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L23))
 
 The tool resolves the repo from `detectCurrentRepo` when `repo` is omitted, and
 reports clearly when none can be detected.
@@ -90,7 +90,7 @@ response rather than throwing.
 
 A `403 insufficient scope` from the remote surfaces a read-scope hint; a
 non-403 unreachable error omits it.
-([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268))
+([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268), [validated by asks for the tests covering src/auth/token.ts live](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L34))
 
 ## The `tests_covering` shape
 
@@ -128,7 +128,7 @@ agent cannot tell a blank reply from a broken one. ([validated by renders a no-t
 The branch and ranges reach the proxied URL url-encoded. ([validated by passes branch and ranges through to the proxied url, url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L341))
 
 An unreachable API is reported as prose rather than thrown, like every other
-shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for tests_covering](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366))
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for tests_covering](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366), [validated by answers the callers of runQueryTrace with the API's body](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L60))
 
 ## The `failures_touching` shape
 
@@ -165,7 +165,7 @@ An empty answer renders as a sentence saying so. ([validated by renders a no-rec
 Only the first line of a failure's detail is shown, capped — the point is
 recognition, and the whole log lives in the run's pod logs. ([validated by truncates a detail longer than 120 characters to one capped line](libs/server-core/src/work/spec-trace/query-trace.test.ts#L433))
 
-The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441))
+The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441), [validated by asks for the failures touching src/auth/token.ts live](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L47), [validated by refuses a call with no repo in the agent gateway](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L72))
 
 An unreachable API is reported as prose rather than thrown, like every other
 shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for failures_touching](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))

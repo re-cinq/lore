@@ -3,6 +3,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
+import { NO_FLOOR_DETAIL } from "@re-cinq/lore-shared/project/agents/agent-defs-no-floor.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
@@ -26,10 +27,6 @@ const OrgAgentWrittenSchema = z.object({
 const IMAGE_ORG_DETAIL =
   "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
   "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
-
-const NO_FLOOR_DETAIL =
-  "Agent definitions live on the floor, and this deployment has none: " +
-  "set FLOOR_API_URL and FLOOR_SERVICE_TOKEN to edit them.";
 
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,

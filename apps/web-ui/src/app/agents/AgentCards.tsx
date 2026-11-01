@@ -1,7 +1,11 @@
 import { Fragment, type ReactNode } from "react";
 import { modelVendor } from "@/lib/model-vendor";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import type { AgentUsage, DefinitionActivity } from "@/lib/agents-api";
+import type {
+  AgentPresence,
+  AgentUsage,
+  DefinitionActivity,
+} from "@/lib/agents-api";
 import { SettingsCard } from "@/components/SettingsCard";
 import EditLink from "@/components/EditLink";
 import { ScopePill } from "../repos/[owner]/[repo]/agents/AgentList";
@@ -13,12 +17,14 @@ import {
   type LineGroup,
 } from "./group-by-line";
 import { activityLine } from "./activity-line";
+import PresenceDot from "./PresenceDot";
 import styles from "./page.module.css";
 
 /** What the cards read beside the definitions; each part is null when its endpoint could not answer. */
 export interface Catalog {
   usage: AgentUsage | null;
   activity: Partial<Record<string, DefinitionActivity>> | null;
+  presence: Partial<Record<string, AgentPresence>> | null;
 }
 
 interface AgentCardsProps {
@@ -65,20 +71,33 @@ function AgentCard({
   title,
   catalog,
 }: AgentCardProps & { title: string }) {
-  const editHref = `/agents/edit/${encodeURIComponent(agent.name)}`;
-
   return (
     <div className={styles.agentCard} data-vendor={modelVendor(agent.model)}>
       <SettingsCard
         id={`agent-${agent.name}`}
-        title={title}
+        title={<CardTitle title={title} {...{ agent, catalog }} />}
         description={rowCells(agent, catalog.usage).use.text}
         headingLevel={3}
       >
         <AgentFacts agent={agent} catalog={catalog} />
-        <EditAction href={editHref} />
+        <EditAction href={`/agents/edit/${encodeURIComponent(agent.name)}`} />
       </SettingsCard>
     </div>
+  );
+}
+
+function CardTitle({
+  title,
+  agent,
+  catalog,
+}: AgentCardProps & { title: string }) {
+  const presence = catalog.presence?.[agent.name];
+
+  return (
+    <>
+      {title}
+      {presence && <PresenceDot presence={presence} />}
+    </>
   );
 }
 

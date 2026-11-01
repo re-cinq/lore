@@ -21,7 +21,7 @@ provided fields, and persists.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L241)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/configure-local-runner.local.ts)).
 
 - **name**: `lore_configure_local_runner`
 - **description** (verbatim):
@@ -72,7 +72,7 @@ A single MCP text content block: the pretty-printed current config (view mode),
 ## Acceptance Criteria
 
 `readConfig` returns a config with the expected shape (all five fields, correct
-types). ([validated by `runner.local.test.ts:74`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L77))
+types). ([validated by `runner.local.test.ts:74`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L77), [validated by returns the stored config unchanged when called with no arguments](apps/mcp-server/src/transport/tools/local-runner/configure-local-runner.local.test.ts#L35), [validated by writes every given field over the stored config](apps/mcp-server/src/transport/tools/local-runner/configure-local-runner.local.test.ts#L43), [validated by keeps the other fields when only max_concurrent 3 is given](apps/mcp-server/src/transport/tools/local-runner/configure-local-runner.local.test.ts#L69), [validated by reports the error when the config path cannot be written](apps/mcp-server/src/transport/tools/local-runner/configure-local-runner.local.test.ts#L80))
 
 The default config carries sensible values (`max_concurrent` 2, includes
 `implementation`/`general`, model `claude-sonnet-4-6`).

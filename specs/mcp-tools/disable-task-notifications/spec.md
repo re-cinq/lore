@@ -3,7 +3,7 @@
 | Field   | Value                                          |
 |---------|------------------------------------------------|
 | Feature | lore_disable_task_notifications MCP Tool            |
-| Status  | Draft                                          |
+| Status  | In Progress                                    |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
 | Tool    | `lore_disable_task_notifications`                   |
@@ -20,7 +20,7 @@ tears down the interval and removes the pending cache file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L116)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.ts)).
 
 - **name**: `lore_disable_task_notifications`
 - **description** (verbatim):
@@ -40,7 +40,6 @@ This tool takes no parameters.
    1. If the module-level interval handle is set, `clearInterval` it and null the handle.
    2. Best-effort `fs.unlinkSync(~/.lore/pending-tasks.json)`; a missing file is swallowed.
 2. Return `"Task notifications stopped."`.
-3. Any thrown error → `"Error: {message}"`.
 
 ## Output
 
@@ -55,11 +54,9 @@ returns the success message.)
 
 ## Acceptance Criteria
 
-The handler clears the polling interval and removes the pending cache file.
-*(untested: `stopNotifier` mutates the module-level `setInterval` handle and
-unlinks a `~/.lore` path captured at module load; verifying it would require
-first starting a real polling timer and mutating the developer's home dir — no
-unit seam.)*
+The handler clears the polling interval and removes the pending cache file. ([validated by stops a running notifier and removes its pending cache](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L23))
+
+Calling it when no notifier is running still answers that notifications stopped. ([validated by answers stopped when no notifier is running](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L43))
 
 ## Out of Scope
 

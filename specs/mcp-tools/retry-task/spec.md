@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_retry_task`                   |
-| Module  | pipeline (`pipeline-tools.ts`) |
+| Module  | pipeline (`pipeline/retry-task.ts`) |
 | Scope   | shared                         |
 
 `lore_retry_task` clones a failed or escalated task into a fresh pipeline task linked via retry_of, refusing to re-run tasks that did not fail.
@@ -21,7 +21,7 @@ hand is error-prone. Retrying must be refused for tasks that did not fail
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-listing.ts#L72)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/retry-task.ts)).
 
 - **name**: `lore_retry_task`
 - **description** (verbatim):
@@ -98,10 +98,10 @@ A task id with no matching row is rejected with `Task not found`.
 ([validated by `throws task not found when no row matches the task to retry`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L182))
 
 The retry action is posted to `/api/task` and the new task is returned
-verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L331))
+verbatim. ([validated by posts the retry action for t1 and returns the new task t2](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L24))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L371))
+message. ([validated by reports a missing API configuration without fetching](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L39))
 
 ## Out of Scope
 

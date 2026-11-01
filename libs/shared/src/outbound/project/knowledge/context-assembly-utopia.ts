@@ -10,9 +10,12 @@ import {
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
-import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
-import { codeQueryOf, queryTerms } from "./context-assembly-query-terms.js";
+import {
+  areaCount,
+  codeQueryOf,
+  queryTerms,
+} from "./context-assembly-query-terms.js";
 import { widenedChunks } from "./context-assembly-utopia-sections.js";
 import {
   memorySectionReader,
@@ -41,13 +44,16 @@ export interface UtopiaArm extends UtopiaMirror {
 
 const PAGE_SIZE = 50;
 
-/** What each section Utopia answers keeps: Lore's content types (`classifyFile`) and Lore's item limit. */
+/** What each section Utopia answers keeps: Lore's content types (`classifyFile`), and fewer documents than Lore's limits, since an eval answer used Utopia's 4th and 5th spec 3 times in 65 and its 3rd ADR or later never (2026-11-01, 40 questions). */
 const SECTIONS: Partial<
   Record<string, { types: ReadonlySet<string>; limit: number }>
 > = {
-  repo: { types: new Set(["spec", "doc"]), limit: ITEM_LIMITS.repo },
-  adrs: { types: new Set(["adr"]), limit: ITEM_LIMITS.adrs },
+  repo: { types: new Set(["spec", "doc"]), limit: 3 },
+  adrs: { types: new Set(["adr"]), limit: 2 },
 };
+
+/** A document is kept only while its best hit scores at least this share of the search's best document hit: of 36 eval questions, documents at or above it were used by the answer 74% of the time and those under it 15%, and every question's own document stood above it (2026-11-01). */
+const RELEVANCE_FLOOR = 0.75;
 
 /** The arm when both halves are there, else null: the caller then answers with no sections. */
 export function utopiaArmOf(
@@ -64,7 +70,10 @@ export function utopiaSectionReader(
   query: string,
 ): SectionReader {
   const terms = queryTerms(query);
-  const docs = docsSectionReader(arm, query, codeQueryOf(terms));
+  const docs = docsSectionReader(arm, query, {
+    codeQuery: codeQueryOf(terms),
+    areas: areaCount(terms),
+  });
   const memorySection = memorySectionReader(arm.memories, query, terms);
 
   return (section) => memorySection(section.source) ?? docs(section);
@@ -74,14 +83,14 @@ export function utopiaSectionReader(
 function docsSectionReader(
   arm: UtopiaArm,
   query: string,
-  codeQuery: string | null,
+  { codeQuery, areas }: { codeQuery: string | null; areas: number },
 ): SectionReader {
   const page = searchPages(arm, query);
   const codePage = codeQuery ? searchPages(arm, codeQuery) : page;
   const stored = storedDocuments(arm);
 
   return async ({ source }) => {
-    const read = hitsReader(arm, source, stored);
+    const read = hitsReader(arm, { source, areas }, stored);
 
     if (!read) {
       return { sources: [], status: "disabled" };
@@ -97,23 +106,29 @@ function docsSectionReader(
 
 function hitsReader(
   arm: UtopiaArm,
-  source: string,
+  { source, areas }: { source: string; areas: number },
   stored: (path: string) => Promise<StoredDocument | null>,
 ): HitsReader | null {
   const docs = SECTIONS[source];
+  const limit = docs ? scopedLimit(docs.limit, areas) : 0;
 
   return docs
     ? {
         itemsOf: (hits) =>
           widenedDocuments(
             hits,
-            { docsSourceId: arm.docsSourceId, ...docs },
+            { docsSourceId: arm.docsSourceId, types: docs.types, limit },
             stored,
           ),
-        limit: docs.limit,
+        limit,
         eager: false,
       }
     : coverageReader(arm, source);
+}
+
+/** A ticket naming several places gets room for each: one more document per place past the first, up to twice the section's limit. */
+function scopedLimit(limit: number, areas: number): number {
+  return limit + Math.min(limit, Math.max(0, areas - 1));
 }
 
 function coverageReader(arm: UtopiaArm, source: string): HitsReader | null {
@@ -216,11 +231,13 @@ async function widenedDocuments(
   stored: (path: string) => Promise<StoredDocument | null>,
 ): Promise<SourceItem[]> {
   const documents = await Promise.all(
-    documentHits(hits, filter).map(async (document) => {
-      const whole = await stored(document.path);
+    documentHits(relevantHits(hits, filter.docsSourceId), filter).map(
+      async (document) => {
+        const whole = await stored(document.path);
 
-      return whole ? widened(document, whole.content) : document;
-    }),
+        return whole ? widened(document, whole.content) : document;
+      },
+    ),
   );
 
   return normalizeScores(documents.map(toItem));
@@ -250,6 +267,23 @@ function documentHits(
   }
 
   return [...byPath.values()].slice(0, filter.limit);
+}
+
+/** The hits a context section reads: those within RELEVANCE_FLOOR of the best document hit; a search answers every hit. */
+function relevantHits(hits: SearchHit[], docsSourceId: string): SearchHit[] {
+  const floor = RELEVANCE_FLOOR * bestDocumentScore(hits, docsSourceId);
+
+  return hits.filter((hit) => hit.score >= floor);
+}
+
+/** The best score of any document hit of the docs source, whatever its content type, so a section of weak ADRs is not judged against its own best. */
+function bestDocumentScore(hits: SearchHit[], docsSourceId: string): number {
+  return Math.max(
+    0,
+    ...hits
+      .filter((hit) => docPathIn(hit, docsSourceId) !== null)
+      .map((hit) => hit.score),
+  );
 }
 
 function addHit(

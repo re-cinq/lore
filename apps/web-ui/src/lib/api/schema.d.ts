@@ -55,6 +55,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-definitions/presence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/agent-definitions/presence */
+    get: operations["get_api_agent-definitions_presence"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-definitions/usage": {
     parameters: {
       query?: never;
@@ -2771,6 +2788,20 @@ export interface components {
       /** @constant */
       ok: true;
       deleted: string;
+    };
+    AgentDefinitionPresence: {
+      presence: {
+        [key: string]: {
+          /** @enum {string} */
+          state: "all" | "some" | "none";
+          latest: string;
+          clusters: {
+            id: string;
+            hash: string | null;
+            current: boolean;
+          }[];
+        };
+      };
     };
     AgentDefinitionRead:
       | {
@@ -6074,6 +6105,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentDefinitionActivity"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions_presence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Per agent definition: all, some or none of the clusters hold its latest version, as the floor reads it from each cluster */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionPresence"];
         };
       };
       401: components["responses"]["Unauthorized"];

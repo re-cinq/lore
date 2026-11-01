@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_task_logs`                |
-| Module  | pipeline (`pipeline-tools.ts`) |
+| Module  | pipeline (`pipeline/get-task-logs.ts`) |
 | Scope   | shared                         |
 
 `lore_get_task_logs` fetches a pipeline task's execution transcript by id — NDJSON turn envelopes when the task has recorded agent turns, the raw captured output otherwise — supporting incremental polling from a UTF-16 code-unit offset and reporting whether the task has finished so a poller knows when to stop.
@@ -21,7 +21,7 @@ say whether the task has finished so a poller can stop.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L76)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.ts)).
 
 - **name**: `lore_get_task_logs`
 - **description** (verbatim):
@@ -77,7 +77,7 @@ or `"Error: {message}"`. **Never throws.**
 ## Acceptance Criteria
 
 The registered tool description is byte-identical to this spec's verbatim description block, so the two cannot drift apart silently.
-([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L499))
+([validated by carries the verbatim description block of specs/mcp-tools/get-task-logs/spec.md](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L131), [validated by passes cursor c9 back with offset 5](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L57), [validated by serves a complete transcript from the cache on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L98), [validated by fetches an incomplete transcript again on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L110), [validated by fetches a transcript with no JSON body again on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L122))
 
 The content after `offset` is returned with the new `next_offset` and a
 `complete` flag derived from task status.
@@ -92,15 +92,13 @@ An unknown task id returns a `Task not found` message.
 In stdio mode (no DB), the tool requires `LORE_API_URL`/`LORE_INGEST_TOKEN`,
 proxies to `GET /api/task-logs` and returns the proxied body on success, a 401
 is reported as a denied error, and a non-auth failure (e.g. 500) is reported
-as unreachable. ([validated by `lore_get_task_logs reports the require-URL
-message when the env is
-unset`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L398), [`lore_get_task_logs
+as unreachable. ([validated by reports the require-URL message without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L32), [validated by returns the error text when fetch throws](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L90), [`lore_get_task_logs
 returns the proxied body on
-success`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L411), [`lore_get_task_logs
+success`](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L41), [`lore_get_task_logs
 reports a denied error on a
-401`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L431), [`lore_get_task_logs
+401`](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L66), [`lore_get_task_logs
 reports an unreachable error on a non-auth
-failure`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L448))
+failure`](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L78))
 
 ## Out of Scope
 

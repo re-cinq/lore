@@ -21,11 +21,11 @@ tool's spec + this section together are sufficient to recreate the handler.
 
 - **Registration**: `server.tool(name, description, zodInputShape, handler)` —
   the input schema is a raw Zod shape object (not a wrapped `z.object`), keyed by
-  param name, each field `.describe(...)`d. Registered inside the module's
-  `registerXTools(server, deps)` function.
+  param name, each field `.describe(...)`d. One tool per file
+  (`<domain>/<tool>.ts` exports `register<Tool>Tool(server)`); the domain's `index.ts` registers its tools in a fixed order. ([validated by registers the domain's tools in order](apps/mcp-server/src/transport/tools/ci/index.test.ts#L6), [validated by registers lore_search_context before lore_assemble_context](apps/mcp-server/src/transport/tools/context/index.test.ts#L6), [validated by registers lore_write_episode, lore_query_graph and lore_agent_stats in that order](apps/mcp-server/src/transport/tools/graph/index.test.ts#L6), [validated by registers the domain's tools in order](apps/mcp-server/src/transport/tools/local-runner/index.local.test.ts#L6), [validated by registers the five memory tools, then the graph and episode tools, in that order](apps/mcp-server/src/transport/tools/memory/index.test.ts#L6), [validated by registers the eleven pipeline tools in their fixed order](apps/mcp-server/src/transport/tools/pipeline/index.test.ts#L13), [validated by registers lore_plan_read before lore_plan_edit](apps/mcp-server/src/transport/tools/plan/index.test.ts#L5), [validated by registers the domain's tools in order](apps/mcp-server/src/transport/tools/repo/index.test.ts#L6), [validated by registers the domain's tools in order](apps/mcp-server/src/transport/tools/spec-trace/index.local.test.ts#L6), [validated by registers the domain's tools in order](apps/mcp-server/src/transport/tools/spec-trace/index.test.ts#L6), [validated by registers lore_update](apps/mcp-server/src/transport/tools/update/index.test.ts#L6), [validated by registers lore_my_usage before lore_get_analytics](apps/mcp-server/src/transport/tools/usage/index.test.ts#L5))
 - **Return envelope**: every handler returns `{ content: [{ type: "text" as const, text }] }`.
   Handlers **never throw** — they catch and return the error as text. (Several wrap
-  the body in `trackLatency(name, …)`, which records latency to `memory.audit_log`.)
+  the body in `trackLatency(name, …)`, which records latency to `memory.audit_log`.) ([validated by returns the result 42 and records a successful call of lore_test_ok](apps/mcp-server/src/transport/tools/shared/deps.test.ts#L10), [validated by rethrows the error and records a failed call of lore_test_fail](apps/mcp-server/src/transport/tools/shared/deps.test.ts#L19))
 - **DB access**: the pg pool comes from `deps.getPool()` (may be `null` until
   `main()` initializes it — tools null-check it). Availability is gated on
   `isDbAvailable()` / `isMemoryDbAvailable()` or `process.env.LORE_DB_HOST`.
@@ -42,13 +42,13 @@ tool's spec + this section together are sufficient to recreate the handler.
 - **Imports** are ESM with `.js` specifiers; shared symbols import from
   `@re-cinq/lore-shared`.
 
-## Context (`context-tools.ts`)
+## Context (`context/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | `lore_assemble_context` | [spec](assemble-context/spec.md) | Assemble token-budgeted context from all sources for turn 1. | shared |
 | `lore_search_context` | [spec](search-context/spec.md) | Keyword/passage search over ingested `.md` context. | shared |
 
-## Memory (`memory-tools.ts`)
+## Memory (`memory/`, `graph/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | `lore_write_memory` | [spec](write-memory/spec.md) | Store a key/value memory (with versioning). | shared |
@@ -60,7 +60,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 | `lore_query_graph` | [spec](query-graph/spec.md) | Query the live knowledge graph. | shared |
 | `lore_agent_stats` | [spec](agent-stats/spec.md) | Agent health + memory/episode/fact counts. | shared |
 
-## Pipeline (`pipeline-tools.ts`)
+## Pipeline (`pipeline/`, `ci/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | ~~`lore_create_pipeline_task`~~ | [spec](create-pipeline-task/spec.md) | Removed 2026-10-02: the API creates no task from a description. | — |
@@ -79,19 +79,19 @@ tool's spec + this section together are sufficient to recreate the handler.
 | `lore_enable_task_notifications` | [spec](enable-task-notifications/spec.md) | Start the local task notifier. | shared |
 | `lore_disable_task_notifications` | [spec](disable-task-notifications/spec.md) | Stop the local task notifier. | shared |
 
-## Repo (`repo-tools.ts`)
+## Repo (`repo/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | `lore_list_repos` | [spec](list-repos/spec.md) | List onboarded repos + counts. | shared |
 | `lore_onboard_repo` | [spec](onboard-repo/spec.md) | Onboard a repo (opens a PR). | shared |
 | `lore_ingest_files` | [spec](ingest-files/spec.md) | Proxy file ingest to the API. | shared |
 
-## Spec-trace (`spec-trace-tools.ts`)
+## Spec-trace (`spec-trace/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | ~~`lore_ingest_graph`~~ | `spec` | **Removed** — spec-traceability projection is CI-driven (ADR-023); no ingest task. | — |
 
-## Usage (`usage-tools.ts`)
+## Usage (`usage/`)
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | `lore_my_usage` | [spec](my-usage/spec.md) | Per-developer token usage. | shared |

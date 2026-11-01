@@ -1,0 +1,21 @@
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: var(--space-3);
+  border-radius: var(--radius-pill);
+  vertical-align: middle;
+  flex: none;
+}
+
+.all {
+  background: var(--success);
+}
+
+.some {
+  background: var(--warning);
+}
+
+.none {
+  background: var(--danger);
+}

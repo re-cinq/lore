@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_analytics`                |
-| Module  | Usage (`usage-tools.ts`)       |
+| Module  | Usage (`usage/get-analytics.ts`)       |
 | Scope   | shared                         |
 
 `lore_get_analytics` returns an org-wide pipeline pulse for a chosen time window — task throughput, success and failure counts, token spend, and a per-type breakdown — so a team lead can read the aggregates without opening the web UI.
@@ -20,7 +20,7 @@ web UI. `lore_get_analytics` returns those aggregates for one of four fixed peri
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage-tools.ts#L85)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage/get-analytics.ts)).
 
 - **name**: `lore_get_analytics`
 - **description** (verbatim):
@@ -52,13 +52,11 @@ pool of its own (ADR-032). This tool selects the window and renders the answer.
    - `not_configured` → the `notConfiguredError("fetching analytics")` text.
    - `denied` (401/403) → the `deniedError("lore_get_analytics", …)` text.
    - `unreachable` → `Could not fetch analytics from the Lore API: {detail}`.
-4. Any thrown error is caught and returned as
-   `"Error fetching analytics: {message}"`.
 
 ## Output
 
-A single MCP text content block: the pretty-printed JSON analytics object, one of
-the three failure texts, or the `"Error fetching analytics: …"` text. **Never
+A single MCP text content block: the pretty-printed JSON analytics object, or one of
+the three failure texts. **Never
 throws** — every path returns text.
 
 ## Dependencies & side effects
@@ -69,14 +67,14 @@ throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's analytics object as pretty-printed JSON`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L109))
+The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
 
-The requested period is passed through to `/api/analytics`. ([validated by `passes the requested period through to /api/analytics`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L124))
+The requested period is passed through to `/api/analytics`. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration for fetching analytics instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L131))
+PostgreSQL message. ([validated by reports a missing API configuration for fetching analytics](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L42))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the analytics failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L139))
+An unreachable API surfaces the underlying failure detail. ([validated by surfaces why analytics could not be fetched when the API body is not JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L50))
 
 ## Out of Scope
 

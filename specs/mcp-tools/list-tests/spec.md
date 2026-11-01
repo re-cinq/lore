@@ -7,7 +7,7 @@
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
 | Tool    | `lore_list_tests`                                |
-| Module  | Spec-Trace (`spec-trace-tools.ts`)          |
+| Module  | Spec-Trace (`spec-trace/list-tests.local.ts`)          |
 | Scope   | local                                       |
 
 `lore_list_tests` runs the repo's declared test-list command in the caller's trusted local sandbox and returns the runner-native test descriptors that feed the spec-traceability graph.
@@ -24,7 +24,7 @@ machine, CI, or a claude-runner pod — never on the shared GKE server.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.ts)).
 
 - **name**: `lore_list_tests`
 - **description** (verbatim):
@@ -93,13 +93,13 @@ The refusal text names CI / local as the remedy.
 ([validated by `names the remedy of running in CI or locally when refusing`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L28))
 
 The tool returns the CI-or-local refusal without running the list command when
-`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the list command on the cluster`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L65))
+`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the list command on the cluster`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L65), [validated by refuses on the shared server, where LORE_DB_HOST is set](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.test.ts#L51))
 
 A null manifest yields the "no manifest declared" message on a local sandbox.
-([validated by `reports no manifest declared when the manifest is null on a local sandbox`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L82))
+([validated by `reports no manifest declared when the manifest is null on a local sandbox`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L82), [validated by reads the manifest from the working directory when it is not a git checkout](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.test.ts#L30))
 
 A local sandbox with a manifest runs the list command and returns the parsed
-descriptors. ([validated by `runs the list command and returns the descriptors on a local sandbox`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L88))
+descriptors. ([validated by `runs the list command and returns the descriptors on a local sandbox`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L88), [validated by returns the descriptors the manifest's list command prints, in a git checkout](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.test.ts#L17))
 
 `runTestsList` returns parsed descriptors from the list command stdout.
 ([validated by `returns parsed descriptors from the list command stdout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L34))
@@ -108,10 +108,10 @@ descriptors. ([validated by `runs the list command and returns the descriptors o
 ([validated by `rejects when the list command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L51))
 
 `runTestsList` rejects naming the list command when stdout is not JSON.
-([validated by `rejects naming the list command when stdout is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L57))
+([validated by `rejects naming the list command when stdout is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L57), [validated by reports the error when the list command prints no JSON](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.test.ts#L62))
 
 `loadTestCommandManifest` returns the parsed manifest from `.lore/test-commands.yml`.
-([validated by `returns the manifest parsed from .lore/test-commands.yml`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L139))
+([validated by `returns the manifest parsed from .lore/test-commands.yml`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L139), [validated by reports no manifest when the checkout has no .lore/test-commands.yml](apps/mcp-server/src/transport/tools/spec-trace/list-tests.local.test.ts#L41))
 
 `loadTestCommandManifest` returns null when no manifest file exists.
 ([validated by `returns null when no .lore/test-commands.yml exists`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L156))

@@ -21,7 +21,7 @@ specific past version of a memory that has since changed.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory-tools.ts#L84)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/read-memory.ts)).
 
 - **name**: `lore_read_memory`
 - **description** (verbatim):
@@ -76,7 +76,7 @@ proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `readMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/deps.ts#L16)); `readMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/shared/deps.ts#L16)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
@@ -94,11 +94,9 @@ proxied body, the `unreachableError` message, or
 
 5. In local stdio mode (no DB), the tool proxies the read and returns the
    proxied body on success; a 401 is reported as a denied error on the first
-   attempt, without the retriable-status backoff loop. ([validated by `returns
-   the proxied body on a successful
-   read`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L160), [`reports a
+   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful read](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L33), [validated by returns the latest value monday of key deploy-day from the file store](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L69), [validated by returns value friday for version 1](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L81), [validated by returns both values for version all](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L93), [validated by reports key never-written as not found](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L103), [validated by reports a store whose memories.json holds null as a read error](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L112), [`reports a
    denied error on a 401 to a memory read without
-   retrying`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L174))
+   retrying`](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L47))
 
 ## Out of Scope
 
