@@ -160,7 +160,7 @@ const SPEC_THEN_ADR = [
   hit(
     `doc:${ADR}`,
     firstChunk(ADR, "adr", "# ADR-052: Code-to-spec graph mirrored in Utopia"),
-    0.01,
+    0.025,
   ),
 ];
 
@@ -211,21 +211,21 @@ describe("utopiaSectionReader section limits", () => {
       hit(
         `doc:${path}`,
         firstChunk(path, kind, `# ${path}`),
-        0.05 - rank / 100,
+        0.05 - rank / 1000,
       ),
     );
   const specs = ["a", "b", "c", "d", "e"].map(
     (name) => `specs/${name}/spec.md`,
   );
   const adrs = ["1", "2", "3"].map((n) => `adrs/ADR-00${n}-x.md`);
-  const read = (source: "repo" | "adrs") =>
+  const read = (source: "repo" | "adrs", query = "how are ADRs mirrored") =>
     utopiaSectionReader(
       {
         reads: searchOver([...docHits(specs, "spec"), ...docHits(adrs, "adr")]),
         kbId: "kb-1",
         docsSourceId: DOCS,
       },
-      "how are ADRs mirrored",
+      query,
     )({ header: source, source, priority: 1 });
 
   it("keeps specs a, b and c of five ranked spec hits under repo, and ADR-001 and ADR-002 of three under adrs", async () => {
@@ -235,6 +235,36 @@ describe("utopiaSectionReader section limits", () => {
       repo: repo.sources.map((document) => document.source_path),
       adrs: adrSection.sources.map((document) => document.source_path),
     }).toEqual({ repo: specs.slice(0, 3), adrs: adrs.slice(0, 2) });
+  });
+
+  it("keeps no spec under repo when the best ADR hit is 0.05 and the specs score 0.03, under three quarters of it", async () => {
+    const weakSpecs = specs.map((path) =>
+      hit(`doc:${path}`, firstChunk(path, "spec", `# ${path}`), 0.03),
+    );
+    const repo = await utopiaSectionReader(
+      {
+        reads: searchOver([...docHits(adrs, "adr"), ...weakSpecs]),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+      },
+      "how are ADRs mirrored",
+    )({ header: "repo", source: "repo", priority: 1 });
+
+    expect(repo).toEqual({ sources: [], status: "empty" });
+  });
+
+  it("keeps all five specs under repo and all three ADRs under adrs when the ticket names files in three areas", async () => {
+    const ticket =
+      "Change apps/stations/src/work/tick.ts, libs/shared/src/domain/loop.ts and apps/web-ui/src/app/Board.tsx";
+    const [repo, adrSection] = await Promise.all([
+      read("repo", ticket),
+      read("adrs", ticket),
+    ]);
+
+    expect({
+      repo: repo.sources.map((document) => document.source_path),
+      adrs: adrSection.sources.map((document) => document.source_path),
+    }).toEqual({ repo: specs, adrs });
   });
 });
 

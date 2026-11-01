@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  areaCount,
   codeQueryOf,
   mentionsAny,
   queryTerms,
@@ -64,5 +65,25 @@ describe("mentionsAny", () => {
         queryTerms(TICKET),
       ),
     ).toBe(false);
+  });
+});
+
+describe("areaCount", () => {
+  it("counts 2 areas for board.ts and LoopPaused.tsx in loops/board plus specs/loop-pause/spec.md, symbols, routes and ids left out", () => {
+    expect(
+      areaCount(
+        queryTerms(
+          "Edit apps/web-ui/src/app/loops/board/board.ts and apps/web-ui/src/app/loops/board/LoopPaused.tsx (FR5 of specs/loop-pause/spec.md), reuse loopEnabled, #4007, DELETE /api/loops/{key}/pause.",
+        ),
+      ),
+    ).toBe(2);
+  });
+
+  it("counts 0 areas for a ticket of plain prose", () => {
+    expect(areaCount(queryTerms("Make the digest shorter."))).toBe(0);
+  });
+
+  it("counts 2 areas for the bare files tick.ts and Board.tsx", () => {
+    expect(areaCount(["tick.ts", "Board.tsx", "tick.ts"])).toBe(2);
   });
 });
