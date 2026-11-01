@@ -25,20 +25,25 @@ export function cutText(text: string): string {
     : words;
 }
 
-/** Entities once each by name and statements once each, in first-seen order, so a test two links name twice, or two tests one title names, appears once. */
+/** Entities once each by Utopia's name key and statements once each, in first-seen order, so a test two links name twice, or two tests one title names, appears once. */
 export function joinFragments(head: Fragment, parts: Fragment[]): Unnamed {
   const fragments = [head, ...parts];
 
   return {
     e: firstOfEach(
       fragments.flatMap((fragment) => fragment.e),
-      ([name]) => name,
+      ([name]) => nameKey(name),
     ),
     s: firstOfEach(
       fragments.flatMap((fragment) => fragment.s),
       (statement) => JSON.stringify(statement),
     ),
   };
+}
+
+/** Utopia's `name_key`: it answers 422 for a whole item listing two entities with one key, and folds a statement's subject onto the listed entity the same way. */
+function nameKey(name: string): string {
+  return name.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function firstOfEach<T>(values: T[], keyOf: (value: T) => string): T[] {
