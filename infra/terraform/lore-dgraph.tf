@@ -142,6 +142,33 @@ resource "kubectl_manifest" "lore_dgraph_statefulset" {
   depends_on = [kubectl_manifest.lore_dgraph_service]
 }
 
+# ── Disruption budget ──────────────────────────────────────────────
+# Without this, node consolidation can delete the one pod at any time, and its
+# ReadWriteOnce disk can stay attached to the old node while the new pod waits:
+# 4 such deletions in the 30 days to 2026-11-01, two of them about 40 minutes
+# down. The autoscaler won't remove a node this budget protects. A node upgrade
+# still finishes, because GKE honours the budget for an hour and then evicts.
+# A budget rather than the safe-to-evict annotation, which changes the pod
+# template and so restarts Dgraph when applied.
+
+resource "kubectl_manifest" "lore_dgraph_disruption_budget" {
+  yaml_body = yamlencode({
+    apiVersion = "policy/v1"
+    kind       = "PodDisruptionBudget"
+    metadata = {
+      name      = local.dgraph_service_name
+      namespace = local.dgraph_namespace
+      labels    = { app = "lore-dgraph" }
+    }
+    spec = {
+      minAvailable = 1
+      selector     = { matchLabels = { app = "lore-dgraph" } }
+    }
+  })
+
+  depends_on = [kubernetes_namespace.lore_dgraph]
+}
+
 # ── Schema appliers (additive /alter) as a ConfigMap + Job ─────────
 # Both setup-*-schema.sh scripts POST their DQL schema to $DGRAPH_HTTP/alter,
 # which MERGES (additive) — so applying memory then spec-trace yields the union.
