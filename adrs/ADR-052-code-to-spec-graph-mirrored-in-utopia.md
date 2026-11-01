@@ -206,3 +206,5 @@ The `git-history` and `github` sources are created, and the existing ones patche
 
 **2026-10-31 (code links):** each definition, file and test is also pushed with its bare name as a `known_as` name beside the qualified canonical one, because 292,893 pending duplicate pairs (203,628 from the week of 10-26) were bare mentions paired by name vector with their own qualified item instead of resolving by exact name (#4026).
 *(2026-10-31)* A mirrored document carries its status and the date of its newest amendment beside its path, so a hit says whether the text is in force: the 2026-10-27 experiment's wrong answers read a retired decision and a draft as current (cause S, `docs/building-lore/context-store-what-to-add.md`).
+
+**2026-11-01 (identity names):** the `test-coverage` source is created with `names: identity` (Utopia decision 0071). Its names are paths, test titles and statement ids Lore already knows to be unique, so Utopia attaches each to its exact name, keeps no name vector for them and proposes no duplicate pair against them; the 28 live sources had the flag set by hand on 2026-10-23, and a repo set up after this gets it from the setup.

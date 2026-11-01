@@ -1,8 +1,9 @@
 import type { Requester, UtopiaSource } from "./utopia-client.js";
 
-/** What Utopia reads from a source's `config`; `extract: false` keeps its documents searchable but runs no entity extraction over them. */
+/** What Utopia reads from a source's `config`: `extract: false` keeps its documents searchable but runs no entity extraction over them; `names: "identity"` on a statements source says every name it pushes identifies one thing, so Utopia attaches each to its exact name, embeds none and proposes no duplicate pair for them (Utopia decision 0071). */
 export interface SourceConfig {
   extract?: boolean;
+  names?: "identity";
 }
 
 export interface SessionCall {
