@@ -9,7 +9,7 @@ import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
-import { seedFloor } from "./app/seed-floor.js";
+import { seedFloor, updateFloorPrompts } from "./app/seed-floor.js";
 import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
@@ -37,6 +37,10 @@ async function main() {
     await seedShippedSkills(state.pool);
   }
   await seedFloor();
+
+  if (state.pool) {
+    await updateFloorPrompts(state.pool);
+  }
 
   await startHttpServer(getPool);
 }
