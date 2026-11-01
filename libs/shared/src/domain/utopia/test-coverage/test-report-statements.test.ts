@@ -276,3 +276,21 @@ describe("testFileTombstones", () => {
     ]);
   });
 });
+
+describe("testReportItems with titles that differ only by case and whitespace", () => {
+  it("returns one Test entity and both titles for two titles that differ only by case and whitespace", () => {
+    const shared = { file: "src/a.test.ts", startLine: 4, endLine: 9 };
+    const [folded] = build([
+      { ...shared, id: "src/a.test.ts::upper", name: "types OLT-1" },
+      { ...shared, id: "src/a.test.ts::lower", name: "types   olt-1 " },
+    ]);
+
+    expect({
+      tests: folded.e.filter(([, kind]) => kind === "Test"),
+      titles: folded.s.filter((row) => row[2] === "title").map((row) => row[4]),
+    }).toEqual({
+      tests: [["re-cinq/lore:src/a.test.ts::types OLT-1", "Test", true]],
+      titles: ["types OLT-1", "types   olt-1 "],
+    });
+  });
+});

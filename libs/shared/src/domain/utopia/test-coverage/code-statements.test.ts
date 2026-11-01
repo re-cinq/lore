@@ -145,3 +145,24 @@ describe("codeFileTombstones", () => {
     ]);
   });
 });
+
+describe("codeFileItems with symbols that differ only by case", () => {
+  it("returns one CodeDefinition and both symbols for SourceChips and sourceChips", () => {
+    const [folded] = build([
+      { name: "SourceChips", startLine: 3, endLine: 9, calls: [] },
+      { name: "sourceChips", startLine: 11, endLine: 14, calls: [] },
+    ]);
+
+    expect({
+      definitions: folded.e.filter(([, kind]) => kind === "CodeDefinition"),
+      symbols: folded.s
+        .filter((row) => row[2] === "symbol")
+        .map((row) => row[4]),
+    }).toEqual({
+      definitions: [
+        ["re-cinq/lore:src/x/b.ts#SourceChips", "CodeDefinition", true],
+      ],
+      symbols: ["SourceChips", "sourceChips"],
+    });
+  });
+});
