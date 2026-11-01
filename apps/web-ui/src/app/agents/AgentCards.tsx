@@ -77,7 +77,9 @@ function AgentCard({
     <div className={styles.agentCard} data-vendor={modelVendor(agent.model)}>
       <SettingsCard
         id={`agent-${agent.name}`}
-        title={<CardTitle title={title} presence={catalog.presence?.[agent.name]} />}
+        title={
+          <CardTitle title={title} presence={catalog.presence?.[agent.name]} />
+        }
         description={rowCells(agent, catalog.usage).use.text}
         headingLevel={3}
       >
@@ -88,7 +90,13 @@ function AgentCard({
   );
 }
 
-function CardTitle({ title, presence }: { title: string; presence?: AgentPresence }) {
+function CardTitle({
+  title,
+  presence,
+}: {
+  title: string;
+  presence?: AgentPresence;
+}) {
   return (
     <>
       {title}

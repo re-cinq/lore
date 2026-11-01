@@ -61,7 +61,9 @@ describe("GET /api/agent-definitions", () => {
   });
 
   it("answers 503 no_floor, not the shipped md files, when no floor is configured", async () => {
-    const res = await (await server(null)).inject({
+    const res = await (
+      await server(null)
+    ).inject({
       method: "GET",
       url: "/api/agent-definitions",
       headers: AUTH,

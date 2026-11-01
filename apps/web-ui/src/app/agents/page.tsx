@@ -25,7 +25,10 @@ export default async function AgentsPage() {
       <ScreenHeader group="work" title="Agents" lede={LEDE} />
       <section className={styles.definitions}>
         <h2>Agent definitions</h2>
-        <AgentCards agents={definitions} catalog={{ usage, activity, presence }} />
+        <AgentCards
+          agents={definitions}
+          catalog={{ usage, activity, presence }}
+        />
       </section>
     </div>
   );

@@ -38,7 +38,11 @@ export function orgAgentDefinitionsRoute(
     handler: async (_request, h) => {
       const floor = definitions();
 
-      enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
+      enforceTrue(
+        floor,
+        apiError(503, { detail: NO_FLOOR_DETAIL }),
+        "no_floor",
+      );
 
       return h.response({ agents: await new FloorAgentDefs(floor).list("") });
     },

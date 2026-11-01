@@ -44,7 +44,9 @@ export function agentPresenceRoute(
     handler: async (_request, h) => {
       const definitions = floor();
 
-      return h.response({ presence: definitions ? await definitions.presence() : {} });
+      return h.response({
+        presence: definitions ? await definitions.presence() : {},
+      });
     },
   };
 }

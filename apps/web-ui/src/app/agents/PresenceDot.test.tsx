@@ -19,7 +19,10 @@ describe("PresenceDot", () => {
     );
     const dot = getByTestId("presence-dot");
 
-    expect({ state: dot.dataset.state, name: dot.getAttribute("aria-label") }).toEqual({
+    expect({
+      state: dot.dataset.state,
+      name: dot.getAttribute("aria-label"),
+    }).toEqual({
       state: "some",
       name: "Not live everywhere yet. Latest: east. Older version: west",
     });

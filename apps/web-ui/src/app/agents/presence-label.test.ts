@@ -26,7 +26,9 @@ describe("presenceLabel", () => {
           { id: "north", hash: null, current: false },
         ],
       }),
-    ).toBe("Not live everywhere yet. Latest: east. Older version: west. None: north");
+    ).toBe(
+      "Not live everywhere yet. Latest: east. Older version: west. None: north",
+    );
   });
 
   it("returns On no cluster yet when no cluster holds any version", () => {

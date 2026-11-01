@@ -28,7 +28,6 @@ const IMAGE_ORG_DETAIL =
   "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
   "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
 
-
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
   definitions: FloorDefinitions = floorDefinitions,

@@ -14,9 +14,20 @@ export function presenceLabel(presence: AgentPresence): string {
 
   return [
     "Not live everywhere yet",
-    group("Latest", presence.clusters.filter((cluster) => cluster.current)),
-    group("Older version", presence.clusters.filter((cluster) => !cluster.current && cluster.hash !== null)),
-    group("None", presence.clusters.filter((cluster) => cluster.hash === null)),
+    group(
+      "Latest",
+      presence.clusters.filter((cluster) => cluster.current),
+    ),
+    group(
+      "Older version",
+      presence.clusters.filter(
+        (cluster) => !cluster.current && cluster.hash !== null,
+      ),
+    ),
+    group(
+      "None",
+      presence.clusters.filter((cluster) => cluster.hash === null),
+    ),
   ]
     .filter(Boolean)
     .join(". ");
