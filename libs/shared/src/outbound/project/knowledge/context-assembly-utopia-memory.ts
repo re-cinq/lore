@@ -15,10 +15,20 @@ export type UtopiaMemoryRead = (
   limit: number,
 ) => Promise<MemorySearchResult[] | null>;
 
-/** Three of each: an implementer's block was found to carry other tickets' DoD runs under Agent Memory on every ticket measured (2026-10-31), so a section keeps only the hits that name the ticket's files or symbols, and few of them. */
+/** Three of each: an implementer's block was found to carry other tickets' DoD runs under Agent Memory on every ticket measured (2026-10-31), so a section keeps only the hits that name the ticket's files or symbols, and few of them. A ticket that names nothing gets its episodes as they come but no memory: given every memory, an eval answer used 1 of 84 (2026-11-01). */
 const MEMORY_SECTIONS = {
-  memories: { kind: "memory", limit: 3, toItem: toMemoryItem },
-  episodes: { kind: "episode", limit: 3, toItem: toEpisodeItem },
+  memories: {
+    kind: "memory",
+    limit: 3,
+    toItem: toMemoryItem,
+    keepsUnnamed: false,
+  },
+  episodes: {
+    kind: "episode",
+    limit: 3,
+    toItem: toEpisodeItem,
+    keepsUnnamed: true,
+  },
 } as const;
 
 type MemorySectionName = keyof typeof MEMORY_SECTIONS;
@@ -59,13 +69,20 @@ async function answer(
     return { sources: [], status: "disabled" };
   }
   const sources: SourceItem[] = hits
-    .filter((hit) => hit.source === section.kind && aboutTicket(hit, terms))
+    .filter((hit) => hit.source === section.kind && kept(hit, terms, section))
     .slice(0, section.limit)
     .map((hit) => section.toItem(hit, new Set()));
 
   return { sources, status: sources.length > 0 ? "ok" : "empty" };
 }
 
-function aboutTicket(hit: MemorySearchResult, terms: string[]): boolean {
-  return terms.length === 0 || mentionsAny(`${hit.key} ${hit.value}`, terms);
+/** With terms, a hit that names one; without, all of a section that keeps unnamed hits and none of one that does not. */
+function kept(
+  hit: MemorySearchResult,
+  terms: string[],
+  section: MemorySection,
+): boolean {
+  return terms.length === 0
+    ? section.keepsUnnamed
+    : mentionsAny(`${hit.key} ${hit.value}`, terms);
 }

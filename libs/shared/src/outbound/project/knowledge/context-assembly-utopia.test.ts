@@ -205,6 +205,39 @@ describe("utopiaSectionReader", () => {
   });
 });
 
+describe("utopiaSectionReader section limits", () => {
+  const docHits = (paths: string[], kind: "spec" | "adr") =>
+    paths.map((path, rank) =>
+      hit(
+        `doc:${path}`,
+        firstChunk(path, kind, `# ${path}`),
+        0.05 - rank / 100,
+      ),
+    );
+  const specs = ["a", "b", "c", "d", "e"].map(
+    (name) => `specs/${name}/spec.md`,
+  );
+  const adrs = ["1", "2", "3"].map((n) => `adrs/ADR-00${n}-x.md`);
+  const read = (source: "repo" | "adrs") =>
+    utopiaSectionReader(
+      {
+        reads: searchOver([...docHits(specs, "spec"), ...docHits(adrs, "adr")]),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+      },
+      "how are ADRs mirrored",
+    )({ header: source, source, priority: 1 });
+
+  it("keeps specs a, b and c of five ranked spec hits under repo, and ADR-001 and ADR-002 of three under adrs", async () => {
+    const [repo, adrSection] = await Promise.all([read("repo"), read("adrs")]);
+
+    expect({
+      repo: repo.sources.map((document) => document.source_path),
+      adrs: adrSection.sources.map((document) => document.source_path),
+    }).toEqual({ repo: specs.slice(0, 3), adrs: adrs.slice(0, 2) });
+  });
+});
+
 describe("utopiaSectionReader code and coupling", () => {
   const COVERAGE = "c0c0c0c0-5a49";
   const FOOTER = "libs/shared/src/domain/pr-body.ts";
@@ -371,18 +404,18 @@ describe("utopiaSectionReader memories and episodes", () => {
       source,
     }) as Parameters<ReturnType<typeof utopiaSectionReader>>[0];
 
-  it("fills memories with the memory hit and episodes with the episode hit of one search for 'deploy'", async () => {
+  it("fills memories with the deployNote memory hit and episodes with the episode hit of one search for 'deploy with deployNote'", async () => {
     const asked: [string, number][] = [];
     const reader = utopiaSectionReader(
       armWith(async (query, limit) => {
         asked.push([query, limit]);
 
         return [
-          memoryHit("memory", "note", 1),
-          memoryHit("episode", "episode-7", 0.5),
+          memoryHit("memory", "deployNote", 1),
+          memoryHit("episode", "deployNote-7", 0.5),
         ];
       }),
-      "deploy",
+      "deploy with deployNote",
     );
     const [memories, episodes] = await Promise.all([
       reader(section("memories")),
@@ -401,10 +434,18 @@ describe("utopiaSectionReader memories and episodes", () => {
       })),
       statuses: [memories.status, episodes.status],
     }).toEqual({
-      asked: [["deploy", 30]],
-      memories: [{ text: "**note** (memory): note text", source_path: "note" }],
+      asked: [["deploy with deployNote", 30]],
+      memories: [
+        {
+          text: "**deployNote** (memory): deployNote text",
+          source_path: "deployNote",
+        },
+      ],
       episodes: [
-        { text: "**episode-7**: episode-7 text", content_type: "episode" },
+        {
+          text: "**deployNote-7**: deployNote-7 text",
+          content_type: "episode",
+        },
       ],
       statuses: ["ok", "ok"],
     });
@@ -572,14 +613,10 @@ describe("utopiaSectionReader memories filtered to the ticket's names (FR13.9)",
     ]);
   });
 
-  it("keeps the three best memories as they come when the ticket names nothing", async () => {
+  it("keeps no memory when the ticket names no file or symbol", async () => {
     const memories = await read("Make the digest shorter.");
 
-    expect(memories.sources.map(({ source_path }) => source_path)).toEqual([
-      "dod/4012",
-      "board-pill",
-      "dod/3990",
-    ]);
+    expect(memories).toEqual({ sources: [], status: "empty" });
   });
 });
 

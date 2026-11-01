@@ -10,7 +10,6 @@ import {
 } from "../../../domain/utopia/read-shapes.js";
 import type { UtopiaReads } from "../../utopia/utopia-reads.js";
 import type { SourceItem } from "./context-assembly-format.js";
-import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import { codeQueryOf, queryTerms } from "./context-assembly-query-terms.js";
 import { widenedChunks } from "./context-assembly-utopia-sections.js";
@@ -41,12 +40,12 @@ export interface UtopiaArm extends UtopiaMirror {
 
 const PAGE_SIZE = 50;
 
-/** What each section Utopia answers keeps: Lore's content types (`classifyFile`) and Lore's item limit. */
+/** What each section Utopia answers keeps: Lore's content types (`classifyFile`), and fewer documents than Lore's limits, since an eval answer used Utopia's 4th and 5th spec 3 times in 65 and its 3rd ADR or later never (2026-11-01, 40 questions). */
 const SECTIONS: Partial<
   Record<string, { types: ReadonlySet<string>; limit: number }>
 > = {
-  repo: { types: new Set(["spec", "doc"]), limit: ITEM_LIMITS.repo },
-  adrs: { types: new Set(["adr"]), limit: ITEM_LIMITS.adrs },
+  repo: { types: new Set(["spec", "doc"]), limit: 3 },
+  adrs: { types: new Set(["adr"]), limit: 2 },
 };
 
 /** The arm when both halves are there, else null: the caller then answers with no sections. */
