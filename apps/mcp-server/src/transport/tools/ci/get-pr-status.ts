@@ -1,6 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { GET_PR_STATUS_INPUT } from "../pipeline/shared/pipeline-tools-schemas.js";
+import { z } from "zod";
 import { readThroughApi } from "./shared/read-through-api.js";
+
+const GET_PR_STATUS_INPUT = {
+  repo: z.string().describe("'owner/repo'"),
+  pr_number: z
+    .number()
+    .describe("PR number (integer from the PR URL, not a UUID)."),
+};
 
 export function registerGetPrStatusTool(server: McpServer) {
   server.tool(

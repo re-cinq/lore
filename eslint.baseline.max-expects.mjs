@@ -31,7 +31,6 @@ export const MAX_EXPECTS_BASELINE = [
   "apps/lore-api/src/work/repo/repo-onboard.test.ts",
   "apps/lore-api/src/work/run-stream/run-stream-frame.test.ts",
   "apps/lore-api/src/work/spec-trace/ingest.test.ts",
-  "apps/mcp-server/src/transport/tools/repo/repo-tools.test.ts",
   "apps/mcp-server/src/work/pipeline/runner.local.test.ts",
   "apps/mcp-server/src/work/pipeline/tasks-db.test.ts",
   "apps/stations/src/work/escalation-step/escalation-step.test.ts",
