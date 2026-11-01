@@ -77,6 +77,11 @@ function areaOf(term: string): string | null {
   return slash > 0 ? term.slice(0, slash) : last;
 }
 
+/** The file names the terms carry, once each: `board.ts` for `apps/web-ui/.../board.ts` and for `board.ts`. */
+export function fileNamesOf(terms: string[]): string[] {
+  return [...new Set(terms.map(fileNameOf).filter((file) => file !== null))];
+}
+
 /** Whether the text names any of the ticket's files or symbols, case aside; a path counts by its file name, so a memory that says `board.ts` meets a ticket that gives the whole path, and a requirement id counts for nothing, since every DoD run cites one. */
 export function mentionsAny(text: string, terms: string[]): boolean {
   const haystack = text.toLowerCase();

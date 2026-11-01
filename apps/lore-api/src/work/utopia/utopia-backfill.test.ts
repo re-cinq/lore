@@ -262,6 +262,7 @@ describe("backfillRepo", () => {
               body: "",
               author: "a",
               authoredAt: "t",
+              files: [],
             },
           ],
         },

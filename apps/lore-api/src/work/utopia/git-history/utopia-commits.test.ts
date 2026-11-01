@@ -15,6 +15,7 @@ const detail = (sha: string): CommitDetail => ({
   body: "",
   author: "Szabo Bogdan",
   authoredAt: `${sha}-at`,
+  files: [`apps/${sha}.ts`],
 });
 
 const LANDED: MirrorOutcome = {
@@ -62,7 +63,7 @@ function walk(setup: Walk) {
 }
 
 describe("mirrorBranchCommits", () => {
-  it("walks the newest 200 commits of main above the stored cursor c0, mirrors c1 then c2 with their words and parents, advances the cursor after each, and answers from c0 to c2", async () => {
+  it("walks the newest 200 commits of main above the stored cursor c0, mirrors c1 then c2 with their words, parents and changed files, advances the cursor after each, and answers from c0 to c2", async () => {
     const { deps, asked, mirrored, cursors } = walk({
       cursor: "c0",
       history: [detail("c1"), detail("c2")],
@@ -95,6 +96,7 @@ describe("mirrorBranchCommits", () => {
           body: "",
           author: "Szabo Bogdan",
           authoredAt: "c1-at",
+          files: ["apps/c1.ts"],
         },
         {
           sha: "c2",
@@ -103,6 +105,7 @@ describe("mirrorBranchCommits", () => {
           body: "",
           author: "Szabo Bogdan",
           authoredAt: "c2-at",
+          files: ["apps/c2.ts"],
         },
       ],
       cursors: ["c1", "c2"],

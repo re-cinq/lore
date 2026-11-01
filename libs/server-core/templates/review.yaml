@@ -33,6 +33,13 @@ sections:
     priority: 2
     max_tokens: 3000
 
+  # The commits that changed the files the task names, each with its pull
+  # request and issues. Utopia only; the Lore database keeps no commits.
+  - header: "Recent Changes"
+    source: history
+    priority: 2
+    max_tokens: 1500
+
   - header: "Related Entities"
     source: graph
     priority: 3

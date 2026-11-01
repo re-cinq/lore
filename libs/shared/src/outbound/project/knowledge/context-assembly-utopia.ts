@@ -14,8 +14,13 @@ import { mkItem, normalizeScores } from "./context-assembly-items.js";
 import {
   areaCount,
   codeQueryOf,
+  fileNamesOf,
   queryTerms,
 } from "./context-assembly-query-terms.js";
+import {
+  bothPages,
+  historySection,
+} from "./context-assembly-utopia-history.js";
 import { widenedChunks } from "./context-assembly-utopia-sections.js";
 import {
   memorySectionReader,
@@ -33,6 +38,8 @@ export interface UtopiaMirror {
   docsSourceId: string;
   /** The stored `test-coverage` source behind the `code` and `coupling` sections; without it they answer disabled. */
   coverageSourceId?: string;
+  /** The `git-history` source behind the `history` section; without it the section answers disabled. */
+  historySourceId?: string;
 }
 
 /** What the Utopia arm reads with; absent when the deployment has no reader or the repository no mirror. */
@@ -76,7 +83,21 @@ export function utopiaSectionReader(
   });
   const memorySection = memorySectionReader(arm.memories, query, terms);
 
-  return (section) => memorySection(section.source) ?? docs(section);
+  return (section) =>
+    section.source === "history"
+      ? historySection(historySearch(arm), fileNamesOf(terms))
+      : (memorySection(section.source) ?? docs(section));
+}
+
+function historySearch(arm: UtopiaArm) {
+  const sourceId = arm.historySourceId;
+
+  return sourceId
+    ? {
+        sourceId,
+        pages: (query: string) => bothPages(searchPages(arm, query)),
+      }
+    : null;
 }
 
 /** The `code` section searches by the files and symbols the ticket names when it names any (FR13.9): a ticket's prose ranks spec statements, and the `code:` items it needs stand nowhere near its top 100; every other section reads the ticket's own search. */
