@@ -66,6 +66,7 @@ import { tokensRoute } from "./routes/tokens/tokens.js";
 import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
 import { agentDefinitionActivityRoute } from "./routes/agent-definitions/activity.js";
 import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
+import { agentPresenceRoute } from "./routes/agent-definitions/presence.js";
 import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
 import {
   agentsGetRoute,
@@ -284,6 +285,7 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
     agentDefinitionUsageRoute(),
     agentDefinitionActivityRoute(),
     orgAgentDefinitionsRoute(),
+    agentPresenceRoute(),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),

@@ -159,7 +159,7 @@ function ledgerModules() {
   ]);
 }
 
-// Agent definitions port, by environment: the floor is their only store (#3995), so a floor -> FloorAgentDefs, else the API -> AgentDefsHttp, else the shipped files, read-only.
+// Agent definitions port, by environment: the floor is their only store (#3995), so a floor -> FloorAgentDefs, else the API (which reads the floor) -> AgentDefsHttp, else nothing to read: every read is refused.
 async function agentDefsForEnv(env: NodeJS.ProcessEnv): Promise<unknown> {
   if (floorConfigured(env)) {
     return floorAgentDefs(env);
@@ -180,9 +180,9 @@ async function readOnlyAgentDefs(env: NodeJS.ProcessEnv): Promise<unknown> {
 
     return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
   }
-  const { AgentDefsFiles } = await import("../agents/agent-defs-files.js");
+  const { NoFloorAgentDefs } = await import("../agents/agent-defs-no-floor.js");
 
-  return new AgentDefsFiles();
+  return new NoFloorAgentDefs();
 }
 
 /** The org-wide pipeline bundle's adapter, when the caller already built one — else a fresh per-repo instance. */
