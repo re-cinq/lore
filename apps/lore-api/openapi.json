@@ -175,6 +175,44 @@
         "x-required-scope": "read"
       }
     },
+    "/api/agent-definitions/presence": {
+      "get": {
+        "operationId": "get_api_agent-definitions_presence",
+        "summary": "GET /api/agent-definitions/presence",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Per agent definition: all, some or none of the clusters hold its latest version, as the floor reads it from each cluster",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionPresence"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/agent-definitions/usage": {
       "get": {
         "operationId": "get_api_agent-definitions_usage",
@@ -10493,6 +10531,52 @@
           }
         },
         "required": ["ok", "deleted"],
+        "additionalProperties": false
+      },
+      "AgentDefinitionPresence": {
+        "type": "object",
+        "properties": {
+          "presence": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": ["all", "some", "none"]
+                },
+                "latest": {
+                  "type": "string"
+                },
+                "clusters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "hash": {
+                        "type": ["string", "null"]
+                      },
+                      "current": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["id", "hash", "current"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["state", "latest", "clusters"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["presence"],
         "additionalProperties": false
       },
       "AgentDefinitionRead": {

@@ -64,6 +64,22 @@ export async function fetchDefinitionActivity(): Promise<Record<
     : null;
 }
 
+/** Whether every cluster holds an agent definition's latest version, by its name. */
+export type AgentPresence =
+  components["schemas"]["AgentDefinitionPresence"]["presence"][string];
+
+/** Each definition's presence on the clusters, keyed by name; null when the endpoint is unreachable, so unknown never reads as "on no cluster". */
+export async function fetchAgentPresence(): Promise<Record<
+  string,
+  AgentPresence
+> | null> {
+  const body = await getCatalogJson<
+    components["schemas"]["AgentDefinitionPresence"]
+  >("/api/agent-definitions/presence");
+
+  return body ? body.presence : null;
+}
+
 /** A catalog GET that answers null for an unreachable or unhappy endpoint rather than throwing into the render. */
 async function getCatalogJson<T>(path: string): Promise<T | null> {
   const c = await resolveLoreApiConfig();

@@ -1,8 +1,9 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
-import { AgentDefsFiles } from "@re-cinq/lore-shared/project/agents/agent-defs-files.js";
-import type { AgentDefsReadPort } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
+import { NO_FLOOR_DETAIL } from "@re-cinq/lore-shared/project/agents/agent-defs-no-floor.js";
 import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -33,15 +34,13 @@ export function orgAgentDefinitionsRoute(
       description:
         "Every org-default agent definition — the floor's settings, no per-repo variant",
     }),
+    // The floor is the only store of agent definitions (#3995): with no floor there is nothing to list.
     handler: async (_request, h) => {
-      const defs = orgDefinitions(definitions());
+      const floor = definitions();
 
-      return h.response({ agents: await defs.list("") });
+      enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
+
+      return h.response({ agents: await new FloorAgentDefs(floor).list("") });
     },
   };
-}
-
-/** The floor is the only store of agent definitions (#3995); with no floor, the shipped defaults answer, read-only. */
-function orgDefinitions(floor: FloorDefinitionApi | null): AgentDefsReadPort {
-  return floor ? new FloorAgentDefs(floor) : new AgentDefsFiles();
 }

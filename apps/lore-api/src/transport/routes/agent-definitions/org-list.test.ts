@@ -60,11 +60,13 @@ describe("GET /api/agent-definitions", () => {
     ]);
   });
 
-  it("lists the shipped code-review default when no floor is configured", async () => {
-    const agents = await listedAgents(await server(null));
-
-    expect(agents.find((a) => a.name === "code-review")).toMatchObject({
-      project_id: null,
+  it("answers 503 no_floor, not the shipped md files, when no floor is configured", async () => {
+    const res = await (await server(null)).inject({
+      method: "GET",
+      url: "/api/agent-definitions",
+      headers: AUTH,
     });
+
+    expect(res.statusCode).toBe(503);
   });
 });
