@@ -81,13 +81,13 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.024 at 0.75", () => {
+  it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.016 at 0.5", () => {
     const hits = [
       hit(`doc:${SPEC}`, specFirst, 0.032),
       hit(
         `doc:${EVALS_SPEC}`,
         firstChunk(EVALS_SPEC, "spec", "# Context evals"),
-        0.024,
+        0.016,
       ),
     ];
 
@@ -98,25 +98,8 @@ describe("utopiaDocuments", () => {
       })),
     ).toEqual([
       { source_path: SPEC, score: 1 },
-      { source_path: EVALS_SPEC, score: 0.75 },
+      { source_path: EVALS_SPEC, score: 0.5 },
     ]);
-  });
-
-  it("drops the context-evals spec at 0.02 when the best document hit is 0.032, under three quarters of it", () => {
-    const hits = [
-      hit(`doc:${SPEC}`, specFirst, 0.032),
-      hit(
-        `doc:${EVALS_SPEC}`,
-        firstChunk(EVALS_SPEC, "spec", "# Context evals"),
-        0.02,
-      ),
-    ];
-
-    expect(
-      utopiaDocuments(hits, REPO_FILTER).map(
-        (document) => document.source_path,
-      ),
-    ).toEqual([SPEC]);
   });
 
   it("renders README.md's chunk as one doc item whose text starts at the file", () => {
@@ -252,6 +235,22 @@ describe("utopiaSectionReader section limits", () => {
       repo: repo.sources.map((document) => document.source_path),
       adrs: adrSection.sources.map((document) => document.source_path),
     }).toEqual({ repo: specs.slice(0, 3), adrs: adrs.slice(0, 2) });
+  });
+
+  it("keeps no spec under repo when the best ADR hit is 0.05 and the specs score 0.03, under three quarters of it", async () => {
+    const weakSpecs = specs.map((path) =>
+      hit(`doc:${path}`, firstChunk(path, "spec", `# ${path}`), 0.03),
+    );
+    const repo = await utopiaSectionReader(
+      {
+        reads: searchOver([...docHits(adrs, "adr"), ...weakSpecs]),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+      },
+      "how are ADRs mirrored",
+    )({ header: "repo", source: "repo", priority: 1 });
+
+    expect(repo).toEqual({ sources: [], status: "empty" });
   });
 
   it("keeps all five specs under repo and all three ADRs under adrs when the ticket names files in three areas", async () => {

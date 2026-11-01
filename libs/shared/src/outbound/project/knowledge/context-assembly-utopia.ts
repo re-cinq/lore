@@ -231,11 +231,13 @@ async function widenedDocuments(
   stored: (path: string) => Promise<StoredDocument | null>,
 ): Promise<SourceItem[]> {
   const documents = await Promise.all(
-    documentHits(hits, filter).map(async (document) => {
-      const whole = await stored(document.path);
+    documentHits(relevantHits(hits, filter.docsSourceId), filter).map(
+      async (document) => {
+        const whole = await stored(document.path);
 
-      return whole ? widened(document, whole.content) : document;
-    }),
+        return whole ? widened(document, whole.content) : document;
+      },
+    ),
   );
 
   return normalizeScores(documents.map(toItem));
@@ -259,13 +261,19 @@ function documentHits(
   filter: DocumentFilter,
 ): DocumentHits[] {
   const byPath = new Map<string, DocumentHits>();
-  const floor = RELEVANCE_FLOOR * bestDocumentScore(hits, filter.docsSourceId);
 
-  for (const hit of hits.filter((candidate) => candidate.score >= floor)) {
+  for (const hit of hits) {
     addHit(byPath, hit, filter);
   }
 
   return [...byPath.values()].slice(0, filter.limit);
+}
+
+/** The hits a context section reads: those within RELEVANCE_FLOOR of the best document hit; a search answers every hit. */
+function relevantHits(hits: SearchHit[], docsSourceId: string): SearchHit[] {
+  const floor = RELEVANCE_FLOOR * bestDocumentScore(hits, docsSourceId);
+
+  return hits.filter((hit) => hit.score >= floor);
 }
 
 /** The best score of any document hit of the docs source, whatever its content type, so a section of weak ADRs is not judged against its own best. */
