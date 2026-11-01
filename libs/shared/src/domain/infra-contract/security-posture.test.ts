@@ -105,3 +105,24 @@ describe("Workload Identity Federation for GitHub Actions (.github/workflows)", 
     expect(violations).toEqual([]);
   });
 });
+
+describe("Dgraph's one pod survives node consolidation (infra/terraform)", () => {
+  it("declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod", () => {
+    const terraform = read(
+      path.join(repoRoot, "infra/terraform/lore-dgraph.tf"),
+    );
+    const [budget] =
+      /resource "kubectl_manifest" "lore_dgraph_disruption_budget" \{[\s\S]*?\n\}/.exec(
+        terraform,
+      ) ?? [""];
+
+    expect({
+      kind: /kind\s+=\s+"PodDisruptionBudget"/.test(budget),
+      minAvailable: /minAvailable\s+=\s+1\b/.test(budget),
+      selectsDgraph:
+        /selector\s+=\s+\{ matchLabels = \{ app = "lore-dgraph" \} \}/.test(
+          budget,
+        ),
+    }).toEqual({ kind: true, minAvailable: true, selectsDgraph: true });
+  });
+});

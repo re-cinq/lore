@@ -1231,6 +1231,7 @@ share one persistence surface instead of inline SQL. ([validated by `awaitingApp
   `~/.re-cinq/lore` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
   in this mode; convention and ADR lookups continue from local files. ([validated by returns the matching paragraph with its source path](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L45), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L91))
+- Dgraph's one pod MUST NOT be deleted by node scale-down: a PodDisruptionBudget of `minAvailable: 1` protects it, because a restart can leave its disk attached to the old node and every graph read and ingest failing for about 40 minutes. ([validated by declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod](libs/shared/src/domain/infra-contract/security-posture.test.ts#L110))
 
 ## Operational Targets & Constraints (Background)
 
