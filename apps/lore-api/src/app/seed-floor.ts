@@ -8,9 +8,9 @@ import {
   type SeedFailure,
 } from "../work/floor/seed-floor-pipelines.js";
 import {
-  applyPromptUpdates,
-  productionPromptUpdateDeps,
-} from "../work/floor/prompt-updates.js";
+  productionFloorMigrationDeps,
+  runFloorMigrations,
+} from "../work/floor/floor-migrations.js";
 
 export interface FloorSeeding {
   configured(): boolean;
@@ -44,8 +44,8 @@ export async function seedFloor(
   }
 }
 
-/** After seeding, so an agent a migration names already exists on the floor. A failed row stays queued for the next boot. */
-export async function updateFloorPrompts(
+/** After seeding, so an agent a migration names already exists on the floor. A failed migration and the ones after it run again on the next boot. */
+export async function migrateFloor(
   pool: Pool,
   seeding: FloorSeeding = production,
 ): Promise<void> {
@@ -54,16 +54,14 @@ export async function updateFloorPrompts(
   }
 
   try {
-    const { applied, failed } = await applyPromptUpdates(
-      productionPromptUpdateDeps(pool),
+    const { applied, failed } = await runFloorMigrations(
+      productionFloorMigrationDeps(pool),
     );
 
-    seeding.log(
-      `floor prompts updated: ${applied.join(", ") || "none queued"}`,
-    );
-    reportRefusals(seeding, failed);
+    seeding.log(`floor migrations applied: ${applied.join(", ") || "none"}`);
+    reportRefusals(seeding, failed ? [failed] : []);
   } catch (err) {
-    seeding.log("floor prompt update FAILED — the rows stay queued:", err);
+    seeding.log("floor migrations FAILED — they run again next boot:", err);
   }
 }
 
