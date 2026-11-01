@@ -12,7 +12,10 @@ export default defineConfig({
     // Gated on the tool folder only; the rest of the adapter has no gate yet.
     coverage: {
       include: ["src/transport/tools/**/*.ts"],
-      exclude: ["src/transport/tools/**/*.test.ts", "src/transport/tools/**/test-*.ts"],
+      exclude: [
+        "src/transport/tools/**/*.test.ts",
+        "src/transport/tools/**/test-*.ts",
+      ],
       thresholds: { lines: 95, branches: 95, functions: 95, statements: 95 },
     },
   },
