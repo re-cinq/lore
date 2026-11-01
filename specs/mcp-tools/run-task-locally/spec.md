@@ -23,7 +23,7 @@ and PID — the session continues while the task runs and eventually opens a PR.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L7)).
 
 - **name**: `lore_run_task_locally`
 - **description** (verbatim):

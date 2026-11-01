@@ -1,16 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerMemoryTools } from "./tools/memory-tools.js";
-import { registerPlanTools } from "./tools/plan-tools.js";
-import { registerContextTools } from "./tools/context-tools.js";
-import { registerPipelineTools } from "./tools/pipeline-tools.js";
-import { registerRepoTools } from "./tools/repo-tools.js";
-import { registerUsageTools } from "./tools/usage-tools.js";
-import { registerSpecTraceTools } from "./tools/spec-trace-tools.js";
-import { registerLocalRunnerTools } from "./tools/local-runner-tools.local.js";
-import { registerSpecTraceLocalTools } from "./tools/spec-trace-tools.local.js";
-import { registerUpdateTools } from "./tools/update-tools.js";
-import { registerCiTools } from "./tools/ci-tools.js";
-import type { ServerMode } from "./tools/repo-scope.js";
+import { registerMemoryTools } from "./tools/memory/memory-tools.js";
+import { registerPlanTools } from "./tools/plan/plan-tools.js";
+import { registerContextTools } from "./tools/context/context-tools.js";
+import { registerPipelineTools } from "./tools/pipeline/pipeline-tools.js";
+import { registerRepoTools } from "./tools/repo/repo-tools.js";
+import { registerUsageTools } from "./tools/usage/usage-tools.js";
+import { registerSpecTraceTools } from "./tools/spec-trace/spec-trace-tools.js";
+import { registerLocalRunnerTools } from "./tools/local-runner/local-runner-tools.local.js";
+import { registerSpecTraceLocalTools } from "./tools/spec-trace/spec-trace-tools.local.js";
+import { registerUpdateTools } from "./tools/update/update-tools.js";
+import { registerCiTools } from "./tools/ci/ci-tools.js";
+import type { ServerMode } from "./tools/shared/repo-scope.js";
 
 // Conventions that hold for every lore_ tool, stated once here instead of in each tool description to keep the always-loaded tool schema small.
 const SERVER_INSTRUCTIONS = `Lore serves shared org context (conventions, ADRs, memories, facts, knowledge graph) plus a task pipeline to Claude Code. Tool names share the lore_ prefix as a namespace.

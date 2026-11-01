@@ -24,7 +24,7 @@ machine, CI, or a claude-runner pod — never on the shared GKE server.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/spec-trace-tools.local.ts#L7)).
 
 - **name**: `lore_list_tests`
 - **description** (verbatim):

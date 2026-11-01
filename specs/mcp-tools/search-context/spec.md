@@ -23,7 +23,7 @@ any ingest has run.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts#L30)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context/context-tools.ts#L30)).
 
 - **name**: `lore_search_context`
 - **description** (verbatim):
@@ -70,7 +70,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 4. **File fallback** (no pool and no API) — the offline path, and it says so: the
    no-results message names the substring scan and points at `LORE_API_URL`,
    because a bare miss from a local grep is otherwise indistinguishable from a
-   genuine miss against the corpus. ([validated by `says the offline scan is not the corpus when the local files match nothing`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L75))
+   genuine miss against the corpus. ([validated by `says the offline scan is not the corpus when the local files match nothing`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L75))
    1. `searchRoot = team ? {CONTEXT_PATH}/teams/{team} : {CONTEXT_PATH}`
       (`CONTEXT_PATH` env, default `process.cwd()`).
    2. If `searchRoot` does not exist ⇒ return `Error: search path not found at {searchRoot}.`
@@ -96,19 +96,19 @@ strings, or the path-not-found error. Never throws.
 
 ## Acceptance Criteria
 
-A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L47))
+A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L47))
 
-Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L58))
+Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L58))
 
-Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L67))
+Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L67))
 
 When nothing matches, a no-results message is returned.
 
-The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L86))
+The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L86))
 
-A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L93))
+A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L93))
 
-An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L103))
+An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L103))
 
 `hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/outbound/db.test.ts#L29))
 
@@ -122,9 +122,9 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 `hybridSearch` binds the search to a specific repo so results from other repos are excluded. ([validated by](libs/server-core/src/outbound/db-hybrid-defects.test.ts#L68))
 
-*(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional `backend` param (`lore`, `utopia`, `both`) is forwarded to `GET /api/search-context`, and the API's notes are printed after the passages. ([validated by forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages](apps/mcp-server/src/transport/tools/context-tools.test.ts#L297))
+*(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional `backend` param (`lore`, `utopia`, `both`) is forwarded to `GET /api/search-context`, and the API's notes are printed after the passages. ([validated by forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L297))
 
-`utopia` or `both` is answered by the API only: with no API the tool refuses instead of scanning local files, which hold Lore's documents alone. ([validated by refuses backend utopia instead of scanning local files when no API is configured](apps/mcp-server/src/transport/tools/context-tools.test.ts#L353))
+`utopia` or `both` is answered by the API only: with no API the tool refuses instead of scanning local files, which hold Lore's documents alone. ([validated by refuses backend utopia instead of scanning local files when no API is configured](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L353))
 
 `GET /api/search-context` answers `utopia` with no mirror to read with the note `search_context: no Utopia reader yet`, without searching Lore; `both` with Lore's passages and that note; an unknown backend with 400. A Lore search answers as before, with no `notes`. A request naming no backend is answered as `utopia` (2026-10-28). ([validated by answers no passages and a no-reader note when the request names no repo, without searching Lore](apps/lore-api/src/transport/routes/context/search-context.test.ts#L143), [validated by answers the no-reader note for backend=utopia with repo=o/r when the repo has no mirror](apps/lore-api/src/transport/routes/context/search-context.test.ts#L187), [validated by answers Lore's passages plus the no-reader note for backend=both without a repo](apps/lore-api/src/transport/routes/context/search-context.test.ts#L224), [validated by refuses a backend of dgraph with 400](apps/lore-api/src/transport/routes/context/search-context.test.ts#L242))
 
@@ -132,7 +132,7 @@ An unknown team yields a path-not-found error. ([validated by `returns a path-no
 
 *(2026-10-31)* Under `both` with a repo, Lore's passages come first, each carrying `backend: "lore"`, then Utopia's. ([validated by answers Lore's passages first, then Utopia's, each labelled, for backend=both with repo=o/r](apps/lore-api/src/transport/routes/context/search-context.test.ts#L198))
 
-*(2026-10-31)* The tool takes `repo` (required in agent mode, auto-detected from the git remote on a laptop) and forwards it to `GET /api/search-context`; a repo that is not `owner/name` is refused before the API is asked. ([validated by forwards repo=owner/r to GET /api/search-context for the default backend](apps/mcp-server/src/transport/tools/context-tools.test.ts#L323), [validated by refuses repo 'not a repo' before asking the API](apps/mcp-server/src/transport/tools/context-tools.test.ts#L339))
+*(2026-10-31)* The tool takes `repo` (required in agent mode, auto-detected from the git remote on a laptop) and forwards it to `GET /api/search-context`; a repo that is not `owner/name` is refused before the API is asked. ([validated by forwards repo=owner/r to GET /api/search-context for the default backend](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L323), [validated by refuses repo 'not a repo' before asking the API](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L339))
 
 ## Out of Scope
 

@@ -20,7 +20,7 @@ failed, and removes the worktree.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L91)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L91)).
 
 - **name**: `lore_cancel_local_task`
 - **description** (verbatim):

@@ -20,7 +20,7 @@ server.tool(name, description, zodShape, handler)
 
 The `description` is the long, self-disambiguating text an LLM reads to choose the tool; the `zodShape` is the parameter schema (each field carries a `.describe()` used verbatim below); the `handler` returns the result.
 
-**ToolDeps / lazy `getPool`.** Every register function receives a `ToolDeps` object whose only member is `getPool()` — a lazy accessor for the pg pool. The pool is created in `main()` *after* tool registration, so handlers must call `getPool()` at invocation time rather than capturing a snapshot (`apps/mcp-server/src/transport/tools/deps.ts`).
+**ToolDeps / lazy `getPool`.** Every register function receives a `ToolDeps` object whose only member is `getPool()` — a lazy accessor for the pg pool. The pool is created in `main()` *after* tool registration, so handlers must call `getPool()` at invocation time rather than capturing a snapshot (`apps/mcp-server/src/transport/tools/shared/deps.ts`).
 
 **Never-throw text-envelope contract.** No tool throws. Every handler wraps its body and returns `{ content: [{ type: "text", text }] }` — success payloads (usually JSON) and errors alike come back as text. Callers parse the text; they never catch exceptions.
 

@@ -21,7 +21,7 @@ one-line summary per task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L123)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L123)).
 
 - **name**: `lore_list_local_tasks`
 - **description** (verbatim):

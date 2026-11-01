@@ -21,7 +21,7 @@ must fail loudly rather than silently returning everything.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-listing.ts#L22)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-listing.ts#L22)).
 
 - **name**: `lore_list_pipeline_tasks`
 - **description** (verbatim):

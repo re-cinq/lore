@@ -22,7 +22,7 @@ pending file written by the notifier.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L11)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-notifications.ts#L11)).
 
 - **name**: `lore_list_pending_tasks`
 - **description** (verbatim):
@@ -77,14 +77,14 @@ absent). ([validated by `runner.local.test.ts:142`](apps/mcp-server/src/work/pip
 
 The local-fallback path applies the `repo` filter, returns the repo-scoped empty
 message when nothing matches, and lists all repos when no filter is given.
-([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L76), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L86), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L94))
+([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L76), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L86), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L94))
 
 The API path groups tasks by repo, filtered by the `repo` param, and falls
 back to the local file listing when the API responds non-ok. ([validated by
 `groups the API's tasks by repo, filtered by the repo
-param`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L117), [`falls
+param`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L117), [`falls
 back to the local file listing when the API responds
-non-ok`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L146))
+non-ok`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L146))
 
 ## Out of Scope
 

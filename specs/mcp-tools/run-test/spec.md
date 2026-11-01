@@ -24,7 +24,7 @@ shared GKE server.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.local.ts#L23)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/spec-trace-tools.local.ts#L23)).
 
 - **name**: `lore_run_test`
 - **description** (verbatim):

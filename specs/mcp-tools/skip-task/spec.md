@@ -22,7 +22,7 @@ pending cache.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline-tools-notifications.ts#L74)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-notifications.ts#L74)).
 
 - **name**: `lore_skip_task`
 - **description** (verbatim):

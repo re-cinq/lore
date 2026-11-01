@@ -23,7 +23,7 @@ and removes it from the local pending list either way.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L115)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L115)).
 
 - **name**: `lore_claim_and_run_locally`
 - **description** (verbatim):
@@ -102,15 +102,15 @@ credentials are absent, `undefined` on a non-ok response or a non-`pending`
 status, the mapped task fields on success, and `undefined` when the request
 throws. ([validated by `returns undefined without fetching when the API URL or
 token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L11),
+configured`](../../../apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.test.ts#L11),
 [`returns undefined when the API responds
-non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L22),
+non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.test.ts#L22),
 [`returns undefined when the fetched task is not
-pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L32),
+pending`](../../../apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.test.ts#L32),
 [`returns the pending task's fields on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L55),
+success`](../../../apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.test.ts#L55),
 [`returns undefined when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L86))
+throws`](../../../apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.test.ts#L86))
 
 ## Out of Scope
 
