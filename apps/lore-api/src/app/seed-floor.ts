@@ -1,4 +1,5 @@
 // Before the server listens: the floor must hold the pipelines this release ships, so a prompt or setting changed here is what the next run uses. A floor out of reach must not stop the deploy — what it already holds is still what runs.
+import type { Pool } from "pg";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   productionSeedDeps,
@@ -6,6 +7,10 @@ import {
   type SeedDeps,
   type SeedFailure,
 } from "../work/floor/seed-floor-pipelines.js";
+import {
+  productionFloorMigrationDeps,
+  runFloorMigrations,
+} from "../work/floor/floor-migrations.js";
 
 export interface FloorSeeding {
   configured(): boolean;
@@ -36,6 +41,27 @@ export async function seedFloor(
       "floor pipeline put FAILED — the floor keeps what it holds:",
       err,
     );
+  }
+}
+
+/** After seeding, so an agent a migration names already exists on the floor. A failed migration and the ones after it run again on the next boot. */
+export async function migrateFloor(
+  pool: Pool,
+  seeding: FloorSeeding = production,
+): Promise<void> {
+  if (!seeding.configured()) {
+    return;
+  }
+
+  try {
+    const { applied, failed } = await runFloorMigrations(
+      productionFloorMigrationDeps(pool),
+    );
+
+    seeding.log(`floor migrations applied: ${applied.join(", ") || "none"}`);
+    reportRefusals(seeding, failed ? [failed] : []);
+  } catch (err) {
+    seeding.log("floor migrations FAILED — they run again next boot:", err);
   }
 }
 

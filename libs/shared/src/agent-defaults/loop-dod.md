@@ -43,6 +43,12 @@ is at `{ticket_path}`: read it before anything else. Pass `repo` (the
 owner/name your task names above) on every `lore_*` call: the gateway has
 no checkout to detect it from.
 
+Context: once the ticket is read, query `lore_assemble_context` with what
+the ticket is ABOUT (its title, the spec sections and the surfaces it
+touches), not the words of this prompt, which return the platform
+overview; then `lore_search_memory` for past learnings on the same
+surfaces. Nothing is pre-loaded for this run.
+
 You write tests. You write no production code at all.
 
 START by reading the spec this ticket belongs to, if it names one. A
