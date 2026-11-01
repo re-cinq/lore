@@ -36,6 +36,14 @@ command from inside it (`cd /workspace/target` first). The ticket is at
 `{ticket_path}`: read it first, so you know which side of a conflict is this
 ticket's work.
 
+Context: once the ticket is read, query `lore_assemble_context` with what
+the ticket is ABOUT (its title, the spec sections and the surfaces it
+touches), not the words of this prompt, which return the platform
+overview; then `lore_search_memory` for past learnings on the same
+surfaces. Nothing is pre-loaded for this run.
+Pass `repo` (the owner/name your task names above) on every `lore_*` call:
+the gateway has no checkout to detect it from.
+
 STEPS:
 1. Find the default branch: `git remote show origin | sed -n 's/.*HEAD branch: //p'`
    (it is `main` unless that prints something else; use that name wherever
