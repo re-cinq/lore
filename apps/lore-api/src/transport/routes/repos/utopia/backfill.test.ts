@@ -32,14 +32,14 @@ const fakeFiles = {
 };
 let repoSettings: Record<string, unknown> = SETTINGS;
 
-vi.mock("../../../outbound/project-boot.js", () => ({
+vi.mock("../../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     repo: fakeFiles,
     settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
-import { buildServer } from "../../../app/build-server.js";
+import { buildServer } from "../../../../app/build-server.js";
 import {
   makePool,
   useRateLimitSafeClock,

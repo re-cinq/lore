@@ -8,7 +8,7 @@ import {
   type IngestDocument,
   type MirroredMemory,
 } from "@re-cinq/lore-shared/utopia/memory-documents.js";
-import type { MemoryBase } from "./utopia-memory-sources.js";
+import type { MemoryBase } from "./utopia/memory-sources.js";
 
 /** The onboarded repo's name as Lore holds it, or null when Lore holds no such repo. */
 export async function onboardedRepo(

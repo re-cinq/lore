@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { buildServer } from "../../../app/build-server.js";
+import { buildServer } from "../../../../app/build-server.js";
 import {
   makePool,
   useRateLimitSafeClock,

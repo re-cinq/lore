@@ -4,7 +4,7 @@ import pg from "pg";
 import {
   kindSourceFor,
   saveKindSource,
-} from "../outbound/utopia-kind-sources.js";
+} from "../outbound/utopia/kind-sources.js";
 
 describe("lore.utopia_kind_sources", () => {
   let pool: pg.Pool;

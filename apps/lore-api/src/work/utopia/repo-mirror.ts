@@ -23,7 +23,7 @@ import {
   autoSetUpRepo,
   autoSilenceExtraction,
   autoUpgradeOntology,
-} from "./utopia-auto-setup.js";
+} from "./setup/auto-setup.js";
 
 /** The id of the knowledge base a repo's mirrors push to, the repo set up first where the deployment may; null when it has none. */
 export async function repoKnowledgeBase(

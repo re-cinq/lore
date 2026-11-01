@@ -12,14 +12,14 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope } from "../../http/bearer-scope.js";
-import { zodValidate } from "../../http/zod-validate.js";
-import { withPool } from "../with-pool.js";
+import { zodResponse } from "../../../http/zod-response.js";
+import { bearerScope } from "../../../http/bearer-scope.js";
+import { zodValidate } from "../../../http/zod-validate.js";
+import { withPool } from "../../with-pool.js";
 import {
   setUpRepoInUtopia,
   storeUtopiaSetup,
-} from "../../../work/utopia/utopia-setup.js";
+} from "../../../../work/utopia/setup/setup.js";
 
 const UtopiaSetupBody = z.object({
   /** A person's Utopia session JWT; used for this call and never stored. */

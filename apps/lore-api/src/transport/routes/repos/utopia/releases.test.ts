@@ -11,44 +11,39 @@ import {
 import { createServer, type Server } from "node:http";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
-const SETTINGS = {
-  utopia: {
-    kb_id: "kb-1",
-    tracker_since: "2026-10-16T00:00:00Z",
-  },
-};
-let repoSettings: Record<string, unknown> = SETTINGS;
+const SETTINGS = { utopia: { kb_id: "kb-1" } };
 const githubReads: string[] = [];
 
 const fakeFiles = {
-  trackerActivity: async (opts: { since?: string }) => {
-    githubReads.push(`tracker since ${opts.since ?? "the beginning"}`);
+  tags: async () => {
+    githubReads.push("tags");
+
+    return [{ name: "v1.2.0", sha: "abc123" }];
+  },
+  releases: async () => {
+    githubReads.push("releases");
 
     return [
       {
-        kind: "pull",
-        number: 6,
-        title: "Six",
-        body: "Closes #5",
+        tag: "v1.2.0",
+        name: "Lore 1.2",
+        body: "",
         author: "gedaiu",
-        labels: [],
-        openedAt: "2026-10-16T00:30:00Z",
-        closedAt: null,
-        mergedAt: null,
-        updatedAt: "2026-10-16T01:00:00Z",
+        publishedAt: "2026-10-17T09:00:00Z",
       },
     ];
   },
 };
+let repoSettings: Record<string, unknown> = SETTINGS;
 
-vi.mock("../../../outbound/project-boot.js", () => ({
+vi.mock("../../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     repo: fakeFiles,
     settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
-import { buildServer } from "../../../app/build-server.js";
+import { buildServer } from "../../../../app/build-server.js";
 import {
   makePool,
   useRateLimitSafeClock,
@@ -105,14 +100,14 @@ const poolHolding = () => {
   return pool;
 };
 
-const tracker = (pool: unknown) =>
+const releases = (pool: unknown) =>
   buildServer(() => pool as never).inject({
     method: "POST",
-    url: "/api/repos/re-cinq/lore/utopia/tracker",
+    url: "/api/repos/re-cinq/lore/utopia/releases",
     headers: AUTH,
   });
 
-describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
+describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
@@ -128,35 +123,36 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
     };
   });
 
-  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source, moves the cursor to its update time and answers the walk", async () => {
-    const res = await tracker(poolHolding());
+  it("pushes the tag v1.2.0 and its release as text to the github source and answers one of each", async () => {
+    const res = await releases(poolHolding());
 
     expect({
       status: res.statusCode,
       body: res.result,
       pushes,
-      githubReads,
+      githubReads: [...githubReads].sort(),
       cursorWrites: cursorWrites.length,
     }).toEqual({
       status: 200,
       body: {
-        from: "2026-10-16T00:00:00Z",
-        to: "2026-10-16T01:00:00Z",
-        entries: 1,
-        created: 1,
+        tags: 1,
+        releases: 1,
+        created: 2,
         updated: 0,
         unchanged: 0,
         failed: [],
       },
-      pushes: ["POST /api/v1/sources/src-github/ingest Bearer utp_github"],
-      githubReads: ["tracker since 2026-10-16T00:00:00Z"],
-      cursorWrites: 1,
+      pushes: Array(2).fill(
+        "POST /api/v1/sources/src-github/ingest Bearer utp_github",
+      ),
+      githubReads: ["releases", "tags"],
+      cursorWrites: 0,
     });
   });
 
   it("answers 409 utopia_not_set_up and reads nothing from GitHub when re-cinq/lore has no Utopia knowledge base and UTOPIA_TOKEN is unset", async () => {
     repoSettings = {};
-    const res = await tracker(poolHolding());
+    const res = await releases(poolHolding());
 
     expect({ status: res.statusCode, githubReads }).toEqual({
       status: 409,
@@ -167,6 +163,6 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
   it("answers 503 when UTOPIA_API_URL is unset", async () => {
     delete process.env.UTOPIA_API_URL;
 
-    expect((await tracker(poolHolding())).statusCode).toBe(503);
+    expect((await releases(poolHolding())).statusCode).toBe(503);
   });
 });

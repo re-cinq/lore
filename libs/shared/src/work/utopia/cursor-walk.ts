@@ -1,10 +1,7 @@
 // The loop every cursor-driven Utopia walk shares: entries pushed in order, the cursor moved past each one that landed whole, the first that did not ending the walk, and one repo's walks run one after the other.
 
-import { errorMessage } from "@re-cinq/lore-shared";
-import {
-  mirrorFailure,
-  type MirrorOutcome,
-} from "@re-cinq/lore-shared/utopia/push-items.js";
+import { errorMessage } from "../../lib/error-classify.js";
+import { mirrorFailure, type MirrorOutcome } from "./push-items.js";
 
 export interface CursorWalk<T> {
   /** The cursor once `entry` has landed. */

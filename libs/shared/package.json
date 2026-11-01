@@ -298,6 +298,10 @@
       "types": "./dist/work/utopia/docs/mirror-document.d.ts",
       "default": "./dist/work/utopia/docs/mirror-document.js"
     },
+    "./utopia/cursor-walk.js": {
+      "types": "./dist/work/utopia/cursor-walk.d.ts",
+      "default": "./dist/work/utopia/cursor-walk.js"
+    },
     "./utopia/push-items.js": {
       "types": "./dist/work/utopia/push-items.d.ts",
       "default": "./dist/work/utopia/push-items.js"

@@ -1,7 +1,7 @@
 // The `memories` and `episodes` api sources of each Utopia base (lore.utopia_memory_sources, migration 0110), with their keys and the memory walk's cursors (specs/utopia-graph-mirror FR16). Like lore.utopia_kind_sources, the keys are credentials no route answers.
 
 import type { Pool } from "pg";
-import type { StoredSource } from "./utopia-kind-sources.js";
+import type { StoredSource } from "./kind-sources.js";
 
 export type MemoryKind = "memories" | "episodes";
 

@@ -11,7 +11,7 @@ import { reposRoute } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
-import { utopiaRoutes } from "./routes/repos/utopia-routes.js";
+import { utopiaRoutes } from "./routes/repos/utopia/routes.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";

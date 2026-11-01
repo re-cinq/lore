@@ -14,14 +14,14 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 7 } };
 let repoSettings: Record<string, unknown> = SETTINGS;
 
-vi.mock("../../../outbound/project-boot.js", () => ({
+vi.mock("../../../../outbound/project-boot.js", () => ({
   projectFor: async () => ({
     repo: {},
     settings: { rawSettings: async () => repoSettings },
   }),
 }));
 
-import { buildServer } from "../../../app/build-server.js";
+import { buildServer } from "../../../../app/build-server.js";
 import {
   makePool,
   useRateLimitSafeClock,

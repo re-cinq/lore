@@ -11,7 +11,7 @@ import type { Pool } from "pg";
 import {
   saveUtopiaBase,
   saveUtopiaMirrorSettings,
-} from "../../outbound/utopia-sources.js";
+} from "../../../outbound/utopia/sources.js";
 
 export interface UtopiaSetupInput {
   repo: string;

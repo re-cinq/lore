@@ -8,7 +8,7 @@ import type {
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/releases-summary.js";
 import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
-import { queuedPerRepo } from "../cursor-walk.js";
+import { queuedPerRepo } from "@re-cinq/lore-shared/utopia/cursor-walk.js";
 import { lazyKindDocumentDeps } from "../kind-source.js";
 import type { WalkSource } from "../walk-source.js";
 
