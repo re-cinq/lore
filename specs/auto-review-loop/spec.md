@@ -431,13 +431,13 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/outbound/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L237))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L696))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L703))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L710))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L733))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L827))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L877))
+- exposes the github port name. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L245))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L704))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L711))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L718))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L741))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L835))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/outbound/project/lib/platform-github.test.ts#L885))
 
 ### `libs/shared/src/outbound/project/pulls/pull-requests.test.ts`
 

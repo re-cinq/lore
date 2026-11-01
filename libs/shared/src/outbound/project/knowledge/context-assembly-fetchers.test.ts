@@ -33,6 +33,17 @@ const hit = (id: string, source: string, rank: number) => ({
   kw_rank: String(rank),
 });
 
+describe("fetchers.history", () => {
+  it("answers disabled and asks the database nothing, since the Lore database keeps no commits", async () => {
+    const pool = scriptedPool();
+
+    expect({
+      history: await fetchers.history?.(pool, "q", "re-cinq/lore", {}),
+      calls: pool.calls,
+    }).toEqual({ history: { sources: [], status: "disabled" }, calls: [] });
+  });
+});
+
 describe("fetchers.episodes", () => {
   it("asks the fact legs for episodes only, never the memories table, and returns the 2 episode rows", async () => {
     const pool = scriptedPool((sql) =>

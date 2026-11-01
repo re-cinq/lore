@@ -141,23 +141,32 @@ export async function utopiaAssemblyOptions(
 
   return {
     utopiaReads,
-    utopiaMirror: await withCoverageSource(pool, repo, utopiaMirror),
+    utopiaMirror: await withKindSources(pool, repo, utopiaMirror),
     utopiaMemories: utopiaReads
       ? repoFirstSearch(pool, utopiaReads, repo, env)
       : undefined,
   };
 }
 
-/** The mirror with the id of the repo's `test-coverage` source, which its `code` and `coupling` sections read; as it was when the repo has none. */
-async function withCoverageSource(
+/** The mirror with the ids of the repo's `test-coverage` source, which its `code` and `coupling` sections read, and its `git-history` source, which its `history` section reads; each left out when the repo has none. */
+async function withKindSources(
   pool: Pool,
   repo: string | undefined,
   mirror: UtopiaMirror | undefined,
 ): Promise<UtopiaMirror | undefined> {
-  const source =
-    mirror && repo ? await kindSourceFor(pool, repo, "test-coverage") : null;
+  if (!mirror || !repo) {
+    return mirror;
+  }
+  const [coverage, history] = await Promise.all([
+    kindSourceFor(pool, repo, "test-coverage"),
+    kindSourceFor(pool, repo, "git-history"),
+  ]);
 
-  return mirror && source ? { ...mirror, coverageSourceId: source.id } : mirror;
+  return {
+    ...mirror,
+    ...(coverage ? { coverageSourceId: coverage.id } : {}),
+    ...(history ? { historySourceId: history.id } : {}),
+  };
 }
 
 /** The memory search with the repo's own memories ahead of the org's. */
