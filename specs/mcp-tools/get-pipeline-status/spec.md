@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_pipeline_status`          |
-| Module  | pipeline (`pipeline-tools.ts`) |
+| Module  | pipeline (`pipeline/get-pipeline-status.ts`) |
 | Scope   | shared                         |
 
 `lore_get_pipeline_status` returns one pipeline task's full record — its current status plus the ordered event timeline — by task id, reporting a missing id distinctly from an error and working whether the server is local or on GKE.
@@ -22,7 +22,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-lifecycle.ts#L20)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.ts)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -81,7 +81,7 @@ A matching id returns the task row merged with its ordered `events` array.
 
 The stdio-proxy branch selects the not-configured, denied, and unreachable errors
 by cause (missing env, 401/403, network failure).
-([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L200), [validated by `returns the denied message on a 401`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L214), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L232))
+([validated by returns the not-configured message without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L24), [validated by returns the denied message on a 401](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L49), [validated by returns the unreachable message when fetch throws](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L71), [validated by returns task t1's record as pretty JSON read from /api/task/t1 with the bearer token](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L34), [validated by returns 'Remote error: Not Found' on a 404](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L61), [validated by returns the error text when the response body is not JSON](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L79))
 
 The not-found and success envelope framing on the stdio path are exercised only
 against a live API. *(untested: the transport switch is inline in the handler

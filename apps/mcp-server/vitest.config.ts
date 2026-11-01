@@ -9,6 +9,11 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
     exclude: ["src/integration-tests/**", "dist/**", "node_modules/**"],
-    // No coverage gate: the previous one named a file that never existed, so it measured 0/0 and passed on an empty set. Add one file by file when there is pure logic to hold to it.
+    // Gated on the tool folder only; the rest of the adapter has no gate yet.
+    coverage: {
+      include: ["src/transport/tools/**/*.ts"],
+      exclude: ["src/transport/tools/**/*.test.ts", "src/transport/tools/**/test-*.ts"],
+      thresholds: { lines: 95, branches: 95, functions: 95, statements: 95 },
+    },
   },
 });

@@ -3,10 +3,6 @@ import { z } from "zod";
 import { readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { globSync } from "glob";
-import {
-  hybridSearch,
-  isDbAvailable,
-} from "@re-cinq/lore-server-core/platform/db.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import {
   textResult,
@@ -103,10 +99,6 @@ function repoRefusal(
 async function searchLoreStores(search: CorpusSearch) {
   const { query, team, limit } = search;
 
-  if (await isDbAvailable()) {
-    return searchDbContext(query, team, limit);
-  }
-
   return (
     (await searchApiContext(search)) ?? fileFallbackSearch(query, team, limit)
   );
@@ -116,7 +108,7 @@ function withDetectedRepo(search: CorpusSearch, mode: ServerMode) {
   return { ...search, repo: resolveRepo(search.repo, mode) ?? undefined };
 }
 
-// Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
+// Auto-detects repo from git remote when no team is specified, to scope the search to its context namespace.
 function logDetectedRepo(team: string | undefined, mode: ServerMode): void {
   const detectedRepo = !team ? resolveRepo(undefined, mode) : null;
 
@@ -125,58 +117,6 @@ function logDetectedRepo(team: string | undefined, mode: ServerMode): void {
       `[lore] lore_search_context: auto-detected repo ${detectedRepo}`,
     );
   }
-}
-
-/** Hybrid vector+BM25 search over the team schema, falling back to org_shared when the team has no hits. */
-async function searchDbContext(
-  query: string,
-  team: string | undefined,
-  limit: number,
-): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const schema = team || "org_shared";
-  const results = await searchWithOrgSharedFallback(query, schema, team, limit);
-
-  traceRetrieval({
-    query,
-    namespace: schema,
-    topScore: topRrfScore(results),
-    resultCount: results.length,
-  });
-
-  return renderScoredPassages(query, results);
-}
-
-function topRrfScore(results: { rrf_score: number }[]): number {
-  return results.length > 0 ? results[0].rrf_score : 0;
-}
-
-async function searchWithOrgSharedFallback(
-  query: string,
-  schema: string,
-  team: string | undefined,
-  limit: number,
-) {
-  const results = await hybridSearch(query, schema, limit);
-
-  if (results.length > 0 || !team || team === "org_shared") {
-    return results;
-  }
-
-  return hybridSearch(query, "org_shared", limit);
-}
-
-function renderScoredPassages(
-  query: string,
-  results: { rrf_score: number; content: string }[],
-): { content: Array<{ type: "text"; text: string }> } {
-  if (results.length === 0) {
-    return textResult(`No results for "${query}".`);
-  }
-  const text = results
-    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
-    .join("\n\n---\n\n");
-
-  return textResult(text);
 }
 
 /** The corpus search as the API answers it. The adapter holds no pool (ADR-032), so this — not the local scan — is what a laptop gets. */
@@ -200,6 +140,24 @@ async function searchApiContext(
     renderScoredPassages(search.query, answer.results),
     answer.notes,
   );
+}
+
+function topRrfScore(results: { rrf_score: number }[]): number {
+  return results.length > 0 ? results[0].rrf_score : 0;
+}
+
+function renderScoredPassages(
+  query: string,
+  results: { rrf_score: number; content: string }[],
+): { content: Array<{ type: "text"; text: string }> } {
+  if (results.length === 0) {
+    return textResult(`No results for "${query}".`);
+  }
+  const text = results
+    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
+    .join("\n\n---\n\n");
+
+  return textResult(text);
 }
 
 /** The API's word on a store it could not read (e.g. "search_context: no Utopia reader yet"), after the passages. */
@@ -257,7 +215,7 @@ function corpusParams({
   });
 }
 
-/** Case-insensitive substring scan of local .md files. The last resort: reached only with no pool AND no API, and it says so, because a bare "no results" from a grep over one checkout is indistinguishable from a genuine miss against the corpus. */
+/** Case-insensitive substring scan of local .md files. The last resort: reached only with no API, and it says so, because a bare "no results" from a grep over one checkout is indistinguishable from a genuine miss against the corpus. */
 function fileFallbackSearch(
   query: string,
   team: string | undefined,

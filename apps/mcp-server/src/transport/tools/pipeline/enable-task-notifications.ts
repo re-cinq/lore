@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { textResult } from "../shared/deps.js";
@@ -26,15 +25,7 @@ export function registerEnableTaskNotificationsTool(server: McpServer) {
     "lore_enable_task_notifications",
     "Starts a local background poller that watches repos for new 'pending' pipeline tasks and writes matches to ~/.lore/pending-tasks.json for the statusline. Idempotent — returns 'already active' if running. To stop it: lore_disable_task_notifications. To run a surfaced task: lore_claim_and_run_locally. To dismiss one: lore_skip_task.",
     ENABLE_TASK_NOTIFICATIONS_INPUT,
-    async (args) => {
-      try {
-        return await startTaskNotifier(args);
-      } catch (err) {
-        return textResult(
-          `Error enabling task notifications: ${errorMessage(err)}`,
-        );
-      }
-    },
+    startTaskNotifier,
   );
 }
 

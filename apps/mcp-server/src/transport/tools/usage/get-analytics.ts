@@ -1,7 +1,6 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { proxyGetApi, textResult } from "../shared/deps.js";
+import { proxyGetApi } from "../shared/deps.js";
 import { renderProxied } from "./shared/render-proxied.js";
 
 const ANALYTICS_INPUT = {
@@ -25,15 +24,11 @@ async function handleGetAnalytics({
 }: {
   period: "today" | "week" | "month" | "all";
 }) {
-  try {
-    const params = new URLSearchParams({ period });
+  const params = new URLSearchParams({ period });
 
-    return renderProxied(await proxyGetApi(`/api/analytics?${params}`), {
-      op: "fetching analytics",
-      subject: "analytics",
-      toolName: "lore_get_analytics",
-    });
-  } catch (err) {
-    return textResult(`Error fetching analytics: ${errorMessage(err)}`);
-  }
+  return renderProxied(await proxyGetApi(`/api/analytics?${params}`), {
+    op: "fetching analytics",
+    subject: "analytics",
+    toolName: "lore_get_analytics",
+  });
 }

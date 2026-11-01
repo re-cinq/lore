@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { proxyToApi, textResult, type ProxyResult } from "../shared/deps.js";
@@ -31,17 +30,13 @@ type PlanEditArgs = {
 };
 
 async function planEditHandler(args: PlanEditArgs) {
-  try {
-    const proxied = await postAgentEdit(args);
+  const proxied = await postAgentEdit(args);
 
-    return (
-      refusalOf(proxied) ??
-      interpretMemoryProxy("lore_plan_edit", proxied) ??
-      textResult("Editing a plan requires a configured LORE_API_URL.")
-    );
-  } catch (err) {
-    return textResult(`Error editing plan: ${errorMessage(err)}`);
-  }
+  return (
+    refusalOf(proxied) ??
+    interpretMemoryProxy("lore_plan_edit", proxied) ??
+    textResult("Editing a plan requires a configured LORE_API_URL.")
+  );
 }
 
 function postAgentEdit({

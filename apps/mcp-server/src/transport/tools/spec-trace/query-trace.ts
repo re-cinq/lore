@@ -83,7 +83,7 @@ async function queryTrace(args: QueryTraceArgs & { repo: string }) {
   );
 }
 
-function traceGet(args: QueryTraceArgs) {
+function traceGet(args: QueryTraceArgs & { repo: string }) {
   return isLiveRead(args) ? proxyGetApi : cachedTraceGet(args.repo);
 }
 
@@ -94,13 +94,13 @@ function isLiveRead(args: QueryTraceArgs): boolean {
 }
 
 /** Cached for 10 minutes and keyed on the PATH alone, deliberately: the graph is reprojected by CI on push, so within a working session the same spec gives the same answer. */
-function cachedTraceGet(repo: string | undefined) {
+function cachedTraceGet(repo: string) {
   return (path: string) =>
     withReadCache(
       {
         tool: "lore-query-trace",
         args: { path },
-        repo: repo || undefined,
+        repo,
         ttlSeconds: 600,
       },
       () => proxyGetApi(path),

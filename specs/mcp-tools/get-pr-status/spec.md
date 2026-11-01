@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_pr_status`                |
-| Module  | ci (`ci-tools.ts`)             |
+| Module  | ci (`ci/get-pr-status.ts`)             |
 | Scope   | shared (served in agent mode)  |
 
 `lore_get_pr_status` fetches a task's live PR state from GitHub and folds PR state, check-run conclusions, and review verdicts into one derived `computed_status`, returning the underlying checks and reviews without the caller scripting the GitHub REST API.
@@ -22,7 +22,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/ci/ci-tools.ts#L155)), beside the CI reads since 2026-09-12 so an agent pod can ask whether its pull request is green ([validated by is served beside the CI reads, so an agent pod can ask whether its pull request is green](apps/mcp-server/src/transport/tools/ci/ci-tools.test.ts#L198)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/ci/get-pr-status.ts)), beside the CI reads since 2026-09-12 so an agent pod can ask whether its pull request is green ([validated by is served beside the CI reads, so an agent pod can ask whether its pull request is green](apps/mcp-server/src/transport/tools/ci/get-pr-status.test.ts#L24), [validated by answers with the unconfigured copy when LORE_API_URL is not set](apps/mcp-server/src/transport/tools/ci/get-pr-status.test.ts#L44), [validated by answers with the denied copy carrying the API's 'invalid token' detail](apps/mcp-server/src/transport/tools/ci/get-pr-status.test.ts#L55), [validated by reports the parse error when the API answers with a body that is not JSON](apps/mcp-server/src/transport/tools/ci/get-pr-status.test.ts#L70)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim):

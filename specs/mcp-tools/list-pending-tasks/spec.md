@@ -22,7 +22,7 @@ pending file written by the notifier.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-notifications.ts#L11)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.ts)).
 
 - **name**: `lore_list_pending_tasks`
 - **description** (verbatim):
@@ -77,14 +77,12 @@ absent). ([validated by `runner.local.test.ts:142`](apps/mcp-server/src/work/pip
 
 The local-fallback path applies the `repo` filter, returns the repo-scoped empty
 message when nothing matches, and lists all repos when no filter is given.
-([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L76), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L86), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L94))
+([validated by lists only re-cinq/lore's task with its issue number when filtered to re-cinq/lore](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L52), [validated by returns the repo-scoped empty message when nothing matches nobody/nothing](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L58), [validated by lists both repos' tasks when no filter is given](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L64), [validated by returns 'No pending tasks.' for an empty cache](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L70), [validated by groups the API's tasks by repo, an unnamed repo under unknown](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L96), [validated by returns the repo-scoped empty message when no API task matches nobody/nothing](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L132), [validated by returns 'No pending tasks.' when the API body carries no task list](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L140), [validated by returns the error text when fetch throws](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L152))
 
 The API path groups tasks by repo, filtered by the `repo` param, and falls
-back to the local file listing when the API responds non-ok. ([validated by
-`groups the API's tasks by repo, filtered by the repo
-param`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L117), [`falls
+back to the local file listing when the API responds non-ok. ([validated by keeps only re-cinq/lore's tasks when filtered to re-cinq/lore](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L121), [`falls
 back to the local file listing when the API responds
-non-ok`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L146))
+non-ok`](apps/mcp-server/src/transport/tools/pipeline/list-pending-tasks.test.ts#L146))
 
 ## Out of Scope
 

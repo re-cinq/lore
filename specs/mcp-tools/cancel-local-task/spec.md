@@ -20,7 +20,7 @@ failed, and removes the worktree.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L91)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/cancel-local-task.local.ts)).
 
 - **name**: `lore_cancel_local_task`
 - **description** (verbatim):
@@ -68,7 +68,7 @@ or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 Cancelling an unknown task id reports it as not found without claiming success.
-([validated by `runner.local.test.ts:226`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L230))
+([validated by `runner.local.test.ts:226`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L230), [validated by cancels running task task-1 and records it as cancelled by user](apps/mcp-server/src/transport/tools/local-runner/cancel-local-task.local.test.ts#L45), [validated by answers Could not cancel: Task not found for an id the machine never ran](apps/mcp-server/src/transport/tools/local-runner/cancel-local-task.local.test.ts#L61), [validated by reports the error when the task file cannot be rewritten](apps/mcp-server/src/transport/tools/local-runner/cancel-local-task.local.test.ts#L67))
 
 The SIGTERM kill, worktree removal, and not-running short-circuit are exercised
 only end-to-end. *(untested: those branches require a populated

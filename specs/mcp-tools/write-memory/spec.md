@@ -24,7 +24,7 @@ file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/memory-tools.ts#L46)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/write-memory.ts)).
 
 - **name**: `lore_write_memory`
 - **description** (verbatim):
@@ -113,16 +113,14 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 4. In local stdio mode (no DB), the tool proxies the write and returns the
    proxied body on success; a 401 is reported as a denied error on the first
-   attempt, without the retriable-status backoff loop. ([validated by `returns
-   the proxied body on a successful
-   write`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L87), [`reports a
+   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful write](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L32), [validated by writes key offline-key to the file store and returns version 1](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L117), [validated by reports the file store's failure when the agent's directory is a plain file](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L132), [`reports a
    denied error on a 401 to a memory write without
-   retrying`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L101))
+   retrying`](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L46))
 
 5. *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout to
-   detect a repo from, the write is scoped to the `repo` the call names. ([validated by `in the agent gateway scopes the write to the repo the call names`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L115))
+   detect a repo from, the write is scoped to the `repo` the call names. ([validated by in the agent gateway scopes the write to the repo the call names](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L60), [validated by in the agent gateway sends no repo when the call names none](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L74))
 
-6. *(added 2026-10-01, #2344)* A `repo` that is not owner/name is rejected before any API call, rather than being dropped or interpolated. ([validated by `rejects a repo that is not owner/name before any API call`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L368))
+6. *(added 2026-10-01, #2344)* A `repo` that is not owner/name is rejected before any API call, rather than being dropped or interpolated. ([validated by rejects the repo ../lore before any API call](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L103))
 
 ## Out of Scope
 

@@ -21,7 +21,7 @@ one-line summary per task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/local-runner-tools.local.ts#L123)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/list-local-tasks.local.ts)).
 
 - **name**: `lore_list_local_tasks`
 - **description** (verbatim):
@@ -66,7 +66,7 @@ summary, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L146))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L146), [validated by answers No local tasks. when the machine has run none](apps/mcp-server/src/transport/tools/local-runner/list-local-tasks.local.test.ts#L41), [validated by lists a completed task with its PR and marks a running task whose process is gone as failed](apps/mcp-server/src/transport/tools/local-runner/list-local-tasks.local.test.ts#L47), [validated by reports the error when the task file cannot be rewritten](apps/mcp-server/src/transport/tools/local-runner/list-local-tasks.local.test.ts#L67))
 
 The live-PID reconciliation of `listLocalTasks` and the per-line formatting are
 exercised only end-to-end. *(untested: `listLocalTasks` reads

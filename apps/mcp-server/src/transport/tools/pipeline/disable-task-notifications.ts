@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { textResult } from "../shared/deps.js";
 
@@ -8,18 +7,12 @@ export function registerDisableTaskNotificationsTool(server: McpServer) {
     "Stops the local pending-task notifier and removes the ~/.lore/pending-tasks.json cache. Undoes lore_enable_task_notifications. Idempotent.",
     {},
     async () => {
-      try {
-        const { stopNotifier } =
-          await import("../../../work/pipeline/runner.local.js");
+      const { stopNotifier } =
+        await import("../../../work/pipeline/runner.local.js");
 
-        stopNotifier();
+      stopNotifier();
 
-        return textResult("Task notifications stopped.");
-      } catch (err) {
-        return textResult(
-          `Error disabling task notifications: ${errorMessage(err)}`,
-        );
-      }
+      return textResult("Task notifications stopped.");
     },
   );
 }

@@ -23,7 +23,7 @@ asynchronously, without leaking secrets into the org-wide store.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/memory-tools.ts)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/graph/write-episode.ts)).
 
 - **name**: `lore_write_episode`
 - **description** (verbatim):
@@ -77,15 +77,13 @@ Ingests one raw uncurated text blob as a deduplicated episode; returns {status: 
    7. `INSERT INTO memory.audit_log (agent_id, operation='lore_write_episode',
       metadata={episode_id, source, ref})` (best-effort `.catch`).
    8. Return `{ status: "ok", episode_id, source, ref }`.
-4. Any thrown error → `"Error writing episode: {message}"`.
 
 ## Output
 
 A single MCP text content block. One of: `{"status":"ok","episode_id":…,
 "source":…,"ref":…}`; `{"status":"duplicate","message":"Episode already
-ingested."}`; the proxied body; the `unreachableError` message; the
-`"Episodes require PostgreSQL or LORE_API_URL…"` text; or
-`"Error writing episode: {message}"`. **Never throws.**
+ingested."}`; the proxied body; the `unreachableError` message; or the
+`"Episodes require PostgreSQL or LORE_API_URL…"` text. **Never throws.**
 
 ## Dependencies & side effects
 
@@ -100,9 +98,9 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 
 1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](libs/server-core/src/work/memory/facts.test.ts#L5))
 
-2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/work/memory/facts.test.ts#L32))
+2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/work/memory/facts.test.ts#L32), [validated by posts the episode for the ambient agent agent-7 to /api/episode and prints the API's answer](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L23))
 
-3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/work/memory/facts.test.ts#L71))
+3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/work/memory/facts.test.ts#L71), [validated by keeps the agent_id agent-9 the call names](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L50), [validated by says episodes need the API when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L60))
 
 4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](libs/server-core/src/work/memory/facts.test.ts#L104))
 

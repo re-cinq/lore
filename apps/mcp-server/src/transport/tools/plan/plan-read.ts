@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { proxyGetApi, textResult } from "../shared/deps.js";
@@ -16,14 +15,10 @@ export function registerPlanReadTool(server: McpServer) {
 }
 
 async function planReadHandler({ plan_id }: { plan_id: string }) {
-  try {
-    const proxied = await proxyGetApi(`/api/plans/${plan_id}/agent-view`);
+  const proxied = await proxyGetApi(`/api/plans/${plan_id}/agent-view`);
 
-    return (
-      interpretMemoryProxy("lore_plan_read", proxied) ??
-      textResult("Reading a plan requires a configured LORE_API_URL.")
-    );
-  } catch (err) {
-    return textResult(`Error reading plan: ${errorMessage(err)}`);
-  }
+  return (
+    interpretMemoryProxy("lore_plan_read", proxied) ??
+    textResult("Reading a plan requires a configured LORE_API_URL.")
+  );
 }

@@ -124,8 +124,8 @@ context it did, via the web-ui **Assembled** tab.
 ### FR-1: lore_assemble_context MCP Tool
 
 - FR-1.1: `lore_assemble_context(query, template?, max_tokens?,
-  repo?, agent_id?)` is the single entry point. ([validated by Tool is visible via MCP listings](apps/mcp-server/src/transport/tools/context/context-tools-assemble.acceptance.test.ts#L23))
-- FR-1.2: Returns a structured text block with section headers. ([validated by Executes successfully end-to-end](apps/mcp-server/src/transport/tools/context/context-tools-assemble.acceptance.test.ts#L27))
+  repo?, agent_id?)` is the single entry point. ([validated by Tool is visible via MCP listings](apps/mcp-server/src/transport/tools/context/assemble-context.acceptance.test.ts#L23))
+- FR-1.2: Returns a structured text block with section headers. ([validated by Executes successfully end-to-end](apps/mcp-server/src/transport/tools/context/assemble-context.acceptance.test.ts#L27))
 - FR-1.3: `max_tokens` defaults to 16000. Minimum 2000.
 - FR-1.4: `template` defaults to "default".
 - FR-1.5: *(added 2026-10-16, ADR-052 amendment "reads choose a backend")* `backend` names the store the assembly reads: `lore` (byte-for-byte the assembly above), `utopia` (the default since 2026-10-28) or `both`. Under `utopia` Lore's stores are not read: the `repo` and `adrs` sections are read from the repository's Utopia mirror ([utopia-graph-mirror](../utopia-graph-mirror/spec.md) FR12) and the `memories` and `episodes` sections from Utopia's memory search (FR13.7, added 2026-10-31), the `code` and `coupling` sections from the repository's `test-coverage` source (utopia-graph-mirror FR13.8, added 2026-10-31), and every other section the template asks for is left out of the block, as every section is when the deployment has no Utopia reader or the repository no `settings.utopia`. ([validated by returns a block with no sections when Utopia cannot be read](libs/shared/src/outbound/project/knowledge/context-assembly-backends.test.ts#L8), [validated by returns no sections and reads nothing from Lore for backend utopia with no Utopia reader](libs/server-core/src/work/context/context-assembly.test.ts#L441))
@@ -298,7 +298,7 @@ The tool retrieves from all available sources:
   contributing documents with provenance. ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L290))
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
-  follow-up — the in-memory trace lands first.)* ([validated by Logging captures call variables: query, template used, sources hit, total tokens returned](apps/mcp-server/src/transport/tools/context/context-tools-assemble.acceptance.test.ts#L45), [validated by logs query, template, sources hit, and tokens to console.error after a successful proxy call](apps/mcp-server/src/transport/tools/context/context-tools-assemble.test.ts#L23))
+  follow-up — the in-memory trace lands first.)* ([validated by Logging captures call variables: query, template used, sources hit, total tokens returned](apps/mcp-server/src/transport/tools/context/assemble-context.acceptance.test.ts#L45), [validated by logs query, template, sources hit, and tokens to console.error after a successful proxy call](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L68))
 - **Embedder health is a value, not a log line.** The embedding service keeps
   `{ lastOkAt, lastFailureAt, lastStatus, consecutiveFailures }`: a refused
   Vertex call records its HTTP status, a call that never reached Vertex (no

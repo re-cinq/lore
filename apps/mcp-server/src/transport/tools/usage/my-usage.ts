@@ -1,8 +1,7 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { resolveAgentId } from "@re-cinq/lore-shared";
-import { proxyGetApi, textResult } from "../shared/deps.js";
+import { proxyGetApi } from "../shared/deps.js";
 import { renderProxied } from "./shared/render-proxied.js";
 
 const MY_USAGE_INPUT = {
@@ -24,15 +23,11 @@ export function registerMyUsageTool(server: McpServer) {
 }
 
 async function handleMyUsage({ agent_id }: { agent_id?: string }) {
-  try {
-    const params = new URLSearchParams({ agent_id: resolveAgentId(agent_id) });
+  const params = new URLSearchParams({ agent_id: resolveAgentId(agent_id) });
 
-    return renderProxied(await proxyGetApi(`/api/usage?${params}`), {
-      op: "reading usage",
-      subject: "usage",
-      toolName: "lore_my_usage",
-    });
-  } catch (err) {
-    return textResult(`Error: ${errorMessage(err)}`);
-  }
+  return renderProxied(await proxyGetApi(`/api/usage?${params}`), {
+    op: "reading usage",
+    subject: "usage",
+    toolName: "lore_my_usage",
+  });
 }

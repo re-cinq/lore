@@ -21,7 +21,7 @@ accumulates many memories. Expired and soft-deleted memories must not appear.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/memory-tools.ts)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/list-memories.ts)).
 
 - **name**: `lore_list_memories`
 - **description** (verbatim):
@@ -98,21 +98,19 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 
 5. In local stdio mode (no DB), the tool proxies the list and returns the
    proxied body on success; a 401 is reported as a denied error on the first
-   attempt, without the retriable-status backoff loop. ([validated by `returns
-   the proxied body on a successful
-   list`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L201), [`reports a
+   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful list](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L37), [validated by lists the one key first-key of agent-list from the file store](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L114), [validated by reports a store whose memories.json holds null as a listing error](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L129), [`reports a
    denied error on a 401 to a memory listing without
-   retrying`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L215))
+   retrying`](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L51))
 
 6. *(added 2026-10-01, #2347)* A call may name its `repo`; it wins over the
    detected one, and in the agent gateway, which has no checkout, it is the only
    way to scope the listing. The API's `list` action carries that repo through to
-   the repo-scoped query. ([validated by `scopes the listing to the repo the call names`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L317), [`scopes a listing to the repo the caller names`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L461))
+   the repo-scoped query. ([validated by scopes the listing to the repo the call names](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L67), [`scopes a listing to the repo the caller names`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L461))
 
 7. *(added 2026-10-01, #2344)* In the agent gateway a call with no `repo` is
    answered with "No repo given" instead of an agent-scoped or org-wide listing,
    and a `repo` that is not owner/name is rejected, both before any API call.
-   ([validated by `asks the agent gateway's caller for the repo instead of listing agent-scoped or org-wide`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L350), [`rejects a repo that is not owner/name before any API call`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L368))
+   ([validated by asks the caller for the repo instead of listing agent-scoped or org-wide](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L80), [validated by lists without a repo scope from a directory outside any checkout](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L144), [`rejects a repo that is not owner/name before any API call`](apps/mcp-server/src/transport/tools/memory/list-memories.test.ts#L92))
 
 ## Out of Scope
 

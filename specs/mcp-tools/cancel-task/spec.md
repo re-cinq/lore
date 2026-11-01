@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_cancel_task`                  |
-| Module  | pipeline (`pipeline-tools.ts`) |
+| Module  | pipeline (`pipeline/cancel-task.ts`) |
 | Scope   | shared                         |
 
 `lore_cancel_task` flips a server-side pipeline task to `cancelled` by id and best-effort stops its running GKE agent, refusing tasks that already reached a terminal merged, failed, or cancelled state.
@@ -22,7 +22,7 @@ or misleading.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-listing.ts#L53)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/cancel-task.ts)).
 
 - **name**: `lore_cancel_task`
 - **description** (verbatim):
@@ -86,18 +86,16 @@ A task already in a terminal state (e.g. merged) is rejected with a
 ([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L92))
 
 The cancel action is posted to `/api/task` and the API's result is returned
-verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L275))
+verbatim. ([validated by posts the cancel action for t1 and returns the API result](apps/mcp-server/src/transport/tools/pipeline/cancel-task.test.ts#L24))
 
 A server-side refusal (a merged task) reaches the caller with the server's own
-reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L290))
+reason. ([validated by reports the server's refusal for a merged task](apps/mcp-server/src/transport/tools/pipeline/cancel-task.test.ts#L42), [validated by reports the API unreachable for cancelling a task when fetch keeps throwing](apps/mcp-server/src/transport/tools/pipeline/cancel-task.test.ts#L67))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L371))
+message. ([validated by reports a missing API configuration without fetching](apps/mcp-server/src/transport/tools/pipeline/cancel-task.test.ts#L75))
 
 A 401 from the proxied cancel is reported as a denied error on the first
-attempt, without the retriable-status backoff loop. ([validated by
-`lore_cancel_task reports a denied error on a 401 without
-retrying`](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L306))
+attempt, without the retriable-status backoff loop. ([validated by reports a denied error on a 401 after one request](apps/mcp-server/src/transport/tools/pipeline/cancel-task.test.ts#L56))
 
 ## Out of Scope
 

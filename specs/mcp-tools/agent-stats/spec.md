@@ -21,7 +21,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/memory-tools.ts)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/graph/agent-stats.ts)).
 
 - **name**: `lore_agent_stats`
 - **description** (verbatim):
@@ -72,10 +72,10 @@ three failure texts, or `"Error fetching agent stats: {message}"`.
 ## Acceptance Criteria
 
 The request goes to `GET /api/agent-stats` for the resolved agent with the
-bearer token, and the response is printed as JSON. ([validated by `proxies to GET /api/agent-stats for the resolved agent and prints the JSON`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L276))
+bearer token, and the response is printed as JSON. ([validated by proxies to GET /api/agent-stats for the resolved agent and prints the JSON](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L23), [validated by passes on the API's own message for a 400](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L68), [validated by reports an API answer with no JSON body as a stats error](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L83))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L293))
+PostgreSQL message. ([validated by reports a missing API configuration instead of a PostgreSQL message](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L44), [validated by reports a denied error on a 401](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L55))
 
 Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:377`](libs/server-core/src/work/memory/memory.test.ts#L377))
 

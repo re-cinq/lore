@@ -22,7 +22,7 @@ mechanism that never claims or mutates tasks.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools-notifications.ts#L74)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.ts)).
 
 - **name**: `lore_enable_task_notifications`
 - **description** (verbatim):
@@ -47,7 +47,7 @@ Starts a local background poller that watches repos for new 'pending' pipeline t
    `"Task notifications already active."` (idempotent — single interval).
 3. Resolve `repos = args.repos || [detectRepo()].filter(Boolean)`. If empty →
    `"Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote."`.
-4. Resolve `taskTypes = args.task_types || ["implementation","general","runbook","gap-fill"]`.
+4. Resolve `taskTypes = args.task_types || ["runbook","gap-fill"]`.
 5. `startNotifier(repos, taskTypes)`
    ([handler](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)): sets a 30s
    `setInterval` (runs once immediately) that calls `fetchPendingTasks` (direct
@@ -56,12 +56,11 @@ Starts a local background poller that watches repos for new 'pending' pipeline t
    it also runs `cleanupStaleTasks()`.
 6. Return
    `"Watching for pending tasks on {repos joined}.\nTypes: {types joined}\nCheck the statusline for new tasks."`.
-7. Any thrown error → `"Error: {message}"`.
 
 ## Output
 
 A single MCP text content block: the watching-confirmation, the already-active
-message, the no-repos error, or the generic error. Never throws.
+message, or the no-repos error. Never throws.
 
 ## Dependencies & side effects
 
@@ -73,15 +72,11 @@ message, the no-repos error, or the generic error. Never throws.
 
 ## Acceptance Criteria
 
-The notifier exposes a running-state predicate that the handler checks for
-idempotency. *(untested: `isNotifierRunning` reflects a module-level
-`setInterval` handle; asserting state would start a real 30s polling timer that
-hits the API/DB and writes the developer's `~/.lore` cache — no unit seam.)*
+A call while the notifier is already running answers that notifications are already active. ([validated by reports an already running notifier](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L59))
 
-The repo-default (`detectRepo`), no-repos guard, task-type default, and
-message framing run only inside the tool handler. *(untested: starting the
-notifier spawns a live polling interval with file/network/DB side effects; there
-is no pure seam for the orchestration.)*
+With no `task_types` the notifier watches `runbook` and `gap-fill` tasks, and given types replace them. ([validated by watches re-cinq/lore for runbook and gap-fill tasks by default](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L33), [validated by watches the given task types](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L39))
+
+With no `repos` the notifier watches the checkout's own repo, and an empty list is refused. ([validated by watches the checkout's own repo when no repos are given](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L47), [validated by refuses an empty repo list](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L53))
 
 `fetchPendingTasks` returns `[]` without querying the DB or the API when
 `repos` or `task_types` is empty; queries the DB pool when one is supplied and

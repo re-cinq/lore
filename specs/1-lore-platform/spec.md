@@ -410,7 +410,7 @@ pipeline tasks and GitHub Issues. ([validated by `awaitingApproval selects appro
   (`specs/external-floor` FR15.0); the `[DEPENDS ON: ...]` and `[P]` markers they
   read are now consumed only as prose, in the `Depends on #<n>` lines the `issues`
   station writes into each task issue. A plan's tasks reach the implementation loop
-  as tickets (`specs/7-feature-planning` FR-11.13), one at a time per repository. ([validated by registers no spec-task tool, since a plan's tasks are implemented from the backlog](apps/mcp-server/src/transport/tools/pipeline/pipeline-tools.test.ts#L160), [validated by refuses a spec-task at trust level %s, pointing at the backlog loop](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L163))
+  as tickets (`specs/7-feature-planning` FR-11.13), one at a time per repository. ([validated by registers no spec-task tool, since a plan's tasks are implemented from the backlog](apps/mcp-server/src/transport/tools/pipeline/index.test.ts#L33), [validated by refuses a spec-task at trust level %s, pointing at the backlog loop](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L163))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
 LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
@@ -466,7 +466,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage/usage-tools.test.ts#L44))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/outbound/otel.test.ts#L6), [`my-usage.test.ts:23`](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
@@ -477,7 +477,7 @@ The system MUST provide observability into context retrieval quality. ([validate
   gap signal: it was deleted with Lore's own Floor on 2026-10-02, and the
   signal itself is still recorded.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:44`](apps/mcp-server/src/transport/tools/usage/usage-tools.test.ts#L44), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23), [`usage-pg.test.ts:144`](libs/shared/src/outbound/project/usage/usage-pg.test.ts#L173))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -522,7 +522,7 @@ live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/wo
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
   SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/work/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/work/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
-  for multi-hop relationship results. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L41))
+  for multi-hop relationship results. ([validated by proxies to GET /api/graph with the query params and bearer token](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L23))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
@@ -1231,7 +1231,7 @@ share one persistence surface instead of inline SQL. ([validated by `awaitingApp
   the last-synced local copy of CLAUDE.md files and ADRs in
   `~/.re-cinq/lore` and display a one-time warning to the developer
   that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:56`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L47), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context/context-tools.test.ts#L93))
+  in this mode; convention and ADR lookups continue from local files. ([validated by returns the matching paragraph with its source path](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L45), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L91))
 
 ## Operational Targets & Constraints (Background)
 

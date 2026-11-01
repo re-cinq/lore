@@ -23,7 +23,7 @@ edges must be temporally invalidated as new episodes arrive.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/memory/memory-tools.ts#L259)). The handler body is wrapped in
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/graph/query-graph.ts)). The handler body is wrapped in
 `trackLatency('lore_query_graph', …)` (records latency into `memory.audit_log` +
 OTEL span).
 
@@ -68,7 +68,6 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
    `No relationships found for "{entity}".`; else `Knowledge graph is empty.
    Write episodes or memories to populate it.`
 4. Otherwise return `JSON.stringify(results, null, 2)`.
-5. Any thrown error → `"Error querying graph: {message}"`.
 
 **Graph population** is owned by `lore_write_episode` →
 `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/work/memory/graph.ts#L134)): entities are upserted
@@ -84,8 +83,7 @@ likewise skipped without blocking the remaining edges. ([validated by `graph-edg
 A single MCP text content block. One of: pretty-printed JSON array of
 `{ entity, entity_type, relation, related_entity, related_type, direction
 ("outgoing"|"incoming"), valid_from }`; `No relationships found for "{entity}".`;
-`Knowledge graph is empty…`; the PostgreSQL-required text; or
-`"Error querying graph: {message}"`. **Never throws.**
+`Knowledge graph is empty…`; or the PostgreSQL-required text. **Never throws.**
 
 ## Dependencies & side effects
 
@@ -111,15 +109,14 @@ A single MCP text content block. One of: pretty-printed JSON array of
    *(untested: requires live `memory.entities`/`memory.edges` rows; the
    population + parse paths are covered above.)*
 6. In local stdio mode (no DB) the tool proxies to `GET /api/graph` with the
-   query params and bearer token. ([validated by `memory-tools.test.ts:50`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L41))
+   query params and bearer token. ([validated by proxies to GET /api/graph with the query params and bearer token](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L23), [validated by sends repo re-cinq/lore and include_invalidated=true when the call asks for them](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L50))
 
 7. With no `LORE_API_URL` configured it returns the PostgreSQL-or-API-URL
-   message rather than calling out. ([validated by `memory-tools.test.ts:72`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L63))
+   message rather than calling out. ([validated by falls back to the not-configured message when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L60))
 
 7a. A 401/403 from the proxied `GET /api/graph` is reported as a denied error
     on the first attempt, without the retriable-status backoff loop.
-    ([validated by `reports a denied error on a 403 without
-    retrying`](apps/mcp-server/src/transport/tools/memory/memory-tools.test.ts#L242))
+    ([validated by reports a denied error on a 403 without retrying](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L74))
 
 8. The `GET /api/graph` endpoint passes the params to `queryLiveGraph` and
    returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/transport/routes/graph/graph.test.ts#L31))

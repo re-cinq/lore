@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   trackLatency,
@@ -21,14 +20,7 @@ export function registerQueryGraphTool(server: McpServer) {
     "lore_query_graph",
     `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
     QUERY_GRAPH_INPUT,
-    async (args) =>
-      trackLatency("lore_query_graph", async () => {
-        try {
-          return await queryGraph(args);
-        } catch (err) {
-          return textResult(`Error querying graph: ${errorMessage(err)}`);
-        }
-      }),
+    async (args) => trackLatency("lore_query_graph", () => queryGraph(args)),
   );
 }
 

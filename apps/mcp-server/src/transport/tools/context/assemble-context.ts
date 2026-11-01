@@ -1,6 +1,5 @@
 // The one budgeted bundle: lore_assemble_context. Separate from search-context.ts, which returns raw passages — the two tools share a word, not a job.
 
-import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -75,13 +74,7 @@ export function registerAssembleContextTool(
 Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
     { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
-      trackLatency("lore_assemble_context", async () => {
-        try {
-          return await assembleForMode(args, mode);
-        } catch (err) {
-          return textResult(`Error assembling context: ${errorMessage(err)}`);
-        }
-      }),
+      trackLatency("lore_assemble_context", () => assembleForMode(args, mode)),
   );
 }
 
@@ -94,11 +87,6 @@ async function assembleForMode(
 
 /** The mandatory first call: proxies entirely to the API — without LORE_API_URL there is nothing to degrade to. */
 async function assembleContext(args: AssembleContextArgs) {
-  if (!process.env.LORE_API_URL || !process.env.LORE_INGEST_TOKEN) {
-    return textResult(
-      "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-    );
-  }
   const { query, template, repo } = args;
   const proxied = await cachedAssemble(
     { query, template, repo },
@@ -149,28 +137,16 @@ async function cachedAssemble(
     {
       tool: "lore_assemble_context",
       args: { ...key, ...extras },
-      repo: key.repo || undefined,
+      repo: key.repo,
       ttlSeconds: 600,
     },
-    () => fetchAssembledContext(new URLSearchParams({ ...key, ...extras })),
+    () =>
+      proxyGetApi(
+        `/api/context?${new URLSearchParams({ ...key, ...extras }).toString()}`,
+        ASSEMBLY_PROXY_LIMITS,
+      ),
     { label: false },
   );
-}
-
-async function fetchAssembledContext(
-  params: URLSearchParams,
-): Promise<ProxyResult> {
-  const r = await proxyGetApi(
-    `/api/context?${params.toString()}`,
-    ASSEMBLY_PROXY_LIMITS,
-  );
-
-  if (!r.ok) {
-    return r;
-  }
-
-  // A reachable backend returning empty context is a real result — return as-is so the caller sees the trace for the audit log.
-  return r;
 }
 
 interface AssembleSection {
@@ -183,16 +159,12 @@ function parseAssembleBody(body: string): {
   text: string;
   sections?: AssembleSection[];
 } {
-  try {
-    const parsed = JSON.parse(body) as {
-      text?: string;
-      sections?: AssembleSection[];
-    };
+  const parsed = JSON.parse(body) as {
+    text?: string;
+    sections?: AssembleSection[];
+  };
 
-    return { text: parsed.text ?? "", sections: parsed.sections };
-  } catch {
-    return { text: body };
-  }
+  return { text: parsed.text ?? "", sections: parsed.sections };
 }
 
 function logAssembleAudit(
