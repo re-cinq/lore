@@ -58,6 +58,25 @@ function codeWords(term: string): string[] {
   return [file, file.slice(0, file.indexOf("."))];
 }
 
+/** How many places in the repository the ticket names: the folder of each file path, the folder a folder path is, and each bare file name; a symbol, a route, a requirement id or an issue number names no place. */
+export function areaCount(terms: string[]): number {
+  return new Set(terms.map(areaOf).filter((area) => area !== null)).size;
+}
+
+function areaOf(term: string): string | null {
+  if (term.startsWith("/") || term.startsWith("#")) {
+    return null;
+  }
+  const slash = term.lastIndexOf("/");
+  const last = term.slice(slash + 1);
+
+  if (!FILE_RE.test(last)) {
+    return slash > 0 ? term : null;
+  }
+
+  return slash > 0 ? term.slice(0, slash) : last;
+}
+
 /** Whether the text names any of the ticket's files or symbols, case aside; a path counts by its file name, so a memory that says `board.ts` meets a ticket that gives the whole path, and a requirement id counts for nothing, since every DoD run cites one. */
 export function mentionsAny(text: string, terms: string[]): boolean {
   const haystack = text.toLowerCase();

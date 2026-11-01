@@ -81,13 +81,13 @@ describe("utopiaDocuments", () => {
     ]);
   });
 
-  it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.016 at 0.5", () => {
+  it("scores the spec whose best hit is 0.032 at 1 and the one whose best is 0.024 at 0.75", () => {
     const hits = [
       hit(`doc:${SPEC}`, specFirst, 0.032),
       hit(
         `doc:${EVALS_SPEC}`,
         firstChunk(EVALS_SPEC, "spec", "# Context evals"),
-        0.016,
+        0.024,
       ),
     ];
 
@@ -98,8 +98,25 @@ describe("utopiaDocuments", () => {
       })),
     ).toEqual([
       { source_path: SPEC, score: 1 },
-      { source_path: EVALS_SPEC, score: 0.5 },
+      { source_path: EVALS_SPEC, score: 0.75 },
     ]);
+  });
+
+  it("drops the context-evals spec at 0.02 when the best document hit is 0.032, under three quarters of it", () => {
+    const hits = [
+      hit(`doc:${SPEC}`, specFirst, 0.032),
+      hit(
+        `doc:${EVALS_SPEC}`,
+        firstChunk(EVALS_SPEC, "spec", "# Context evals"),
+        0.02,
+      ),
+    ];
+
+    expect(
+      utopiaDocuments(hits, REPO_FILTER).map(
+        (document) => document.source_path,
+      ),
+    ).toEqual([SPEC]);
   });
 
   it("renders README.md's chunk as one doc item whose text starts at the file", () => {
@@ -160,7 +177,7 @@ const SPEC_THEN_ADR = [
   hit(
     `doc:${ADR}`,
     firstChunk(ADR, "adr", "# ADR-052: Code-to-spec graph mirrored in Utopia"),
-    0.01,
+    0.025,
   ),
 ];
 
@@ -211,21 +228,21 @@ describe("utopiaSectionReader section limits", () => {
       hit(
         `doc:${path}`,
         firstChunk(path, kind, `# ${path}`),
-        0.05 - rank / 100,
+        0.05 - rank / 1000,
       ),
     );
   const specs = ["a", "b", "c", "d", "e"].map(
     (name) => `specs/${name}/spec.md`,
   );
   const adrs = ["1", "2", "3"].map((n) => `adrs/ADR-00${n}-x.md`);
-  const read = (source: "repo" | "adrs") =>
+  const read = (source: "repo" | "adrs", query = "how are ADRs mirrored") =>
     utopiaSectionReader(
       {
         reads: searchOver([...docHits(specs, "spec"), ...docHits(adrs, "adr")]),
         kbId: "kb-1",
         docsSourceId: DOCS,
       },
-      "how are ADRs mirrored",
+      query,
     )({ header: source, source, priority: 1 });
 
   it("keeps specs a, b and c of five ranked spec hits under repo, and ADR-001 and ADR-002 of three under adrs", async () => {
@@ -235,6 +252,20 @@ describe("utopiaSectionReader section limits", () => {
       repo: repo.sources.map((document) => document.source_path),
       adrs: adrSection.sources.map((document) => document.source_path),
     }).toEqual({ repo: specs.slice(0, 3), adrs: adrs.slice(0, 2) });
+  });
+
+  it("keeps all five specs under repo and all three ADRs under adrs when the ticket names files in three areas", async () => {
+    const ticket =
+      "Change apps/stations/src/work/tick.ts, libs/shared/src/domain/loop.ts and apps/web-ui/src/app/Board.tsx";
+    const [repo, adrSection] = await Promise.all([
+      read("repo", ticket),
+      read("adrs", ticket),
+    ]);
+
+    expect({
+      repo: repo.sources.map((document) => document.source_path),
+      adrs: adrSection.sources.map((document) => document.source_path),
+    }).toEqual({ repo: specs, adrs });
   });
 });
 
