@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_my_usage`                     |
-| Module  | Usage (`usage-tools.ts`)       |
+| Module  | Usage (`usage/my-usage.ts`)       |
 | Scope   | shared                         |
 
 `lore_my_usage` reports the calling agent's own task count and input/output token totals across today, 7-day, and 30-day windows, giving a developer their delegation footprint without an admin dashboard.
@@ -22,7 +22,7 @@ periods.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage-tools.ts)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/usage/my-usage.ts)).
 
 - **name**: `lore_my_usage`
 - **description** (verbatim):
@@ -57,12 +57,11 @@ a renderer.
    - `denied` (401/403) → the `deniedError("lore_my_usage", …)` text; no cached
      copy is served past an authoritative refusal.
    - `unreachable` → `Could not fetch usage from the Lore API: {detail}`.
-5. Any thrown error is caught and returned as `"Error: {message}"`.
 
 ## Output
 
-A single MCP text content block: the pretty-printed JSON usage object, one of
-the three failure texts, or the `"Error: …"` text. **Never throws**.
+A single MCP text content block: the pretty-printed JSON usage object or one of
+the three failure texts. **Never throws**.
 
 ## Dependencies & side effects
 
@@ -74,18 +73,18 @@ the three failure texts, or the `"Error: …"` text. **Never throws**.
 
 ## Acceptance Criteria
 
-The API's usage object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's usage object as pretty-printed JSON`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L44))
+The API's usage object is returned to the caller as pretty-printed JSON. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
 
-The request goes to `/api/usage` for the resolved agent id. ([validated by `requests /api/usage for the resolved agent id`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L59))
+The request goes to `/api/usage` for the resolved agent id. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
 
-An explicit agent id is url-encoded into the query string. ([validated by `url-encodes an explicit agent id`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L68))
+An explicit agent id is url-encoded into the query string. ([validated by url-encodes the explicit agent id dev@example.com](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L37))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration for reading usage instead of a PostgreSQL message`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L75))
+PostgreSQL message. ([validated by reports a missing API configuration for reading usage](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L46))
 
-A denied token yields the denial message naming the tool. ([validated by `reports a denied token`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L83))
+A denied token yields the denial message naming the tool. ([validated by reports a denied token on a 403](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L54))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the usage failure detail when the API is unreachable`](apps/mcp-server/src/transport/tools/usage-tools.test.ts#L95))
+An unreachable API surfaces the underlying failure detail. ([validated by surfaces the usage failure detail when the API answers 500](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L66))
 
 ## Out of Scope
 

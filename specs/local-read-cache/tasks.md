@@ -14,7 +14,7 @@ Spec: [spec.md](spec.md)
 
 ## Phase 2 — Wire reads through the cache
 
-- [x] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/transport/tools/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
+- [x] T005 Add `withReadCache(policy, doProxy)` helper in `apps/mcp-server/src/transport/tools/shared/deps.ts` (fresh hit short-circuits; on `ok` store; on `unreachable` serve labeled stale if present)
 - [x] T006 `lore_assemble_context` (context-tools.ts) routes its local-mode fetch through `withReadCache`
 - [x] T007 Memory reads (`search_memory`, `read_memory`, `list_memories`) + `query_graph` (memory-tools.ts) wrapped with `withReadCache`
 - [x] T008 `lore-query-trace` (spec-trace-tools.ts) wrapped with `withReadCache`

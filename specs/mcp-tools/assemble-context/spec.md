@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_assemble_context`             |
-| Module  | Context (`context-tools.ts`)   |
+| Module  | Context (`context/assemble-context.ts`)   |
 | Scope   | shared                         |
 
 `lore_assemble_context` is the mandatory first call for a task: it pulls from every knowledge source at once — conventions, ADRs, memories, facts, episodes, and graph relationships — and returns one token-budgeted, template-ordered, provenance-tagged block an agent consumes directly.
@@ -24,7 +24,7 @@ LLM consumes directly.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context-tools.ts)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/context/assemble-context.ts)).
 
 - **name**: `lore_assemble_context`
 - **description** (verbatim):
@@ -76,14 +76,12 @@ records latency + success into `memory.audit_log` and an OTEL span.
    `"No relevant context found for this query."`
 6. **Success envelope** — return `result.text` prefixed with
    `<!-- context: template={template}, sections={N}, tokens={sum of section tokens} -->\n\n`.
-7. Any thrown error is caught and returned as `"Error assembling context: {message}"`.
 
 ## Output
 
 A single MCP text content block. One of, in priority order: the success envelope
 (meta comment + assembled text), the GKE-proxied envelope, the "no relevant
-context" text, the "requires PostgreSQL or LORE_API_URL" text, or the
-"Error assembling context: …" text. **Never throws** — every path returns text.
+context" text, the "requires PostgreSQL or LORE_API_URL" text. **Never throws** — every path returns text.
 
 ## Dependencies & side effects
 
@@ -112,7 +110,7 @@ sources. ([validated by `debug trace reports per-section status and omit reason 
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
-a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L141), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L177))
+a reachable non-empty response returns the live text. ([validated by returns an empty-but-reachable context as-is instead of a stale cached copy](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L173), [validated by returns the live result on a reachable hit](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L205))
 
 *(added 2026-10-01, #2103)* The shared agent gateway has no checkout, so it never
 shells out to git for a repo or branch: a call that names no repo is answered with
@@ -120,9 +118,9 @@ shells out to git for a repo or branch: a call that names no repo is answered wi
 says it is required there, and an API refusal reads as "Lore API rejected
 lore_assemble_context" with the API's reason, never as an unreachable API. A laptop's
 stdio adapter still reads its checkout's git remote.
-([validated by `asks for the repo instead of proxying an empty one when the call names none`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L217), [`reports the API's refusal as a rejection with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L232), [`reads the checkout on a laptop when the call names nothing`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L26), [`never shells out to git in the agent gateway, which has no checkout, and leaves an omitted repo to the caller`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L33), [`takes the repo and branch the call names in either mode`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L43), [`tells the gateway's caller the repo is required, and a laptop's that it is auto-detected`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L52), [`refuses a repo that is not owner/name, with `..`, `?` or extra slashes`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L85), [`accepts owner/name with dots, dashes and underscores`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L99), [`answers with the refusal and never calls the read for a hostile repo`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L107), [`answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L128); implemented by [`repo-scope.ts`](apps/mcp-server/src/transport/tools/repo-scope.ts))
+([validated by asks for the repo instead of proxying an empty one when the call names none](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L219), [validated by logs sources none and tokens 0 for an answer with no sections](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L89), [validated by says assembly needs the API when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L252), [validated by hands the read the repo re-cinq/lore the call names](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L144), [validated by answers that the gateway needs the repo named when an agent call omits it](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L154), [`reports the API's refusal as a rejection with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L231), [`reads the checkout on a laptop when the call names nothing`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L26), [`never shells out to git in the agent gateway, which has no checkout, and leaves an omitted repo to the caller`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L33), [`takes the repo and branch the call names in either mode`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L43), [`tells the gateway's caller the repo is required, and a laptop's that it is auto-detected`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L52), [`refuses a repo that is not owner/name, with `..`, `?` or extra slashes`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L85), [`accepts owner/name with dots, dashes and underscores`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L99), [`answers with the refusal and never calls the read for a hostile repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L107), [`answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L128); implemented by [`repo-scope.ts`](apps/mcp-server/src/transport/tools/shared/repo-scope.ts))
 
-*(added 2026-10-11, #2156)* On the shared agent gateway `repo` is a required parameter of every tool that reads a repo, enforced by the tool's Zod schema with the "pass repo as owner/name" hint; one gateway serves every pod, so no process-wide setting can name a call's repo and an omitted one is never filled from the environment, the working directory or a git remote. ([validated by `rejects an omitted repo in the gateway with the owner/name hint, and accepts one on a laptop`](apps/mcp-server/src/transport/tools/repo-scope.test.ts#L63))
+*(added 2026-10-11, #2156)* On the shared agent gateway `repo` is a required parameter of every tool that reads a repo, enforced by the tool's Zod schema with the "pass repo as owner/name" hint; one gateway serves every pod, so no process-wide setting can name a call's repo and an omitted one is never filled from the environment, the working directory or a git remote. ([validated by rejects an omitted repo in the gateway with the owner/name hint, and accepts one on a laptop](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L63))
 
 *(added 2026-10-01, #2344)* An explicit `repo` must be an owner/name (letters, digits, dots, dashes, underscores, no `..`, one slash) or the tool answers "Invalid repo" before any API call, so a caller-supplied value can never reshape the API path it is interpolated into; this holds for every tool that takes `repo`. On a laptop outside a checkout the call is answered with "Could not detect repo" instead of proxying an empty repo.
 
@@ -139,9 +137,9 @@ a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
-([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L173), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L181))
+([validated by rejects max_tokens below the 2000 floor](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L47), [validated by accepts max_tokens at the 2000 floor](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L53))
 
-*(added 2026-10-16)* An optional `backend` param — "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph in the lore_assemble_context schema](apps/mcp-server/src/transport/tools/context-tools.test.ts#L267), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context-tools.test.ts#L278))
+*(added 2026-10-16)* An optional `backend` param — "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L59), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L123), [validated by forwards max_tokens 16000, cross_repo true and agent_id agent-7 to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L137))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a
@@ -149,7 +147,7 @@ populated DB; the engine itself is covered above.)*
 
 ## Proxy timeout *(2026-10-31)*
 
-`lore_assemble_context`, `lore_search_context` and `lore_search_memory` give the API 45 s per attempt (`ASSEMBLY_PROXY_LIMITS`), above the 30 s tail Utopia-backed assembly measured on 2026-10-31. ([validated by waits 45s per attempt on /api/context and names 45s in the timeout detail](../../../libs/server-core/src/outbound/proxy.test.ts#L499), [validated by %s gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context-tools-assemble.test.ts#L58), [validated by gives a memory search 45s per attempt](../../../apps/mcp-server/src/transport/tools/memory-tools.test.ts#L417))
+`lore_assemble_context`, `lore_search_context` and `lore_search_memory` give the API 45 s per attempt (`ASSEMBLY_PROXY_LIMITS`), above the 30 s tail Utopia-backed assembly measured on 2026-10-31. ([validated by waits 45s per attempt on /api/context and names 45s in the timeout detail](../../../libs/server-core/src/outbound/proxy.test.ts#L499), [validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L110)) ([validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/search-context.test.ts#L153), [validated by gives a memory search 45s per attempt](../../../apps/mcp-server/src/transport/tools/memory/search-memory.test.ts#L43))
 
 A timed-out assembly is retried once, two attempts in all. ([validated by retries a timed-out /api/context assembly once, 2 attempts in all](../../../libs/server-core/src/outbound/proxy.test.ts#L518))
 

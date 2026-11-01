@@ -74,7 +74,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 ## Acceptance Criteria
 
 1. **AC1** The cache is active only in local stdio mode (memory DB
-   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/transport/tools/context-tools.ts#L90), [`withReadCache`](apps/mcp-server/src/transport/tools/deps.ts#L18))
+   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](libs/server-core/src/work/memory/memory-core.ts#L17), [`withReadCache`](apps/mcp-server/src/transport/tools/shared/deps.ts#L18))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
    `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled`](libs/server-core/src/outbound/proxy-cache.ts#L43))
@@ -93,7 +93,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](libs/server-core/src/outbound/proxy-cache.test.ts#L83), [`proxy-cache.test.ts:158`](libs/server-core/src/outbound/proxy-cache.test.ts#L158))
 
 7. **AC7** On an authoritative access denial (HTTP 401/403), no cached copy
-   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:165`](apps/mcp-server/src/transport/tools/context-tools.test.ts#L156))
+   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by does not serve a stale cached copy when the backend denies access (403)](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L186))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
    overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/outbound/proxy-cache.ts#L190))
@@ -106,10 +106,10 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
     `search_memory` + `query_graph` + `assemble_context`; create task → task
     lists; ingest files → `assemble_context` for the repo; invalidation scopes
     removal to the given repo; invalidation is a no-op with no entries directory
-    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L48), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory-tools.ts#L49), [`invalidateCache`](apps/mcp-server/src/transport/tools/pipeline-tools-lifecycle.ts), [`invalidateCache`](apps/mcp-server/src/transport/tools/repo-tools.ts#L98), [validated by `scopes removal to a repo when given`](libs/server-core/src/outbound/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/outbound/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/outbound/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/outbound/proxy-cache.test.ts#L116))
+    yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS`](apps/mcp-server/src/transport/tools/memory/shared/memory-derived-reads.ts#L2), [`EPISODE_DERIVED_READS`](apps/mcp-server/src/transport/tools/graph/write-episode.ts#L8), [`invalidateCache`](apps/mcp-server/src/transport/tools/memory/write-memory.ts#L47), [`invalidateCache`](apps/mcp-server/src/transport/tools/repo/ingest-files.ts#L61), [validated by `scopes removal to a repo when given`](libs/server-core/src/outbound/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only`](libs/server-core/src/outbound/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet`](libs/server-core/src/outbound/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched`](libs/server-core/src/outbound/proxy-cache.test.ts#L116))
 
 11. **AC11** Finished-job log reads (`lore_get_task_logs`, `lore_get_job_logs`)
-    are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/transport/tools/pipeline-tools-shared.ts#L34), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts#L97), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline-tools-logs.ts))
+    are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/transport/tools/pipeline/shared/cached-log-read.ts#L73), [`ttlSeconds: 86400`](apps/mcp-server/src/transport/tools/pipeline/shared/cached-log-read.ts#L27))
 
 11a. **AC11a** A non-retriable 4xx carries its status and raw body back to the
     caller, so an authoritative refusal (a 409 conflict) can be told apart from an
@@ -117,7 +117,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 
 11b. **AC11b** *(added 2026-10-01, #2156)* A refused GET carries its status too,
     and a tool reports a refusal as "Lore API rejected <op>: <reason>" while an
-    outage with no status still reads as unreachable after every attempt. ([validated by `carries the status of a refused GET too, so a caller reports the API's verdict rather than an outage`](libs/server-core/src/outbound/proxy.test.ts#L162), [`still reports an outage with no status as unreachable after every attempt`](libs/server-core/src/outbound/proxy.test.ts#L185), [`reports a 400 as the API rejecting the call with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/memory-tools.test.ts#L132))
+    outage with no status still reads as unreachable after every attempt. ([validated by `carries the status of a refused GET too, so a caller reports the API's verdict rather than an outage`](libs/server-core/src/outbound/proxy.test.ts#L162), [`still reports an outage with no status as unreachable after every attempt`](libs/server-core/src/outbound/proxy.test.ts#L185), [`reports a 400 as the API rejecting the call with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L88))
 
 12. **AC12** The cache is derived, never authority: a missing or corrupt entry
     degrades to a network re-fetch (never an error or wrong answer), and cache

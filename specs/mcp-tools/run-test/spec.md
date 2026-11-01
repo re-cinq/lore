@@ -7,7 +7,7 @@
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
 | Tool    | `lore_run_test`                                  |
-| Module  | Spec-Trace (`spec-trace-tools.ts`)          |
+| Module  | Spec-Trace (`spec-trace/run-test.local.ts`)          |
 | Scope   | local                                       |
 
 `lore_run_test` runs a single test by its runner-native id through the repo's declared run command in the caller's trusted sandbox and returns the pass/fail outcome plus the covered code ranges.
@@ -24,7 +24,7 @@ shared GKE server.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace-tools.local.ts#L23)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.ts)).
 
 - **name**: `lore_run_test`
 - **description** (verbatim):
@@ -81,7 +81,7 @@ the `"No test-command manifest declared for this repo."` text, a JSON
 ## Acceptance Criteria
 
 The tool returns the CI-or-local refusal without running the run command when
-`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the run command on the cluster`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L111))
+`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the run command on the cluster`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L111), [validated by returns passed true and the covered range the manifest's run command prints for selector a.test.ts](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L15), [validated by refuses on the shared server, where LORE_DB_HOST is set](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L29))
 
 The null-manifest precondition shares its branch with `listTestsTool` and is
 covered there — no dedicated null-manifest case exists for the run path, but the
@@ -95,7 +95,7 @@ identical guard on the list path is validated.
 ([validated by `rejects when the run command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L176))
 
 `runTestsRun` rejects naming the run command when output is not JSON.
-([validated by `rejects naming the run command when output is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L187))
+([validated by `rejects naming the run command when output is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L187), [validated by reports the error when the run command prints no JSON](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L40))
 
 `path_prefix_strip` is removed from covered-chunk file paths.
 ([validated by `removes a matching leading prefix`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L195))

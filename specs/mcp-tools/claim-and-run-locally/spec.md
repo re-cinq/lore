@@ -23,7 +23,7 @@ and removes it from the local pending list either way.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner-tools.local.ts#L115)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.ts)).
 
 - **name**: `lore_claim_and_run_locally`
 - **description** (verbatim):
@@ -82,13 +82,13 @@ the ingest result, the "Claimed and running locally" report, or `"Error: …"`.
 ## Acceptance Criteria
 
 `skipTask` removes a task from the pending list by id, leaving the rest.
-([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L152))
+([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L152), [validated by runs the cached task by its id prefix and takes it off the pending list](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L49), [validated by refuses to make a worktree outside a git checkout](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L89))
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
 ([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L146))
 
 `validateRepoMatch` (invoked inside `spawnLocalTask`) throws on a cwd/target-repo
-mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
+mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207), [validated by refuses with the target_repo mismatch when the checkout is acme/gadget](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L78))
 
 The full claim flow (API fetch, claim POST, ingest dispatch, worktree spawn) is
 exercised only end-to-end. *(untested: the orchestration depends on network
@@ -100,17 +100,15 @@ pending-list helpers it leans on are covered above.)*
 the local pending cache) returns `undefined` without fetching when API
 credentials are absent, `undefined` on a non-ok response or a non-`pending`
 status, the mapped task fields on success, and `undefined` when the request
-throws. ([validated by `returns undefined without fetching when the API URL or
-token is not
-configured`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L11),
+throws. ([validated by returns undefined without fetching when the API URL or token is not configured](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L15), [validated by answers not found when neither the pending cache nor the API knows task c0ffee00](../../../apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L41), [validated by returns the cached task whose id starts with c0ffee00 without asking the API](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L118), [validated by returns undefined when the cache misses and no API is configured](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L131), [validated by posts a claim by local-runner for task-1 to /api/task](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L146), [validated by posts nothing when no API is configured](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L169), [validated by resolves when the claim request throws](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L180),
 [`returns undefined when the API responds
-non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L22),
+non-ok`](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L26),
 [`returns undefined when the fetched task is not
-pending`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L32),
+pending`](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L36),
 [`returns the pending task's fields on
-success`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L55),
+success`](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L59),
 [`returns undefined when the request
-throws`](../../../apps/mcp-server/src/transport/tools/local-runner-tools.local.test.ts#L86))
+throws`](../../../apps/mcp-server/src/transport/tools/local-runner/shared/local-runner-api.test.ts#L90))
 
 ## Out of Scope
 

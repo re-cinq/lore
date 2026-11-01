@@ -1,0 +1,89 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { proxyToApi, textResult, type ProxyResult } from "../shared/deps.js";
+import { interpretMemoryProxy } from "../memory/shared/interpret-memory-proxy.js";
+
+const conflictProblemSchema = z.object({ detail: z.string() });
+
+// A record, not planning-document's op schema: importing it would pull a git dependency into the lean install (ADR-032).
+const agentOpSchema = z.record(z.string(), z.unknown());
+
+export function registerPlanEditTool(server: McpServer) {
+  server.tool(
+    "lore_plan_edit",
+    `Applies ONE agent op to the live plan; read first with lore_plan_read. For replace-block/remove-block pass expect {blockId, hash} from the read. A refused edit means a person changed that block: read again and keep their words.`,
+    {
+      plan_id: z.string().min(1),
+      op: agentOpSchema,
+      expect: z
+        .object({ blockId: z.string().min(1), hash: z.string().min(1) })
+        .optional(),
+    },
+    planEditHandler,
+  );
+}
+
+type PlanEditArgs = {
+  plan_id: string;
+  op: Record<string, unknown>;
+  expect?: { blockId: string; hash: string };
+};
+
+async function planEditHandler(args: PlanEditArgs) {
+  const proxied = await postAgentEdit(args);
+
+  return (
+    refusalOf(proxied) ??
+    interpretMemoryProxy("lore_plan_edit", proxied) ??
+    textResult("Editing a plan requires a configured LORE_API_URL.")
+  );
+}
+
+function postAgentEdit({
+  plan_id,
+  op,
+  expect,
+}: PlanEditArgs): Promise<ProxyResult> {
+  return proxyToApi(`/api/plans/${plan_id}/agent-edits`, {
+    actor: "planning-agent",
+    ops: [op],
+    expect,
+  });
+}
+
+// A block-conflict 409 (RFC 9457 problem body) reads as an edit refusal, not a proxy error.
+function refusalOf(
+  proxied: ProxyResult,
+): { content: [{ type: "text"; text: string }] } | null {
+  if (
+    proxied.ok ||
+    proxied.reason !== "unreachable" ||
+    proxied.status !== 409
+  ) {
+    return null;
+  }
+  const detail = conflictDetail(proxied.body);
+
+  if (!detail) {
+    return null;
+  }
+
+  return textResult(
+    `Edit refused: ${detail}. Read the plan again with lore_plan_read and retry against the block's current hash.`,
+  );
+}
+
+// Parses a JSON problem body's `detail` field; null when the body is missing/unparseable/shapeless.
+function conflictDetail(body: string | undefined): string | null {
+  if (!body) {
+    return null;
+  }
+
+  try {
+    const parsed = conflictProblemSchema.safeParse(JSON.parse(body));
+
+    return parsed.success ? parsed.data.detail : null;
+  } catch {
+    return null;
+  }
+}

@@ -7,7 +7,7 @@
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_list_task_group`              |
-| Module  | pipeline (`pipeline-tools.ts`) |
+| Module  | pipeline (`pipeline/list-task-group.ts`) |
 | Scope   | shared                         |
 
 `lore_list_task_group` lists every task sharing one task_group_id with a completed/total rollup, so a caller can gauge a single multi-repo feature's progress at a glance.
@@ -21,7 +21,7 @@ SQL by hand.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline-tools-listing.ts#L88)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/transport/tools/pipeline/list-task-group.ts)).
 
 - **name**: `lore_list_task_group`
 - **description** (verbatim):
@@ -62,16 +62,16 @@ pretty-printed rows array, or `"Error: {message}"`. **Never throws.**
 
 ## Acceptance Criteria
 
-The rollup line precedes the pretty-printed task array. ([validated by `lore_list_task_group renders the rollup line above the task JSON`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L345))
+The rollup line precedes the pretty-printed task array. ([validated by renders 'Group g1: 1/2 completed' above the task JSON read from /api/task-groups/g1](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L26))
 
-A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by `lore_list_task_group reports an empty group`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L363))
+A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by reports an empty group g1](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L42))
 
-An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L371))
+An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by reports a missing API configuration without fetching](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L66), [validated by reports the error when the API answers a null body](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L50))
 
 An unreachable API (fetch throws) reports the subject-scoped "Could not fetch
 the task group" message rather than the generic unreachable copy. ([validated
 by `lore_list_task_group reports a subject-scoped fetch message when the API
-is unreachable`](apps/mcp-server/src/transport/tools/pipeline-tools.test.ts#L319))
+is unreachable`](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L58))
 
 ## Out of Scope
 

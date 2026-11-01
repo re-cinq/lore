@@ -12,7 +12,7 @@ The local `lore-context` MCP adapter runs from an installed checkout that the Se
 
 ## Detection
 
-- When `origin/main` is ahead of the built SHA, the check reports an available update carrying the number of commits behind. ([validated by `mcp-update.test.ts:5`](apps/mcp-server/src/work/update/mcp-update.test.ts#L5))
+- When `origin/main` is ahead of the built SHA, the check reports an available update carrying the number of commits behind. ([validated by `mcp-update.test.ts:5`](apps/mcp-server/src/work/update/mcp-update.test.ts#L5), [validated by names the 1 commit the build is behind before the updater's output](apps/mcp-server/src/transport/tools/update/update.test.ts#L43), [validated by prints only the updater's output when the build is at origin/main](apps/mcp-server/src/transport/tools/update/update.test.ts#L53))
 - When the built and remote SHAs are identical, the check reports no available update. ([validated by `mcp-update.test.ts:14`](apps/mcp-server/src/work/update/mcp-update.test.ts#L14))
 - When the built and remote SHAs differ but no commits separate them, the check reports no available update. ([validated by `mcp-update.test.ts:23`](apps/mcp-server/src/work/update/mcp-update.test.ts#L23))
 - When the built SHA is absent, the check reports no available update. ([validated by `mcp-update.test.ts:32`](apps/mcp-server/src/work/update/mcp-update.test.ts#L32))

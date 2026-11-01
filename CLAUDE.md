@@ -115,7 +115,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/outbound/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.station_runs` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one run and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch).
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
 - `apps/lore-api/src/outbound/github-client.ts` — consolidated GitHub auth (App + token fallback)
-- `apps/mcp-server/src/transport/tools/local-runner-tools.local.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
+- `apps/mcp-server/src/transport/tools/local-runner/` (one `*.local.ts` per tool) — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, reembed.sh, seed-secrets.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
@@ -192,7 +192,7 @@ three (specs/adrs/tests) is a pipeline task.
   (incl. `TN:`) / cobertura to canonical ranges itself (`apps/lore-code-trace/coverage.go`) —
   the server never parses coverage.
 
-**MCP tools** (`apps/mcp-server/src/index.ts` → `apps/mcp-server/src/transport/tools/spec-trace-tools.ts`):
+**MCP tools** (`apps/mcp-server/src/index.ts` → `apps/mcp-server/src/transport/tools/spec-trace/`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
 sandbox**) and `query_trace` (live graph reads — proxies `GET /trace/document`,
 formats coverage + validated_by/violated). **Trust boundary**: execution only in a trusted sandbox (local dev /
@@ -623,7 +623,7 @@ incidents in `lore_assemble_context` at priority 1.
 **Developer tools**: `lore_get_task_logs` MCP tool reads a task's
 execution transcript (no UI needed). `lore_my_usage` shows per-developer
 token usage (today/7-day/30-day). `lore_get_ci_failures` / `lore_get_ci_job_log`
-(`apps/mcp-server/src/transport/tools/ci-tools.ts`, served to agent pods too)
+(`apps/mcp-server/src/transport/tools/ci/get-ci-failures.ts` + `get-ci-job-log.ts`, served to agent pods too)
 report what CI said about the checked-out branch — judged sha, verdict, each
 failed check's annotations/steps/log tail — and one job's log tail, via
 `GET /api/repos/:o/:r/ci-failures` and `/ci-jobs/:job_id/log`; a pod reads
