@@ -4708,6 +4708,8 @@ export interface components {
               docs_source_id?: string;
               sources_extract_off?: boolean;
               history_sources_split?: boolean;
+              history_extract?: boolean;
+              history_extract_applied?: boolean;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -4843,6 +4845,8 @@ export interface components {
                 docs_source_id?: string;
                 sources_extract_off?: boolean;
                 history_sources_split?: boolean;
+                history_extract?: boolean;
+                history_extract_applied?: boolean;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";

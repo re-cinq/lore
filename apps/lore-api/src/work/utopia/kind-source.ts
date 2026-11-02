@@ -1,6 +1,7 @@
 // The Utopia source a kind of mirrored thing is pushed to (specs/utopia-graph-mirror FR18): in the repo's knowledge base, the `docs`, `git-history`, `issues`, `pull-requests` or `releases` api source that takes whole text documents, or the `test-coverage` statements source, created the first time one is pushed to.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { UtopiaMirrorSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
 import {
   utopiaAutoSetupConfigured,
   utopiaClientFrom,
@@ -19,6 +20,7 @@ import {
   type KindSourceKey,
   type MirrorKind,
 } from "../../outbound/utopia/kind-sources.js";
+import { projectFor } from "../../outbound/project-boot.js";
 import { saveUtopiaDocsSourceId } from "../../outbound/utopia/sources.js";
 import { loreSession, sharedPerRepo } from "./setup/auto-setup.js";
 import { repoKnowledgeBase } from "./repo-mirror.js";
@@ -178,14 +180,14 @@ async function createKindSource(
   wanted: KindSourceKey,
   env: UtopiaEnv,
 ): Promise<UtopiaSource> {
-  const { repo, kind, kbId } = wanted;
+  const { repo, kind } = wanted;
 
   enforceTrue(
     utopiaAutoSetupConfigured(env),
     Error,
     `${repo} has no Utopia ${kind} source and this deployment cannot create one`,
   );
-  const source = await newSource(loreSession(env), kbId, kind);
+  const source = await newSourceFor(env, wanted);
 
   await saveKindSource(pool, wanted, source);
 
@@ -194,6 +196,23 @@ async function createKindSource(
   }
 
   return source;
+}
+
+async function newSourceFor(
+  env: UtopiaEnv,
+  { repo, kind, kbId }: KindSourceKey,
+): Promise<UtopiaSource> {
+  const extractHistory = await historyExtractOn(repo);
+
+  return newSource(loreSession(env), kbId, { kind, extractHistory });
+}
+
+/** True when the repo's settings ask for its history to be read by Utopia's AI (ADR-052). */
+async function historyExtractOn(repo: string): Promise<boolean> {
+  const settings = await (await projectFor(repo)).settings.rawSettings();
+  const mirror = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
+
+  return mirror.success && mirror.data.history_extract === true;
 }
 
 /** A source is named for what the Library shows in it: the commits kind keeps its `git-history` key and shows as `commits`. */
@@ -205,13 +224,15 @@ const SOURCE_NAMES: Partial<Record<MirrorKind, string>> = {
 function newSource(
   session: ReturnType<typeof loreSession>,
   kbId: string,
-  kind: MirrorKind,
+  { kind, extractHistory }: { kind: MirrorKind; extractHistory: boolean },
 ): Promise<UtopiaSource> {
   return kind === "test-coverage"
     ? session.createStatementsSource(kbId, kind, { names: "identity" })
     : session.createApiSource(
         kbId,
         SOURCE_NAMES[kind] ?? kind,
-        EXTRACTION_OFF_KINDS.includes(kind) ? { extract: false } : {},
+        EXTRACTION_OFF_KINDS.includes(kind) && !extractHistory
+          ? { extract: false }
+          : {},
       );
 }

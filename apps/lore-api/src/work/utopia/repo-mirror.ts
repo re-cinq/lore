@@ -21,6 +21,7 @@ import type { Pool } from "pg";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
   autoSetUpRepo,
+  autoExtractHistory,
   autoSilenceExtraction,
   autoSplitHistorySources,
   autoUpgradeOntology,
@@ -64,6 +65,7 @@ async function bringUpToDateQuietly(
 ): Promise<void> {
   await upgradeOntologyQuietly(pool, repo, mirror, env);
   await splitHistorySourcesQuietly(pool, repo, mirror, env);
+  await extractHistoryQuietly(pool, repo, mirror, env);
   await silenceExtractionQuietly(pool, repo, mirror, env);
 }
 
@@ -90,11 +92,35 @@ async function silenceExtractionQuietly(
   mirror: UtopiaMirrorSettings,
   env: UtopiaEnv,
 ): Promise<void> {
-  if (!mirror.sources_extract_off && utopiaAutoSetupConfigured(env)) {
+  if (
+    !mirror.sources_extract_off &&
+    !mirror.history_extract &&
+    utopiaAutoSetupConfigured(env)
+  ) {
     await countingFailure(
       repo,
       "source extraction switch",
       autoSilenceExtraction(pool, repo, mirror, env),
+    );
+  }
+}
+
+/** Once per repo that sets `history_extract`: its history sources start extracting and are re-extracted (ADR-052); failed like an upgrade, the next ingest tries again. */
+async function extractHistoryQuietly(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  if (
+    mirror.history_extract &&
+    !mirror.history_extract_applied &&
+    utopiaAutoSetupConfigured(env)
+  ) {
+    await countingFailure(
+      repo,
+      "history extraction switch",
+      autoExtractHistory(pool, repo, mirror, env),
     );
   }
 }

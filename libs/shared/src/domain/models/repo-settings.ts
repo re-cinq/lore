@@ -44,6 +44,10 @@ export const UtopiaMirrorSettingsSchema = z.object({
   sources_extract_off: z.boolean().optional(),
   /** Set once the repo's `git-history` source was renamed `commits` and its `github` source, which held issues, pull requests, tags and releases together, was deleted for the sources of each. */
   history_sources_split: z.boolean().optional(),
+  /** Asks Utopia's AI to read the repo's commits, issues, pull requests and releases, the one repo-wide switch on top of the extraction-off default of ADR-052. */
+  history_extract: z.boolean().optional(),
+  /** Set once the history sources were patched to `extract: true` and re-extracted for `history_extract`. */
+  history_extract_applied: z.boolean().optional(),
 });
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;
