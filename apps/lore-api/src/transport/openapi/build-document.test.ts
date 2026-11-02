@@ -118,6 +118,21 @@ describe("generateOpenApi — methods, scope, security", () => {
     );
   });
 
+  it("lists the search-context query fields as query parameters, query required and limit optional", () => {
+    const { parameters } = document.paths["/api/search-context"].get;
+
+    expect(parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "query", in: "query", required: true }),
+        expect.objectContaining({
+          name: "limit",
+          in: "query",
+          required: false,
+        }),
+      ]),
+    );
+  });
+
   it("carries per-route scope and rate-limit bucket as extensions", () => {
     expect(document.paths["/api/memory"].post).toMatchObject({
       "x-required-scope": "write",

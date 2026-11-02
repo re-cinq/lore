@@ -129,7 +129,7 @@ describe("lore_get_ci_failures", () => {
     const result = await handlerFor("lore_get_ci_failures")({ pr_number: 9 });
 
     expect(result.content[0].text).toBe(
-      "Could not read CI failures from the Lore API: pull request not found",
+      "Could not fetch CI failures from the Lore API: pull request not found",
     );
   });
 });

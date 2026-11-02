@@ -73,12 +73,12 @@ One-line purpose: search the ingested-document corpus (CLAUDE.md, ADRs, team doc
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `query` | yes | — | Natural-language search query (e.g. `how are pipeline tasks authenticated`). |
-| `team` | no | `org_shared` | Scope. DB path: a Postgres team schema name; an empty/no-result team transparently retries `org_shared`. File-fallback path: a `teams/<name>` subdir under `CONTEXT_PATH`; an unknown subtree returns a "search path not found" error. Omit to search org-wide. |
+| `team` | no | `org_shared` | Scope: a Postgres team schema name; an empty/no-result team transparently retries `org_shared`. Omit to search org-wide. |
 | `limit` | no | `8` | Maximum number of passages to return. |
 | `backend` | no | `lore` | `lore`, `utopia`, or `both`. Sent to `GET /api/search-context`; `utopia` returns no passages and the note `search_context: no Utopia reader yet`, `both` Lore's passages and that note. Without an API, `utopia`/`both` are refused rather than answered from local files. |
 
 - **Returns:** one text block; each hit is `**Score:** <rrf>` (DB path) or `**Source:** <relative-path>` (file path) followed by the passage, joined by `---`; or a no-results message.
-- **Where it runs:** against the shared-DB backend directly when a DB is reachable (hybrid vector + BM25 fused by Reciprocal Rank Fusion); with no DB it degrades to a deterministic case-insensitive substring scan of local `.md` files, so it works before any ingest has run. With `LORE_API_URL` set it proxies to `GET /api/search-context`.
+- **Where it runs:** always through `GET /api/search-context` (hybrid vector + BM25 fused by Reciprocal Rank Fusion, server-side). With no `LORE_API_URL` it says so; there is no local file scan.
 - **Cache/mutation:** read-only, not cached.
 
 ### Memory

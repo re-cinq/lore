@@ -1,11 +1,8 @@
 import { errorMessage, resolveAgentId } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  proxyGetApi,
-  deniedError,
-  unconfiguredError,
-  textResult,
-} from "../shared/deps.js";
+import { proxyGetApi, textResult } from "../shared/deps.js";
+import { renderProxied } from "../shared/render-proxied.js";
+import { apiGetUrl } from "../../api/api-types.js";
 import { AGENT_STATS_INPUT } from "../memory/shared/memory-tools-schemas.js";
 
 export function registerAgentStatsTool(server: McpServer) {
@@ -17,35 +14,18 @@ export function registerAgentStatsTool(server: McpServer) {
   );
 }
 
-// Reads an agent's own figures. The three refusals are distinct on purpose: unconfigured means this install has no API, denied means the token was rejected, and anything else is the API's own message — collapsing them would send a developer to check the wrong thing.
 async function agentStatsHandler({ agent_id }: { agent_id?: string }) {
   try {
-    const params = new URLSearchParams({ agent_id: resolveAgentId(agent_id) });
-    const proxied = await proxyGetApi(`/api/agent-stats?${params}`);
+    const proxied = await proxyGetApi(
+      apiGetUrl("/api/agent-stats", { agent_id: resolveAgentId(agent_id) }),
+    );
 
-    if (proxied.ok) {
-      return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
-    }
-
-    return statsRefusal(proxied);
+    return renderProxied(proxied, {
+      op: "fetching agent stats",
+      subject: "agent stats",
+      toolName: "lore_agent_stats",
+    });
   } catch (err) {
     return textResult(`Error fetching agent stats: ${errorMessage(err)}`);
   }
-}
-
-// Why the figures did not arrive.
-function statsRefusal(
-  proxied: Exclude<Awaited<ReturnType<typeof proxyGetApi>>, { ok: true }>,
-) {
-  if (proxied.reason === "not_configured") {
-    return unconfiguredError("fetching agent stats");
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError("lore_agent_stats", proxied.detail);
-  }
-
-  return textResult(
-    `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
-  );
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fail if the committed OpenAPI artifact or the generated web-ui client types have
 # drifted from the routes (ADR-035). `apps/lore-api/openapi.json` is generated from
-# `routeList`, and `apps/web-ui/src/lib/api/schema.d.ts` is generated from it —
+# `routeList`, and the web-ui and mcp-server `schema.d.ts` client types are generated from it —
 # web-ui's Docker context cannot reach lore-api at build time, so both are committed.
 # Regenerate:
 #
@@ -17,7 +17,7 @@ npm run build -w @re-cinq/lore-api >/dev/null
 npm run gen:openapi -w @re-cinq/lore-api >/dev/null
 npm run gen:api-types -w @re-cinq/lore-api >/dev/null
 
-artifacts=("apps/lore-api/openapi.json" "apps/web-ui/src/lib/api/schema.d.ts")
+artifacts=("apps/lore-api/openapi.json" "apps/web-ui/src/lib/api/schema.d.ts" "apps/mcp-server/src/transport/api/schema.d.ts")
 
 # `git diff` says nothing about an UNTRACKED file, so a guard that only diffs would
 # pass forever if an artifact were never committed — exactly the state this replaces.

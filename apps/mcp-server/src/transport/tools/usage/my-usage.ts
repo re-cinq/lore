@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { resolveAgentId } from "@re-cinq/lore-shared";
 import { proxyGetApi } from "../shared/deps.js";
-import { renderProxied } from "./shared/render-proxied.js";
+import { renderProxied } from "../shared/render-proxied.js";
 
 const MY_USAGE_INPUT = {
   agent_id: z

@@ -53,6 +53,7 @@ export default tseslint.config(
       // Generated from apps/lore-api/openapi.json by openapi-typescript — its
       // output does not follow the repo's stylistic rules and must not be edited.
       "apps/web-ui/src/lib/api/schema.d.ts",
+      "apps/mcp-server/src/transport/api/schema.d.ts",
     ],
   },
 

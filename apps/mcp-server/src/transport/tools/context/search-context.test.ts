@@ -1,28 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { writeFileSync, mkdirSync, chmodSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resetRepoCache } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { toolHandlers } from "../shared/tool-test-helpers.js";
 import { registerSearchContextTool } from "./search-context.js";
 
-const contextRoot = await vi.hoisted(async () => {
-  const { mkdtempSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-
-  process.env.CONTEXT_PATH = mkdtempSync(`${tmpdir()}/lore-search-context-`);
-
-  return process.env.CONTEXT_PATH;
-});
-
-writeFileSync(
-  join(contextRoot, "conventions.md"),
-  "# Conventions\n\nWe deploy on Friday afternoons.\n\nUnrelated paragraph about cats.",
-);
-mkdirSync(join(contextRoot, "teams", "payments"), { recursive: true });
-writeFileSync(
-  join(contextRoot, "teams", "payments", "rules.md"),
-  "Payments uses idempotency keys.\n\nDeploy on Friday afternoons too.",
-);
+const outsideAnyCheckout = mkdtempSync(`${tmpdir()}/lore-search-context-`);
 
 const searchContext = toolHandlers(registerSearchContextTool, "full")[
   "lore_search_context"
@@ -37,105 +20,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("lore_search_context file-based fallback over real .md files on a temp CONTEXT_PATH tree (no mocking)", () => {
+describe("lore_search_context with no Lore API configured", () => {
   beforeEach(() => {
     vi.stubEnv("LORE_API_URL", "");
   });
 
-  it("returns the matching paragraph with its source path", async () => {
+  it("says the corpus search needs LORE_API_URL instead of scanning local files", async () => {
     const result = await searchContext({
       query: "Friday afternoons",
       limit: 8,
     });
-    const text = result.content[0].text;
 
-    expect(text).toContain("**Source:** conventions.md");
-    expect(text).toContain("We deploy on Friday afternoons.");
-  });
-
-  it("matches case-insensitively", async () => {
-    const result = await searchContext({
-      query: "FRIDAY AFTERNOONS",
-      limit: 8,
-    });
-
-    expect(result.content[0].text).toContain("We deploy on Friday afternoons.");
-  });
-
-  it("excludes paragraphs that do not contain the query", async () => {
-    const result = await searchContext({ query: "deploy", limit: 8 });
-
-    expect(result.content[0].text).not.toContain(
-      "Unrelated paragraph about cats",
-    );
-  });
-
-  it("says the offline scan is not the corpus when the local files match nothing", async () => {
-    const result = await searchContext({
-      query: "nonexistent-term-xyz",
-      limit: 8,
-    });
-
-    expect(result.content[0].text).toEqual(
-      'No results found for "nonexistent-term-xyz". This was a substring scan of local .md files under CONTEXT_PATH, not the ingested corpus — set LORE_API_URL to search it.',
-    );
-  });
-
-  it("caps the number of returned paragraphs at the limit", async () => {
-    const result = await searchContext({ query: "Friday", limit: 1 });
-    const separators = result.content[0].text.split("\n\n---\n\n").length;
-
-    expect(separators).toBe(1);
-  });
-
-  it("scopes the search to a team subtree when team is given", async () => {
-    const result = await searchContext({
-      query: "idempotency keys",
-      team: "payments",
-      limit: 8,
-    });
-
-    expect(result.content[0].text).toContain("Payments uses idempotency keys.");
-  });
-
-  it("returns a path-not-found error for an unknown team", async () => {
-    const result = await searchContext({
-      query: "anything",
-      team: "does-not-exist",
-      limit: 8,
-    });
-
-    expect(result.content[0].text).toMatch(/Error: search path not found at/);
-  });
-
-  it("skips a .md file it cannot read and still answers from the others", async () => {
-    const locked = join(contextRoot, "teams", "locked");
-
-    mkdirSync(locked, { recursive: true });
-    writeFileSync(join(locked, "a-secret.md"), "Friday secret.");
-    writeFileSync(join(locked, "b-open.md"), "Friday open.");
-    chmodSync(join(locked, "a-secret.md"), 0o000);
-
-    const result = await searchContext({
-      query: "Friday",
-      team: "locked",
-      limit: 8,
-    });
-
-    expect(result.content[0].text).toBe(
-      "**Source:** teams/locked/b-open.md\n\nFriday open.",
-    );
-  });
-
-  it("refuses backend utopia instead of scanning local files", async () => {
-    const result = await searchContext({
-      query: "Friday afternoons",
-      limit: 8,
-      backend: "utopia",
-    });
-
-    expect(result.content[0].text).toBe(
-      "backend utopia is answered by the Lore API only; set LORE_API_URL. The offline search reads Lore's stores alone.",
+    expect(result.content[0].text).toMatch(
+      /searching the context corpus.*LORE_API_URL/s,
     );
   });
 });
@@ -212,7 +109,10 @@ describe("lore_search_context through the API", () => {
   });
 
   it("says no results for deploys when the API matches nothing", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [] }),
+    });
 
     const result = await searchContext({
       query: "deploys",
@@ -244,7 +144,7 @@ describe("lore_search_context through the API", () => {
       ok: true,
       json: async () => ({ results: [] }),
     });
-    process.chdir(contextRoot);
+    process.chdir(outsideAnyCheckout);
     resetRepoCache();
 
     try {

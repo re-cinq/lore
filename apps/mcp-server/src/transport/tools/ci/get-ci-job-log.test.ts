@@ -80,7 +80,7 @@ describe("lore_get_ci_job_log", () => {
     const result = await handlerFor("lore_get_ci_job_log")({ job_id: 9 });
 
     expect(result.content[0].text).toBe(
-      "Could not read the CI job log from the Lore API: HTTP 424 Failed Dependency: GitHub would not serve the job log (403): Resource not accessible by integration",
+      "Could not fetch the CI job log from the Lore API: HTTP 424 Failed Dependency: GitHub would not serve the job log (403): Resource not accessible by integration",
     );
   });
 });

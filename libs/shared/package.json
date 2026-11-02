@@ -234,6 +234,10 @@
       "types": "./dist/domain/context-model.d.ts",
       "default": "./dist/domain/context-model.js"
     },
+    "./context-template.js": {
+      "types": "./dist/domain/context-template.d.ts",
+      "default": "./dist/domain/context-template.js"
+    },
     "./knowledge-backend.js": {
       "types": "./dist/domain/knowledge-backend.d.ts",
       "default": "./dist/domain/knowledge-backend.js"
