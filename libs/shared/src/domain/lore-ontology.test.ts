@@ -6,7 +6,7 @@ import {
 } from "./lore-ontology.js";
 
 describe("lore ontology", () => {
-  it("binds the seventeen class labels of the chain and its history to their snake_case class keys", () => {
+  it("binds the eighteen class labels of the chain and its history to their snake_case class keys", () => {
     const snakeCase = (word: string) =>
       word.replace(/(?<=[a-z])([A-Z])/g, "_$1").toLowerCase();
 
@@ -29,18 +29,19 @@ describe("lore ontology", () => {
         "Task",
         "Release",
         "Tag",
+        "Person",
       ].map((word) => ({ word, classKey: snakeCase(word) })),
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 7", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 8", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 7,
+      version: 8,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -126,7 +127,7 @@ describe("lore ontology", () => {
       .length;
 
     expect({ declared, temporalOf: Object.fromEntries(temporalOf) }).toEqual({
-      declared: 17,
+      declared: 18,
       temporalOf: {
         contains: "eternal",
         validated_by: "eternal",
@@ -145,6 +146,7 @@ describe("lore ontology", () => {
         delivers: "event",
         points_to: "eternal",
         publishes: "eternal",
+        authored_by: "event",
       },
     });
   });
@@ -251,7 +253,22 @@ describe("lore ontology", () => {
         "Task",
         "Release",
         "Tag",
+        "Person",
       ]),
     );
+  });
+
+  it("declares authored_by from Commit, PullRequest and Issue to Person, so who wrote a commit or opened a pull request is a term the base knows", async () => {
+    const turtle = await loreOntologyTurtle();
+    const declaration =
+      /lore:authored_by a owl:ObjectProperty ;[\s\S]*?rdfs:domain ([^;]*);\s*rdfs:range ([^.]*) \./
+        .exec(turtle)
+        ?.slice(1)
+        .map((part) => part.trim());
+
+    expect(declaration).toEqual([
+      "lore:Commit, lore:PullRequest, lore:Issue",
+      "lore:Person",
+    ]);
   });
 });
