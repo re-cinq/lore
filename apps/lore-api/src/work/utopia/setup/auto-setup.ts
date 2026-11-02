@@ -9,10 +9,15 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
 import {
+  deleteKindSource,
   EXTRACTION_OFF_KINDS,
   kindSourceFor,
+  type MirrorKind,
 } from "../../../outbound/utopia/kind-sources.js";
-import { saveUtopiaMirrorSettings } from "../../../outbound/utopia/sources.js";
+import {
+  clearUtopiaCursors,
+  saveUtopiaMirrorSettings,
+} from "../../../outbound/utopia/sources.js";
 import {
   installOntology,
   setUpRepoInUtopia,
@@ -22,6 +27,7 @@ import {
 const settingUp = new Map<string, Promise<string>>();
 const upgrading = new Map<string, Promise<void>>();
 const silencing = new Map<string, Promise<void>>();
+const splitting = new Map<string, Promise<void>>();
 
 /** Answers the id of the knowledge base set up. Two ingests of one repo in this process share one setup; across processes, finding the base by name keeps it at one base. */
 export function autoSetUpRepo(
@@ -65,6 +71,66 @@ export function autoSilenceExtraction(
       });
     }
   });
+}
+
+/** Once per repo: the `git-history` source is shown as `commits`, and the `github` source, which held issues, pull requests, tags and releases together, is deleted with its documents, along with the walk cursors, so the next walks push each into the source of its kind; two ingests of one repo in this process share one pass. */
+export function autoSplitHistorySources(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  return sharedPerRepo(splitting, repo, () =>
+    splitHistorySources(pool, { repo, kbId: mirror.kb_id }, env),
+  );
+}
+
+interface RepoBase {
+  repo: string;
+  kbId: string;
+}
+
+async function splitHistorySources(
+  pool: Pool,
+  { repo, kbId }: RepoBase,
+  env: UtopiaEnv,
+): Promise<void> {
+  const commits = await sourceInBase(pool, repo, "git-history", kbId);
+  const github = await sourceInBase(pool, repo, "github", kbId);
+
+  await Promise.all([
+    commits && loreSession(env).renameSource(kbId, commits.id, "commits"),
+    github && dropGithubSource(pool, { repo, kbId }, github.id, env),
+  ]);
+
+  if (commits || github) {
+    await saveUtopiaMirrorSettings(pool, repo, {
+      kb_id: kbId,
+      history_sources_split: true,
+    });
+  }
+}
+
+async function dropGithubSource(
+  pool: Pool,
+  { repo, kbId }: RepoBase,
+  sourceId: string,
+  env: UtopiaEnv,
+): Promise<void> {
+  await loreSession(env).deleteSource(kbId, sourceId);
+  await deleteKindSource(pool, repo, "github");
+  await clearUtopiaCursors(pool, repo);
+}
+
+async function sourceInBase(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  kbId: string,
+) {
+  const stored = await kindSourceFor(pool, repo, kind);
+
+  return stored?.kbId === kbId ? stored : null;
 }
 
 async function patchStoredSources(

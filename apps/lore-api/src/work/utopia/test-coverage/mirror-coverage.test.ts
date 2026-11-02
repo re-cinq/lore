@@ -25,6 +25,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
           kb_id: "kb-1",
           ontology_version: 8,
           sources_extract_off: true,
+          history_sources_split: true,
         },
       }),
     },

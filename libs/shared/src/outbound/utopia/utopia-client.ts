@@ -1,9 +1,7 @@
 // Utopia (deeplethe/utopia), the knowledge-graph service the spec→test→code chain is mirrored into: a per-source push surface and a person's surface for setting a repository's knowledge base up, reached with their session or their write token.
 
 import {
-  cleanupMissing,
-  createSource,
-  patchSourceConfig,
+  sourceCallsOf,
   type SessionCall,
   type SourceConfig,
 } from "./utopia-source-requests.js";
@@ -72,6 +70,9 @@ export interface UtopiaSession {
     config: SourceConfig,
   ): Promise<void>;
   cleanupMissing(kbId: string, sourceId: string): Promise<void>;
+  renameSource(kbId: string, sourceId: string, name: string): Promise<void>;
+  /** Removes the source with every document it holds. */
+  deleteSource(kbId: string, sourceId: string): Promise<void>;
 }
 
 export interface UtopiaClient {
@@ -181,7 +182,7 @@ export function utopiaRequester(
 
 export interface RequestOptions {
   token: string;
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   json?: unknown;
   form?: FormData;
   /** An ontology import plans against the whole base, writes every class and relation, and queues alignment: on a busy base it outlasts a push's wait by far. */
@@ -284,13 +285,7 @@ function sessionOf(request: Requester, bearer: string): UtopiaSession {
       importOntology(call, kbId, { turtle, filename }),
     bindKindWord: (kbId, word, classKey) =>
       bindKindWord(call, kbId, word, classKey),
-    createStatementsSource: (kbId, name, config = {}) =>
-      createSource(call, kbId, { kind: "statements", name, config }),
-    createApiSource: (kbId, name, config = {}) =>
-      createSource(call, kbId, { kind: "api", name, config }),
-    patchSourceConfig: (kbId, sourceId, config) =>
-      patchSourceConfig(call, kbId, sourceId, config),
-    cleanupMissing: (kbId, sourceId) => cleanupMissing(call, kbId, sourceId),
+    ...sourceCallsOf(call),
   };
 }
 

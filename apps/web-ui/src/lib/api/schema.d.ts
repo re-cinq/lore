@@ -4707,6 +4707,7 @@ export interface components {
               tracker_since?: string;
               docs_source_id?: string;
               sources_extract_off?: boolean;
+              history_sources_split?: boolean;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -4841,6 +4842,7 @@ export interface components {
                 tracker_since?: string;
                 docs_source_id?: string;
                 sources_extract_off?: boolean;
+                history_sources_split?: boolean;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";

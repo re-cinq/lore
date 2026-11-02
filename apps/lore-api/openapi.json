@@ -17557,6 +17557,9 @@
                       },
                       "sources_extract_off": {
                         "type": "boolean"
+                      },
+                      "history_sources_split": {
+                        "type": "boolean"
                       }
                     },
                     "required": ["kb_id"],
@@ -17996,6 +17999,9 @@
                               "type": "string"
                             },
                             "sources_extract_off": {
+                              "type": "boolean"
+                            },
+                            "history_sources_split": {
                               "type": "boolean"
                             }
                           },

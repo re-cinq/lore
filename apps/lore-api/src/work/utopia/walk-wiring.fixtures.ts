@@ -5,7 +5,12 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 export const SETTINGS_WITH_BASE = {
-  utopia: { kb_id: "kb-1", ontology_version: 8, sources_extract_off: true },
+  utopia: {
+    kb_id: "kb-1",
+    ontology_version: 8,
+    sources_extract_off: true,
+    history_sources_split: true,
+  },
 };
 
 /** A Utopia that answers every push created and remembers `<url> <external id>` of each, with the environment pointed at it. */

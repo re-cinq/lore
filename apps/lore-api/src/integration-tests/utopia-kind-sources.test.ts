@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import {
+  deleteKindSource,
   kindSourceFor,
   saveKindSource,
 } from "../outbound/utopia/kind-sources.js";
@@ -83,7 +84,38 @@ describe("lore.utopia_kind_sources", () => {
     });
   });
 
-  it("refuses a kind outside docs, test-coverage, git-history and github", async () => {
+  it("keeps the issues, pull-requests and releases sources of it-kinds/split and forgets only its github one after deleteKindSource", async () => {
+    const base = { repo: "it-kinds/split", kbId: "kb-1" };
+
+    for (const kind of [
+      "github",
+      "issues",
+      "pull-requests",
+      "releases",
+    ] as const) {
+      await saveKindSource(
+        pool,
+        { ...base, kind },
+        { id: `src-${kind}`, key: "utp_k" },
+      );
+    }
+    await deleteKindSource(pool, "it-kinds/Split", "github");
+
+    expect({
+      github: await kindSourceFor(pool, "it-kinds/split", "github"),
+      kept: await Promise.all(
+        (["issues", "pull-requests", "releases"] as const).map(
+          async (kind) =>
+            (await kindSourceFor(pool, "it-kinds/split", kind))?.id,
+        ),
+      ),
+    }).toEqual({
+      github: null,
+      kept: ["src-issues", "src-pull-requests", "src-releases"],
+    });
+  });
+
+  it("refuses a kind outside docs, test-coverage, git-history, github, issues, pull-requests and releases", async () => {
     await expect(
       pool.query(
         `INSERT INTO lore.utopia_kind_sources (repo, kind, kb_id, source_id, source_key)

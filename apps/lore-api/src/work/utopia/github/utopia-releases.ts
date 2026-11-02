@@ -58,7 +58,7 @@ export function releaseDepsFor(
 ): ReleaseDeps {
   const { pool, repo } = source;
   const mirrorDeps = {
-    text: lazyKindDocumentDeps(pool, repo, "github"),
+    text: lazyKindDocumentDeps(pool, repo, "releases"),
     statements: lazyKindMirrorDeps(pool, repo, "test-coverage"),
   };
 

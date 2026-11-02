@@ -7,6 +7,7 @@ import type { UtopiaTrackerSummary } from "@re-cinq/lore-shared/utopia/tracker-s
 import { mirrorTrackedEntry } from "@re-cinq/lore-shared/utopia/mirror-tracker.js";
 import { saveUtopiaTrackerSince } from "../../../outbound/utopia/sources.js";
 import { lazyKindDocumentDeps, lazyKindMirrorDeps } from "../kind-source.js";
+import type { Pool } from "pg";
 import { storedCursor, type WalkSource } from "../walk-source.js";
 import {
   queuedPerRepo,
@@ -55,10 +56,6 @@ export function trackerDepsFor(
   source: WalkSource<TrackerDeps["tracker"]>,
 ): TrackerDeps {
   const { pool, repo } = source;
-  const mirrorDeps = {
-    text: lazyKindDocumentDeps(pool, repo, "github"),
-    statements: lazyKindMirrorDeps(pool, repo, "test-coverage"),
-  };
 
   return {
     repo,
@@ -67,6 +64,18 @@ export function trackerDepsFor(
       read: () => storedCursor(source, "tracker_since"),
       write: (since) => saveUtopiaTrackerSince(pool, repo, since),
     },
-    mirror: (entry) => mirrorTrackedEntry(mirrorDeps, repo, entry),
+    mirror: trackedMirror(pool, repo),
   };
+}
+
+/** The pull requests and the issues each go to the source of their kind. */
+function trackedMirror(pool: Pool, repo: string): TrackerDeps["mirror"] {
+  const text = {
+    pull: lazyKindDocumentDeps(pool, repo, "pull-requests"),
+    issue: lazyKindDocumentDeps(pool, repo, "issues"),
+  };
+  const statements = lazyKindMirrorDeps(pool, repo, "test-coverage");
+
+  return (entry) =>
+    mirrorTrackedEntry({ text: text[entry.kind], statements }, repo, entry);
 }

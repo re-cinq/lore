@@ -1,4 +1,4 @@
-// Mirrors a repo's tags and published releases into its Utopia knowledge base twice: as their text, pushed to the `github` source, and as the statements that name them, pushed to the identity source.
+// Mirrors a repo's tags and published releases into its Utopia knowledge base twice: as their text, pushed to the releases source, and as the statements that name them, pushed to the identity source.
 
 import {
   releaseStatementItems,

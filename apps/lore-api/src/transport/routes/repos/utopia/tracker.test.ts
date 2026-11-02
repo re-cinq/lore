@@ -128,7 +128,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
     };
   });
 
-  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source and as statements to the test-coverage source, moves the cursor to its update time and answers the walk", async () => {
+  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the pull-requests source and as statements to the test-coverage source, moves the cursor to its update time and answers the walk", async () => {
     const res = await tracker(poolHolding());
 
     expect({
@@ -149,7 +149,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
         failed: [],
       },
       pushes: [
-        "POST /api/v1/sources/src-github/ingest Bearer utp_github",
+        "POST /api/v1/sources/src-pull-requests/ingest Bearer utp_pull-requests",
         "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
       ],
       githubReads: ["tracker since 2026-10-16T00:00:00Z"],

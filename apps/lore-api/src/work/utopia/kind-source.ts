@@ -1,4 +1,4 @@
-// The Utopia source a kind of mirrored thing is pushed to (specs/utopia-graph-mirror FR18): in the repo's knowledge base, the `docs`, `git-history` or `github` api source that takes whole text documents, or the `test-coverage` statements source, created the first time one is pushed to.
+// The Utopia source a kind of mirrored thing is pushed to (specs/utopia-graph-mirror FR18): in the repo's knowledge base, the `docs`, `git-history`, `issues`, `pull-requests` or `releases` api source that takes whole text documents, or the `test-coverage` statements source, created the first time one is pushed to.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
@@ -196,6 +196,11 @@ async function createKindSource(
   return source;
 }
 
+/** A source is named for what the Library shows in it: the commits kind keeps its `git-history` key and shows as `commits`. */
+const SOURCE_NAMES: Partial<Record<MirrorKind, string>> = {
+  "git-history": "commits",
+};
+
 /** The statements kind takes structured items, each name an identity Lore already knows to be unique (a path, a test title, a statement id), the others whole text documents. */
 function newSource(
   session: ReturnType<typeof loreSession>,
@@ -206,7 +211,7 @@ function newSource(
     ? session.createStatementsSource(kbId, kind, { names: "identity" })
     : session.createApiSource(
         kbId,
-        kind,
+        SOURCE_NAMES[kind] ?? kind,
         EXTRACTION_OFF_KINDS.includes(kind) ? { extract: false } : {},
       );
 }

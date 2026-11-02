@@ -1,4 +1,4 @@
-// Mirrors one issue or pull request into the repo's Utopia knowledge base twice: as its text, pushed to the `github` source, and as the statements that name it, pushed to the identity source.
+// Mirrors one issue or pull request into the repo's Utopia knowledge base twice: as its text, pushed to the issues or pull-requests source, and as the statements that name it, pushed to the identity source.
 
 import { trackedStatementItems } from "../../../domain/utopia/github/tracker-statements.js";
 import {

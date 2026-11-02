@@ -15,6 +15,9 @@ import { knowledgeBaseToMirror } from "./repo-mirror.js";
 
 const ENV = { UTOPIA_API_URL: "http://utopia.test" };
 const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 8 } };
+const SPLIT_SETTINGS = {
+  utopia: { ...SETTINGS.utopia, history_sources_split: true },
+};
 const SETTINGS_V1 = { utopia: { kb_id: "kb-1", ontology_version: 1 } };
 
 const seen: string[] = [];
@@ -29,6 +32,12 @@ const ANSWERS: Record<string, unknown> = {
   "POST /api/v1/kbs/kb-1/ontology/imports": { import_id: "imp-2", plan: {} },
   "PATCH /api/v1/kbs/kb-1/sources/src-git-history": { id: "src-git-history" },
   "PATCH /api/v1/kbs/kb-1/sources/src-github": { id: "src-github" },
+  "DELETE /api/v1/kbs/kb-1/sources/src-github": { ok: true },
+  "PATCH /api/v1/kbs/kb-1/sources/src-issues": { id: "src-issues" },
+  "PATCH /api/v1/kbs/kb-1/sources/src-pull-requests": {
+    id: "src-pull-requests",
+  },
+  "PATCH /api/v1/kbs/kb-1/sources/src-releases": { id: "src-releases" },
 };
 
 const statusOf = (key: string): number => {
@@ -263,18 +272,21 @@ describe("knowledgeBaseToMirror on a base whose git-history and github sources s
     return pool;
   };
 
-  it("patches src-git-history and src-github of kb-1 to extract false once for two concurrent ingests, then stores sources_extract_off", async () => {
+  it("patches the five history sources of kb-1 to extract false once for two concurrent ingests, then stores sources_extract_off", async () => {
     const pool = poolHoldingSources();
 
     await Promise.all([
-      mirrorOf(pool, "re-cinq/lore", SETTINGS),
-      mirrorOf(pool, "re-cinq/Lore", SETTINGS),
+      mirrorOf(pool, "re-cinq/lore", SPLIT_SETTINGS),
+      mirrorOf(pool, "re-cinq/Lore", SPLIT_SETTINGS),
     ]);
 
     expect({ calls: seen.sort(), writes: writesOf(pool) }).toEqual({
       calls: [
         "PATCH /api/v1/kbs/kb-1/sources/src-git-history Bearer utp_pat_lore",
         "PATCH /api/v1/kbs/kb-1/sources/src-github Bearer utp_pat_lore",
+        "PATCH /api/v1/kbs/kb-1/sources/src-issues Bearer utp_pat_lore",
+        "PATCH /api/v1/kbs/kb-1/sources/src-pull-requests Bearer utp_pat_lore",
+        "PATCH /api/v1/kbs/kb-1/sources/src-releases Bearer utp_pat_lore",
       ],
       writes: [{ utopia: { kb_id: "kb-1", sources_extract_off: true } }],
     });
@@ -284,7 +296,11 @@ describe("knowledgeBaseToMirror on a base whose git-history and github sources s
     const pool = poolHoldingSources();
 
     await mirrorOf(pool, "re-cinq/lore", {
-      utopia: { ...SETTINGS.utopia, sources_extract_off: true },
+      utopia: {
+        ...SETTINGS.utopia,
+        sources_extract_off: true,
+        history_sources_split: true,
+      },
     });
 
     expect(seen).toEqual([]);
@@ -294,12 +310,93 @@ describe("knowledgeBaseToMirror on a base whose git-history and github sources s
     refusedPaths = ["/sources/src-github"];
     const pool = poolHoldingSources();
     const before = (await mirrorFailures()).at(0)?.value as number;
-    const kbId = await mirrorOf(pool, "re-cinq/lore", SETTINGS);
+    const kbId = await mirrorOf(pool, "re-cinq/lore", SPLIT_SETTINGS);
 
     expect({
       kbId,
       writes: writesOf(pool),
       failures: ((await mirrorFailures()).at(0)?.value as number) - before,
     }).toEqual({ kbId: "kb-1", writes: [], failures: 1 });
+  });
+});
+
+describe("knowledgeBaseToMirror on a base whose git-history and github sources are not split yet", () => {
+  const EXTRACTION_OFF = { ...SETTINGS.utopia, sources_extract_off: true };
+  const poolHolding = (kinds: string[]) => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string, params: string[]) => {
+      const isSourceRead = /FROM lore\.utopia_kind_sources/.test(sql);
+
+      return {
+        rows:
+          isSourceRead && kinds.includes(params[1])
+            ? [{ id: `src-${params[1]}`, key: "utp_k", kbId: "kb-1" }]
+            : [],
+      };
+    });
+
+    return pool;
+  };
+  const statementsOf = (pool: ReturnType<typeof makePool>) =>
+    pool.query.mock.calls
+      .map(([sql, params]) => [String(sql).replace(/\s+/g, " ").trim(), params])
+      .filter(([sql]) => /^(INSERT|UPDATE|DELETE)/.test(String(sql)));
+
+  it("renames src-git-history to commits and deletes src-github once for two concurrent ingests, forgets the github source row, clears both walk cursors and stores history_sources_split", async () => {
+    const pool = poolHolding(["git-history", "github"]);
+
+    await Promise.all([
+      mirrorOf(pool, "re-cinq/lore", { utopia: EXTRACTION_OFF }),
+      mirrorOf(pool, "re-cinq/Lore", { utopia: EXTRACTION_OFF }),
+    ]);
+
+    expect({ calls: seen.sort(), statements: statementsOf(pool) }).toEqual({
+      calls: [
+        "DELETE /api/v1/kbs/kb-1/sources/src-github Bearer utp_pat_lore",
+        "PATCH /api/v1/kbs/kb-1/sources/src-git-history Bearer utp_pat_lore",
+      ],
+      statements: [
+        [
+          "DELETE FROM lore.utopia_kind_sources WHERE lower(repo) = lower($1) AND kind = $2",
+          ["re-cinq/lore", "github"],
+        ],
+        [
+          "UPDATE lore.repos SET settings = settings #- '{utopia,commits_head}' #- '{utopia,tracker_since}' WHERE full_name = $1 AND jsonb_typeof(settings -> 'utopia') = 'object'",
+          ["re-cinq/lore"],
+        ],
+        [
+          "UPDATE lore.repos SET settings = jsonb_set(COALESCE(settings, '{}'), '{utopia}', COALESCE(settings->'utopia', '{}') || $1::jsonb) WHERE full_name = $2",
+          [
+            JSON.stringify({ kb_id: "kb-1", history_sources_split: true }),
+            "re-cinq/lore",
+          ],
+        ],
+      ],
+    });
+  });
+
+  it("sends nothing and writes nothing when settings carry history_sources_split true", async () => {
+    const pool = poolHolding(["git-history", "github"]);
+
+    await mirrorOf(pool, "re-cinq/lore", {
+      utopia: { ...EXTRACTION_OFF, history_sources_split: true },
+    });
+
+    expect({ seen, statements: statementsOf(pool) }).toEqual({
+      seen: [],
+      statements: [],
+    });
+  });
+
+  it("sends nothing and writes nothing when the repo holds neither a git-history nor a github source", async () => {
+    const pool = poolHolding([]);
+
+    await mirrorOf(pool, "re-cinq/lore", { utopia: EXTRACTION_OFF });
+
+    expect({ seen, statements: statementsOf(pool) }).toEqual({
+      seen: [],
+      statements: [],
+    });
   });
 });
