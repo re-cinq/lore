@@ -1,6 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
-import { mirrorReleases, type ReleaseDeps } from "./utopia-releases.js";
+import {
+  poolHoldingSources,
+  SETTINGS_WITH_BASE,
+  startFakeUtopia,
+} from "../walk-wiring.fixtures.js";
+
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: async () => ({
+    settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+  }),
+}));
+
+import {
+  mirrorReleases,
+  releaseDepsFor,
+  type ReleaseDeps,
+} from "./utopia-releases.js";
 
 const RELEASE = {
   tag: "v1.2.0",
@@ -87,5 +103,36 @@ describe("mirrorReleases", () => {
       unchanged: 0,
       failed: ["releases: Utopia answered 401"],
     });
+  });
+});
+
+describe("releaseDepsFor", () => {
+  let utopia: Awaited<ReturnType<typeof startFakeUtopia>>;
+
+  beforeAll(async () => {
+    utopia = await startFakeUtopia();
+  });
+
+  afterAll(() => utopia.stop());
+
+  it("posts tag v1.2.0 and release v1.2.0 as text documents to the github source and as statements to the test-coverage source", async () => {
+    const deps = releaseDepsFor({
+      pool: poolHoldingSources(["github", "test-coverage"]),
+      repo: "re-cinq/lore",
+      files: { tags: async () => [], releases: async () => [] },
+      settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+    });
+
+    await deps.mirror({
+      tags: [{ name: "v1.2.0", sha: "def" }],
+      releases: [RELEASE],
+    });
+
+    expect([...utopia.pushes].sort()).toEqual([
+      "/api/v1/sources/src-github/ingest release:v1.2.0",
+      "/api/v1/sources/src-github/ingest tag:v1.2.0",
+      "/api/v1/sources/src-test-coverage/statements release:v1.2.0",
+      "/api/v1/sources/src-test-coverage/statements tag:v1.2.0",
+    ]);
   });
 });

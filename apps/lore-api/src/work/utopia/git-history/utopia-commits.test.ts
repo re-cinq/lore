@@ -1,8 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import type { CommitDetail } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { MirroredCommit } from "@re-cinq/lore-shared/utopia/commit-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import {
+  poolHoldingSources,
+  SETTINGS_WITH_BASE,
+  startFakeUtopia,
+} from "../walk-wiring.fixtures.js";
+
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: async () => ({
+    settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+  }),
+}));
+
+import {
+  commitHistoryDepsFor,
   MAX_COMMITS_PER_RUN,
   mirrorBranchCommits,
   type CommitHistoryDeps,
@@ -223,5 +236,31 @@ describe("mirrorBranchCommits", () => {
       steps: 4,
       last: ["otto done", "lore second reading cursor"],
     });
+  });
+});
+
+describe("commitHistoryDepsFor", () => {
+  let utopia: Awaited<ReturnType<typeof startFakeUtopia>>;
+
+  beforeAll(async () => {
+    utopia = await startFakeUtopia();
+  });
+
+  afterAll(() => utopia.stop());
+
+  it("posts commit c1 as a text document to the git-history source and as statements to the test-coverage source", async () => {
+    const deps = commitHistoryDepsFor({
+      pool: poolHoldingSources(["git-history", "test-coverage"]),
+      repo: "re-cinq/lore",
+      files: { branchHistory: async () => [] },
+      settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+    });
+
+    await deps.mirror({ ...detail("c1") });
+
+    expect([...utopia.pushes].sort()).toEqual([
+      "/api/v1/sources/src-git-history/ingest commit:c1",
+      "/api/v1/sources/src-test-coverage/statements commit:c1",
+    ]);
   });
 });

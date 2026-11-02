@@ -1,9 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import type { TrackerActivityOptions } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import type { TrackedEntry } from "@re-cinq/lore-shared/utopia/tracker-text.js";
 import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import { mirrorBranchCommits } from "../git-history/utopia-commits.js";
-import { mirrorTracker, type TrackerDeps } from "./utopia-tracker.js";
+import {
+  poolHoldingSources,
+  SETTINGS_WITH_BASE,
+  startFakeUtopia,
+} from "../walk-wiring.fixtures.js";
+
+vi.mock("../../../outbound/project-boot.js", () => ({
+  projectFor: async () => ({
+    settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+  }),
+}));
+
+import {
+  mirrorTracker,
+  trackerDepsFor,
+  type TrackerDeps,
+} from "./utopia-tracker.js";
 
 const entry = (
   kind: TrackedEntry["kind"],
@@ -188,6 +204,32 @@ describe("mirrorTracker", () => {
       "commit walk pushing",
       "commit walk done",
       "tracker walk reading cursor",
+    ]);
+  });
+});
+
+describe("trackerDepsFor", () => {
+  let utopia: Awaited<ReturnType<typeof startFakeUtopia>>;
+
+  beforeAll(async () => {
+    utopia = await startFakeUtopia();
+  });
+
+  afterAll(() => utopia.stop());
+
+  it("posts pull request 6 as a text document to the github source and as statements to the test-coverage source", async () => {
+    const deps = trackerDepsFor({
+      pool: poolHoldingSources(["github", "test-coverage"]),
+      repo: "re-cinq/lore",
+      files: { trackerActivity: async () => [] },
+      settings: { rawSettings: async () => SETTINGS_WITH_BASE },
+    });
+
+    await deps.mirror(entry("pull", 6, "2026-10-02T00:00:00Z"));
+
+    expect([...utopia.pushes].sort()).toEqual([
+      "/api/v1/sources/src-github/ingest pull:6",
+      "/api/v1/sources/src-test-coverage/statements pull:6",
     ]);
   });
 });

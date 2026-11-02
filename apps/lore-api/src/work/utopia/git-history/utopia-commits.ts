@@ -13,7 +13,7 @@ import {
   queuedPerRepo,
   walkInOrder,
 } from "@re-cinq/lore-shared/utopia/cursor-walk.js";
-import { lazyKindDocumentDeps } from "../kind-source.js";
+import { lazyKindDocumentDeps, lazyKindMirrorDeps } from "../kind-source.js";
 import { storedCursor, type WalkSource } from "../walk-source.js";
 
 export interface CommitHistoryDeps {
@@ -65,7 +65,10 @@ export function commitHistoryDepsFor(
   source: WalkSource<CommitHistoryDeps["history"]>,
 ): CommitHistoryDeps {
   const { pool, repo } = source;
-  const history = lazyKindDocumentDeps(pool, repo, "git-history");
+  const mirrorDeps = {
+    text: lazyKindDocumentDeps(pool, repo, "git-history"),
+    statements: lazyKindMirrorDeps(pool, repo, "test-coverage"),
+  };
 
   return {
     repo,
@@ -74,6 +77,6 @@ export function commitHistoryDepsFor(
       read: () => storedCursor(source, "commits_head"),
       write: (sha) => saveUtopiaCommitsHead(pool, repo, sha),
     },
-    mirror: (commit) => mirrorCommit(history, repo, commit),
+    mirror: (commit) => mirrorCommit(mirrorDeps, repo, commit),
   };
 }

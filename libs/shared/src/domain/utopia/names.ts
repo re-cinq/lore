@@ -59,3 +59,8 @@ export function tagName(repo: string, tag: string): string {
 export function githubPage(name: string): string {
   return `https://github.com/${name}`;
 }
+
+/** A person is named as their GitHub profile's path, so a commit's author and a pull request's author with one login are one entity. */
+export function personName(login: string): string {
+  return `github.com/${login}`;
+}

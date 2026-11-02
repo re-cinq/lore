@@ -9,7 +9,7 @@ import type { MirrorOutcome } from "@re-cinq/lore-shared/utopia/push-items.js";
 import type { UtopiaReleasesSummary } from "@re-cinq/lore-shared/utopia/releases-summary.js";
 import { mirrorTagsAndReleases } from "@re-cinq/lore-shared/utopia/mirror-releases.js";
 import { queuedPerRepo } from "@re-cinq/lore-shared/utopia/cursor-walk.js";
-import { lazyKindDocumentDeps } from "../kind-source.js";
+import { lazyKindDocumentDeps, lazyKindMirrorDeps } from "../kind-source.js";
 import type { WalkSource } from "../walk-source.js";
 
 export interface PublishedRefs {
@@ -57,11 +57,14 @@ export function releaseDepsFor(
   source: WalkSource<ReleaseDeps["published"]>,
 ): ReleaseDeps {
   const { pool, repo } = source;
-  const github = lazyKindDocumentDeps(pool, repo, "github");
+  const mirrorDeps = {
+    text: lazyKindDocumentDeps(pool, repo, "github"),
+    statements: lazyKindMirrorDeps(pool, repo, "test-coverage"),
+  };
 
   return {
     repo,
     published: source.files,
-    mirror: (published) => mirrorTagsAndReleases(github, repo, published),
+    mirror: (published) => mirrorTagsAndReleases(mirrorDeps, repo, published),
   };
 }

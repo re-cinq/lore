@@ -21,11 +21,11 @@ export interface MirroredCommit {
 }
 
 /** A commit touching more files than this names the first ones and how many more: a mass rename says nothing per file. */
-const MAX_FILES_NAMED = 50;
+export const MAX_FILES_NAMED = 50;
 
-const PULL_REQUEST_RE = /\(#(\d+)\)\s*$/;
+export const PULL_REQUEST_RE = /\(#(\d+)\)\s*$/;
 
-const ISSUE_RE =
+export const ISSUE_RE =
   /\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|related:?)\s+#(\d+)/gi;
 
 export function commitDocument(
@@ -79,8 +79,13 @@ function issuesLine(repo: string, message: string): string[] {
   return links.size > 0 ? [`Issues: ${[...links].join(", ")}`] : [];
 }
 
+/** Closes, Fixes and Resolves claim the issue is done; Refs and Related only name it. */
+export function issueRelation(keyword: string): "closes" | "refers_to" {
+  return /^(clos|fix|resolv)/i.test(keyword) ? "closes" : "refers_to";
+}
+
 function relationOf(keyword: string): string {
-  return /^(clos|fix|resolv)/i.test(keyword) ? "closes" : "refers to";
+  return issueRelation(keyword) === "closes" ? "closes" : "refers to";
 }
 
 function filesLine(files: string[]): string[] {
