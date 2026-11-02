@@ -133,13 +133,13 @@ describe("POST /api/repos/{owner}/{repo}/utopia/commits", () => {
     };
   });
 
-  it("walks main above the stored cursor c0, pushes commit c1 as text to the git-history source, moves the cursor to c1 and answers the walk", async () => {
+  it("walks main above the stored cursor c0, pushes commit c1 as text to the git-history source and as statements to the test-coverage source, moves the cursor to c1 and answers the walk", async () => {
     const res = await commits(poolHolding());
 
     expect({
       status: res.statusCode,
       body: res.result,
-      pushes,
+      pushes: [...pushes].sort(),
       githubReads,
       cursorWrites: cursorWrites.length,
     }).toEqual({
@@ -149,13 +149,14 @@ describe("POST /api/repos/{owner}/{repo}/utopia/commits", () => {
         from: "c0",
         to: "c1",
         commits: 1,
-        created: 1,
+        created: 2,
         updated: 0,
         unchanged: 0,
         failed: [],
       },
       pushes: [
         "POST /api/v1/sources/src-git-history/ingest Bearer utp_git-history",
+        "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
       ],
       githubReads: ["history main above c0"],
       cursorWrites: 1,

@@ -123,13 +123,13 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
     };
   });
 
-  it("pushes the tag v1.2.0 and its release as text to the github source and answers one of each", async () => {
+  it("pushes the tag v1.2.0 and its release as text to the github source and as statements to the test-coverage source and answers two of each", async () => {
     const res = await releases(poolHolding());
 
     expect({
       status: res.statusCode,
       body: res.result,
-      pushes,
+      pushes: [...pushes].sort(),
       githubReads: [...githubReads].sort(),
       cursorWrites: cursorWrites.length,
     }).toEqual({
@@ -137,14 +137,19 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
       body: {
         tags: 1,
         releases: 1,
-        created: 2,
+        created: 4,
         updated: 0,
         unchanged: 0,
         failed: [],
       },
-      pushes: Array(2).fill(
-        "POST /api/v1/sources/src-github/ingest Bearer utp_github",
-      ),
+      pushes: [
+        ...Array(2).fill(
+          "POST /api/v1/sources/src-github/ingest Bearer utp_github",
+        ),
+        ...Array(2).fill(
+          "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
+        ),
+      ],
       githubReads: ["releases", "tags"],
       cursorWrites: 0,
     });

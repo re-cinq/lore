@@ -128,13 +128,13 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
     };
   });
 
-  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source, moves the cursor to its update time and answers the walk", async () => {
+  it("walks the issues and pull requests updated since the stored cursor, pushes pull 6 as text to the github source and as statements to the test-coverage source, moves the cursor to its update time and answers the walk", async () => {
     const res = await tracker(poolHolding());
 
     expect({
       status: res.statusCode,
       body: res.result,
-      pushes,
+      pushes: [...pushes].sort(),
       githubReads,
       cursorWrites: cursorWrites.length,
     }).toEqual({
@@ -143,12 +143,15 @@ describe("POST /api/repos/{owner}/{repo}/utopia/tracker", () => {
         from: "2026-10-16T00:00:00Z",
         to: "2026-10-16T01:00:00Z",
         entries: 1,
-        created: 1,
+        created: 2,
         updated: 0,
         unchanged: 0,
         failed: [],
       },
-      pushes: ["POST /api/v1/sources/src-github/ingest Bearer utp_github"],
+      pushes: [
+        "POST /api/v1/sources/src-github/ingest Bearer utp_github",
+        "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
+      ],
       githubReads: ["tracker since 2026-10-16T00:00:00Z"],
       cursorWrites: 1,
     });
