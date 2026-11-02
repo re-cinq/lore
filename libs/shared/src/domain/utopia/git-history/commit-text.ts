@@ -88,11 +88,6 @@ export function issueRelation(keyword: string): "closes" | "refers_to" {
   return /^(clos|fix|resolv)/i.test(keyword) ? "closes" : "refers_to";
 }
 
-/** Closes, Fixes and Resolves claim the issue is done; Refs and Related only name it. */
-export function issueRelation(keyword: string): "closes" | "refers_to" {
-  return /^(clos|fix|resolv)/i.test(keyword) ? "closes" : "refers_to";
-}
-
 function relationOf(keyword: string): string {
   return issueRelation(keyword) === "closes" ? "closes" : "refers to";
 }
