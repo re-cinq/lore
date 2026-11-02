@@ -1,10 +1,12 @@
 // One commit of the default branch as the standard text an `api` Utopia source takes: who made it, when, on top of which commits, where it lives on GitHub, the pull request, issues and files it names as links and paths, then the message whole. The links are text, not statements: a changed path as an entity is resolved against the whole base, which Utopia's queue could not take (2026-10-17).
 
 import type { IngestDocument } from "../memory/memory-documents.js";
+import { markdownDocument, type Field } from "../markdown.js";
 import {
   commitName,
   githubPage,
   issueName,
+  markdownFilename,
   pullRequestName,
 } from "../names.js";
 
@@ -32,43 +34,45 @@ export function commitDocument(
   repo: string,
   commit: MirroredCommit,
 ): IngestDocument {
-  const message = [commit.subject, commit.body].filter((part) => part !== "");
-
   return {
     external_id: `commit:${commit.sha}`,
-    filename: `commit-${commit.sha}`,
-    content: [...commitHead(repo, commit), "", message.join("\n\n")].join("\n"),
+    filename: markdownFilename(commit.sha.slice(0, 7), commit.subject),
+    content: markdownDocument(
+      commit.subject,
+      commitFields(repo, commit),
+      commit.body,
+    ),
     doc_time: commit.authoredAt,
   };
 }
 
-function commitHead(repo: string, commit: MirroredCommit): string[] {
+function commitFields(repo: string, commit: MirroredCommit): Field[] {
   const parents =
     commit.parents.length > 0 ? commit.parents.join(", ") : "none";
 
   return [
-    `Commit ${commit.sha} in ${repo}`,
-    `Author: ${commit.author}`,
-    `Date: ${commit.authoredAt}`,
-    `Parents: ${parents}`,
-    `Link: ${githubPage(commitName(repo, commit.sha))}`,
-    ...pullRequestLine(repo, commit.subject),
-    ...issuesLine(repo, `${commit.subject}\n${commit.body}`),
-    ...filesLine(commit.files),
+    ["Commit", `${commit.sha} in ${repo}`],
+    ["Author", commit.author],
+    ["Date", commit.authoredAt],
+    ["Parents", parents],
+    ["Link", githubPage(commitName(repo, commit.sha))],
+    ...pullRequestField(repo, commit.subject),
+    ...issuesField(repo, `${commit.subject}\n${commit.body}`),
+    ...filesField(commit.files),
   ];
 }
 
 /** A squash merge's subject ends with its pull request's number, `(#2773)`. */
-function pullRequestLine(repo: string, subject: string): string[] {
+function pullRequestField(repo: string, subject: string): Field[] {
   const number = PULL_REQUEST_RE.exec(subject)?.[1];
 
   return number
-    ? [`Pull request: ${githubPage(pullRequestName(repo, Number(number)))}`]
+    ? [["Pull request", githubPage(pullRequestName(repo, Number(number)))]]
     : [];
 }
 
 /** Each issue the message closes (Closes, Fixes, Resolves) or refers to (Refs, Related), once, in the order named. */
-function issuesLine(repo: string, message: string): string[] {
+function issuesField(repo: string, message: string): Field[] {
   const links = new Set(
     [...message.matchAll(ISSUE_RE)].map(
       ([, keyword, number]) =>
@@ -76,7 +80,7 @@ function issuesLine(repo: string, message: string): string[] {
     ),
   );
 
-  return links.size > 0 ? [`Issues: ${[...links].join(", ")}`] : [];
+  return links.size > 0 ? [["Issues", [...links].join(", ")]] : [];
 }
 
 /** Closes, Fixes and Resolves claim the issue is done; Refs and Related only name it. */
@@ -88,12 +92,12 @@ function relationOf(keyword: string): string {
   return issueRelation(keyword) === "closes" ? "closes" : "refers to";
 }
 
-function filesLine(files: string[]): string[] {
+function filesField(files: string[]): Field[] {
   if (files.length === 0) {
     return [];
   }
   const more = files.length - MAX_FILES_NAMED;
   const named = files.slice(0, MAX_FILES_NAMED).join(", ");
 
-  return [`Files changed: ${named}${more > 0 ? ` and ${more} more` : ""}`];
+  return [["Files changed", `${named}${more > 0 ? ` and ${more} more` : ""}`]];
 }

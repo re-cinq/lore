@@ -115,9 +115,9 @@ describe("releaseDepsFor", () => {
 
   afterAll(() => utopia.stop());
 
-  it("posts tag v1.2.0 and release v1.2.0 as text documents to the github source and as statements to the test-coverage source", async () => {
+  it("posts tag v1.2.0 and release v1.2.0 as text documents to the releases source and as statements to the test-coverage source", async () => {
     const deps = releaseDepsFor({
-      pool: poolHoldingSources(["github", "test-coverage"]),
+      pool: poolHoldingSources(["releases", "test-coverage"]),
       repo: "re-cinq/lore",
       files: { tags: async () => [], releases: async () => [] },
       settings: { rawSettings: async () => SETTINGS_WITH_BASE },
@@ -129,8 +129,8 @@ describe("releaseDepsFor", () => {
     });
 
     expect([...utopia.pushes].sort()).toEqual([
-      "/api/v1/sources/src-github/ingest release:v1.2.0",
-      "/api/v1/sources/src-github/ingest tag:v1.2.0",
+      "/api/v1/sources/src-releases/ingest release:v1.2.0",
+      "/api/v1/sources/src-releases/ingest tag:v1.2.0",
       "/api/v1/sources/src-test-coverage/statements release:v1.2.0",
       "/api/v1/sources/src-test-coverage/statements tag:v1.2.0",
     ]);

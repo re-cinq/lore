@@ -217,18 +217,21 @@ describe("trackerDepsFor", () => {
 
   afterAll(() => utopia.stop());
 
-  it("posts pull request 6 as a text document to the github source and as statements to the test-coverage source", async () => {
+  it("posts pull request 6 as a text document to the pull-requests source and issue 5 to the issues source, each also as statements to the test-coverage source", async () => {
     const deps = trackerDepsFor({
-      pool: poolHoldingSources(["github", "test-coverage"]),
+      pool: poolHoldingSources(["pull-requests", "issues", "test-coverage"]),
       repo: "re-cinq/lore",
       files: { trackerActivity: async () => [] },
       settings: { rawSettings: async () => SETTINGS_WITH_BASE },
     });
 
     await deps.mirror(entry("pull", 6, "2026-10-02T00:00:00Z"));
+    await deps.mirror(entry("issue", 5, "2026-10-02T00:00:00Z"));
 
     expect([...utopia.pushes].sort()).toEqual([
-      "/api/v1/sources/src-github/ingest pull:6",
+      "/api/v1/sources/src-issues/ingest issue:5",
+      "/api/v1/sources/src-pull-requests/ingest pull:6",
+      "/api/v1/sources/src-test-coverage/statements issue:5",
       "/api/v1/sources/src-test-coverage/statements pull:6",
     ]);
   });

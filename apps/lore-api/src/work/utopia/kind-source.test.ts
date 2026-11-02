@@ -142,15 +142,19 @@ describe("kindSourceOf", () => {
     });
   });
 
-  it("creates the api sources git-history and github by those names with the config extract false", async () => {
+  it("creates the api sources for git-history, issues, pull-requests and releases with the config extract false, the first shown as commits", async () => {
     const pool = poolHolding({});
 
     await kindSourceOf(asPool(pool), "re-cinq/lore", "git-history", env);
-    await kindSourceOf(asPool(pool), "re-cinq/lore", "github", env);
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "issues", env);
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "pull-requests", env);
+    await kindSourceOf(asPool(pool), "re-cinq/lore", "releases", env);
 
     expect(bodies).toEqual([
-      { kind: "api", name: "git-history", config: { extract: false } },
-      { kind: "api", name: "github", config: { extract: false } },
+      { kind: "api", name: "commits", config: { extract: false } },
+      { kind: "api", name: "issues", config: { extract: false } },
+      { kind: "api", name: "pull-requests", config: { extract: false } },
+      { kind: "api", name: "releases", config: { extract: false } },
     ]);
   });
 

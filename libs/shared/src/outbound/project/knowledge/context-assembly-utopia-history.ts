@@ -10,7 +10,8 @@ import type { FetchResult } from "./context-assembly-types.js";
 
 const HISTORY_LIMIT = 3;
 
-const FILES_LINE_RE = /^Files changed: (.*)$/m;
+/** The line is a list item in a commit's markdown, and a bare line in the plain text pushed before it. */
+const FILES_LINE_RE = /^(?:- \*\*)?Files changed:(?:\*\*)? (.*)$/m;
 
 export interface HistorySearch {
   sourceId: string;

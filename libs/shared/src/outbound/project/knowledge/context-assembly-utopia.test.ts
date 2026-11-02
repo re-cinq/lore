@@ -717,12 +717,18 @@ describe("utopiaSectionReader history (FR13.11)", () => {
   const HISTORY = "a1a1a1a1-git-history";
   const FOOTER = "libs/shared/src/domain/pr-body.ts";
   const touching = [
-    "Commit c7 in re-cinq/lore",
-    "Pull request: https://github.com/re-cinq/lore/pull/2511",
-    "Issues: closes https://github.com/re-cinq/lore/issues/2500",
+    "# Footer: add the Refs line (#2511)",
+    "",
+    "- **Commit:** c7 in re-cinq/lore",
+    "- **Pull request:** https://github.com/re-cinq/lore/pull/2511",
+    "- **Issues:** closes https://github.com/re-cinq/lore/issues/2500",
+    `- **Files changed:** ${FOOTER}`,
+  ].join("\n");
+  const plainTouching = [
+    "Commit c6 in re-cinq/lore",
     `Files changed: ${FOOTER}`,
     "",
-    "Footer: add the Refs line (#2511)",
+    "Footer: first draft (#2510)",
   ].join("\n");
   const elsewhere = [
     "Commit c8 in re-cinq/lore",
@@ -739,6 +745,7 @@ describe("utopiaSectionReader history (FR13.11)", () => {
         hits: [
           hit("commit:c7", touching, 0.03, { sourceId: HISTORY }),
           hit("commit:c8", elsewhere, 0.029, { sourceId: HISTORY }),
+          hit("commit:c6", plainTouching, 0.028, { sourceId: HISTORY }),
           hit(`doc:${SPEC}`, specFirst, 0.03),
         ],
         hasMore: false,
@@ -753,13 +760,13 @@ describe("utopiaSectionReader history (FR13.11)", () => {
       ticket,
     )({ header: "Recent Changes", source: "history", priority: 3 });
 
-  it("fills history with commit c7, which changed pr-body.ts, and leaves out c8, which only mentions prFooter, for a ticket naming pr-body.ts", async () => {
+  it("fills history with commit c7, whose markdown lists pr-body.ts, and commit c6, whose older plain text names it, and leaves out c8, which only mentions prFooter, for a ticket naming pr-body.ts", async () => {
     const history = await read(`Edit \`${FOOTER}\``, HISTORY);
 
     expect({
       paths: history.sources.map(({ source_path }) => source_path),
       text: history.sources[0]?.text,
-    }).toEqual({ paths: ["commit:c7"], text: touching });
+    }).toEqual({ paths: ["commit:c7", "commit:c6"], text: touching });
   });
 
   it("answers empty and asks Utopia nothing for a ticket that names no file", async () => {

@@ -8,12 +8,23 @@ export interface StoredSource extends UtopiaSource {
   kbId: string;
 }
 
-export type MirrorKind = "docs" | "test-coverage" | "git-history" | "github";
+/** `github` held issues, pull requests, tags and releases together until each got a source of its own; nothing is pushed to it now. */
+export type MirrorKind =
+  | "docs"
+  | "test-coverage"
+  | "git-history"
+  | "github"
+  | "issues"
+  | "pull-requests"
+  | "releases";
 
 /** The kinds whose text is searched but never mined for entities: extraction over issues, pull requests and commits only fed Utopia's duplicate-review queue (ADR-052). */
 export const EXTRACTION_OFF_KINDS: readonly MirrorKind[] = [
   "git-history",
   "github",
+  "issues",
+  "pull-requests",
+  "releases",
 ];
 
 export interface KindSourceKey {
@@ -50,4 +61,16 @@ export async function kindSourceFor(
   );
 
   return rows.at(0) ?? null;
+}
+
+/** Forgets the repo's source of a kind, after the source itself was deleted in Utopia. */
+export async function deleteKindSource(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+): Promise<void> {
+  await pool.query(
+    "DELETE FROM lore.utopia_kind_sources WHERE lower(repo) = lower($1) AND kind = $2",
+    [repo, kind],
+  );
 }

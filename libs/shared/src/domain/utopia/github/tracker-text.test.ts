@@ -31,17 +31,19 @@ describe("trackerDocument", () => {
   it("is pull:2790 at its update time with its title, state merged, author, labels, the three times, its page and the description whole", () => {
     expect(trackerDocument(REPO, mergedPull)).toEqual({
       external_id: "pull:2790",
-      filename: "pull-2790",
+      filename: "pr-2790-utopia-mirror-the-default-branch-s-commits.md",
       doc_time: "2026-10-16T21:09:00Z",
       content: [
-        "Pull request #2790 in re-cinq/lore: Utopia: mirror the default branch's commits",
-        "State: merged",
-        "Author: gedaiu",
-        "Labels: utopia, lore",
-        "Opened: 2026-10-16T09:00:00Z",
-        "Closed: 2026-10-16T21:08:00Z",
-        "Merged: 2026-10-16T21:08:00Z",
-        "Link: https://github.com/re-cinq/lore/pull/2790",
+        "# Utopia: mirror the default branch's commits",
+        "",
+        "- **Pull request:** #2790 in re-cinq/lore",
+        "- **State:** merged",
+        "- **Author:** gedaiu",
+        "- **Labels:** utopia, lore",
+        "- **Opened:** 2026-10-16T09:00:00Z",
+        "- **Closed:** 2026-10-16T21:08:00Z",
+        "- **Merged:** 2026-10-16T21:08:00Z",
+        "- **Link:** https://github.com/re-cinq/lore/pull/2790",
         "",
         "Pushes each commit.\n\nCloses #2766\nLore-Task: 6f1c2e9a",
       ].join("\n"),
@@ -51,14 +53,16 @@ describe("trackerDocument", () => {
   it("is issue:2766 open with no labels, closed or merged time and no description, ending at its page", () => {
     expect(trackerDocument(REPO, openIssue)).toEqual({
       external_id: "issue:2766",
-      filename: "issue-2766",
+      filename: "issue-2766-mirror-the-traceability-graph-into-utopia.md",
       doc_time: "2026-10-15T08:30:00Z",
       content: [
-        "Issue #2766 in re-cinq/lore: Mirror the traceability graph into Utopia",
-        "State: open",
-        "Author: gedaiu",
-        "Opened: 2026-10-15T08:00:00Z",
-        "Link: https://github.com/re-cinq/lore/issues/2766",
+        "# Mirror the traceability graph into Utopia",
+        "",
+        "- **Issue:** #2766 in re-cinq/lore",
+        "- **State:** open",
+        "- **Author:** gedaiu",
+        "- **Opened:** 2026-10-15T08:00:00Z",
+        "- **Link:** https://github.com/re-cinq/lore/issues/2766",
       ].join("\n"),
     });
   });
@@ -67,9 +71,9 @@ describe("trackerDocument", () => {
     const state = trackerDocument(REPO, {
       ...mergedPull,
       mergedAt: null,
-    }).content?.split("\n")[1];
+    }).content?.split("\n")[3];
 
-    expect(state).toBe("State: closed");
+    expect(state).toBe("- **State:** closed");
   });
 
   it("keeps a 5,003-character description whole", () => {

@@ -58,6 +58,7 @@ const ROUTES: Record<string, (body: string) => [number, unknown]> = {
     { ok: true },
   ],
   "PATCH /api/v1/kbs/kb-1/sources/src-9": () => [200, { id: "src-9" }],
+  "DELETE /api/v1/kbs/kb-1/sources/src-9": () => [200, { ok: true }],
   "POST /api/v1/kbs/kb-1/sources": () => [
     201,
     { ingest_token: "utp_secret", source: { id: "src-9" } },
@@ -391,6 +392,28 @@ describe("withCredential", () => {
       kind: "api",
       name: "github",
       config: { extract: false },
+    });
+  });
+
+  it("renames src-9 of kb-1 to commits with a PATCH carrying the name alone", async () => {
+    await client()
+      .withCredential("jwt-1")
+      .renameSource("kb-1", "src-9", "commits");
+
+    expect({ ...seen[0], body: JSON.parse(seen[0].body) }).toMatchObject({
+      method: "PATCH",
+      url: "/api/v1/kbs/kb-1/sources/src-9",
+      body: { name: "commits" },
+    });
+  });
+
+  it("deletes src-9 of kb-1 with a DELETE that carries no body", async () => {
+    await client().withCredential("jwt-1").deleteSource("kb-1", "src-9");
+
+    expect(seen[0]).toMatchObject({
+      method: "DELETE",
+      url: "/api/v1/kbs/kb-1/sources/src-9",
+      body: "",
     });
   });
 

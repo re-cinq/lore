@@ -56,6 +56,20 @@ export function tagName(repo: string, tag: string): string {
   return `${repo}/tree/${tag}`;
 }
 
+/** The lower-case, dash-joined words of a title, at most 60 characters, for the filename a Library lists a record under. */
+export function slug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 60)
+    .replace(/^-+|-+$/g, "");
+}
+
+/** `<id>-<slug of the title>.md`, the id alone when the title leaves no slug. */
+export function markdownFilename(id: string, title: string): string {
+  return `${[id, slug(title)].filter((part) => part !== "").join("-")}.md`;
+}
+
 export function githubPage(name: string): string {
   return `https://github.com/${name}`;
 }

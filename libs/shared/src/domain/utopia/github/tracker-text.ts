@@ -1,7 +1,13 @@
 // One pull request or issue as GitHub records it, as the text an `api` Utopia source takes: its number, title, state, author, labels and times, its page, then its description whole.
 
 import type { IngestDocument } from "../memory/memory-documents.js";
-import { githubPage, issueName, pullRequestName } from "../names.js";
+import { markdownDocument, type Field } from "../markdown.js";
+import {
+  githubPage,
+  issueName,
+  markdownFilename,
+  pullRequestName,
+} from "../names.js";
 
 export type TrackedKind = "pull" | "issue";
 
@@ -25,48 +31,48 @@ export function trackerDocument(
   repo: string,
   entry: TrackedEntry,
 ): IngestDocument {
+  const filenameId = `${entry.kind === "pull" ? "pr" : "issue"}-${entry.number}`;
+
+  return {
+    external_id: `${entry.kind}:${entry.number}`,
+    filename: markdownFilename(filenameId, entry.title),
+    content: markdownDocument(
+      entry.title,
+      trackedFields(repo, entry),
+      entry.body,
+    ),
+    doc_time: entry.updatedAt,
+  };
+}
+
+function trackedFields(repo: string, entry: TrackedEntry): Field[] {
+  const label = entry.kind === "pull" ? "Pull request" : "Issue";
   const page = githubPage(
     entry.kind === "pull"
       ? pullRequestName(repo, entry.number)
       : issueName(repo, entry.number),
   );
 
-  return {
-    external_id: `${entry.kind}:${entry.number}`,
-    filename: `${entry.kind}-${entry.number}`,
-    content: [...trackedHead(repo, entry, page), entry.body]
-      .filter((part) => part !== "")
-      .join("\n\n"),
-    doc_time: entry.updatedAt,
-  };
-}
-
-function trackedHead(
-  repo: string,
-  entry: TrackedEntry,
-  page: string,
-): string[] {
-  const label = entry.kind === "pull" ? "Pull request" : "Issue";
-  const lines = [
-    `${label} #${entry.number} in ${repo}: ${entry.title}`,
-    `State: ${stateOf(entry)}`,
-    `Author: ${entry.author}`,
-    ...(entry.labels.length ? [`Labels: ${entry.labels.join(", ")}`] : []),
-    ...timeLines(entry),
-    `Link: ${page}`,
+  return [
+    [label, `#${entry.number} in ${repo}`],
+    ["State", stateOf(entry)],
+    ["Author", entry.author],
+    ...(entry.labels.length
+      ? [["Labels", entry.labels.join(", ")] as Field]
+      : []),
+    ...timeFields(entry),
+    ["Link", page],
   ];
-
-  return [lines.join("\n")];
 }
 
-function timeLines(entry: TrackedEntry): string[] {
+function timeFields(entry: TrackedEntry): Field[] {
   const times: Array<[string, string | null]> = [
     ["Opened", entry.openedAt],
     ["Closed", entry.closedAt],
     ["Merged", entry.mergedAt],
   ];
 
-  return times.flatMap(([name, time]) => (time ? [`${name}: ${time}`] : []));
+  return times.flatMap(([name, time]) => (time ? [[name, time] as Field] : []));
 }
 
 function stateOf(entry: TrackedEntry): string {

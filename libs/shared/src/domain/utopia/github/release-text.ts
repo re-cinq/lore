@@ -1,6 +1,7 @@
 // A git tag and a published GitHub release as the text an `api` Utopia source takes: the tag with the commit it points to, the release with its title, tag, author, time and page and its notes whole.
 
 import type { IngestDocument } from "../memory/memory-documents.js";
+import { markdownDocument, type Field } from "../markdown.js";
 import { githubPage, releaseName, tagName } from "../names.js";
 
 export interface TagEntry {
@@ -23,12 +24,16 @@ export interface ReleaseEntry {
 export function tagDocument(repo: string, tag: TagEntry): IngestDocument {
   return {
     external_id: `tag:${tag.name}`,
-    filename: `tag-${tag.name}`,
-    content: [
-      `Tag ${tag.name} in ${repo}`,
-      `Commit: ${tag.sha}`,
-      `Link: ${githubPage(tagName(repo, tag.name))}`,
-    ].join("\n"),
+    filename: `tag-${tag.name}.md`,
+    content: markdownDocument(
+      `Tag ${tag.name}`,
+      [
+        ["Tag", `${tag.name} in ${repo}`],
+        ["Commit", tag.sha],
+        ["Link", githubPage(tagName(repo, tag.name))],
+      ],
+      "",
+    ),
   };
 }
 
@@ -36,18 +41,24 @@ export function releaseDocument(
   repo: string,
   release: ReleaseEntry,
 ): IngestDocument {
-  const head = [
-    `Release ${release.tag} in ${repo}: ${release.name || release.tag}`,
-    `Tag: ${release.tag}`,
-    `Author: ${release.author}`,
-    `Published: ${release.publishedAt}`,
-    `Link: ${githubPage(releaseName(repo, release.tag))}`,
-  ].join("\n");
-
   return {
     external_id: `release:${release.tag}`,
-    filename: `release-${release.tag}`,
-    content: [head, release.body].filter((part) => part !== "").join("\n\n"),
+    filename: `release-${release.tag}.md`,
+    content: markdownDocument(
+      release.name || release.tag,
+      releaseFields(repo, release),
+      release.body,
+    ),
     doc_time: release.publishedAt,
   };
+}
+
+function releaseFields(repo: string, release: ReleaseEntry): Field[] {
+  return [
+    ["Release", `${release.tag} in ${repo}`],
+    ["Tag", release.tag],
+    ["Author", release.author],
+    ["Published", release.publishedAt],
+    ["Link", githubPage(releaseName(repo, release.tag))],
+  ];
 }

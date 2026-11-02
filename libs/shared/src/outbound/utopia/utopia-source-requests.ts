@@ -1,4 +1,8 @@
-import type { Requester, UtopiaSource } from "./utopia-client.js";
+import type {
+  Requester,
+  UtopiaSession,
+  UtopiaSource,
+} from "./utopia-client.js";
 
 /** What Utopia reads from a source's `config`: `extract: false` keeps its documents searchable but runs no entity extraction over them; `names: "identity"` on a statements source says every name it pushes identifies one thing, so Utopia attaches each to its exact name, embeds none and proposes no duplicate pair for them (Utopia decision 0071). */
 export interface SourceConfig {
@@ -31,6 +35,30 @@ export async function createSource(
   return { id: created.source.id, key: created.ingest_token };
 }
 
+export async function renameSource(
+  { request, bearer }: SessionCall,
+  kbId: string,
+  sourceId: string,
+  name: string,
+): Promise<void> {
+  await request(`/kbs/${kbId}/sources/${sourceId}`, {
+    token: bearer,
+    method: "PATCH",
+    json: { name },
+  });
+}
+
+export async function deleteSource(
+  { request, bearer }: SessionCall,
+  kbId: string,
+  sourceId: string,
+): Promise<void> {
+  await request(`/kbs/${kbId}/sources/${sourceId}`, {
+    token: bearer,
+    method: "DELETE",
+  });
+}
+
 export async function patchSourceConfig(
   { request, bearer }: SessionCall,
   kbId: string,
@@ -54,4 +82,30 @@ export async function cleanupMissing(
     token: bearer,
     heavy: true,
   });
+}
+
+/** The session's calls on a knowledge base's sources. */
+export type SourceCalls = Pick<
+  UtopiaSession,
+  | "createStatementsSource"
+  | "createApiSource"
+  | "patchSourceConfig"
+  | "renameSource"
+  | "deleteSource"
+  | "cleanupMissing"
+>;
+
+export function sourceCallsOf(call: SessionCall): SourceCalls {
+  return {
+    createStatementsSource: (kbId, name, config = {}) =>
+      createSource(call, kbId, { kind: "statements", name, config }),
+    createApiSource: (kbId, name, config = {}) =>
+      createSource(call, kbId, { kind: "api", name, config }),
+    patchSourceConfig: (kbId, sourceId, config) =>
+      patchSourceConfig(call, kbId, sourceId, config),
+    renameSource: (kbId, sourceId, name) =>
+      renameSource(call, kbId, sourceId, name),
+    deleteSource: (kbId, sourceId) => deleteSource(call, kbId, sourceId),
+    cleanupMissing: (kbId, sourceId) => cleanupMissing(call, kbId, sourceId),
+  };
 }

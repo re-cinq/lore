@@ -22,6 +22,7 @@ import { projectFor } from "../../outbound/project-boot.js";
 import {
   autoSetUpRepo,
   autoSilenceExtraction,
+  autoSplitHistorySources,
   autoUpgradeOntology,
 } from "./setup/auto-setup.js";
 
@@ -46,13 +47,24 @@ export async function knowledgeBaseToMirror(
   const mirror = UtopiaMirrorSettingsSchema.safeParse(settings?.utopia);
 
   if (utopiaConfigured(env) && mirror.success) {
-    await upgradeOntologyQuietly(pool, repo, mirror.data, env);
-    await silenceExtractionQuietly(pool, repo, mirror.data, env);
+    await bringUpToDateQuietly(pool, repo, mirror.data, env);
 
     return mirror.data.kb_id;
   }
 
   return utopiaAutoSetupConfigured(env) ? autoSetUpRepo(pool, repo, env) : null;
+}
+
+/** The one-off steps a base set up earlier may still need, in order. */
+async function bringUpToDateQuietly(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  await upgradeOntologyQuietly(pool, repo, mirror, env);
+  await splitHistorySourcesQuietly(pool, repo, mirror, env);
+  await silenceExtractionQuietly(pool, repo, mirror, env);
 }
 
 /** Without a write token the push goes ahead on the old ontology, its new attributes landing unbound; a failed upgrade is logged and counted as a failed mirror, and the push goes ahead all the same. */
@@ -83,6 +95,22 @@ async function silenceExtractionQuietly(
       repo,
       "source extraction switch",
       autoSilenceExtraction(pool, repo, mirror, env),
+    );
+  }
+}
+
+/** Once per repo: its `git-history` source is shown as `commits` and its `github` source is deleted for the sources of issues, pull requests and releases; failed like an upgrade, the next ingest tries again. */
+async function splitHistorySourcesQuietly(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  if (!mirror.history_sources_split && utopiaAutoSetupConfigured(env)) {
+    await countingFailure(
+      repo,
+      "history sources split",
+      autoSplitHistorySources(pool, repo, mirror, env),
     );
   }
 }

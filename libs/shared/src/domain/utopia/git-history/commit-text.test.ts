@@ -14,22 +14,23 @@ const commit: MirroredCommit = {
 };
 
 describe("commitDocument", () => {
-  it("is commit:7b89df02… at the author date, named commit-7b89df02…, with its author, date, parent, link, pull request #2773, closed issue #12, changed files, subject and whole body in that order", () => {
+  it("is commit:7b89df02… at the author date, named 7b89df0-utopia-give-its-database-a-full-cpu-two-to-burst-2773.md, headed by its subject, with its author, date, parent, link, pull request #2773, closed issue #12 and changed files as a list, then the whole body", () => {
     expect(commitDocument("re-cinq/lore", commit)).toEqual({
       external_id: `commit:${SHA}`,
-      filename: `commit-${SHA}`,
+      filename:
+        "7b89df0-utopia-give-its-database-a-full-cpu-two-to-burst-2773.md",
       doc_time: "2026-10-16T08:12:00Z",
       content: [
-        `Commit ${SHA} in re-cinq/lore`,
-        "Author: Szabo Bogdan",
-        "Date: 2026-10-16T08:12:00Z",
-        `Parents: ${PARENT}`,
-        `Link: https://github.com/re-cinq/lore/commit/${SHA}`,
-        "Pull request: https://github.com/re-cinq/lore/pull/2773",
-        "Issues: closes https://github.com/re-cinq/lore/issues/12",
-        "Files changed: infra/terraform/utopia.tf, charts/utopia/values.yaml",
+        "# Utopia: give its database a full CPU, two to burst (#2773)",
         "",
-        "Utopia: give its database a full CPU, two to burst (#2773)",
+        `- **Commit:** ${SHA} in re-cinq/lore`,
+        "- **Author:** Szabo Bogdan",
+        "- **Date:** 2026-10-16T08:12:00Z",
+        `- **Parents:** ${PARENT}`,
+        `- **Link:** https://github.com/re-cinq/lore/commit/${SHA}`,
+        "- **Pull request:** https://github.com/re-cinq/lore/pull/2773",
+        "- **Issues:** closes https://github.com/re-cinq/lore/issues/12",
+        "- **Files changed:** infra/terraform/utopia.tf, charts/utopia/values.yaml",
         "",
         "Gives the pod a full CPU.\n\nCloses #12\nLore-Task: 6f1c2e9a",
       ].join("\n"),
@@ -40,18 +41,18 @@ describe("commitDocument", () => {
     const lines = (parents: string[]) =>
       commitDocument("re-cinq/lore", { ...commit, parents }).content?.split(
         "\n",
-      )[3];
+      )[5];
 
     expect([lines([PARENT, "aaa"]), lines([])]).toEqual([
-      `Parents: ${PARENT}, aaa`,
-      "Parents: none",
+      `- **Parents:** ${PARENT}, aaa`,
+      "- **Parents:** none",
     ]);
   });
 
-  it("ends at the subject for a commit with no body", () => {
+  it("ends at its field list for a commit with no body", () => {
     expect(
       commitDocument("re-cinq/lore", { ...commit, body: "" }).content?.endsWith(
-        "(#2773)",
+        "charts/utopia/values.yaml",
       ),
     ).toBe(true);
   });
@@ -70,7 +71,7 @@ describe("commitDocument", () => {
 describe("commitDocument links", () => {
   const head = (changes: Partial<MirroredCommit>) =>
     commitDocument("re-cinq/lore", { ...commit, ...changes })
-      .content?.split("\n\n")[0]
+      .content?.split("\n\n")[1]
       .split("\n")
       .slice(5);
 
@@ -86,7 +87,7 @@ describe("commitDocument links", () => {
         files: [],
       }),
     ).toEqual([
-      "Issues: closes https://github.com/re-cinq/lore/issues/4012, refers to https://github.com/re-cinq/lore/issues/3998, refers to https://github.com/re-cinq/lore/issues/4001",
+      "- **Issues:** closes https://github.com/re-cinq/lore/issues/4012, refers to https://github.com/re-cinq/lore/issues/3998, refers to https://github.com/re-cinq/lore/issues/4001",
     ]);
   });
 
@@ -94,7 +95,7 @@ describe("commitDocument links", () => {
     const files = Array.from({ length: 60 }, (_, index) => `f${index}.ts`);
 
     expect(head({ subject: "Tidy", body: "", files })).toEqual([
-      `Files changed: ${files.slice(0, 50).join(", ")} and 10 more`,
+      `- **Files changed:** ${files.slice(0, 50).join(", ")} and 10 more`,
     ]);
   });
 });
