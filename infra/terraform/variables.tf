@@ -225,7 +225,7 @@ variable "utopia_data_size" {
 variable "utopia_image_digest" {
   description = "The sha256 digest of the Utopia image to run (sha256:...). Set, it wins over utopia_image_tag: a digest names the bytes, a tag can be re-pushed. Read the running pod's imageID to pin it."
   type        = string
-  default     = "sha256:55321d80e6afafd967e45e3bffa9657af95a4031df6d77ec6650303f7c50ed1d"
+  default     = "sha256:4ddd146fb9a99cf5c8cb8241511b4d551ac94f41e2789a5af09cab5f215b5638"
 
   validation {
     condition     = var.utopia_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.utopia_image_digest))
