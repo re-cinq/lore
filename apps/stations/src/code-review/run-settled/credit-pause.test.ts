@@ -141,4 +141,32 @@ describe("pausingLoopsOnCredit", () => {
 
     expect(pauses.map(({ key }) => key)).toEqual(["triage"]);
   });
+
+  it("pauses the review loop when Vertex refused the review for an unpaid billing account", async () => {
+    const { settle, pauses } = scene("code-review", "failed", [
+      planVisit("review", {
+        outcome: "failed",
+        error:
+          '403 {"error":{"code":403,"message":"There are issues with your billing account, please resolve / pay your outstanding balance for project: projects/647955581268","status":"PERMISSION_DENIED"}}',
+      }),
+    ]);
+
+    await settle();
+
+    expect(pauses.map(({ key }) => key)).toEqual(["review"]);
+  });
+
+  it("pauses the implementation loop when OpenAI's billing hard limit was reached", async () => {
+    const { settle, pauses } = scene("implementation-loop", "failed", [
+      planVisit("tdd-round", {
+        outcome: "failed",
+        error:
+          '400 {"error":{"message":"Billing hard limit has been reached","type":"invalid_request_error","code":"billing_hard_limit_reached"}}',
+      }),
+    ]);
+
+    await settle();
+
+    expect(pauses.map(({ key }) => key)).toEqual(["implementation"]);
+  });
 });
