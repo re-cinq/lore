@@ -13,12 +13,12 @@
 lore:Repository a owl:Class ;
   rdfs:label "Repository" ;
   rdfs:comment "A GitHub repository (owner/name). The root everything in this knowledge base belongs to." ;
-  owl:disjointWith lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Document a owl:Class ;
   rdfs:label "Document" ;
   rdfs:comment "A markdown document in the repository: a spec, an ADR or any other document (a README, CLAUDE.md, a guide, a runbook), at a commit." ;
-  owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Spec a owl:Class ;
   rdfs:label "Spec" ;
@@ -40,22 +40,22 @@ lore:Doc a owl:Class ;
 lore:Section a owl:Class ;
   rdfs:label "Section" ;
   rdfs:comment "A heading-level section of a document. It contains the statements written under that heading." ;
-  owl:disjointWith lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Statement a owl:Class ;
   rdfs:label "Statement" ;
   rdfs:comment "One sentence or list item of a section that states a behaviour; the unit a test validates and code implements." ;
-  owl:disjointWith lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Test a owl:Class ;
   rdfs:label "Test" ;
   rdfs:comment "One test case (an it/test call) with its title, its file and the lines it spans." ;
-  owl:disjointWith lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Code a owl:Class ;
   rdfs:label "Code" ;
   rdfs:comment "Source code in the repository: a file or a definition inside one." ;
-  owl:disjointWith lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:SourceFile a owl:Class ;
   rdfs:label "SourceFile" ;
@@ -73,31 +73,36 @@ lore:CodeDefinition a owl:Class ;
 lore:Commit a owl:Class ;
   rdfs:label "Commit" ;
   rdfs:comment "A commit on the repository's default branch: what it changed, who wrote it and when, the pull request it merged." ;
-  owl:disjointWith lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:PullRequest a owl:Class ;
   rdfs:label "PullRequest" ;
   rdfs:comment "A pull request, by number: its title and description, who opened it, its labels, and when it was opened, merged or closed." ;
-  owl:disjointWith lore:Issue, lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Issue a owl:Class ;
   rdfs:label "Issue" ;
   rdfs:comment "An issue, by number: its title and description, who opened it, its labels, and when it was opened or closed." ;
-  owl:disjointWith lore:Task, lore:Release, lore:Tag .
+  owl:disjointWith lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Task a owl:Class ;
   rdfs:label "Task" ;
   rdfs:comment "A Lore task a pull request delivers, named by its Lore-Task trailer." ;
-  owl:disjointWith lore:Release, lore:Tag .
+  owl:disjointWith lore:Release, lore:Tag, lore:Person .
 
 lore:Release a owl:Class ;
   rdfs:label "Release" ;
   rdfs:comment "A published GitHub release: its name, its notes, who published it and when, and the tag it publishes." ;
-  owl:disjointWith lore:Tag .
+  owl:disjointWith lore:Tag, lore:Person .
 
 lore:Tag a owl:Class ;
   rdfs:label "Tag" ;
   rdfs:comment "A git tag, by name, and the commit it points to." .
+
+lore:Person a owl:Class ;
+  rdfs:label "Person" ;
+  rdfs:comment "A person on GitHub, named by their login: who wrote a commit and who opened a pull request or an issue." ;
+  owl:disjointWith lore:Repository, lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
 
 # ---- relations ----
 
@@ -191,6 +196,13 @@ lore:closes a owl:ObjectProperty ;
   utopia:temporal "event" ;
   rdfs:domain lore:PullRequest ;
   rdfs:range lore:Issue .
+
+lore:authored_by a owl:ObjectProperty ;
+  rdfs:label "authored_by" ;
+  rdfs:comment "A commit, pull request or issue is authored by the person who wrote or opened it." ;
+  utopia:temporal "event" ;
+  rdfs:domain lore:Commit, lore:PullRequest, lore:Issue ;
+  rdfs:range lore:Person .
 
 lore:refers_to a owl:ObjectProperty ;
   rdfs:label "refers_to" ;

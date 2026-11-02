@@ -127,7 +127,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
     };
   });
 
-  it("creates the knowledge base, imports the ontology, binds the seventeen kind words, creates no source, and saves kb-new to lore.utopia_bases and settings", async () => {
+  it("creates the knowledge base, imports the ontology, binds the eighteen kind words, creates no source, and saves kb-new to lore.utopia_bases and settings", async () => {
     const pool = poolWith({ auto_review: true });
     const res = await setup(pool, "ws-1");
 
@@ -141,15 +141,15 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       saved: savedBases(pool),
     }).toEqual({
       status: 200,
-      body: { kb_id: "kb-new", ontology_version: 7 },
+      body: { kb_id: "kb-new", ontology_version: 8 },
       calls: [
         "GET /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/kbs/kb-new/ontology/imports",
       ],
-      bound: 17,
+      bound: 18,
       statementBound: true,
-      written: [{ utopia: { kb_id: "kb-new", ontology_version: 7 } }],
+      written: [{ utopia: { kb_id: "kb-new", ontology_version: 8 } }],
       saved: [["re-cinq/lore", "kb-new"]],
     });
   });
@@ -163,7 +163,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       calls: seen.filter((call) => !call.startsWith("bind ")),
       saved: savedBases(pool),
     }).toEqual({
-      body: { kb_id: "kb-1", ontology_version: 7 },
+      body: { kb_id: "kb-1", ontology_version: 8 },
       calls: [
         "GET /api/v1/workspaces/ws-2/kbs",
         "POST /api/v1/kbs/kb-1/ontology/imports",
