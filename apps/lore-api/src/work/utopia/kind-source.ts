@@ -120,6 +120,31 @@ export async function sweepKindSource(
   await loreSession(env).cleanupMissing(stored.kbId, stored.id);
 }
 
+/** {@link kindMirrorDeps}, had on the first push, so a walk that finds nothing to push makes no source. */
+export function lazyKindMirrorDeps(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv = process.env,
+): MirrorDeps {
+  let held: Promise<MirrorDeps | null> | undefined;
+
+  return {
+    push: async (pushed) => {
+      held ??= kindMirrorDeps(pool, repo, kind, env);
+      const deps = await held;
+
+      enforceTrue(
+        deps,
+        Error,
+        `${repo} has no Utopia knowledge base to mirror its ${kind} to`,
+      );
+
+      return deps!.push(pushed);
+    },
+  };
+}
+
 async function kindSourceIfBase(
   pool: Pool,
   repo: string,
