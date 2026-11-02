@@ -34,10 +34,10 @@ describe("GET /api/repos/:owner/:repo/impact/base", () => {
     expect(res.result).toMatchObject({ graphCommit: null, source: "none" });
   });
 
-  it("rejects a request without a token", async () => {
+  it("returns 401 when the token is unknown", async () => {
     delete process.env.LORE_INGEST_TOKEN;
     const res = await base({ authorization: "Bearer not-a-real-token" });
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
   });
 });

@@ -43,14 +43,14 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
     });
   });
 
-  it("rejects a request without a write-scoped token", async () => {
+  it("returns 401 when the token is unknown", async () => {
     delete process.env.LORE_INGEST_TOKEN;
     const res = await impact(
       { files: [] },
       { authorization: "Bearer not-a-real-token" },
     );
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
   });
 
   it("accepts a docs[] body carrying changed spec content without rejecting it", async () => {

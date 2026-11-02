@@ -42,11 +42,7 @@ async function authenticateBearer(
 
   const principal = await principalFor(request, pool, bearer);
 
-  enforceTrue(
-    principal,
-    (message) => denied(403, message),
-    "insufficient scope",
-  );
+  enforceTrue(principal, (message) => denied(401, message), "invalid token");
   enforceRouteScope(request, principal.scopes);
 
   return h.authenticated({ credentials: credentialsOf(principal) });
