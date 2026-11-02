@@ -123,7 +123,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
     };
   });
 
-  it("pushes the tag v1.2.0 and its release as text to the github source and as statements to the test-coverage source and answers two of each", async () => {
+  it("pushes the tag v1.2.0 and its release as text to the releases source and as statements to the test-coverage source and answers two of each", async () => {
     const res = await releases(poolHolding());
 
     expect({
@@ -144,7 +144,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/releases", () => {
       },
       pushes: [
         ...Array(2).fill(
-          "POST /api/v1/sources/src-github/ingest Bearer utp_github",
+          "POST /api/v1/sources/src-releases/ingest Bearer utp_releases",
         ),
         ...Array(2).fill(
           "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
