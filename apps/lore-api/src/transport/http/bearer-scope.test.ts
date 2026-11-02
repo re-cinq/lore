@@ -45,18 +45,18 @@ describe("bearer-scope auth scheme", () => {
     expect(JSON.parse(res.payload)).toEqual({ error: "unauthorized" });
   });
 
-  it("returns 403 {error:insufficient scope} when the token is not legacy and pool is null", async () => {
+  it("returns 401 {error:invalid token} when the token is not legacy and pool is null", async () => {
     const res = await server(null).inject({
       method: "GET",
       url: "/guarded",
       headers: { authorization: "Bearer wrong" },
     });
 
-    expect(res.statusCode).toBe(403);
-    expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.payload)).toEqual({ error: "invalid token" });
   });
 
-  it("returns 403 when the DB has no matching token", async () => {
+  it("returns 401 when the DB has no matching token", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [] });
@@ -66,7 +66,7 @@ describe("bearer-scope auth scheme", () => {
       headers: { authorization: "Bearer db-x" },
     });
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(401);
   });
 
   it("passes when the DB token carries the required scope", async () => {
