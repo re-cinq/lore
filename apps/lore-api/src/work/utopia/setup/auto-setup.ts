@@ -28,6 +28,7 @@ const settingUp = new Map<string, Promise<string>>();
 const upgrading = new Map<string, Promise<void>>();
 const silencing = new Map<string, Promise<void>>();
 const splitting = new Map<string, Promise<void>>();
+const extracting = new Map<string, Promise<void>>();
 
 /** Answers the id of the knowledge base set up. Two ingests of one repo in this process share one setup; across processes, finding the base by name keeps it at one base. */
 export function autoSetUpRepo(
@@ -83,6 +84,56 @@ export function autoSplitHistorySources(
   return sharedPerRepo(splitting, repo, () =>
     splitHistorySources(pool, { repo, kbId: mirror.kb_id }, env),
   );
+}
+
+/** The kinds whose sources hold the repo's history. */
+const HISTORY_KINDS: readonly MirrorKind[] = [
+  "git-history",
+  "issues",
+  "pull-requests",
+  "releases",
+];
+
+/** Once per repo that asks for it (`history_extract`): its history sources are patched to `extract: true` and their documents re-extracted, then `history_extract_applied` is stored; two ingests of one repo in this process share one pass. */
+export function autoExtractHistory(
+  pool: Pool,
+  repo: string,
+  mirror: UtopiaMirrorSettings,
+  env: UtopiaEnv,
+): Promise<void> {
+  return sharedPerRepo(extracting, repo, () =>
+    extractHistory(pool, { repo, kbId: mirror.kb_id }, env),
+  );
+}
+
+async function extractHistory(
+  pool: Pool,
+  { repo, kbId }: RepoBase,
+  env: UtopiaEnv,
+): Promise<void> {
+  const stored = await Promise.all(
+    HISTORY_KINDS.map((kind) => sourceInBase(pool, repo, kind, kbId)),
+  );
+  const present = stored.filter((source) => source !== null);
+
+  await Promise.all(
+    present.map((source) => extractSource(kbId, source.id, env)),
+  );
+  await saveUtopiaMirrorSettings(pool, repo, {
+    kb_id: kbId,
+    history_extract_applied: true,
+  });
+}
+
+async function extractSource(
+  kbId: string,
+  sourceId: string,
+  env: UtopiaEnv,
+): Promise<void> {
+  const session = loreSession(env);
+
+  await session.patchSourceConfig(kbId, sourceId, { extract: true });
+  await session.reExtractSource(kbId, sourceId);
 }
 
 interface RepoBase {

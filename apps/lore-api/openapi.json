@@ -17560,6 +17560,12 @@
                       },
                       "history_sources_split": {
                         "type": "boolean"
+                      },
+                      "history_extract": {
+                        "type": "boolean"
+                      },
+                      "history_extract_applied": {
+                        "type": "boolean"
                       }
                     },
                     "required": ["kb_id"],
@@ -18002,6 +18008,12 @@
                               "type": "boolean"
                             },
                             "history_sources_split": {
+                              "type": "boolean"
+                            },
+                            "history_extract": {
+                              "type": "boolean"
+                            },
+                            "history_extract_applied": {
                               "type": "boolean"
                             }
                           },

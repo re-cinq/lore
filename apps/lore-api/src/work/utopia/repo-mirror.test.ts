@@ -32,6 +32,10 @@ const ANSWERS: Record<string, unknown> = {
   "POST /api/v1/kbs/kb-1/ontology/imports": { import_id: "imp-2", plan: {} },
   "PATCH /api/v1/kbs/kb-1/sources/src-git-history": { id: "src-git-history" },
   "PATCH /api/v1/kbs/kb-1/sources/src-github": { id: "src-github" },
+  "POST /api/v1/kbs/kb-1/sources/src-git-history/re-extract": { ok: true },
+  "POST /api/v1/kbs/kb-1/sources/src-issues/re-extract": { ok: true },
+  "POST /api/v1/kbs/kb-1/sources/src-pull-requests/re-extract": { ok: true },
+  "POST /api/v1/kbs/kb-1/sources/src-releases/re-extract": { ok: true },
   "DELETE /api/v1/kbs/kb-1/sources/src-github": { ok: true },
   "PATCH /api/v1/kbs/kb-1/sources/src-issues": { id: "src-issues" },
   "PATCH /api/v1/kbs/kb-1/sources/src-pull-requests": {
@@ -398,5 +402,79 @@ describe("knowledgeBaseToMirror on a base whose git-history and github sources a
       seen: [],
       statements: [],
     });
+  });
+});
+
+describe("knowledgeBaseToMirror on a base whose repo sets history_extract", () => {
+  const SETTLED = {
+    ...SETTINGS.utopia,
+    sources_extract_off: true,
+    history_sources_split: true,
+  };
+  const HISTORY_KINDS = ["git-history", "issues", "pull-requests", "releases"];
+  const poolHolding = (kinds: string[]) => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string, params: string[]) => {
+      const isSourceRead = /FROM lore\.utopia_kind_sources/.test(sql);
+
+      return {
+        rows:
+          isSourceRead && kinds.includes(params[1])
+            ? [{ id: `src-${params[1]}`, key: "utp_k", kbId: "kb-1" }]
+            : [],
+      };
+    });
+
+    return pool;
+  };
+
+  it("patches each history source of kb-1 to extract true and re-extracts it once for two concurrent ingests, then stores history_extract_applied", async () => {
+    const pool = poolHolding(HISTORY_KINDS);
+    const settings = { utopia: { ...SETTLED, history_extract: true } };
+
+    await Promise.all([
+      mirrorOf(pool, "re-cinq/lore", settings),
+      mirrorOf(pool, "re-cinq/Lore", settings),
+    ]);
+
+    expect({ calls: seen.sort(), writes: writesOf(pool) }).toEqual({
+      calls: HISTORY_KINDS.flatMap((kind) => [
+        `PATCH /api/v1/kbs/kb-1/sources/src-${kind} Bearer utp_pat_lore`,
+        `POST /api/v1/kbs/kb-1/sources/src-${kind}/re-extract Bearer utp_pat_lore`,
+      ]).sort(),
+      writes: [{ utopia: { kb_id: "kb-1", history_extract_applied: true } }],
+    });
+  });
+
+  it("sends nothing when history_extract is not set or was applied", async () => {
+    const pool = poolHolding(HISTORY_KINDS);
+
+    await mirrorOf(pool, "re-cinq/lore", { utopia: SETTLED });
+    await mirrorOf(pool, "re-cinq/lore", {
+      utopia: {
+        ...SETTLED,
+        history_extract: true,
+        history_extract_applied: true,
+      },
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  it("leaves the sources extracting, patching none back to extract false, when history_extract is set and sources_extract_off is not", async () => {
+    const pool = poolHolding(["git-history", "github"]);
+
+    await mirrorOf(pool, "re-cinq/lore", {
+      utopia: {
+        kb_id: "kb-1",
+        ontology_version: 8,
+        history_sources_split: true,
+        history_extract: true,
+        history_extract_applied: true,
+      },
+    });
+
+    expect(seen).toEqual([]);
   });
 });

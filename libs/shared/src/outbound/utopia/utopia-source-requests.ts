@@ -84,6 +84,18 @@ export async function cleanupMissing(
   });
 }
 
+/** Runs entity extraction over the documents the source already holds; it waits as long as an import. */
+export async function reExtractSource(
+  { request, bearer }: SessionCall,
+  kbId: string,
+  sourceId: string,
+): Promise<void> {
+  await request(`/kbs/${kbId}/sources/${sourceId}/re-extract`, {
+    token: bearer,
+    heavy: true,
+  });
+}
+
 /** The session's calls on a knowledge base's sources. */
 export type SourceCalls = Pick<
   UtopiaSession,
@@ -93,6 +105,7 @@ export type SourceCalls = Pick<
   | "renameSource"
   | "deleteSource"
   | "cleanupMissing"
+  | "reExtractSource"
 >;
 
 export function sourceCallsOf(call: SessionCall): SourceCalls {
@@ -107,5 +120,6 @@ export function sourceCallsOf(call: SessionCall): SourceCalls {
       renameSource(call, kbId, sourceId, name),
     deleteSource: (kbId, sourceId) => deleteSource(call, kbId, sourceId),
     cleanupMissing: (kbId, sourceId) => cleanupMissing(call, kbId, sourceId),
+    reExtractSource: (kbId, sourceId) => reExtractSource(call, kbId, sourceId),
   };
 }

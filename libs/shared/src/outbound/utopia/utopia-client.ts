@@ -70,6 +70,7 @@ export interface UtopiaSession {
     config: SourceConfig,
   ): Promise<void>;
   cleanupMissing(kbId: string, sourceId: string): Promise<void>;
+  reExtractSource(kbId: string, sourceId: string): Promise<void>;
   renameSource(kbId: string, sourceId: string, name: string): Promise<void>;
   /** Removes the source with every document it holds. */
   deleteSource(kbId: string, sourceId: string): Promise<void>;

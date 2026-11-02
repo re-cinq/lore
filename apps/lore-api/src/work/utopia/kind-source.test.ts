@@ -158,6 +158,28 @@ describe("kindSourceOf", () => {
     ]);
   });
 
+  it("creates the api sources git-history, issues, pull-requests and releases with an empty config when the repo settings carry history_extract", async () => {
+    const pool = poolHolding({});
+
+    repoSettings = { utopia: { ...SETTINGS.utopia, history_extract: true } };
+
+    for (const kind of [
+      "git-history",
+      "issues",
+      "pull-requests",
+      "releases",
+    ] as const) {
+      await kindSourceOf(asPool(pool), "re-cinq/lore", kind, env);
+    }
+
+    expect(bodies).toEqual([
+      { kind: "api", name: "commits", config: {} },
+      { kind: "api", name: "issues", config: {} },
+      { kind: "api", name: "pull-requests", config: {} },
+      { kind: "api", name: "releases", config: {} },
+    ]);
+  });
+
   it("creates test-coverage as a statements source whose names are identities, not an api one", async () => {
     const pool = poolHolding({});
 

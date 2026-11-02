@@ -58,6 +58,7 @@ const ROUTES: Record<string, (body: string) => [number, unknown]> = {
     { ok: true },
   ],
   "PATCH /api/v1/kbs/kb-1/sources/src-9": () => [200, { id: "src-9" }],
+  "POST /api/v1/kbs/kb-1/sources/src-9/re-extract": () => [200, { ok: true }],
   "DELETE /api/v1/kbs/kb-1/sources/src-9": () => [200, { ok: true }],
   "POST /api/v1/kbs/kb-1/sources": () => [
     201,
@@ -404,6 +405,16 @@ describe("withCredential", () => {
       method: "PATCH",
       url: "/api/v1/kbs/kb-1/sources/src-9",
       body: { name: "commits" },
+    });
+  });
+
+  it("re-extracts src-9 of kb-1 with a POST that carries no body", async () => {
+    await client().withCredential("jwt-1").reExtractSource("kb-1", "src-9");
+
+    expect(seen[0]).toMatchObject({
+      method: "POST",
+      url: "/api/v1/kbs/kb-1/sources/src-9/re-extract",
+      body: "",
     });
   });
 
