@@ -17,7 +17,8 @@ export interface TemplateSection {
     | "episodes"
     | "rules"
     | "cross_repo"
-    | "incidents";
+    | "incidents"
+    | "history";
   priority: number;
   max_tokens?: number;
 }

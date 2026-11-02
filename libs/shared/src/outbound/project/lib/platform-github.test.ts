@@ -33,6 +33,7 @@ const state: {
   releasesData?: Array<Record<string, unknown>>;
   tagsData?: Array<Record<string, unknown>>;
   pullsPages?: Array<Array<Record<string, unknown>>>;
+  commitFiles?: Record<string, string[]>;
   pullsListCall?: Record<string, unknown>;
   pagesServed: number;
   issueData?: Record<string, unknown>;
@@ -194,6 +195,13 @@ vi.mock("octokit", () => ({
           return { data: { statuses: state.statuses ?? [] } };
         },
         listCommits: async () => ({ data: state.branchCommits ?? [] }),
+        getCommit: async ({ ref }: { ref: string }) => ({
+          data: {
+            files: (state.commitFiles?.[ref] ?? []).map((filename) => ({
+              filename,
+            })),
+          },
+        }),
         listReleases: async () => state.releasesData ?? [],
         listTags: async () => state.tagsData ?? [],
       },
@@ -1143,7 +1151,7 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
     ]);
   });
 
-  it("listBranchHistory reads main newest-first from the commit listing alone, stops at the cursor, keeps the newest two of the three commits above it, and answers them oldest-first", async () => {
+  it("listBranchHistory reads main newest-first from the commit listing, stops at the cursor, keeps the newest two of the three commits above it, and answers them oldest-first with the files each changed", async () => {
     const listed = (sha: string, message: string) => ({
       sha,
       parents: [{ sha: `${sha}-parent` }],
@@ -1154,6 +1162,7 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
       [listed("c3", "Three (#3)\n\nCloses #9\n"), listed("c2", "Two")],
       [listed("c1", "One"), listed("cursor", "Old"), listed("c0", "Older")],
     ];
+    state.commitFiles = { c3: ["apps/a.ts", "libs/b.ts"] };
     const history = await gh().listBranchHistory("re-cinq/lore", "main", {
       until: "cursor",
       limit: 2,
@@ -1167,6 +1176,7 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
         body: "",
         author: "Szabo Bogdan",
         authoredAt: "c2-at",
+        files: [],
       },
       {
         sha: "c3",
@@ -1175,6 +1185,7 @@ describe("PlatformGitHub branch reads for the CI tools", () => {
         body: "Closes #9",
         author: "Szabo Bogdan",
         authoredAt: "c3-at",
+        files: ["apps/a.ts", "libs/b.ts"],
       },
     ]);
   });

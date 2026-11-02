@@ -95,6 +95,8 @@ export interface CommitDetail {
   body: string;
   author: string;
   authoredAt: string;
+  /** The paths the commit added, modified, renamed or deleted. */
+  files: string[];
 }
 
 export interface GitHubPort {

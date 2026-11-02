@@ -156,6 +156,7 @@ describe("mirrorTracker", () => {
               body: "",
               author: "a",
               authoredAt: "t",
+              files: [],
             },
           ],
         },

@@ -247,6 +247,9 @@ export const contentFetchers: Record<string, SourceFetcher> = {
       limit: ITEM_LIMITS.code,
     }),
 
+  // Commit history is Utopia's alone (specs/utopia-graph-mirror FR13.11): the Lore database keeps no commits.
+  history: async () => ({ sources: [], status: "disabled" }),
+
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   adrs: (pool, query, repo) =>
     hybridSource(pool, query, repo, {

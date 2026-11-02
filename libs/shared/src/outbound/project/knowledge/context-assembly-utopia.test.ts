@@ -712,3 +712,69 @@ describe("utopiaSectionReader doc items widened from the stored document (FR13.1
     ]);
   });
 });
+
+describe("utopiaSectionReader history (FR13.11)", () => {
+  const HISTORY = "a1a1a1a1-git-history";
+  const FOOTER = "libs/shared/src/domain/pr-body.ts";
+  const touching = [
+    "Commit c7 in re-cinq/lore",
+    "Pull request: https://github.com/re-cinq/lore/pull/2511",
+    "Issues: closes https://github.com/re-cinq/lore/issues/2500",
+    `Files changed: ${FOOTER}`,
+    "",
+    "Footer: add the Refs line (#2511)",
+  ].join("\n");
+  const elsewhere = [
+    "Commit c8 in re-cinq/lore",
+    "Files changed: apps/web-ui/src/app/page.tsx",
+    "",
+    "Tidy the page, mentions prFooter in passing (#2512)",
+  ].join("\n");
+  const asked: string[] = [];
+  const reads: UtopiaReads = {
+    search: async (_kbId, q): Promise<SearchPage> => {
+      asked.push(q);
+
+      return {
+        hits: [
+          hit("commit:c7", touching, 0.03, { sourceId: HISTORY }),
+          hit("commit:c8", elsewhere, 0.029, { sourceId: HISTORY }),
+          hit(`doc:${SPEC}`, specFirst, 0.03),
+        ],
+        hasMore: false,
+        vectorUsed: true,
+      };
+    },
+    documentByExternalId: async () => null,
+  };
+  const read = (ticket: string, historySourceId?: string) =>
+    utopiaSectionReader(
+      { reads, kbId: "kb-1", docsSourceId: DOCS, historySourceId },
+      ticket,
+    )({ header: "Recent Changes", source: "history", priority: 3 });
+
+  it("fills history with commit c7, which changed pr-body.ts, and leaves out c8, which only mentions prFooter, for a ticket naming pr-body.ts", async () => {
+    const history = await read(`Edit \`${FOOTER}\``, HISTORY);
+
+    expect({
+      paths: history.sources.map(({ source_path }) => source_path),
+      text: history.sources[0]?.text,
+    }).toEqual({ paths: ["commit:c7"], text: touching });
+  });
+
+  it("answers empty and asks Utopia nothing for a ticket that names no file", async () => {
+    asked.length = 0;
+
+    expect({
+      history: await read("Make the digest shorter.", HISTORY),
+      asked,
+    }).toEqual({ history: { sources: [], status: "empty" }, asked: [] });
+  });
+
+  it("answers disabled when the repo has no git-history source", async () => {
+    expect(await read(`Edit \`${FOOTER}\``)).toEqual({
+      sources: [],
+      status: "disabled",
+    });
+  });
+});

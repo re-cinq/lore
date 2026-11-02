@@ -217,10 +217,14 @@ describe("searchUtopiaMemories", () => {
 
 describe("utopiaAssemblyOptions", () => {
   const mirror = { kbId: "kb-repo", docsSourceId: "docs-1" };
-  const optionsWith = (rows: unknown[]) => {
+  const optionsWith = (sources: Record<string, string>) => {
     const pool = makePool();
 
-    pool.query.mockResolvedValue({ rows });
+    pool.query.mockImplementation(async (_sql: string, params: string[]) => {
+      const id = sources[params[1] ?? ""];
+
+      return { rows: id ? [{ id }] : [] };
+    });
 
     return utopiaAssemblyOptions(
       pool as unknown as Pool,
@@ -230,14 +234,22 @@ describe("utopiaAssemblyOptions", () => {
     );
   };
 
-  it("adds the test-coverage source cov-1 the repo's kind-source row holds to its mirror", async () => {
-    expect((await optionsWith([{ id: "cov-1" }])).utopiaMirror).toEqual({
+  it("adds the test-coverage source cov-1 and the git-history source hist-1 the repo's kind-source rows hold to its mirror", async () => {
+    expect(
+      (
+        await optionsWith({
+          "test-coverage": "cov-1",
+          "git-history": "hist-1",
+        })
+      ).utopiaMirror,
+    ).toEqual({
       ...mirror,
       coverageSourceId: "cov-1",
+      historySourceId: "hist-1",
     });
   });
 
-  it("leaves the mirror as it is when the repo has no test-coverage source", async () => {
-    expect((await optionsWith([])).utopiaMirror).toEqual(mirror);
+  it("leaves the mirror as it is when the repo has no test-coverage or git-history source", async () => {
+    expect((await optionsWith({})).utopiaMirror).toEqual(mirror);
   });
 });
