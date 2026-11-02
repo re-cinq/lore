@@ -43,3 +43,15 @@ export async function patchSourceConfig(
     json: { config },
   });
 }
+
+/** Deletes every document the source holds marked missing; a tombstone only marks one, and its facts stand until this runs. Utopia deletes one document at a time, seconds each on a big base, so it waits as long as an import. */
+export async function cleanupMissing(
+  { request, bearer }: SessionCall,
+  kbId: string,
+  sourceId: string,
+): Promise<void> {
+  await request(`/kbs/${kbId}/sources/${sourceId}/missing/cleanup`, {
+    token: bearer,
+    heavy: true,
+  });
+}

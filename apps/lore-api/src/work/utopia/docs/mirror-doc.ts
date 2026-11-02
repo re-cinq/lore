@@ -4,13 +4,21 @@ import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import type { MirroredDocKind } from "@re-cinq/lore-shared/utopia/doc-statements.js";
 import {
   mirrorDocument,
-  tombstoneDocument,
+  unmirrorDocument,
   type DocTargets,
 } from "@re-cinq/lore-shared/utopia/mirror-document.js";
 import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import type { Pool } from "pg";
 import { projectFor } from "../../../outbound/project-boot.js";
-import { kindDocumentDeps, kindMirrorDeps } from "../kind-source.js";
+import {
+  pushedItemsFor,
+  savePushedItems,
+} from "../../../outbound/utopia/pushed-items.js";
+import {
+  kindDocumentDeps,
+  kindMirrorDeps,
+  sweepKindSource,
+} from "../kind-source.js";
 import { settled } from "../repo-mirror.js";
 
 export interface MirroredDoc {
@@ -37,16 +45,16 @@ export async function unmirrorDocFor(
   repo: string,
   path: string,
 ): Promise<void> {
-  const text = utopiaConfigured()
-    ? await kindDocumentDeps(getPool(), repo, "docs")
+  const targets = utopiaConfigured()
+    ? await docTargetsFor(getPool(), repo)
     : null;
 
-  if (text) {
-    settled(await tombstoneDocument(text, path));
+  if (targets) {
+    settled(await unmirrorDocument(targets, path));
   }
 }
 
-/** The repo's `docs` and `test-coverage` sources, or null when it has no knowledge base to mirror to. The statements read a linked test file from GitHub when its link names no title. */
+/** The repo's `docs` and `test-coverage` sources, or null when it has no knowledge base to mirror to. The statements read a linked test file from GitHub when its link names no title; a sweep clears both sources of what their tombstones marked. */
 export async function docTargetsFor(
   pool: Pool,
   repo: string,
@@ -64,6 +72,27 @@ export async function docTargetsFor(
         ...statements,
         readTest: (path, commit) => files.read(path, commit),
       },
+      ...docUpkeep(pool, repo),
     }
   );
+}
+
+/** The ids last pushed per path, and the sweep of both sources that deletes what a tombstone only marked. */
+function docUpkeep(
+  pool: Pool,
+  repo: string,
+): Pick<DocTargets, "ledger" | "sweepMissing"> {
+  return {
+    ledger: {
+      pushedFor: (path) => pushedItemsFor(pool, repo, path),
+      record: (path, externalIds) =>
+        savePushedItems(pool, repo, path, externalIds),
+    },
+    sweepMissing: async () => {
+      await Promise.all([
+        sweepKindSource(pool, repo, "docs"),
+        sweepKindSource(pool, repo, "test-coverage"),
+      ]);
+    },
+  };
 }

@@ -35,11 +35,11 @@ A spike on 2026-10-14 pushed a hand-built sample of the chain into a Utopia know
 
 - Dgraph is not retired by this ADR. The spec pages, the detectors and `query_trace` keep reading it until Utopia answers qualifiers and negation; the mirror runs beside it so the data is there the day they switch.
 - A statement item's id is its ordinal, so inserting a statement above another renumbers everything below it on the next push. Utopia reports those as `updated`, which is correct and cheap; the cost is in reading history, which nothing does yet.
-- A deleted document leaves its statement items standing: the delta names only the path, and the ordinals it was last pushed with are not stored. Only the `doc:` item is tombstoned.
+- A deleted document left its statement items standing, and so did a statement removed from a document that stays: the delta names only the path, and the ordinals last pushed were not stored. Superseded by the amendment of 2026-11-02.
 
 ## Later slices
 
-1. Store the ordinals of the last push per document so a deletion tombstones every item.
+1. ~~Store the ordinals of the last push per document so a deletion tombstones every item.~~ Done, amendment 2026-11-02.
 2. Push tests from the test ingest (`lore-code-trace`) so a Test entity carries `covers` with its line ranges, and code definitions from the code projection.
 3. Switch the spec pages to read Utopia once relations resolve to properties; then the detectors; then retire Dgraph.
 
@@ -208,3 +208,12 @@ The `git-history` and `github` sources are created, and the existing ones patche
 *(2026-10-31)* A mirrored document carries its status and the date of its newest amendment beside its path, so a hit says whether the text is in force: the 2026-10-27 experiment's wrong answers read a retired decision and a draft as current (cause S, `docs/building-lore/context-store-what-to-add.md`).
 
 **2026-11-01 (identity names):** the `test-coverage` source is created with `names: identity` (Utopia decision 0071). Its names are paths, test titles and statement ids Lore already knows to be unique, so Utopia attaches each to its exact name, keeps no name vector for them and proposes no duplicate pair against them; the 28 live sources had the flag set by hand on 2026-10-23, and a repo set up after this gets it from the setup.
+
+## Amendment 2026-11-02: a removed statement leaves the graph
+
+A statement removed from a spec or ADR, and every statement of a deleted one, kept its item and its facts in Utopia, because Lore did not know which items it had pushed. Two things were missing:
+
+- **Lore now keeps the ids it pushed**, in `lore.utopia_pushed_items` (migration 0123): one row per repo and document path, holding the `stmt:` ids of the last push that landed whole. The next push tombstones every id the row holds that the new version no longer has, and a deleted document tombstones all of them along with its `doc:` item. The row is written only once every push landed, so a tombstone that failed is sent again with the document's next push.
+- **A tombstone only marks an item missing.** Utopia invalidates the facts of a document when it deletes it, but a push key's tombstone only sets `missing_since`; the deletion is `POST /kbs/{kb}/sources/{source}/missing/cleanup`, which takes a person's credential. After tombstoning, Lore calls it on the repo's `docs` and `test-coverage` sources with `UTOPIA_TOKEN`. That sweep also deletes anything else Lore had tombstoned in those sources, such as a deleted test file's `test:` item, which is what those tombstones meant. Utopia deletes one document at a time, so the call waits as long as an ontology import. A deployment with no `UTOPIA_TOKEN` cannot sweep: its mirror fails on a removed statement and keeps the ids, so it is swept once the token is there.
+
+Statements mirrored before this have no row. The first push of each document records its ids from then on; items orphaned earlier stay until a cleanup removes them.
