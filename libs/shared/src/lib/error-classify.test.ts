@@ -43,6 +43,38 @@ describe("classifyError", () => {
     });
   });
 
+  it("returns anthropic-credit for Vertex's unpaid billing account 403", () => {
+    expect(
+      classifyError(
+        '[API Error: {"error":{"message":"{\\n  \\"error\\": {\\n    \\"code\\": 403,\\n    \\"message\\": \\"There are issues with your billing account, please resolve / pay your outstanding balance for project: projects/647955581268\\",\\n    \\"status\\": \\"PERMISSION_DENIED\\"\\n  }\\n}\\n","code":403,"status":"Forbidden"',
+      ),
+    ).toMatchObject({ category: "anthropic-credit" });
+  });
+
+  it("returns anthropic-credit for a GCP project whose billing is disabled", () => {
+    expect(
+      classifyError(
+        "403 This API method requires billing to be enabled. reason: BILLING_DISABLED",
+      ),
+    ).toMatchObject({ category: "anthropic-credit" });
+  });
+
+  it("returns anthropic-credit for OpenAI's billing hard limit", () => {
+    expect(
+      classifyError(
+        '400 {"error":{"message":"Billing hard limit has been reached","type":"invalid_request_error","code":"billing_hard_limit_reached"}}',
+      ),
+    ).toMatchObject({ category: "anthropic-credit" });
+  });
+
+  it("returns anthropic-credit for OpenAI's inactive billing account", () => {
+    expect(
+      classifyError(
+        '429 {"error":{"message":"Your account is not active, please check your billing details on our website.","type":"billing_not_active","code":"billing_not_active"}}',
+      ),
+    ).toMatchObject({ category: "anthropic-credit" });
+  });
+
   it("returns anthropic-rate-limit for a 429 rate limit message", () => {
     expect(classifyError("429 rate limit exceeded")).toMatchObject({
       category: "anthropic-rate-limit",
