@@ -263,7 +263,7 @@ one dispatch mechanism, not a special case plus a remote case.
   and nothing queued behind it was claimed for hours. A graph run whose visit
   failed this way takes its failed edge on the next reaper tick; a single-CR
   run, which has no watcher event to close it, is ended by that tick with the
-  launch error as its reason. ([validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L64))
+  launch error as its reason. ([validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L96))
 - A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
   converges on the name its previous attempt used, and that attempt's CR may
   still be standing — its terminal event has already been consumed, so nothing

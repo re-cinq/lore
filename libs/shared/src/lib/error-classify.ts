@@ -26,7 +26,7 @@ export interface ClassifiedFailure extends StepFailure {
 
 const HINTS: Record<FailureCategory, string> = {
   "anthropic-credit":
-    "Top up the Anthropic account behind the agent's ANTHROPIC_API_KEY (Plans & Billing).",
+    "The model vendor's account is out of money: top up the Anthropic account behind ANTHROPIC_API_KEY, pay or re-enable the GCP billing account behind Vertex, or top up / raise the OpenAI billing limit.",
   "anthropic-rate-limit":
     "Anthropic rate limit hit — retry later or raise the account's rate limits.",
   "github-workflows-permission":
@@ -65,9 +65,9 @@ const CATEGORY_MATCHERS: ((
   message: string,
   step?: string,
 ) => FailureCategory | undefined)[] = [
-  // Matches all known phrasings of the credit error: Anthropic's API, the agent terminal line, older copy, and Gemini's spent quota (a 429, so this runs before the rate-limit matcher).
+  // Matches every vendor's out-of-money phrasing: Anthropic's credit balance, Gemini's spent quota, a Vertex project's unpaid or disabled billing account, and OpenAI's quota and billing limits. Several are 403s or 429s, so this runs before the auth and rate-limit matchers.
   (m) =>
-    /credit balance is too low|insufficient credits?|exceeded your current quota|insufficient_quota|prepayment credits are depleted/i.test(
+    /credit balance is too low|insufficient credits?|exceeded your current quota|insufficient_quota|prepayment credits are depleted|issues with your billing account|outstanding balance|billing_disabled|billing_hard_limit_reached|billing hard limit|billing_not_active|account is not active, please check your billing/i.test(
       m,
     )
       ? "anthropic-credit"

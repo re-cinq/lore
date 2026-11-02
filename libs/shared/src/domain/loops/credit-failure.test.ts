@@ -68,6 +68,17 @@ describe("creditFailureOf", () => {
       ]),
     ).toBeNull();
   });
+
+  it("returns the review's error when Vertex refused it for an unpaid billing account", () => {
+    const billing =
+      "403 PERMISSION_DENIED: There are issues with your billing account, please resolve / pay your outstanding balance for project: projects/647955581268";
+
+    expect(
+      creditFailureOf([
+        { nodeId: "review", report: { outcome: "failed", error: billing } },
+      ]),
+    ).toBe(billing);
+  });
 });
 
 describe("creditFailedVisitOf", () => {
