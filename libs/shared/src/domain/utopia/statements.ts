@@ -45,6 +45,16 @@ export function tombstone(externalId: string): Tombstone {
   return { externalId, deleted: true };
 }
 
+/** A tombstone for every item pushed before that the current push no longer has. */
+export function staleItemTombstones(
+  previous: string[],
+  current: StatementItem[],
+): Tombstone[] {
+  const kept = new Set(current.map((pushed) => pushed.externalId));
+
+  return previous.filter((id) => !kept.has(id)).map(tombstone);
+}
+
 export function relation(
   subject: string,
   phrase: string,

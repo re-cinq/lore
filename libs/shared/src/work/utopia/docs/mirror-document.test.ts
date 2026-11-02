@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { enforceTrue } from "../../../lib/enforce.js";
-import { mirrorDocument, tombstoneDocument } from "./mirror-document.js";
+import {
+  mirrorDocument,
+  unmirrorDocument,
+  type DocMirrorDeps,
+} from "./mirror-document.js";
 import type { IngestDocument } from "../../../domain/utopia/memory/memory-documents.js";
 import type { PushItem } from "../../../domain/utopia/statements.js";
+import type { DocumentMirrorDeps } from "../push-items.js";
 import type {
   DocumentPushOutcome,
   PushAction,
@@ -48,6 +53,33 @@ const statementRecorder = (answer: (pushed: PushItem) => PushAction) => {
   };
 };
 
+const targetsOf = (
+  text: DocumentMirrorDeps,
+  statements: DocMirrorDeps,
+  previous: Record<string, string[]> = {},
+) => {
+  const recorded: Record<string, string[]> = {};
+  const swept: number[] = [];
+
+  return {
+    recorded,
+    swept,
+    targets: {
+      text,
+      statements,
+      ledger: {
+        pushedFor: async (path: string) => previous[path] ?? [],
+        record: async (path: string, externalIds: string[]) => {
+          recorded[path] = externalIds;
+        },
+      },
+      sweepMissing: async () => {
+        swept.push(swept.length + 1);
+      },
+    },
+  };
+};
+
 const input = {
   repo: "re-cinq/lore",
   path: "specs/mirror/spec.md",
@@ -67,7 +99,7 @@ describe("mirrorDocument", () => {
       (candidate) => answers[candidate.externalId],
     );
     const outcome = await mirrorDocument(
-      { text: text.deps, statements: statements.deps },
+      targetsOf(text.deps, statements.deps).targets,
       input,
     );
 
@@ -100,7 +132,7 @@ describe("mirrorDocument", () => {
       },
     };
     const outcome = await mirrorDocument(
-      { text: text.deps, statements: failing },
+      targetsOf(text.deps, failing).targets,
       input,
     );
 
@@ -120,10 +152,10 @@ describe("mirrorDocument", () => {
 
   it("names doc:specs/mirror/spec.md under failed when Utopia answers duplicate for the text", async () => {
     const outcome = await mirrorDocument(
-      {
-        text: textRecorder("duplicate").deps,
-        statements: statementRecorder(() => "created").deps,
-      },
+      targetsOf(
+        textRecorder("duplicate").deps,
+        statementRecorder(() => "created").deps,
+      ).targets,
       input,
     );
 
@@ -146,10 +178,7 @@ describe("mirrorDocument test titles", () => {
     };
 
     await mirrorDocument(
-      {
-        text: textRecorder().deps,
-        statements: { ...statements.deps, readTest },
-      },
+      targetsOf(textRecorder().deps, { ...statements.deps, readTest }).targets,
       {
         ...input,
         content:
@@ -170,20 +199,110 @@ describe("mirrorDocument test titles", () => {
   });
 });
 
-describe("tombstoneDocument", () => {
-  it("tombstones doc:adrs/ADR-1.md in the text source and leaves the statements alone", async () => {
-    const text = textRecorder("marked_missing");
-    const outcome = await tombstoneDocument(text.deps, "adrs/ADR-1.md");
+describe("mirrorDocument removed statements", () => {
+  const PREVIOUS = {
+    "specs/mirror/spec.md": [
+      "stmt:specs/mirror/spec.md#0000",
+      "stmt:specs/mirror/spec.md#0001",
+      "stmt:specs/mirror/spec.md#0002",
+      "stmt:specs/mirror/spec.md#0002.2",
+    ],
+  };
 
-    expect({ outcome, pushed: text.pushed }).toEqual({
-      outcome: { items: 1, created: 0, updated: 0, unchanged: 0, failed: [] },
-      pushed: [
+  it("tombstones #0002 and #0002.2, last pushed but gone from the spec, sweeps once and records #0000 and #0001", async () => {
+    const statements = statementRecorder(() => "unchanged");
+    const mirror = targetsOf(textRecorder().deps, statements.deps, PREVIOUS);
+
+    await mirrorDocument(mirror.targets, input);
+
+    expect({
+      tombstoned: statements.pushed.filter((pushed) => "deleted" in pushed),
+      swept: mirror.swept,
+      recorded: mirror.recorded,
+    }).toEqual({
+      tombstoned: [
+        { externalId: "stmt:specs/mirror/spec.md#0002", deleted: true },
+        { externalId: "stmt:specs/mirror/spec.md#0002.2", deleted: true },
+      ],
+      swept: [1],
+      recorded: {
+        "specs/mirror/spec.md": [
+          "stmt:specs/mirror/spec.md#0000",
+          "stmt:specs/mirror/spec.md#0001",
+        ],
+      },
+    });
+  });
+
+  it("records the pushed ids without sweeping when no statement was removed", async () => {
+    const mirror = targetsOf(
+      textRecorder().deps,
+      statementRecorder(() => "created").deps,
+    );
+
+    await mirrorDocument(mirror.targets, input);
+
+    expect({ swept: mirror.swept, recorded: mirror.recorded }).toEqual({
+      swept: [],
+      recorded: {
+        "specs/mirror/spec.md": [
+          "stmt:specs/mirror/spec.md#0000",
+          "stmt:specs/mirror/spec.md#0001",
+        ],
+      },
+    });
+  });
+
+  it("neither sweeps nor records when the #0002 tombstone fails, so the next push sends it again", async () => {
+    const failing = {
+      push: async (candidate: PushItem) => {
+        enforceTrue(
+          !candidate.externalId.endsWith("#0002"),
+          Error,
+          "utopia answered 503: busy",
+        );
+
+        return { action: "unchanged" as const };
+      },
+    };
+    const mirror = targetsOf(textRecorder().deps, failing, PREVIOUS);
+
+    await mirrorDocument(mirror.targets, input);
+
+    expect({ swept: mirror.swept, recorded: mirror.recorded }).toEqual({
+      swept: [],
+      recorded: {},
+    });
+  });
+});
+
+describe("unmirrorDocument", () => {
+  it("tombstones doc:adrs/ADR-1.md and its last pushed stmt:adrs/ADR-1.md#0000, sweeps and records nothing for the path", async () => {
+    const text = textRecorder("marked_missing");
+    const statements = statementRecorder(() => "marked_missing");
+    const mirror = targetsOf(text.deps, statements.deps, {
+      "adrs/ADR-1.md": ["stmt:adrs/ADR-1.md#0000"],
+    });
+    const outcome = await unmirrorDocument(mirror.targets, "adrs/ADR-1.md");
+
+    expect({
+      outcome,
+      text: text.pushed,
+      statements: statements.pushed,
+      swept: mirror.swept,
+      recorded: mirror.recorded,
+    }).toEqual({
+      outcome: { items: 2, created: 0, updated: 0, unchanged: 0, failed: [] },
+      text: [
         {
           external_id: "doc:adrs/ADR-1.md",
           filename: "adrs/ADR-1.md",
           deleted: true,
         },
       ],
+      statements: [{ externalId: "stmt:adrs/ADR-1.md#0000", deleted: true }],
+      swept: [1],
+      recorded: { "adrs/ADR-1.md": [] },
     });
   });
 });

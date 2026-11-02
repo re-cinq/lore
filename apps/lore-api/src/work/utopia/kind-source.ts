@@ -100,6 +100,26 @@ export function lazyKindDocumentDeps(
   };
 }
 
+/** Deletes what the kind's source holds marked missing, with the deployment's write token; a repo that never had the source has nothing to sweep. */
+export async function sweepKindSource(
+  pool: Pool,
+  repo: string,
+  kind: MirrorKind,
+  env: UtopiaEnv = process.env,
+): Promise<void> {
+  const stored = await kindSourceFor(pool, repo, kind);
+
+  if (!stored) {
+    return;
+  }
+  enforceTrue(
+    env.UTOPIA_TOKEN,
+    Error,
+    `sweeping the ${kind} source of ${repo} needs UTOPIA_TOKEN`,
+  );
+  await loreSession(env).cleanupMissing(stored.kbId, stored.id);
+}
+
 async function kindSourceIfBase(
   pool: Pool,
   repo: string,

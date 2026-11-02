@@ -1,6 +1,7 @@
 // Utopia (deeplethe/utopia), the knowledge-graph service the spec→test→code chain is mirrored into: a per-source push surface and a person's surface for setting a repository's knowledge base up, reached with their session or their write token.
 
 import {
+  cleanupMissing,
   createSource,
   patchSourceConfig,
   type SessionCall,
@@ -70,6 +71,7 @@ export interface UtopiaSession {
     sourceId: string,
     config: SourceConfig,
   ): Promise<void>;
+  cleanupMissing(kbId: string, sourceId: string): Promise<void>;
 }
 
 export interface UtopiaClient {
@@ -288,6 +290,7 @@ function sessionOf(request: Requester, bearer: string): UtopiaSession {
       createSource(call, kbId, { kind: "api", name, config }),
     patchSourceConfig: (kbId, sourceId, config) =>
       patchSourceConfig(call, kbId, sourceId, config),
+    cleanupMissing: (kbId, sourceId) => cleanupMissing(call, kbId, sourceId),
   };
 }
 

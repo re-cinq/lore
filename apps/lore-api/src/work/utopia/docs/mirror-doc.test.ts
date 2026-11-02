@@ -35,6 +35,7 @@ const bodies: Record<string, unknown>[] = [];
 let server: Server;
 let answer: Record<string, unknown>;
 let held: string[];
+let pushedItems: string[];
 
 const readBody = (req: IncomingMessage) =>
   new Promise<string>((resolve) => {
@@ -46,7 +47,10 @@ const readBody = (req: IncomingMessage) =>
 
 beforeAll(async () => {
   server = createServer(async (req, res) => {
-    const body = JSON.parse(await readBody(req)) as Record<string, unknown>;
+    const body = JSON.parse((await readBody(req)) || "{}") as Record<
+      string,
+      unknown
+    >;
 
     seen.push(`${req.method} ${req.url} ${req.headers.authorization}`);
     bodies.push(body);
@@ -80,6 +84,7 @@ beforeEach(() => {
   bodies.length = 0;
   answer = { action: "created" };
   held = ["docs", "test-coverage"];
+  pushedItems = [];
   vi.stubEnv("UTOPIA_TOKEN", "utp_pat_lore");
   vi.stubEnv("UTOPIA_WORKSPACE_ID", "ws-lore");
   pool.query.mockImplementation(async (sql: string, params: string[]) => {
@@ -89,6 +94,10 @@ beforeEach(() => {
           ? [{ id: `src-${params[1]}`, key: `utp_${params[1]}`, kbId: "kb-1" }]
           : [],
       };
+    }
+
+    if (/FROM lore\.utopia_pushed_items/.test(sql)) {
+      return { rows: [{ external_ids: pushedItems }] };
     }
 
     return { rows: [] };
@@ -162,18 +171,35 @@ describe("mirrorDocFor", () => {
 });
 
 describe("unmirrorDocFor", () => {
-  it("posts the doc:adrs/ADR-1.md tombstone to the docs source and nothing to test-coverage", async () => {
+  it("tombstones doc:adrs/ADR-1.md and its last pushed stmt:adrs/ADR-1.md#0000, then sweeps the docs and test-coverage sources of kb-1 with the deployment token", async () => {
+    pushedItems = ["stmt:adrs/ADR-1.md#0000"];
+
     await unmirrorDocFor("re-cinq/lore", "adrs/ADR-1.md");
 
-    expect({ seen, bodies }).toEqual({
-      seen: ["POST /api/v1/sources/src-docs/ingest Bearer utp_docs"],
-      bodies: [
-        {
-          external_id: "doc:adrs/ADR-1.md",
-          filename: "adrs/ADR-1.md",
-          deleted: true,
-        },
+    expect({
+      seen: [...seen].sort(),
+      ids: bodies.map((b) => b.external_id),
+    }).toEqual({
+      seen: [
+        "POST /api/v1/kbs/kb-1/sources/src-docs/missing/cleanup Bearer utp_pat_lore",
+        "POST /api/v1/kbs/kb-1/sources/src-test-coverage/missing/cleanup Bearer utp_pat_lore",
+        "POST /api/v1/sources/src-docs/ingest Bearer utp_docs",
+        "POST /api/v1/sources/src-test-coverage/statements Bearer utp_test-coverage",
       ],
+      ids: expect.arrayContaining([
+        "doc:adrs/ADR-1.md",
+        "stmt:adrs/ADR-1.md#0000",
+      ]),
     });
+  });
+
+  it("records no statement item left for adrs/ADR-1.md once it is unmirrored", async () => {
+    await unmirrorDocFor("re-cinq/lore", "adrs/ADR-1.md");
+
+    expect(
+      pool.query.mock.calls.find(([sql]) =>
+        /INSERT INTO lore\.utopia_pushed_items/.test(String(sql)),
+      )?.[1],
+    ).toEqual(["re-cinq/lore", "adrs/ADR-1.md", []]);
   });
 });
