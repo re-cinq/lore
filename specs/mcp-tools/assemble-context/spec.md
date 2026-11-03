@@ -31,8 +31,8 @@ Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools
 - **description** (verbatim):
 
 ```text
-Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.
+Builds ONE context block for a task from the task's own questions: a repo primer, key facts each citing its source, where to look (specs, files, tests), and previous work (issues, pull requests, commits, sessions), reading the repositories it depends on beside it. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships.
 ```
 
 ### Input schema (Zod)
@@ -40,8 +40,8 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `query` | string | yes | — | Natural-language description of the context needed. Drives retrieval and ranking across all sources. |
-| `template` | string | no | `default` | Section-ordering profile. Recognized values: 'default' \| 'review' \| 'implementation' \| 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. |
-| `max_tokens` | number | no | `8000` | Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000. |
+| `template` | string | no | `default` | Ignored: the block is built from the task's own questions. Only the template assembly the API falls back to (when it has no model for context) reads it; removed in the next release. |
+| `max_tokens` | number | no | `8000` | Caps the block's length; floor 2000. Defaults to 8000. |
 | `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted; in the agent gateway the description says it is required. |
 | `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |
 | `cross_repo` | boolean | no | `false` | When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false. |
@@ -184,7 +184,7 @@ For a task that writes (a digest, a changelog, a document), previous work also c
 
 ### Repositories it depends on
 
-The repositories a repository depends on are read beside it: every `@re-cinq/*` package in its `package.json` files, and every repository in its `settings.cross_repo_repos`. A package is resolved to its repository through the git URL its dependency names, else the `repository` field the registry publishes for it, else an onboarded repository whose name matches the package's.
+The repositories a repository depends on are read beside it: every `@re-cinq/*` package in its `package.json` files, and, when cross-repo context is on (the call's `cross_repo` or the repository's `settings.cross_repo`), every repository its `settings.cross_repo_repos` links. A package is resolved to its repository through the git URL its dependency names, else the `repository` field the registry publishes for it, else an onboarded repository whose name matches the package's.
 
 Evidence about a repository that is neither the task's nor one it depends on is left out of the block.
 

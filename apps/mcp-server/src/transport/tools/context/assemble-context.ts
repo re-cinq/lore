@@ -42,14 +42,14 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .string()
     .default("default")
     .describe(
-      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries.",
+      "Ignored: the block is built from the task's own questions. Only the template assembly the API falls back to (when it has no model for context) reads it; removed in the next release.",
     ),
   max_tokens: z
     .number()
     .min(2000)
     .default(8000)
     .describe(
-      "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
+      "Caps the block's length; floor 2000. Defaults to 8000.",
     ),
   agent_id: z
     .string()
@@ -70,8 +70,8 @@ export function registerAssembleContextTool(
 ) {
   server.tool(
     "lore_assemble_context",
-    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
+    `Builds ONE context block for a task from the task's own questions: a repo primer, key facts each citing its source, where to look (specs, files, tests), and previous work (issues, pull requests, commits, sessions), reading the repositories it depends on beside it. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships.`,
     { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
       trackLatency("lore_assemble_context", () => assembleForMode(args, mode)),
