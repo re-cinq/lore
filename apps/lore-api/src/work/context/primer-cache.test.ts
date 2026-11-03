@@ -34,16 +34,13 @@ describe("primerCache", () => {
   });
 
   it("writes again after a failed write instead of keeping the failure", async () => {
-    let attempts = 0;
-    const cache = primerCache(async () => {
-      attempts += 1;
-
-      if (attempts === 1) {
-        throw new Error("model down");
-      }
-
-      return "primer";
-    });
+    const outcomes = [
+      () => Promise.reject(new Error("model down")),
+      () => Promise.resolve("primer"),
+    ];
+    const cache = primerCache(() =>
+      (outcomes.shift() ?? (() => Promise.resolve("")))(),
+    );
 
     await expect(cache("re-cinq/lore", "abc123")).rejects.toThrow(
       new Error("model down"),
