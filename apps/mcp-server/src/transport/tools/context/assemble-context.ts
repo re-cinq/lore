@@ -48,9 +48,7 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .number()
     .min(2000)
     .default(8000)
-    .describe(
-      "Caps the block's length; floor 2000. Defaults to 8000.",
-    ),
+    .describe("Caps the block's length; floor 2000. Defaults to 8000."),
   agent_id: z
     .string()
     .optional()
