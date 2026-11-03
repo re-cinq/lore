@@ -93,10 +93,21 @@ export async function listTestFilePaths(
       }`,
       { $repo: repo },
     );
-    const rows = [...(res.data.chunks ?? []), ...(res.data.suites ?? [])];
 
-    return [...new Set(rows.map((row) => row.path as string))];
+    return distinctPaths([
+      ...(res.data.chunks ?? []),
+      ...(res.data.suites ?? []),
+    ]);
   });
+}
+
+/** The file paths some rows name, once each; a row with no path names none. */
+function distinctPaths(rows: Record<string, unknown>[]): string[] {
+  const paths = rows
+    .map((row) => row.path)
+    .filter((path): path is string => typeof path === "string");
+
+  return [...new Set(paths)];
 }
 
 /** One test file's rows beyond `kept`, garbage-collected and then deleted; a file with nothing to remove prunes nothing. */

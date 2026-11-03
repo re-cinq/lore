@@ -146,4 +146,15 @@ describe("listTestFilePaths", () => {
       "src/b.test.ts",
     ]);
   });
+
+  it("leaves out a row that has no file path", async () => {
+    const { client } = graphHolding(() => ({
+      chunks: [{ path: "src/a.test.ts" }, {}],
+      suites: [{}],
+    }));
+
+    await expect(listTestFilePaths(client, repo)).resolves.toEqual([
+      "src/a.test.ts",
+    ]);
+  });
 });
