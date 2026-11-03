@@ -20,7 +20,8 @@ one source at a time wastes the agent's first turns and leaves the caller to
 stitch the pieces into a coherent, token-budgeted block. `lore_assemble_context` is
 the single call that retrieves from every source, orders sections by a
 task-type template, fits a token budget, and emits a provenance-tagged block an
-LLM consumes directly.
+LLM consumes directly. Since 2026-11-03 the block is built from the task's own
+questions rather than from a template; see [Context builder](#context-builder-2026-11-03-4090).
 
 ## Interface
 
@@ -153,8 +154,67 @@ A timed-out assembly is retried once, two attempts in all. ([validated by retrie
 
 Every other proxied call keeps 15 s and four attempts. ([validated by keeps 15s and 4 attempts for a proxied call given no limits](../../../libs/server-core/src/outbound/proxy.test.ts#L533))
 
+## Context builder *(2026-11-03, #4090)*
+
+`/api/context` builds the block from the question instead of from a template the caller picks. 1,136 real calls (pod transcripts 2026-09-09..10-01, the gateway log 10-25..11-02, laptop sessions) showed that callers mostly pass no template (72% of pod calls), that no assembly comes near its budget (median 1.5–2.5k of 8k tokens), and that docs and spec + tests are the most useful sources for every kind of task while memories and episodes are the least, whatever the template. A query's wording does not tell a review from an implementation either. The block is therefore built in four parts, each from evidence it cites.
+
+### Parts of the block
+
+The block opens with a **repo primer**: what the repository is, its main parts, where its specs, ADRs and tests live, and the rules its `CLAUDE.md`, `AGENTS.md` or `README.md` state. The primer states only what those files say.
+
+A repository with none of those files gets the list of its top-level folders as its primer, never a primer written from nothing.
+
+The primer is written once per default-branch head and reused by every call until the next push to the default branch.
+
+**Key facts** follow: a model writes 3 to 5 factual questions the task needs answered, each answerable from the repository's specs, ADRs, code, tickets and past sessions, and the block carries the answer to each, every fact citing the document, file, ticket or memory it came from.
+
+Each question is answered from the assembly this spec's engine already runs (the `default` sections of the repository's backend), from up to 6 files the model picks from the repository's file list, and from the spec documents the task names.
+
+A question the evidence does not answer is left out of the key facts and named on one closing `Unanswered:` line.
+
+An answer that rests on a spec requirement, an ADR or a stated rule quotes its sentence, at most 40 words, instead of paraphrasing it.
+
+**Where to look** lists the specs, files (with line ranges where the evidence shows them) and tests the task touches, each with why it matters and the tool that opens it, naming only Lore tools that exist. It points; it does not copy their content.
+
+**Previous work** lists the issues, pull requests, commits, past sessions and run episodes on the same topic, one line each: what it was, its outcome and the lesson.
+
+Previous work is found first through what the query names: an issue or pull request number, a spec path, an FR id or a file path. A topic search of the repository's mirrored issues, pull requests, commits and memories adds the rest.
+
+For a task that writes (a digest, a changelog, a document), previous work also carries one or two earlier outputs of the same kind as examples of their format and voice.
+
+### Repositories it depends on
+
+The repositories a repository depends on are read beside it: every `@re-cinq/*` package in its `package.json` files, and every repository in its `settings.cross_repo_repos`. A package is resolved to its repository through the git URL its dependency names, else the `repository` field the registry publishes for it, else an onboarded repository whose name matches the package's.
+
+Evidence about a repository that is neither the task's nor one it depends on is left out of the block.
+
+### What the block may state
+
+Every statement in the block is supported by the evidence it was written from. A relationship the evidence does not state (one ticket superseding another, a pull request being the base of a change) is left out or marked as inferred, never stated as fact.
+
+### Arguments
+
+`template` is accepted and ignored, so a caller that still sends it gets the same block; it is removed from the schema in the release after.
+
+`max_tokens` caps the block's length, `backend` chooses the store the questions are answered from, `agent_id` scopes the memories they read, and `cross_repo` adds the repositories in `settings.cross_repo_repos` to those read.
+
+### Fallback
+
+When the builder cannot run (no model is configured for the `context` use, or a model call or a read fails), `/api/context` returns the assembly this spec described before 2026-11-03, so a call is never answered with an error the old path could have answered.
+
+The model is the one named for the `context` use (`LORE_CONTEXT_LLM_PROVIDER`, `LORE_CONTEXT_LLM_MODEL`), so the builder can run on another vendor than every other model call.
+
+### Observation
+
+lore-api's `[context] assembled` log line carries the query, so calls can be studied from the API's log without reading pod transcripts.
+
+### Acceptance bar
+
+On the ticket-mode context evals the builder scores at least what the template assembly scores in every task category, and a check of the eval's blocks against their evidence finds unsupported statements in under 2% of their factual claims.
+
 ## Out of Scope
 
+- Suggesting approaches (directions) for the task, and listing paths already tried and reverted; considered after the parts above are measured in production.
 - The retrieval/ranking/XML engine internals — owned by [`context-assembly`](../../context-assembly/spec.md).
 - Template authoring (`mcp-server/templates/*.yaml`).
 - Vertex AI embedding generation and live Postgres RRF queries.
