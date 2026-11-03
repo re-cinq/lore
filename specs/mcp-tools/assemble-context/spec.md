@@ -184,7 +184,7 @@ For a task that writes (a digest, a changelog, a document), previous work also c
 
 ### Repositories it depends on
 
-The repositories a repository depends on are read beside it: every `@re-cinq/*` package in its `package.json` files, and every repository in its `settings.cross_repo_repos`. A package is resolved to its repository through the git URL its dependency names, else the `repository` field the registry publishes for it, else an onboarded repository whose name matches the package's.
+The repositories a repository depends on are read beside it: every `@re-cinq/*` package in its `package.json` files, and, when cross-repo context is on (the call's `cross_repo` or the repository's `settings.cross_repo`), every repository its `settings.cross_repo_repos` links. A package is resolved to its repository through the git URL its dependency names, else the `repository` field the registry publishes for it, else an onboarded repository whose name matches the package's.
 
 Evidence about a repository that is neither the task's nor one it depends on is left out of the block.
 
