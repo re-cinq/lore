@@ -6,12 +6,16 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { ingestTestReport } from "./ingest-test-report.js";
 import { projectSpecFile } from "./project-spec-file.js";
-import { pruneTestFiles } from "./prune-test-files.js";
+import { listTestFilePaths, pruneTestFiles } from "./prune-test-files.js";
+import { dropOverlay } from "./overlay.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 
-import { mainScope } from "../../domain/spec-trace/trace-scope.js";
+import {
+  mainScope,
+  overlayScope,
+} from "../../domain/spec-trace/trace-scope.js";
 
 const APPLIER = join(
   findRepoRoot(),
@@ -140,6 +144,182 @@ describe.skipIf(!reachable)(
 
       expect(kept.some((f) => f === "src/a.test.ts")).toBe(false);
       expect(kept.some((f) => f === "src/b.test.ts")).toBe(true);
+    });
+
+    function renamedReport() {
+      return {
+        commit: "c0ffee2",
+        tests: [
+          {
+            id: "src/a.test.ts::t1-renamed",
+            name: "sums numbers",
+            file: "src/a.test.ts",
+            suite: ["summer"],
+          },
+        ],
+        results: [
+          {
+            id: "src/a.test.ts::t1-renamed",
+            passed: true,
+            covered: [{ file: "src/new.ts", startLine: 1, endLine: 5 }],
+          },
+        ],
+      };
+    }
+
+    const rowsOf = <T>(graph: Record<string, unknown>, key: string) =>
+      (graph[key] ?? []) as T[];
+
+    async function renameOutcome(repo: string) {
+      const graph = await readGraph(
+        `query q($repo: string, $file: string) {
+        chunks(func: eq(TestChunk.repo, $repo)) @filter(eq(TestChunk.file_path, $file)) { title: TestChunk.test_name }
+        cov(func: eq(Coverage.repo, $repo)) { xid: Coverage.xid }
+        files(func: eq(File.repo, $repo)) { path: File.path }
+        root(func: eq(Repo.xid, $repo)) {
+          chunks: count(Repo.test_chunks)
+          coverage: count(Repo.coverage)
+        }
+        allChunks(func: eq(TestChunk.repo, $repo)) { uid }
+      }`,
+        { $repo: repo, $file: "src/a.test.ts" },
+      );
+      const cov = rowsOf<{ xid: string }>(graph, "cov");
+
+      return {
+        titles: rowsOf<{ title: string }>(graph, "chunks")
+          .map((row) => row.title)
+          .sort(),
+        oldCoverage: cov.filter((row) => row.xid.includes("adds numbers")),
+        files: rowsOf<{ path: string }>(graph, "files")
+          .map((row) => row.path)
+          .sort(),
+        rootEdges: rowsOf(graph, "root"),
+        rows: {
+          chunks: rowsOf(graph, "allChunks").length,
+          coverage: cov.length,
+        },
+      };
+    }
+
+    it("leaves only the new title under src/a.test.ts after a rename, with no coverage on the old one", async () => {
+      const repo = `prune-tests/${randomUUID()}`;
+
+      createdRepo = repo;
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), renamedReport());
+
+      const outcome = await renameOutcome(repo);
+
+      expect(outcome).toEqual({
+        titles: ["src/a.test.ts", "sums numbers"],
+        oldCoverage: [],
+        files: ["src/new.ts"],
+        rootEdges: [outcome.rows],
+        rows: outcome.rows,
+      });
+    });
+
+    it("drops the renamed suite and leaves src/b.test.ts, which the second report does not carry, alone", async () => {
+      const repo = `prune-tests/${randomUUID()}`;
+
+      createdRepo = repo;
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), renamedReport());
+
+      const graph = (await readGraph(
+        `query q($repo: string, $file: string) {
+        suites(func: eq(TestSuite.repo, $repo)) { TestSuite.name }
+        other(func: eq(TestChunk.repo, $repo)) @filter(eq(TestChunk.file_path, $file)) { TestChunk.test_name }
+      }`,
+        { $repo: repo, $file: "src/b.test.ts" },
+      )) as {
+        suites?: Array<{ "TestSuite.name": string }>;
+        other?: Array<{ "TestChunk.test_name": string }>;
+      };
+
+      expect((graph.suites ?? []).map((n) => n["TestSuite.name"])).toEqual([
+        "summer",
+      ]);
+      expect(
+        (graph.other ?? []).map((n) => n["TestChunk.test_name"]).sort(),
+      ).toEqual(["src/b.test.ts", "subtracts numbers"]);
+    });
+
+    it("keeps a statement's validated_by edge to src/a.test.ts through a rename of the test in it", async () => {
+      const repo = `prune-tests/${randomUUID()}`;
+
+      createdRepo = repo;
+      await projectSpecFile(
+        {
+          repo,
+          filePath: "specs/adder/spec.md",
+          content:
+            "# Feature Specification: Adder\n\n## Requirements\n\n1. Adds numbers. ([validated by](src/a.test.ts#L1))\n",
+        },
+        dgraphClient,
+        { embed: async (texts) => texts.map(() => null) },
+      );
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
+      await ingestTestReport(dgraphClient, mainScope(repo), renamedReport());
+
+      const graph = (await readGraph(
+        `query q($repo: string) {
+        stmts(func: eq(Statement.repo, $repo)) @filter(has(Statement.validated_by)) {
+          Statement.validated_by { TestChunk.file_path }
+        }
+      }`,
+        { $repo: repo },
+      )) as {
+        stmts?: Array<{
+          "Statement.validated_by": Array<{ "TestChunk.file_path": string }>;
+        }>;
+      };
+
+      expect(graph.stmts?.[0]?.["Statement.validated_by"]).toEqual([
+        { "TestChunk.file_path": "src/a.test.ts" },
+      ]);
+    });
+
+    it("replaces a rename inside the feat/x overlay and leaves main's row for the same file alone", async () => {
+      const repo = `prune-tests/${randomUUID()}`;
+      const scope = overlayScope(repo, "feat/x");
+
+      createdRepo = repo;
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
+      await ingestTestReport(dgraphClient, scope, seedReport());
+      await ingestTestReport(dgraphClient, scope, renamedReport());
+
+      const graph = (await readGraph(
+        `query q($repo: string, $overlay: string, $file: string) {
+        main(func: eq(TestChunk.repo, $repo)) @filter(eq(TestChunk.file_path, $file)) { TestChunk.test_name }
+        overlay(func: eq(TestChunk.repo, $overlay)) @filter(eq(TestChunk.file_path, $file)) { uid TestChunk.test_name }
+      }`,
+        { $repo: repo, $overlay: scope.key, $file: "src/a.test.ts" },
+      )) as {
+        main?: Array<{ "TestChunk.test_name": string }>;
+        overlay?: Array<{ uid: string; "TestChunk.test_name": string }>;
+      };
+
+      await dropOverlay(dgraphClient, repo, "feat/x");
+
+      expect(
+        (graph.main ?? []).map((n) => n["TestChunk.test_name"]).sort(),
+      ).toEqual(["adds numbers", "src/a.test.ts"]);
+      expect(
+        (graph.overlay ?? []).map((n) => n["TestChunk.test_name"]).sort(),
+      ).toEqual(["src/a.test.ts", "sums numbers"]);
+    });
+
+    it("names src/a.test.ts and src/b.test.ts once each from the graph's rows", async () => {
+      const repo = `prune-tests/${randomUUID()}`;
+
+      createdRepo = repo;
+      await ingestTestReport(dgraphClient, mainScope(repo), seedReport());
+
+      const files = await listTestFilePaths(dgraphClient, repo);
+
+      expect([...files].sort()).toEqual(["src/a.test.ts", "src/b.test.ts"]);
     });
 
     it("prunes the pruned file's Coverage nodes and garbage-collects code chunks nobody else owns", async () => {

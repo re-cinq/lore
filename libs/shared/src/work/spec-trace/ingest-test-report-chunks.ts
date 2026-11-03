@@ -7,10 +7,13 @@ import type {
 import { upsertByXid } from "../../outbound/spec-trace/dgraph-upsert.js";
 import {
   rootEdge,
-  scopedXid,
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
-import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
+import {
+  fileScopedTestChunkXid,
+  suiteLevelXid,
+  testChunkXid,
+} from "./test-chunk-identity.js";
 
 /** A descriptor paired with its own per-`it` TestChunk uid and the file-scoped TestChunk uid that owns coverage (`validated_by` targets the latter). */
 export interface DescriptorChunk {
@@ -92,7 +95,7 @@ async function projectSuiteChain(
     parentUid = await upsertByXid(
       dgraph,
       "TestSuite",
-      scopedXid(scope, descriptor.file, suite.slice(0, i + 1).join(">")),
+      suiteLevelXid(scope, descriptor, i),
       suiteFields(scope, descriptor, suite[i], parentUid),
     );
   }
@@ -182,7 +185,7 @@ async function upsertTestChunk(
   descriptor: TestDescriptor,
   suiteUid: string | undefined,
 ): Promise<string> {
-  return upsertByXid(dgraph, "TestChunk", scopedXid(scope, descriptor.id), {
+  return upsertByXid(dgraph, "TestChunk", testChunkXid(scope, descriptor.id), {
     "TestChunk.repo": scope.key,
     "TestChunk.test_name": descriptor.name,
     "TestChunk.file_path": descriptor.file,

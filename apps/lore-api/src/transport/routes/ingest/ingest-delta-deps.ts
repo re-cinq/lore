@@ -10,6 +10,7 @@ import {
   listGraphDocPaths,
   deleteSpecSubtree,
   deleteAdrSubtree,
+  listTestFilePaths,
   pruneTestFiles,
   type SpecTraceOutcome,
   type DgraphClientPort,
@@ -60,6 +61,8 @@ export interface IngestDeltaDeps {
   deleteCode(repo: string, path: string): Promise<void>;
   ingestReport(repo: string, payload: unknown): Promise<SpecTraceOutcome>;
   pruneTests(repo: string, files: string[]): Promise<{ prunedChunks: number }>;
+  /** Every test file the graph holds rows for in the repo, which a full ingest prunes against. */
+  listTests(repo: string): Promise<string[]>;
   /** The repo's default branch: a test report for any other branch is work in flight and goes to that branch's overlay. */
   defaultBranch(repo: string): Promise<string>;
   /** Stamps `lore.repos.last_ingested_at`, which the repo list and `/api/repo-status` report as the context's age. */
@@ -148,6 +151,7 @@ export const defaultDeps = (): IngestDeltaDeps => {
     ingestReport: (repo, payload) =>
       ingestSpecTrace(must(), repo, "test-report", payload),
     pruneTests: (repo, files) => pruneTestFiles(must(), repo, files),
+    listTests: (repo) => listTestFilePaths(must(), repo),
     defaultBranch: async (repo) =>
       (await projectFor(repo)).repo.defaultBranch(),
     markIngested: async (repo) =>

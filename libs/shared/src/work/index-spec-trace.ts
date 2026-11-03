@@ -71,7 +71,10 @@ export {
   listGraphDocPaths,
   selectPruneCandidates,
 } from "./spec-trace/prune-removed-docs.js";
-export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
+export {
+  listTestFilePaths,
+  pruneTestFiles,
+} from "./spec-trace/prune-test-files.js";
 export {
   assembleTraceDocument,
   type TraceDocument,

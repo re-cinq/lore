@@ -16,6 +16,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { applyDocDelta } from "./ingest-doc-delta.js";
+import { goneTestFiles } from "./ingest-report-gone.js";
 import { mirrorReportDelta } from "./ingest-report-mirror.js";
 import { assertReportIdentity, saveReportEvidence } from "./report-evidence.js";
 import {
@@ -44,7 +45,7 @@ const IngestDeltaBody = z.object({
     .optional(),
   /** Paths deleted (or renamed away) since base_commit. */
   deleted: z.array(z.string()).optional(),
-  /** Every path of the kind the tree holds, sent with a FULL doc ingest's last chunk: with no diff to name what went away, whatever the graph holds beyond this list is pruned. */
+  /** Every path of the kind the tree holds, sent with a FULL ingest's last chunk: with no diff to name what went away, whatever the graph holds beyond this list is pruned. A test report's list is every path the tree tracks, as its rows can sit under any file. */
   present: z.array(z.string()).optional(),
   /** Re-project doc files whose content hash is unchanged, and prune past the suspicious-tree fuse. */
   force: z.boolean().optional(),
@@ -231,7 +232,7 @@ async function applyDelta(
   return { projected, deleted, test_chunks: 0, pruned_test_files: 0 };
 }
 
-/** Projects a default-branch report and prunes its deleted test files, then mirrors both to Utopia. A branch's report goes to its overlay instead and is not mirrored. */
+/** Projects a default-branch report and prunes its test files that went away, then mirrors both to Utopia. A branch's report goes to its overlay instead and is not mirrored. */
 async function applyTestReportDelta(
   deps: IngestDeltaDeps,
   repo: string,
@@ -244,12 +245,14 @@ async function applyTestReportDelta(
     testChunks = (await deps.ingestReport(repo, body.report)).testChunks;
   }
 
-  if (body.deleted?.length) {
-    await deps.pruneTests(repo, body.deleted);
-    prunedTestFiles = body.deleted.length;
+  const gone = await goneTestFiles(deps, repo, body);
+
+  if (gone.length > 0) {
+    await deps.pruneTests(repo, gone);
+    prunedTestFiles = gone.length;
   }
 
-  await mirrorReportDelta(deps, repo, body);
+  await mirrorReportDelta(deps, repo, { ...body, deleted: gone });
 
   return { test_chunks: testChunks, pruned_test_files: prunedTestFiles };
 }

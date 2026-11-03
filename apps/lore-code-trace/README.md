@@ -35,7 +35,10 @@ and [ADR-023](../../adrs/ADR-023-ci-driven-doc-and-test-projection.md).
 5. Prints the `{commit, branch, tests, results}` report as JSON to stdout, or
    with `--post` reads `$LORE_API_URL/api/repos/<o>/<r>/ingest-state` and
    POSTs only what changed since the last ingested commit to
-   `$LORE_API_URL/api/repos/<o>/<r>/ingest` with a bearer token. Ingest is
+   `$LORE_API_URL/api/repos/<o>/<r>/ingest` with a bearer token. A file in the
+   report loses any test it no longer lists. A full post (no reachable commit,
+   or `--full`) also lists every path git tracks, so the server drops the rows
+   of test files the repo no longer has. Ingest is
    idempotent (xid upserts), so re-sending is safe. The chunked
    `$LORE_WEBHOOK_URL/api/webhook/ci-tests` fallback is still in the binary,
    but the Floor that served that route was deleted on 2026-10-02.
