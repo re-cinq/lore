@@ -115,14 +115,18 @@ describe("Dgraph's one pod survives node consolidation (infra/terraform)", () =>
       /resource "kubectl_manifest" "lore_dgraph_disruption_budget" \{[\s\S]*?\n\}/.exec(
         terraform,
       ) ?? [""];
+    const [, podLabels] =
+      /resource "kubectl_manifest" "lore_dgraph_statefulset" \{[\s\S]*?template = \{\s*metadata = \{ labels = (\{[^}]*\}) \}/.exec(
+        terraform,
+      ) ?? ["", "no pod labels found"];
+    const [, selected] = /selector\s+=\s+\{ matchLabels = (\{[^}]*\}) \}/.exec(
+      budget,
+    ) ?? ["", "no selector found"];
 
     expect({
       kind: /kind\s+=\s+"PodDisruptionBudget"/.test(budget),
       minAvailable: /minAvailable\s+=\s+1\b/.test(budget),
-      selectsDgraph:
-        /selector\s+=\s+\{ matchLabels = \{ app = "lore-dgraph" \} \}/.test(
-          budget,
-        ),
-    }).toEqual({ kind: true, minAvailable: true, selectsDgraph: true });
+      selected,
+    }).toEqual({ kind: true, minAvailable: true, selected: podLabels });
   });
 });
