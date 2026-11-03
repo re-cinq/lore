@@ -16,12 +16,22 @@ export async function relatedRepos(
   repo: string,
   readers: RelatedRepoReaders,
 ): Promise<string[]> {
-  const scope = `@${repo.split("/")[0].toLowerCase()}`;
+  const [owner] = repo.split("/");
+  const published = await publishingRepos(`@${owner.toLowerCase()}`, readers);
+
+  return distinctOthers(repo, [...published, ...readers.linked]);
+}
+
+async function publishingRepos(
+  scope: string,
+  readers: RelatedRepoReaders,
+): Promise<(string | null)[]> {
   const [manifests, onboarded] = await Promise.all([
     readers.manifests(),
     readers.onboarded(),
   ]);
-  const resolved = await Promise.all(
+
+  return Promise.all(
     orgDependencies(scope, manifests).map(async (dependency) =>
       resolveDependency(dependency, {
         registryRepository: await readers.registryRepository(dependency.name),
@@ -29,15 +39,15 @@ export async function relatedRepos(
       }),
     ),
   );
-  const named = [...resolved, ...readers.linked].filter(
-    (other): other is string => other !== null && !sameRepo(other, repo),
+}
+
+function distinctOthers(repo: string, names: (string | null)[]): string[] {
+  const others = names.filter(
+    (name): name is string =>
+      name !== null && name.toLowerCase() !== repo.toLowerCase(),
   );
 
   return [
-    ...new Map(named.map((other) => [other.toLowerCase(), other])).values(),
+    ...new Map(others.map((name) => [name.toLowerCase(), name])).values(),
   ];
-}
-
-function sameRepo(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
 }
