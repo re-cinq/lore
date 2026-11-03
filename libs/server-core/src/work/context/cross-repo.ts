@@ -48,14 +48,14 @@ export async function repoContextSettings(
 }
 
 function contextSettingsOf(
-  settings: RepoSettingsRow["settings"],
+  settings: RepoSettingsRow["settings"] = {},
 ): RepoContextSettings {
-  const backend = KnowledgeBackendSchema.safeParse(settings?.context_backend);
-  const utopiaMirror = utopiaMirrorOf(settings?.utopia);
+  const backend = KnowledgeBackendSchema.safeParse(settings.context_backend);
+  const utopiaMirror = utopiaMirrorOf(settings.utopia);
 
   return {
-    crossRepo: settings?.cross_repo === true,
-    ...linkedReposOf(settings?.cross_repo_repos),
+    crossRepo: settings.cross_repo === true,
+    ...linkedReposOf(settings.cross_repo_repos),
     ...(backend.success ? { contextBackend: backend.data } : {}),
     ...(utopiaMirror ? { utopiaMirror } : {}),
   };
