@@ -26,6 +26,21 @@ describe("repoContextSettings", () => {
     });
   });
 
+  it("returns the linked repos re-cinq/HALEngine and re-cinq/bowman-ui that settings.cross_repo_repos names", async () => {
+    const settings = await repoContextSettings(
+      poolWith({
+        cross_repo: true,
+        cross_repo_repos: ["re-cinq/HALEngine", "re-cinq/bowman-ui"],
+      }),
+      "re-cinq/Otto",
+    );
+
+    expect(settings).toEqual({
+      crossRepo: true,
+      linkedRepos: ["re-cinq/HALEngine", "re-cinq/bowman-ui"],
+    });
+  });
+
   it("returns no Utopia mirror when settings.utopia names no docs source yet", async () => {
     const settings = await repoContextSettings(
       poolWith({ utopia: { kb_id: "kb-1" } }),
