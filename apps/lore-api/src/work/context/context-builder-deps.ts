@@ -49,6 +49,8 @@ const MEMORY_LIMIT = 6;
 const MAX_ISSUE_CHARS = 3_000;
 const TRACKER_KINDS = ["issues", "pull-requests", "git-history"] as const;
 const PAGE = { topK: 20, offset: 0 };
+/** Under backend `lore` Utopia is not read: Lore holds no mirror of issues, pull requests or commits. */
+const NO_TRACKER = { tracker: [], trackerSources: [] };
 
 const primerAt = primerCache(async (repo) => {
   const project = await projectFor(repo);
@@ -144,7 +146,9 @@ async function previousWork(
 ): Promise<string[]> {
   const query = terms.join(" ") || asked.request.query;
   const [tracker, memories] = await Promise.all([
-    trackerHits(pool, asked.request.repo, query),
+    asked.scope.backend === "lore"
+      ? NO_TRACKER
+      : trackerHits(pool, asked.request.repo, query),
     memoryHits(pool, asked, query),
   ]);
 
