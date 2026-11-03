@@ -291,7 +291,7 @@ describe("GET /api/context assembly report", () => {
     vi.clearAllMocks();
   });
 
-  it("logs backend=utopia, repo o/r, template default, sections docs and tokens=120 for an assembly that kept one docs document", async () => {
+  it("logs backend=utopia, repo o/r, template default, sections docs, tokens=120 and query hi for an assembly that kept one docs document", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     vi.mocked(assembleContext).mockResolvedValue({
@@ -303,7 +303,7 @@ describe("GET /api/context assembly report", () => {
 
     expect(log.mock.calls.map(([line]) => line)).toEqual([
       expect.stringMatching(
-        /^\[context\] assembled backend=utopia repo=o\/r template=default sections=docs tokens=120 ms=\d+$/,
+        /^\[context\] assembled backend=utopia repo=o\/r template=default sections=docs tokens=120 ms=\d+ query="hi"$/,
       ),
     ]);
   });

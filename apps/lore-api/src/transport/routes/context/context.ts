@@ -7,16 +7,14 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
-import { traceFromEnv } from "@re-cinq/lore-shared/project/trace/trace-from-env.js";
-import { utopiaAssemblyOptions } from "../../../work/utopia/memory/utopia-memory-search.js";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
-import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { repoContextSettings } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
+import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
-  KnowledgeBackendSchema,
-  resolveBackend,
-  type KnowledgeBackend,
-} from "@re-cinq/lore-shared/knowledge-backend.js";
+  assemblyScope,
+  templateAssembly,
+} from "../../../work/context/template-assembly.js";
+import { builtOrAssembled } from "../../../work/context/built-or-assembled.js";
+import { contextBuilderFor } from "../../../work/context/context-builder-deps.js";
 import { reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -57,16 +55,6 @@ const AssembledContextSchema = z.object({
   sections: z.unknown().optional(),
   trace: z.unknown().optional(),
 });
-
-interface AssembleOptions {
-  repo?: string;
-  template?: string;
-  maxTokens?: number;
-  agentId?: string;
-  debug?: boolean;
-  crossRepoRequested: boolean;
-  backend?: KnowledgeBackend;
-}
 
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -155,18 +143,15 @@ function joinWithinBudget(contents: string[], maxChars: number): string | null {
   return parts.length > 0 ? parts.join(SEPARATOR) : null;
 }
 
-/** Assembles the token-budgeted context bundle: every source at once, ordered by template, which is what makes it the mandatory first call for an agent. */
-/** The assembled bundle. `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
+/** The block for a query: the context builder's when a model is named for it, else the template assembly (#4090). `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
 async function assembledResponse(pool: Pool, q: ContextQuery) {
-  const result = await assembleForQuery(pool, q.query as string, {
-    repo: q.repo,
-    template: q.template,
-    maxTokens: q.max_tokens,
-    agentId: q.agent_id,
-    debug: q.debug,
-    crossRepoRequested: q.cross_repo,
-    backend: q.backend,
-  });
+  const query = q.query as string;
+  const result = await builtOrAssembled(
+    contextBuilderFor(pool, builderRequest(q, query)),
+    () => reportedTemplateAssembly(pool, query, q),
+  );
+
+  logBuilderState(q, result.builder);
 
   return {
     text: result.text || null,
@@ -175,46 +160,46 @@ async function assembledResponse(pool: Pool, q: ContextQuery) {
   };
 }
 
-/** Assembles against a query. The Dgraph client is optional — null when LORE_DGRAPH_HTTP is unset, which is the ordinary case outside the central cluster. */
-async function assembleForQuery(
+function builderRequest(q: ContextQuery, query: string) {
+  return {
+    repo: q.repo ?? "",
+    query,
+    maxTokens: q.max_tokens,
+    agentId: q.agent_id,
+    backend: q.backend,
+    crossRepoRequested: q.cross_repo,
+  };
+}
+
+/** The template assembly, reported on the `[context] assembled` line. */
+async function reportedTemplateAssembly(
   pool: Pool,
   query: string,
-  opts: AssembleOptions,
-): Promise<Awaited<ReturnType<typeof assembleContext>>> {
-  const repo = opts.repo || undefined;
-  const settings = await repoContextSettings(pool, repo);
+  q: ContextQuery,
+) {
+  const repo = q.repo || undefined;
+  const scope = await assemblyScope(pool, repo, q.backend);
 
-  const backend = resolveBackend(opts.backend, settings.contextBackend);
-
-  return await reportingAssembly(
-    { backend, repo, template: opts.template },
-    async () =>
-      assembleContext(
-        pool,
-        query,
-        await engineOptions(pool, opts, settings, backend),
-      ),
+  return reportingAssembly(
+    { backend: scope.backend, repo, template: q.template, query },
+    () =>
+      templateAssembly(pool, query, {
+        ...scope,
+        repo,
+        template: q.template,
+        maxTokens: q.max_tokens,
+        agentId: q.agent_id,
+        crossRepoRequested: q.cross_repo,
+      }),
   );
 }
 
-/** The trace is always kept (in memory only) because the assembly report reads it; the response still carries it only on `debug`. */
-async function engineOptions(
-  pool: Pool,
-  opts: AssembleOptions,
-  settings: Awaited<ReturnType<typeof repoContextSettings>>,
-  backend: KnowledgeBackend,
-) {
-  const repo = opts.repo || undefined;
-
-  return {
-    templateName: opts.template,
-    maxTokens: opts.maxTokens,
-    repo,
-    agentId: opts.agentId,
-    crossRepo: opts.crossRepoRequested || settings.crossRepo,
-    debug: true,
-    graph: traceFromEnv(process.env),
-    backend,
-    ...(await utopiaAssemblyOptions(pool, repo, settings.utopiaMirror)),
-  };
+/** Nothing to say when the builder is off: the template assembly's own line already reports the call. */
+function logBuilderState(q: ContextQuery, builder: string): void {
+  if (builder === "off") {
+    return;
+  }
+  console.log(
+    `[context] builder=${builder} repo=${q.repo ?? "-"} query=${JSON.stringify(q.query)}`,
+  );
 }

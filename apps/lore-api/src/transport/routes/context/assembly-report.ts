@@ -7,6 +7,13 @@ interface AssemblyKey {
   backend: KnowledgeBackend;
   repo: string | undefined;
   template: string | undefined;
+  query: string;
+}
+
+interface AssemblyTally {
+  sections: string[];
+  tokens: number;
+  ms: number;
 }
 
 /** Runs one assembly and reports it: a log line and a count by backend and outcome, so whether a pod got Utopia content is readable without a floor transcript. A throw is counted as an error and rethrown. */
@@ -40,9 +47,12 @@ function reportAssembled(
     backend: key.backend,
     outcome: outcomeOf(sections, trace),
   });
-  console.log(
-    `[context] assembled backend=${key.backend} repo=${key.repo ?? "-"} template=${key.template ?? "-"} sections=${sections.join(",")} tokens=${tokens} ms=${ms}`,
-  );
+  console.log(assembledLine(key, { sections, tokens, ms }));
+}
+
+/** The query rides last and quoted, so calls can be studied from the API's log alone (#4090). */
+export function assembledLine(key: AssemblyKey, tally: AssemblyTally): string {
+  return `[context] assembled backend=${key.backend} repo=${key.repo ?? "-"} template=${key.template ?? "-"} sections=${tally.sections.join(",")} tokens=${tally.tokens} ms=${tally.ms} query=${JSON.stringify(key.query)}`;
 }
 
 /** ok when a section kept content; else error when a reader failed (a section-level throw is caught into its status), else empty. */
