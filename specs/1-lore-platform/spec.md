@@ -1226,11 +1226,13 @@ share one persistence surface instead of inline SQL. ([validated by `awaitingApp
 
 - `lore_assemble_context` warns when repo context is stale (>7 days since
   last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L35), [`context-freshness.test.ts:15`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L41), [`context-freshness.test.ts:21`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L47), [`context-freshness.test.ts:25`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L51), [`context-freshness.test.ts:31`](libs/shared/src/outbound/project/knowledge/context-freshness.test.ts#L57))
-- When the MCP server is unreachable, Claude Code MUST fall back to
-  the last-synced local copy of CLAUDE.md files and ADRs in
-  `~/.re-cinq/lore` and display a one-time warning to the developer
-  that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files. ([validated by returns the matching paragraph with its source path](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L45), [`context-tools.test.ts:102`](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L91))
+- When `LORE_API_URL` is unset, `lore_search_context` falls back to a
+  case-insensitive substring scan of `.md` files in `~/.re-cinq/lore`
+  (the `CONTEXT_PATH` value set by `install.sh`). Semantic search over
+  the ingested corpus is unavailable in this mode; convention and ADR
+  lookups continue from local files, including team-scoped subtrees
+  (`teams/<name>/`). When no results are found the response notes that
+  the scan was local-only and not the full ingested corpus. ([validated by returns the matching paragraph with its source path](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L45), [validated by scopes the search to a team subtree when team is given](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L91))
 - Dgraph's one pod MUST NOT be deleted by node scale-down: a PodDisruptionBudget of `minAvailable: 1` protects it, because a restart can leave its disk attached to the old node and every graph read and ingest failing for about 40 minutes. ([validated by declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod](libs/shared/src/domain/infra-contract/security-posture.test.ts#L110))
 
 ## Operational Targets & Constraints (Background)

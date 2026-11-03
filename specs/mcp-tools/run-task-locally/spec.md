@@ -47,7 +47,7 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
    that differs from the detected repo and does not mention the detected repo,
    return a `"Warning: This task references … but you're in …"` message with a
    `cd` suggestion — no worktree is created.
-3. **Task id** — generate a UUID. The run is free-form local work: it files no pipeline task and is tracked on this machine only (`~/.lore/local-tasks.json`). The tool takes no task type since 2026-10-02: the API creates no task from a description, so there is nothing to file a `runbook` or `gap-fill` run under.
+3. **Task id** — generate a UUID. The run is free-form local work: it files no pipeline task and is tracked on this machine only (`~/.lore/local-tasks.json`). The branch prefix is always `local` (the constant `LOCAL_ONLY_TASK_TYPE`), not a user-supplied task type, because no pipeline task is filed for this run — there is no `runbook` or `gap-fill` entry to anchor the branch to.
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
    ([spawn](../../../apps/mcp-server/src/work/pipeline/runner.local.ts)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
