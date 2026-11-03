@@ -176,10 +176,12 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 			},
 			reachable:    func(sha string) bool { return commitReachable(root, sha) },
 			changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
+			tracked:      func() ([]string, error) { return trackedFiles(root) },
 			post: func(ctx context.Context, d ingestDelta) error {
 				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
 			},
 			reportIsScoped: reportIsScoped,
+			full:           full,
 		}, combined)
 		if err == nil {
 			fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",

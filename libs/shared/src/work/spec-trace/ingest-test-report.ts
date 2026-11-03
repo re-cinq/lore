@@ -11,6 +11,7 @@ import {
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
+import { pruneUnreportedTests } from "./prune-test-files.js";
 import {
   projectDescriptors,
   type DescriptorChunk,
@@ -57,6 +58,8 @@ export async function ingestTestReport(
   const entries = await projectDescriptors(dgraph, scope, report.tests);
   const links = await specLinksFor(dgraph, scope, entries, report);
   const cov = await ingestReportCoverage(dgraph, scope, report);
+
+  await pruneUnreportedTests(dgraph, scope, report.tests);
 
   return {
     testChunks: report.tests.length,

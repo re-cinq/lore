@@ -25,11 +25,15 @@ const testReportKind = "test-report"
 // the server CASes the pointer against it, so "absent" and "null" must not be
 // confused.
 type ingestDelta struct {
-	Kind       string     `json:"kind"`
-	Commit     string     `json:"commit"`
-	BaseCommit *string    `json:"base_commit"`
-	Deleted    []string   `json:"deleted,omitempty"`
-	Report     TestReport `json:"report"`
+	Kind       string   `json:"kind"`
+	Commit     string   `json:"commit"`
+	BaseCommit *string  `json:"base_commit"`
+	Deleted    []string `json:"deleted,omitempty"`
+	// Present names every path the tree holds, on a full ingest's last chunk: with
+	// no diff to say what went away, lore-api drops the rows of any test file the
+	// list leaves out.
+	Present []string   `json:"present,omitempty"`
+	Report  TestReport `json:"report"`
 	// The chunk envelope, set only when one body would exceed lore-api's cap:
 	// every chunk CASes against the same base, and the server advances the
 	// state only with the final one (seq == total).
@@ -88,6 +92,7 @@ func isClientTimeout(err error) bool {
 // after 10 s, so a chunk in flight during any deploy failed the whole upload;
 // 7 attempts on the same n*n*2s backoff wait about 3 minutes in all.
 const deltaPostAttempts = 7
+
 func (e retryExhaustedError) Unwrap() []error { return []error{errRetryExhausted, e.cause} }
 
 func repoURL(apiBase, repo, tail string) string {
@@ -221,20 +226,26 @@ type deltaDeps struct {
 	fetchState   func(context.Context) (*string, error)
 	reachable    func(sha string) bool
 	changedSince func(base string) (changed, deleted []string, err error)
+	tracked      func() ([]string, error)
 	post         func(context.Context, ingestDelta) error
 	// Body budget per post; zero means deltaChunkBytes.
 	maxChunkBytes int
 	// The report holds only what the change affects (or, under --full, all of
 	// it), so the diff names the deleted paths and filters nothing.
 	reportIsScoped bool
+	// --full: the delta names the tree even when a diff could describe it, which
+	// is what clears the rows of test files that went away before anything named
+	// them.
+	full bool
 }
 
 // runDeltaFlow is FR5 end to end. No state ⇒ full ingest against null. A state
 // whose commit is UNREACHABLE (force-pushed main, over-shallow clone) ⇒ full
 // CONTENT but the observed commit as base — the CAS target is what we saw, not
 // what we diffed against, and null against a recorded state would 409 forever.
-// Otherwise the diff decides. One 409 earns one re-fetch and re-diff; a second
-// fails the step out loud.
+// Otherwise the diff decides. A delta no diff describes, or a --full one, also
+// names the tree. One 409 earns one re-fetch and re-diff; a second fails the step
+// out loud.
 func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error {
 	return retryOnceOnStale(func() error {
 		state, err := deps.fetchState(ctx)
@@ -242,7 +253,8 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			return err
 		}
 		delta := ingestDelta{Kind: testReportKind, Commit: report.Commit, BaseCommit: state, Report: report}
-		if state != nil && deps.reachable(*state) {
+		diffable := state != nil && deps.reachable(*state)
+		if diffable {
 			changed, deleted, err := deps.changedSince(*state)
 			if err != nil {
 				return err
@@ -252,8 +264,34 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			}
 			delta.Deleted = deleted
 		}
+		if deps.full || !diffable {
+			if delta.Present, err = presentPaths(deps, report); err != nil {
+				return err
+			}
+		}
 		return postDeltaChunked(ctx, deps, delta)
 	})
+}
+
+// presentPaths is every path the tree tracks, because any file can hold a test
+// row a spec cited, plus the report's own test files, so a runner reporting a
+// path git does not track never reads as a file that went away.
+func presentPaths(deps deltaDeps, report TestReport) ([]string, error) {
+	paths, err := deps.tracked()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		seen[path] = struct{}{}
+	}
+	for _, test := range report.Tests {
+		if _, ok := seen[test.File]; !ok {
+			seen[test.File] = struct{}{}
+			paths = append(paths, test.File)
+		}
+	}
+	return paths, nil
 }
 
 // retryOnceOnStale runs one handshake and, when the server's pointer moved
@@ -270,8 +308,9 @@ func retryOnceOnStale(handshake func() error) error {
 // postDeltaChunked sends a delta whole when it fits one body, and otherwise
 // splits its report per descriptor into the {seq,total} envelope. Deleted
 // paths ride the first chunk only — the prune is idempotent, but there is no
-// reason to drive it once per chunk. Any chunk's 409 surfaces as-is so the
-// flow's single re-diff applies to the whole ingest.
+// reason to drive it once per chunk — and the present list the last, so that
+// prune runs once. Any chunk's 409 surfaces as-is so the flow's single re-diff
+// applies to the whole ingest.
 func postDeltaChunked(ctx context.Context, deps deltaDeps, delta ingestDelta) error {
 	budget := deps.maxChunkBytes
 	if budget <= 0 {
@@ -290,6 +329,9 @@ func postDeltaChunked(ctx context.Context, deps deltaDeps, delta ingestDelta) er
 		}
 		if i == 0 {
 			chunk.Deleted = delta.Deleted
+		}
+		if i == total-1 {
+			chunk.Present = delta.Present
 		}
 		if err := deps.post(ctx, chunk); err != nil {
 			return fmt.Errorf("chunk %d/%d: %w", seq, total, err)

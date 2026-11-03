@@ -17,7 +17,12 @@ interface FakeDeps extends IngestDeltaDeps {
 }
 
 function fakeDeps(
-  graph: { specs?: string[]; adrs?: string[]; code?: string[] } = {},
+  graph: {
+    specs?: string[];
+    adrs?: string[];
+    code?: string[];
+    tests?: string[];
+  } = {},
   mirrorDoc: IngestDeltaDeps["mirrorDoc"] = async () => undefined,
   mirrorReport: IngestDeltaDeps["mirrorReport"] = async () => undefined,
   mirrorCode: IngestDeltaDeps["mirrorCode"] = async () => undefined,
@@ -78,6 +83,11 @@ function fakeDeps(
       calls.push(["pruneTests", repo, files]);
 
       return { prunedChunks: files.length };
+    },
+    listTests: async (repo) => {
+      calls.push(["listTests", repo]);
+
+      return graph.tests ?? [];
     },
     defaultBranch: async () => "main",
     mirrorDoc: async (repo, doc) => {
@@ -694,6 +704,109 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
 
     expect(deps.projectSpec).toHaveBeenCalledTimes(2);
     expect(JSON.parse(res.payload)).toMatchObject({ projected: 1 });
+  });
+});
+
+describe("POST /api/repos/{owner}/{repo}/ingest with a full test-report delta", () => {
+  const fullReport = (extra: Record<string, unknown>) => ({
+    kind: "test-report",
+    commit: SHA_B,
+    base_commit: null,
+    report: { tests: [], results: [] },
+    ...extra,
+  });
+  const pruned = (deps: FakeDeps) =>
+    deps.calls.filter(([name]) => name === "pruneTests");
+
+  it("prunes src/gone.test.ts when the graph holds it and present does not", async () => {
+    const deps = fakeDeps({
+      tests: ["src/a.test.ts", "src/b.test.ts", "src/gone.test.ts"],
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullReport({ present: ["README.md", "src/a.test.ts", "src/b.test.ts"] }),
+    );
+
+    expect(pruned(deps)).toEqual([
+      ["pruneTests", "re-cinq/lore", ["src/gone.test.ts"]],
+    ]);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      state: "advanced",
+      pruned_test_files: 1,
+    });
+  });
+
+  it("tombstones src/gone.test.ts in the mirror when present leaves it out", async () => {
+    const deps = fakeDeps({ tests: ["src/a.test.ts", "src/gone.test.ts"] });
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(
+      server,
+      fullReport({ present: ["src/a.test.ts", "src/b.test.ts"] }),
+    );
+
+    expect(deps.mirrored).toContainEqual([
+      "unmirrorTests",
+      "re-cinq/lore",
+      ["src/gone.test.ts"],
+    ]);
+  });
+
+  it("prunes src/gone.test.ts once when both deleted and present say it went away", async () => {
+    const deps = fakeDeps({ tests: ["src/a.test.ts", "src/gone.test.ts"] });
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(
+      server,
+      fullReport({
+        deleted: ["src/gone.test.ts"],
+        present: ["src/a.test.ts", "src/b.test.ts"],
+      }),
+    );
+
+    expect(pruned(deps)).toEqual([
+      ["pruneTests", "re-cinq/lore", ["src/gone.test.ts"]],
+    ]);
+  });
+
+  it("prunes nothing and still advances when 5 of the graph's 6 test files are missing from present", async () => {
+    const deps = fakeDeps({
+      tests: ["a", "b", "c", "d", "e", "f"].map((n) => `src/${n}.test.ts`),
+    });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(server, fullReport({ present: ["src/a.test.ts"] }));
+
+    expect(pruned(deps)).toEqual([]);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      state: "advanced",
+      pruned_test_files: 0,
+    });
+  });
+
+  it("does not read the graph's test files when the delta carries no present", async () => {
+    const deps = fakeDeps({ tests: ["src/a.test.ts"] });
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, fullReport({}));
+
+    expect(deps.calls.map(([name]) => name)).not.toContain("listTests");
+    expect(pruned(deps)).toEqual([]);
+  });
+
+  it("prunes nothing from main for a feat/x overlay delta that carries present", async () => {
+    const deps = fakeDeps({ tests: ["src/a.test.ts", "src/gone.test.ts"] });
+    const server = await serverWith(deps, casFirstIngest);
+    const res = await post(
+      server,
+      fullReport({
+        report: { branch: "feat/x", tests: [], results: [] },
+        present: ["src/a.test.ts"],
+      }),
+    );
+
+    expect(pruned(deps)).toEqual([]);
+    expect(JSON.parse(res.payload)).toMatchObject({ state: "overlay" });
   });
 });
 

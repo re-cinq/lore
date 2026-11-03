@@ -2,32 +2,111 @@
 
 import type {
   DgraphClientPort,
+  TestDescriptor,
   UidRef,
 } from "../../outbound/spec-trace/deps.js";
 import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
+import {
+  mainScope,
+  rootEdge,
+  type TraceScope,
+} from "../../domain/spec-trace/trace-scope.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import {
+  fileScopedTestChunkXid,
+  suiteLevelXid,
+  testChunkXid,
+} from "./test-chunk-identity.js";
+
+/** The rows of one test file a prune leaves in place, by xid. */
+interface KeptRows {
+  chunkXids: Set<string>;
+  suiteXids: Set<string>;
+}
+
+const KEEP_NOTHING: KeptRows = { chunkXids: new Set(), suiteXids: new Set() };
 
 export async function pruneTestFiles(
   dgraph: DgraphClientPort,
   repo: string,
   files: string[],
 ): Promise<{ prunedChunks: number }> {
+  const scope = mainScope(repo);
   let prunedChunks = 0;
 
   for (const filePath of files) {
-    prunedChunks += await pruneOneTestFile(dgraph, repo, filePath);
+    prunedChunks += await pruneOneTestFile(
+      dgraph,
+      scope,
+      filePath,
+      KEEP_NOTHING,
+    );
   }
 
   return { prunedChunks };
 }
 
-/** One test file's subtree, garbage-collected and then deleted; a file with no graph presence prunes nothing. */
-async function pruneOneTestFile(
+/** Removes what a report no longer lists under each file it carries, in the report's own scope: a report holds a file's tests whole, so a test missing from it was renamed or removed. The file's own chunk stays, because every citation of the file targets it, and a file the report does not carry is left alone. */
+export async function pruneUnreportedTests(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  descriptors: TestDescriptor[],
+): Promise<void> {
+  for (const [file, kept] of keptRowsByFile(scope, descriptors)) {
+    await pruneOneTestFile(dgraph, scope, file, kept);
+  }
+}
+
+/** The rows each carried file keeps: its own chunk, and every listed test's chunk and suite chain. */
+function keptRowsByFile(
+  scope: TraceScope,
+  descriptors: TestDescriptor[],
+): Map<string, KeptRows> {
+  const byFile = new Map<string, KeptRows>();
+
+  for (const descriptor of descriptors) {
+    const kept = byFile.get(descriptor.file) ?? {
+      chunkXids: new Set([fileScopedTestChunkXid(scope.key, descriptor.file)]),
+      suiteXids: new Set<string>(),
+    };
+
+    kept.chunkXids.add(testChunkXid(scope, descriptor.id));
+    (descriptor.suite ?? []).forEach((_, depth) =>
+      kept.suiteXids.add(suiteLevelXid(scope, descriptor, depth)),
+    );
+    byFile.set(descriptor.file, kept);
+  }
+
+  return byFile;
+}
+
+/** Every test file the graph holds rows for in `repo`'s main scope, which a full ingest prunes against. */
+export async function listTestFilePaths(
   dgraph: DgraphClientPort,
   repo: string,
+): Promise<string[]> {
+  return withTxn(dgraph, async (txn) => {
+    const res = await txn.queryWithVars(
+      `query q($repo: string) {
+        chunks(func: eq(TestChunk.repo, $repo)) { path: TestChunk.file_path }
+        suites(func: eq(TestSuite.repo, $repo)) { path: TestSuite.file_path }
+      }`,
+      { $repo: repo },
+    );
+    const rows = [...(res.data.chunks ?? []), ...(res.data.suites ?? [])];
+
+    return [...new Set(rows.map((row) => row.path as string))];
+  });
+}
+
+/** One test file's rows beyond `kept`, garbage-collected and then deleted; a file with nothing to remove prunes nothing. */
+async function pruneOneTestFile(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
   filePath: string,
+  kept: KeptRows,
 ): Promise<number> {
-  const doomed = await queryFileSubtree(dgraph, repo, filePath);
+  const doomed = await queryFileSubtree(dgraph, scope, filePath, kept);
 
   if (!doomed) {
     return 0;
@@ -36,13 +115,13 @@ async function pruneOneTestFile(
   await gcCoveredNodes(dgraph, doomed);
 
   // Re-query uids before the atomic delete mutation — Dgraph only detects write-write conflicts, so this is the staleness guard.
-  const target = await queryFileSubtree(dgraph, repo, filePath);
+  const target = await queryFileSubtree(dgraph, scope, filePath, kept);
 
   if (!target) {
     return 0;
   }
 
-  await deleteSubtree(dgraph, target);
+  await deleteSubtree(dgraph, scope, target);
 
   return target.chunkUids.length;
 }
@@ -59,48 +138,60 @@ interface DoomedFile {
   rootUid: string | null;
 }
 
-/** Everything rooted at one test file. The reverse edges (`~Statement.validated_by`) are what make the delete complete — a chunk knows its coverage, but only the reverse direction finds the statements claiming it. */
-const FILE_SUBTREE_QUERY = `query q($repo: string, $file: string) {
+/** Everything rooted at one test file, in one scope. The reverse edges (`~Statement.validated_by`) are what make the delete complete — a chunk knows its coverage, but only the reverse direction finds the statements claiming it. */
+const fileSubtreeQuery = (scope: TraceScope): string =>
+  `query q($repo: string, $file: string) {
         chunks(func: eq(TestChunk.repo, $repo))
             @filter(eq(TestChunk.file_path, $file)) {
           uid
+          xid: TestChunk.xid
           stmts: ~Statement.validated_by { uid }
           acs: ~AcceptanceCriterion.validated_by { uid }
           covOut: TestChunk.coverage { uid covered: Coverage.covers { uid } }
         }
         suites(func: eq(TestSuite.repo, $repo))
-            @filter(eq(TestSuite.file_path, $file)) { uid }
-        root(func: eq(Repo.xid, $repo)) { uid }
+            @filter(eq(TestSuite.file_path, $file)) { uid xid: TestSuite.xid }
+        root(func: eq(${scope.rootType}.xid, $repo)) { uid }
       }`;
 
 async function queryFileSubtree(
   dgraph: DgraphClientPort,
-  repo: string,
+  scope: TraceScope,
   filePath: string,
+  kept: KeptRows,
 ): Promise<DoomedFile | null> {
   return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(FILE_SUBTREE_QUERY, {
-      $repo: repo,
+    const res = await txn.queryWithVars(fileSubtreeQuery(scope), {
+      $repo: scope.key,
       $file: filePath,
     });
 
-    return parseFileSubtreeResponse(res);
+    return parseFileSubtreeResponse(res, kept);
   });
+}
+
+interface SubtreeResponse {
+  data: Record<string, Record<string, unknown>[] | undefined>;
 }
 
 interface DoomedChunkRow {
   uid: string;
+  xid: string;
   stmts?: UidRef[];
   acs?: UidRef[];
   covOut?: { uid: string; covered?: UidRef[] }[];
 }
 
-/** The doomed subtree of one test file, or null when the file has no graph presence. */
-function parseFileSubtreeResponse(res: {
-  data: Record<string, Record<string, unknown>[] | undefined>;
-}): DoomedFile | null {
-  const chunks = (res.data.chunks ?? []) as unknown as DoomedChunkRow[];
-  const suites = (res.data.suites ?? []) as unknown as UidRef[];
+/** The doomed subtree of one test file, or null when nothing of it is doomed. */
+function parseFileSubtreeResponse(
+  res: SubtreeResponse,
+  kept: KeptRows,
+): DoomedFile | null {
+  const chunks = rowsBeyond<DoomedChunkRow>(res.data.chunks, kept.chunkXids);
+  const suites = rowsBeyond<UidRef & { xid: string }>(
+    res.data.suites,
+    kept.suiteXids,
+  );
 
   if (chunks.length === 0 && suites.length === 0) {
     return null;
@@ -112,6 +203,14 @@ function parseFileSubtreeResponse(res: {
     ...collectChunkEdges(chunks),
     rootUid: rootUidOf(res.data.root as unknown as UidRef[] | undefined),
   };
+}
+
+/** The rows of a queried list that `kept` does not name. */
+function rowsBeyond<T extends { xid: string }>(
+  rows: unknown,
+  kept: Set<string>,
+): T[] {
+  return ((rows ?? []) as T[]).filter((row) => !kept.has(row.xid));
 }
 
 function collectChunkEdges(chunks: DoomedChunkRow[]): {
@@ -182,11 +281,12 @@ async function gcCoveredNodes(
 /** The atomic delete mutation for one already-GC'd file subtree. */
 async function deleteSubtree(
   dgraph: DgraphClientPort,
+  scope: TraceScope,
   target: FileSubtree,
 ): Promise<void> {
   await withTxn(dgraph, (txn) =>
     txn.mutate({
-      deleteNquads: deleteNquadsFor(target).join("\n"),
+      deleteNquads: deleteNquadsFor(scope, target).join("\n"),
       commitNow: true,
     }),
   );
@@ -196,7 +296,7 @@ async function deleteSubtree(
 type FileSubtree = NonNullable<Awaited<ReturnType<typeof queryFileSubtree>>>;
 
 /** Everything a pruned test file takes with it: its chunks, suites and coverage rows, AND every edge pointing at them — a Statement left claiming `validated_by` a deleted chunk would still read as coverage. */
-function deleteNquadsFor(target: FileSubtree): string[] {
+function deleteNquadsFor(scope: TraceScope, target: FileSubtree): string[] {
   const deletes = [
     ...target.chunkUids.map((uid) => `<${uid}> * * .`),
     ...target.suiteUids.map((uid) => `<${uid}> * * .`),
@@ -211,23 +311,24 @@ function deleteNquadsFor(target: FileSubtree): string[] {
   ];
 
   if (target.rootUid) {
-    deletes.push(...repoEdgeDeletes(target, target.rootUid));
+    deletes.push(...rootEdgeDeletes(scope, target, target.rootUid));
   }
 
   return deletes;
 }
 
-/** The Repo back-edges go too, or the repo keeps a list of uids that resolve to nothing. */
-function repoEdgeDeletes(target: FileSubtree, rootUid: string): string[] {
+/** The root's back-edges go too, or the Repo or Overlay keeps a list of uids that resolve to nothing. */
+function rootEdgeDeletes(
+  scope: TraceScope,
+  target: FileSubtree,
+  rootUid: string,
+): string[] {
+  const edgesTo = (name: string, uids: string[]) =>
+    uids.map((uid) => `<${rootUid}> <${rootEdge(scope, name)}> <${uid}> .`);
+
   return [
-    ...target.chunkUids.map(
-      (uid) => `<${rootUid}> <Repo.test_chunks> <${uid}> .`,
-    ),
-    ...target.suiteUids.map(
-      (uid) => `<${rootUid}> <Repo.test_suites> <${uid}> .`,
-    ),
-    ...target.coverageUids.map(
-      (uid) => `<${rootUid}> <Repo.coverage> <${uid}> .`,
-    ),
+    ...edgesTo("test_chunks", target.chunkUids),
+    ...edgesTo("test_suites", target.suiteUids),
+    ...edgesTo("coverage", target.coverageUids),
   ];
 }

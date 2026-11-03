@@ -155,6 +155,9 @@ func flowDeps(states []*string, reachable bool, changed, deleted []string, respo
 		changedSince: func(string) ([]string, []string, error) {
 			return changed, deleted, nil
 		},
+		tracked: func() ([]string, error) {
+			return []string{"README.md", "src/a.test.ts", "src/b.test.ts", "src/c.test.ts"}, nil
+		},
 		post: func(_ context.Context, d ingestDelta) error {
 			*posts = append(*posts, recordedPost{delta: d})
 			err := responses[min(sends, len(responses)-1)]
@@ -272,6 +275,109 @@ func TestDeltaFlowGivesUpLoudlyAfterASecondStaleBase(t *testing.T) {
 	}
 	if len(*posts) != 2 {
 		t.Fatalf("posts = %d, want exactly 2", len(*posts))
+	}
+}
+
+var trackedTree = []string{"README.md", "src/a.test.ts", "src/b.test.ts", "src/c.test.ts"}
+
+func TestDeltaFlowNamesTheTreeWhenNoStateIsRecorded(t *testing.T) {
+	deps, posts := flowDeps([]*string{nil}, false, nil, nil, []error{nil})
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got := (*posts)[0].delta.Present; !reflect.DeepEqual(got, trackedTree) {
+		t.Fatalf("present = %v, want %v", got, trackedTree)
+	}
+}
+
+func TestDeltaFlowNamesTheTreeWhenTheBaseIsUnreachable(t *testing.T) {
+	base := "gone1234"
+	deps, posts := flowDeps([]*string{&base}, false, nil, nil, []error{nil})
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got := (*posts)[0].delta.Present; !reflect.DeepEqual(got, trackedTree) {
+		t.Fatalf("present = %v, want %v", got, trackedTree)
+	}
+}
+
+func TestDeltaFlowNamesTheTreeAndTheDeletedPathsUnderFull(t *testing.T) {
+	base := "base1234"
+	deps, posts := flowDeps([]*string{&base}, true, nil, []string{"src/gone.test.ts"}, []error{nil})
+	deps.reportIsScoped = true
+	deps.full = true
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	got := (*posts)[0].delta
+	if !reflect.DeepEqual(got.Present, trackedTree) {
+		t.Fatalf("present = %v, want %v", got.Present, trackedTree)
+	}
+	if !reflect.DeepEqual(got.Deleted, []string{"src/gone.test.ts"}) {
+		t.Fatalf("deleted = %v, want src/gone.test.ts", got.Deleted)
+	}
+}
+
+func TestDeltaFlowLeavesTheTreeOutOfADiffedDelta(t *testing.T) {
+	base := "base1234"
+	deps, posts := flowDeps([]*string{&base}, true, []string{"src/b.test.ts"}, nil, []error{nil})
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got := (*posts)[0].delta.Present; got != nil {
+		t.Fatalf("a diffed delta must not name the tree, got %v", got)
+	}
+}
+
+func TestDeltaFlowCountsAReportedFileGitDoesNotTrackAsPresent(t *testing.T) {
+	deps, posts := flowDeps([]*string{nil}, false, nil, nil, []error{nil})
+	deps.tracked = func() ([]string, error) { return []string{"README.md", "src/a.test.ts"}, nil }
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	want := []string{"README.md", "src/a.test.ts", "src/b.test.ts", "src/c.test.ts"}
+	if got := (*posts)[0].delta.Present; !reflect.DeepEqual(got, want) {
+		t.Fatalf("present = %v, want %v", got, want)
+	}
+}
+
+func TestDeltaFlowPostsNothingWhenTheTreeCannotBeRead(t *testing.T) {
+	deps, posts := flowDeps([]*string{nil}, false, nil, nil, []error{nil})
+	deps.tracked = func() ([]string, error) { return nil, errors.New("ls-files failed") }
+
+	err := runDeltaFlow(context.Background(), deps, report())
+
+	if err == nil || !strings.Contains(err.Error(), "ls-files failed") {
+		t.Fatalf("err = %v, want the ls-files failure", err)
+	}
+	if len(*posts) != 0 {
+		t.Fatalf("posts = %d, want none", len(*posts))
+	}
+}
+
+func TestDeltaFlowSendsTheTreeOnlyWithTheLastChunk(t *testing.T) {
+	deps, posts := flowDeps([]*string{nil}, false, nil, nil, []error{nil})
+	deps.maxChunkBytes = 200
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(*posts) < 2 {
+		t.Fatalf("an oversize ingest must be chunked, got %d post(s)", len(*posts))
+	}
+	for i, p := range *posts {
+		last := i == len(*posts)-1
+		if last && !reflect.DeepEqual(p.delta.Present, trackedTree) {
+			t.Fatalf("last chunk's present = %v, want %v", p.delta.Present, trackedTree)
+		}
+		if !last && p.delta.Present != nil {
+			t.Fatalf("chunk %d carries present %v, want none", i+1, p.delta.Present)
+		}
 	}
 }
 
@@ -425,9 +531,9 @@ func TestPostIngestDeltaGivesUpAfterTheAttemptBudget(t *testing.T) {
 func TestPostIngestDeltaClassifiesExhaustedRetryableFailures(t *testing.T) {
 	noRetrySleep(t)
 	for _, tc := range []struct {
-		name       string
-		status     int
-		exhausted  bool
+		name      string
+		status    int
+		exhausted bool
 	}{
 		{name: "503", status: http.StatusServiceUnavailable, exhausted: true},
 		{name: "400", status: http.StatusBadRequest, exhausted: false},
