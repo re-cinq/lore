@@ -121,7 +121,7 @@ Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts
 
 A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L211))
 
-An assembly writes one line `[context] assembled backend=<lore|utopia|both> repo=<owner/name> template=<name> sections=<sections that kept content> tokens=<n> ms=<total>`. *(2026-10-31)* ([validated by logs backend=utopia, repo o/r, template default, sections docs and tokens=120 for an assembly that kept one docs document](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L294))
+An assembly writes one line `[context] assembled backend=<lore|utopia|both> repo=<owner/name> template=<name> sections=<sections that kept content> tokens=<n> ms=<total> query=<the query, JSON-quoted>`. *(2026-10-31; the query added 2026-11-03, #4090)* ([validated by logs backend=utopia, repo o/r, template default, sections docs, tokens=120 and query hi for an assembly that kept one docs document](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L294), [validated by carries the query Otto issue 621 reproduction, quoted, after the sections](../../../apps/lore-api/src/transport/routes/context/assembly-report.test.ts#L5), [validated by writes - for a missing repo and template](../../../apps/lore-api/src/transport/routes/context/assembly-report.test.ts#L21))
 
 An assembly counts one `lore_context_assembly_total` by `backend` and `outcome`: `ok` when a section kept content, `empty` when none did. *(2026-10-31)* ([validated by counts an ok utopia assembly, then an empty one with no kept section](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L311))
 
@@ -129,7 +129,7 @@ A throwing assembly counts `outcome=error` and returns 500. *(2026-10-31)* ([val
 
 The trace the report reads is kept in memory only; the response carries it only when `debug` is set. *(2026-10-31)* ([validated by omits the trace from the response when debug is not set](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L347))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L52))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L50))
 
 ## Out of Scope
 

@@ -23,7 +23,7 @@ describe("queryAnchors", () => {
     ).toEqual([621, 2154]);
   });
 
-  it("keeps FR-050 and FR12.8b as they are written", () => {
+  it("keeps FR-050 and a dotted FR id as they are written", () => {
     expect(
       queryAnchors("T010 actionExecutor FR-050 FR12.8b").requirements,
     ).toEqual(["FR-050", "FR12.8b"]);
