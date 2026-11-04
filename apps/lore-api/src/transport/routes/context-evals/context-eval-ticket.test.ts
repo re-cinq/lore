@@ -76,6 +76,22 @@ describe("POST /api/context-evals/ticket", () => {
     expect(Object.keys(JSON.parse(res.payload))).toEqual(["lore", "utopia"]);
   });
 
+  it("grades the block assembled on backend lore-v2 when the body names it", async () => {
+    const res = await post({
+      repo: "re-cinq/lore",
+      ticket: TICKET,
+      backend: "lore-v2",
+    });
+
+    expect({
+      status: res.statusCode,
+      chars: JSON.parse(res.payload).chars,
+    }).toEqual({
+      status: 200,
+      chars: "run.mjs, the route, the label <lore-v2/>".length,
+    });
+  });
+
   it("answers 403 to a token that holds only the read scope, since every call spends on a model", async () => {
     const pool = makePool();
 
