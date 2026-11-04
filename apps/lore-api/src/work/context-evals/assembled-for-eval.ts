@@ -12,6 +12,10 @@ import {
   type KnowledgeBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
 import type { AssembledForEval, AssembledSource } from "./evaluate-document.js";
+import type { TicketBackend } from "./evaluate-ticket.js";
+import { contextBuilderFor } from "../context/context-builder-deps.js";
+
+const TICKET_BUDGET = 8000;
 
 /** Every document the assembly kept, with its section and the tokens it took; an item with no path keeps its tokens under an empty one. A section's "no Utopia reader" line is no document. */
 export function sourcesOf(trace: AssemblyTrace | undefined): AssembledSource[] {
@@ -49,8 +53,11 @@ export async function assembleForTicket(
   pool: Pool,
   repo: string,
   query: string,
-  backend: KnowledgeBackend,
+  backend: TicketBackend,
 ): Promise<{ text: string; sections: string[] }> {
+  if (backend === "lore-v2") {
+    return builtForTicket(pool, repo, query);
+  }
   const result = await assembled(pool, {
     repo,
     query,
@@ -62,6 +69,24 @@ export async function assembleForTicket(
   );
 
   return { text: result.text, sections: kept.map((section) => section.source) };
+}
+
+/** The context builder's block, as `/api/context` serves it for backend lore-v2; the template assembly over Lore's stores when no model is named for it. */
+async function builtForTicket(
+  pool: Pool,
+  repo: string,
+  query: string,
+): Promise<{ text: string; sections: string[] }> {
+  const build = await contextBuilderFor(pool, {
+    repo,
+    query,
+    maxTokens: TICKET_BUDGET,
+    crossRepoRequested: false,
+  });
+
+  return build
+    ? { text: await build(), sections: ["builder"] }
+    : assembleForTicket(pool, repo, query, "lore");
 }
 
 interface AssemblyRequest {

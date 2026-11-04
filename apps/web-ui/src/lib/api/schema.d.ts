@@ -7286,7 +7286,7 @@ export interface operations {
             body: string;
           };
           /** @enum {string} */
-          backend?: "lore" | "utopia" | "both";
+          backend?: "lore" | "utopia" | "both" | "lore-v2";
         };
       };
     };

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Pool } from "pg";
 import type { ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
-import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
+import { ContextBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import {
   zodResponse,
@@ -26,7 +26,7 @@ const TicketEvalBody = z.object({
     title: z.string().min(1).max(500),
     body: z.string().max(65_000),
   }),
-  backend: KnowledgeBackendSchema.optional(),
+  backend: ContextBackendSchema.optional(),
 });
 
 const TicketVerdictSchema = z.object({

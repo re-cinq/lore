@@ -2408,7 +2408,7 @@
                   },
                   "backend": {
                     "type": "string",
-                    "enum": ["lore", "utopia", "both"]
+                    "enum": ["lore", "utopia", "both", "lore-v2"]
                   }
                 },
                 "required": ["repo", "ticket"],

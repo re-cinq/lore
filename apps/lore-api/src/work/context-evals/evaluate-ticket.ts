@@ -1,8 +1,10 @@
 // A ticket-shaped context eval (specs/context-evals FR4.7): the block an implementer of one ticket is handed, graded 0 to 3 for that ticket.
 
 import type { LlmProvider } from "@re-cinq/lore-shared/llm/llm-provider.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
-import type { SingleBackend } from "./side-by-side.js";
+import type { ContextBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+
+/** One block an implementer could be handed: a store's template assembly, or the context builder's (`lore-v2`). */
+export type TicketBackend = Exclude<ContextBackend, "both">;
 
 const JOB_NAME = "context-evals";
 const BODY_QUERY_CHARS = 700;
@@ -19,7 +21,7 @@ export interface TicketDeps {
   assemble(
     repo: string,
     query: string,
-    backend: SingleBackend,
+    backend: TicketBackend,
   ): Promise<{ text: string; sections: string[] }>;
   clock?: () => number;
 }
@@ -55,7 +57,7 @@ export interface TicketVerdict extends TicketGrade {
 export interface TicketTarget {
   repo: string;
   ticket: Ticket;
-  backend: KnowledgeBackend;
+  backend: ContextBackend;
 }
 
 const JUDGE_SYSTEM =
@@ -101,7 +103,7 @@ async function gradeSide(
   deps: TicketDeps,
   repo: string,
   ticket: Ticket,
-  backend: SingleBackend,
+  backend: TicketBackend,
 ): Promise<TicketVerdict> {
   const { clock = () => performance.now() } = deps;
   const started = clock();
