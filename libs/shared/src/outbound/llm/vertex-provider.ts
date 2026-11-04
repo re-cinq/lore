@@ -1,4 +1,4 @@
-// Gemini models served by Vertex AI: the same generateContent body as the Gemini API, on the project's regional endpoint, authenticated by the Google identity the process runs under instead of an API key.
+// Gemini models served by Vertex AI: the same generateContent body as the Gemini API, on the project's regional endpoint (the global one for a model Vertex serves only there), authenticated by the Google identity the process runs under instead of an API key.
 
 import { enforceTrue } from "../../lib/enforce.js";
 import {
@@ -9,6 +9,12 @@ import type { UsagePort } from "../project/usage/usage-port.js";
 import { GeminiProvider, type GenerateEndpoint } from "./gemini-provider.js";
 
 const DEFAULT_REGION = "europe-west1";
+
+/** Models Vertex's price list offers under "Global" only, with no regional row: a regional call to one is refused. */
+const GLOBAL_ONLY_MODELS = new Set([
+  "gemini-3-flash-preview",
+  "gemini-3.1-pro-preview",
+]);
 
 export interface VertexProviderOptions {
   model?: string;
@@ -39,10 +45,19 @@ function vertexEndpoint(opts: VertexProviderOptions): GenerateEndpoint {
     const { token, project } = signedIn(await credentials());
 
     return {
-      url: `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${model}:generateContent`,
+      url: `${locationUrl(project, GLOBAL_ONLY_MODELS.has(model) ? "global" : region)}/publishers/google/models/${model}:generateContent`,
       headers: { Authorization: `Bearer ${token}` },
     };
   };
+}
+
+function locationUrl(project: string, location: string): string {
+  const host =
+    location === "global"
+      ? "aiplatform.googleapis.com"
+      : `${location}-aiplatform.googleapis.com`;
+
+  return `https://${host}/v1/projects/${project}/locations/${location}`;
 }
 
 function signedIn(credentials: GoogleCredentials): GoogleCredentials {
