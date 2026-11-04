@@ -6,7 +6,7 @@
 
 Utopia is ahead of Lore on the evidence so far, with two caveats, and since 2026-10-31 its assembly reads six sections instead of two.
 
-- **Ticket grade after the 11-01 to 11-04 tuning:** Utopia 2.75 against Lore 2.25 on lore, 2.13 against 2.25 on Otto, in 4 to 13k characters against Lore's 30 to 33k. The context builder (`lore-v2`) is graded next. Details below.
+- **Ticket grade after the 11-01 to 11-04 tuning:** Utopia 2.75 against Lore 2.25 on lore, 2.13 against 2.25 on Otto, in 4 to 13k characters against Lore's 30 to 33k. The context builder (`lore-v2`) scored 2.50 on lore and 1.88 on Otto, in 4 to 6k characters and 30 to 36 s. Details below.
 
 - **Document questions, same 20 documents before and after the readers (2026-10-31):** Utopia answered 15 then 19 of 20 on lore, 16 then 18 of 20 on Otto, level with Lore; it found 20 of 20 and 19 of 20. Its assembly took 24 to 26 s median against Lore's 1.3 to 1.7 s, with Utopia's database saturated by its own extraction queue, and the useful share did not move. Details below.
 
@@ -119,9 +119,13 @@ Four changes to the Utopia arm went live in this window:
 | after #4072 | Otto | 2.38 | 2.38 | | 1,455 tokens |
 | after #4077 (11-04) | lore | 2.25 | **2.75** | 32,924 chars | 12,606 chars |
 | after #4077 (11-04) | Otto | 2.25 | 2.13 | 30,356 chars | 4,422 chars |
-| `lore-v2` (pending, #4106) | lore, Otto | | | | |
 
-The `lore-v2` row is the context builder of #4093, which writes the block from questions it plans about the ticket, on Gemini 3 Flash. It is graded once #4106 lets the ticket eval name that backend.
+The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 once #4106 let the ticket eval name it. It plans questions about the ticket, answers them from Lore's stores and the repository's files, and writes the block on Gemini 3 Flash.
+
+| Repo | `lore-v2` mean | Block | p50 latency | Lore mean | Utopia mean |
+|---|---|---|---|---|---|
+| lore | 2.50 | 4,182 chars | 36.0 s | 2.25 | **2.75** |
+| Otto | 1.88 | 5,641 chars | 29.9 s | **2.25** | 2.13 |
 
 ### Document evals, useful share
 
@@ -141,6 +145,7 @@ The `lore-v2` row is the context builder of #4093, which writes the block from q
 - **Recent Changes helped where a ticket's history mattered** (lore #4057, where the judge used "the logic … was introduced in commit #4039") and was named as noise on two Otto tickets: once for a commit of another task, once for the long file list of a commit touching 40 files. The next change shows only the files the ticket names, with a count of the rest.
 - **Otto's dip on 11-04 is one ticket,** #689, scored 1, where no section of either store held what the ticket asked.
 - **Utopia's assembly on Otto took 28.9 s at p50 on 11-04,** against 2.9 s on lore, while its extraction queue drained the 2,276 updated commits.
+- **`lore-v2` sits between the two on lore and last on Otto.** It writes the smallest block, 4 to 6k characters, and takes 30 to 36 s at p50. Where it reads code it is the most precise of the three: on lore #4012 it named `isOutOfBudget`, its argument and the existing `ranOutOfCredit` check, and on #4056 the two functions behind the bug. Where it fails, it is on tickets whose answer is not in a file it opened (lore #4057, scored 1; Otto #673 and #689, scored 1), and the judge named its own scaffolding (`Unanswered:`, `Example of …`, the read-tool instructions) as noise on most blocks.
 
 ## Re-run on 2026-10-19: the gap was missing data
 
