@@ -96,8 +96,23 @@ function historySearch(arm: UtopiaArm) {
     ? {
         sourceId,
         pages: (query: string) => bothPages(searchPages(arm, query)),
+        whole: storedText(arm, sourceId),
       }
     : null;
+}
+
+/** A stored document's text in one source, or null when Utopia holds none or the read fails. */
+function storedText(
+  { reads, kbId }: UtopiaArm,
+  sourceId: string,
+): (externalId: string) => Promise<string | null> {
+  return async (externalId) => {
+    const stored = await reads
+      .documentByExternalId(kbId, sourceId, externalId)
+      .catch(() => null);
+
+    return stored?.content ?? null;
+  };
 }
 
 /** The `code` section searches by the files and symbols the ticket names when it names any (FR13.9): a ticket's prose ranks spec statements, and the `code:` items it needs stand nowhere near its top 100; every other section reads the ticket's own search. */
