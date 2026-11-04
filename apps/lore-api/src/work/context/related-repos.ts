@@ -1,6 +1,7 @@
 // The repositories read beside a repository: those publishing the organisation packages it depends on, and those it links when cross-repo context is on.
 
 import {
+  type OrgDependency,
   orgDependencies,
   resolveDependency,
 } from "@re-cinq/lore-shared/context-builder/dependency-repos.js";
@@ -32,12 +33,23 @@ async function publishingRepos(
   ]);
 
   return Promise.all(
-    orgDependencies(scope, manifests).map(async (dependency) =>
-      resolveDependency(dependency, {
-        registryRepository: await readers.registryRepository(dependency.name),
-        onboarded,
-      }),
+    orgDependencies(scope, manifests).map((dependency) =>
+      publishingRepo(dependency, { readers, onboarded }),
     ),
+  );
+}
+
+/** Asks the registry only about a package its dependency and the onboarded repositories do not resolve. */
+async function publishingRepo(
+  dependency: OrgDependency,
+  { readers, onboarded }: { readers: RelatedRepoReaders; onboarded: string[] },
+): Promise<string | null> {
+  return (
+    resolveDependency(dependency, { registryRepository: null, onboarded }) ??
+    resolveDependency(dependency, {
+      registryRepository: await readers.registryRepository(dependency.name),
+      onboarded,
+    })
   );
 }
 

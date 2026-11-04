@@ -79,6 +79,7 @@ function FormControls({ loading, canSubmit, ...field }: FormControlsProps) {
         value={field.template}
         options={field.templates.map((t) => ({ value: t, label: t }))}
         onChange={field.onTemplateChange}
+        disabled={field.backend === "lore-v2"}
       />
       <BackendSelect {...field} />
       <SubmitButton loading={loading} canSubmit={canSubmit} />
@@ -118,6 +119,7 @@ interface OptionSelectProps {
   value: string;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 type SelectProps = Omit<OptionSelectProps, "label">;
@@ -133,11 +135,12 @@ function OptionSelect({ id, label, ...select }: OptionSelectProps) {
   );
 }
 
-function Select({ id, value, options, onChange }: SelectProps) {
+function Select({ id, value, options, onChange, disabled }: SelectProps) {
   return (
     <select
       id={id}
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       className={styles.select}
     >

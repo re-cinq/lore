@@ -1,10 +1,10 @@
 import { recordContextAssembly } from "@re-cinq/lore-shared/otel/metrics.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+import type { ContextBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { sourcesOf } from "../../../work/context-evals/assembled-for-eval.js";
 
 interface AssemblyKey {
-  backend: KnowledgeBackend;
+  backend: ContextBackend;
   repo: string | undefined;
   template: string | undefined;
   query: string;
@@ -32,6 +32,20 @@ export async function reportingAssembly<
     recordContextAssembly({ backend: key.backend, outcome: "error" });
     throw err;
   }
+}
+
+const CHARS_PER_TOKEN = 4;
+
+/** Reports a block the context builder wrote, on the same count and line as a template assembly, its one section `builder`. */
+export function reportBuilt(key: AssemblyKey, text: string, ms: number): void {
+  recordContextAssembly({ backend: key.backend, outcome: "ok" });
+  console.log(
+    assembledLine(key, {
+      sections: ["builder"],
+      tokens: Math.ceil(text.length / CHARS_PER_TOKEN),
+      ms,
+    }),
+  );
 }
 
 function reportAssembled(

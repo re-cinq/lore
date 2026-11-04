@@ -53,11 +53,13 @@ const primerAt = primerCache(async (repo) => {
     })),
   );
 
+  const present = documents.filter(
+    (doc): doc is { name: string; text: string } => doc.text !== null,
+  );
+
   return writePrimer(Llm.for(USE), {
-    documents: documents.filter(
-      (doc): doc is { name: string; text: string } => doc.text !== null,
-    ),
-    tree: await project.repo.tree(),
+    documents: present,
+    tree: present.length === 0 ? await project.repo.tree() : [],
   });
 });
 

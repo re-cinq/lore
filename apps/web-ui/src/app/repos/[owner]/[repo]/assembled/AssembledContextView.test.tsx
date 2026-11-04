@@ -255,4 +255,42 @@ describe("AssembledContextView — assembly trace", () => {
     );
     expect(screen.getByText("plain assembled text")).toBeInTheDocument();
   });
+
+  it("says the context builder wrote the block when lore-v2 answered with its section", () => {
+    render(
+      <AssembledContextView
+        {...baseProps({
+          backend: "lore-v2",
+          result: {
+            text: "built block",
+            sections: [
+              { header: "Context builder", tokens: 3, truncated: false },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText("Written by the context builder (lore-v2)."),
+    ).toBeInTheDocument();
+  });
+
+  it("says lore-v2 fell back to the template assembly when the block carries a trace", () => {
+    render(
+      <AssembledContextView
+        {...baseProps({
+          backend: "lore-v2",
+          result: { text: "ctx", trace: trace() },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(/The context builder did not answer/),
+    ).toBeInTheDocument();
+  });
+
+  it("disables the template select when lore-v2 is picked", () => {
+    render(<AssembledContextView {...baseProps({ backend: "lore-v2" })} />);
+    expect(screen.getByLabelText("Template")).toBeDisabled();
+  });
 });

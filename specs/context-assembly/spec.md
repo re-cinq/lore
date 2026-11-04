@@ -321,11 +321,12 @@ The tool retrieves from all available sources:
 
 - LLM-based summarization within assembly (just retrieval +
   formatting, no additional LLM calls). *(Amended 2026-11-03, #4090: the
-  engine itself still makes no model call, but `/api/context` no longer
-  serves it directly. The [context builder](../mcp-tools/assemble-context/spec.md#context-builder-2026-11-03-4090)
-  asks a model for the task's questions, answers each with this engine's
-  `default` sections, and writes the block; this engine's output is served
-  as-is only when the builder cannot run.)*
+  engine itself still makes no model call, and backends `lore`, `utopia`
+  and `both` serve it as before. Only a call naming backend `lore-v2` gets
+  the [context builder](../mcp-tools/assemble-context/spec.md#context-builder-2026-11-03-4090),
+  which asks a model for the task's questions, answers each with this
+  engine's `default` sections over Lore's stores, and writes the block; a
+  `lore-v2` call gets this engine's output when the builder cannot run.)*
 - Dynamic template selection based on query analysis. *(Amended 2026-11-03,
   #4090: not added. Callers no longer choose a template at all; `template`
   is accepted and ignored for one release, then removed.)*

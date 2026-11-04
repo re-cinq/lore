@@ -133,6 +133,9 @@ function buildAssembleExtras(
   return extras;
 }
 
+/** The builder (lore-v2) writes for up to two minutes, and a retry would start a second build, so it gets one long attempt. */
+const BUILDER_PROXY_LIMITS = { timeoutMs: 120_000, maxAttempts: 1 };
+
 /** Cached for 10 minutes on the query itself: a session re-orienting asks the same question repeatedly, and each miss is a full assembly across every source. */
 async function cachedAssemble(
   key: { query: string; template: string; repo: string },
@@ -148,10 +151,14 @@ async function cachedAssemble(
     () =>
       proxyGetApi(
         `/api/context?${new URLSearchParams({ ...key, ...extras }).toString()}`,
-        ASSEMBLY_PROXY_LIMITS,
+        limitsFor(extras.backend),
       ),
     { label: false },
   );
+}
+
+function limitsFor(backend: string | undefined) {
+  return backend === "lore-v2" ? BUILDER_PROXY_LIMITS : ASSEMBLY_PROXY_LIMITS;
 }
 
 interface AssembleSection {

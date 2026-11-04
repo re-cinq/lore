@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { assembledLine } from "./assembly-report.js";
+import { describe, expect, it, vi } from "vitest";
+import { assembledLine, reportBuilt } from "./assembly-report.js";
 
 describe("assembledLine", () => {
   it("carries the query Otto issue 621 reproduction, quoted, after the sections", () => {
@@ -27,5 +27,22 @@ describe("assembledLine", () => {
     ).toBe(
       '[context] assembled backend=lore repo=- template=- sections= tokens=0 ms=5 query="hi"',
     );
+  });
+});
+
+describe("reportBuilt", () => {
+  it("logs backend=lore-v2 sections=builder tokens=3 for a 10-character block", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    reportBuilt(
+      { backend: "lore-v2", repo: "o/r", template: undefined, query: "hi" },
+      "0123456789",
+      7,
+    );
+
+    expect(log.mock.calls.map(([line]) => line)).toEqual([
+      '[context] assembled backend=lore-v2 repo=o/r template=- sections=builder tokens=3 ms=7 query="hi"',
+    ]);
+    log.mockRestore();
   });
 });

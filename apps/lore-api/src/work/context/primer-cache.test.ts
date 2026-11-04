@@ -33,6 +33,16 @@ describe("primerCache", () => {
     );
   });
 
+  it("writes abc123's primer again after the head moved to def456 and back, keeping one primer per repository", async () => {
+    const { cache, written } = counting();
+
+    await cache("re-cinq/lore", "abc123");
+    await cache("re-cinq/lore", "def456");
+    await cache("re-cinq/lore", "abc123");
+
+    expect(written).toEqual(["re-cinq/lore", "re-cinq/lore", "re-cinq/lore"]);
+  });
+
   it("writes again after a failed write instead of keeping the failure", async () => {
     const outcomes = [
       () => Promise.reject(new Error("model down")),

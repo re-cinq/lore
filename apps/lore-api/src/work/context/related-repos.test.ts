@@ -32,14 +32,14 @@ function readers(overrides: Partial<RelatedRepoReaders> = {}) {
 }
 
 describe("relatedRepos", () => {
-  it("reads re-cinq/HALEngine and re-cinq/bowman-ui beside re-cinq/Otto, which depends on their packages", async () => {
+  it("reads re-cinq/HALEngine and re-cinq/bowman-ui beside re-cinq/Otto, which depends on their packages, without asking the registry about onboarded names", async () => {
     const { asked, readers: otto } = readers();
 
     expect(await relatedRepos("re-cinq/Otto", otto)).toEqual([
       "re-cinq/HALEngine",
       "re-cinq/bowman-ui",
     ]);
-    expect(asked).toEqual(["@re-cinq/hal-engine", "@re-cinq/bowman-ui"]);
+    expect(asked).toEqual([]);
   });
 
   it("takes re-cinq/re-lint from the registry's repository field for @re-cinq/eslint-plugin-re-lint", async () => {

@@ -18,7 +18,7 @@ import {
 } from "../../../work/context/template-assembly.js";
 import { builtOrAssembled } from "../../../work/context/built-or-assembled.js";
 import { contextBuilderFor } from "../../../work/context/context-builder-deps.js";
-import { reportingAssembly } from "./assembly-report.js";
+import { reportBuilt, reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -149,6 +149,7 @@ function joinWithinBudget(contents: string[], maxChars: number): string | null {
 /** The block for a query: the context builder's when the request names backend lore-v2 and a model is named for it, else the template assembly (#4090). `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
 async function assembledResponse(pool: Pool, q: ContextQuery) {
   const query = q.query as string;
+  const startedAt = Date.now();
   const result = await builtOrAssembled(
     q.backend === "lore-v2"
       ? contextBuilderFor(pool, builderRequest(q, query))
@@ -156,13 +157,36 @@ async function assembledResponse(pool: Pool, q: ContextQuery) {
     () => reportedTemplateAssembly(pool, query, q),
   );
 
-  logBuilderState(q, result.builder);
+  reportBuilder(q, result, startedAt);
 
   return {
     text: result.text || null,
     sections: result.sections,
     trace: q.debug ? result.trace : undefined,
   };
+}
+
+/** The builder's state line, and the assembled report of a block it wrote. */
+function reportBuilder(
+  q: ContextQuery,
+  result: { builder: string; text: string },
+  startedAt: number,
+) {
+  logBuilderState(q, result.builder);
+
+  if (result.builder !== "on") {
+    return;
+  }
+  reportBuilt(
+    {
+      backend: "lore-v2",
+      repo: q.repo || undefined,
+      template: q.template,
+      query: q.query as string,
+    },
+    result.text,
+    Date.now() - startedAt,
+  );
 }
 
 function builderRequest(q: ContextQuery, query: string) {

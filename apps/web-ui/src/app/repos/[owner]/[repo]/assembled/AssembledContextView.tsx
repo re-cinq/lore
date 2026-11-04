@@ -36,7 +36,7 @@ export interface AssembledContextViewProps {
 
 /** Assembled context view: form + assembly trace + final prompt tree. */
 export default function AssembledContextView(props: AssembledContextViewProps) {
-  const { owner, repo, result, loading, error, query } = props;
+  const { owner, repo, result, loading, error, query, backend } = props;
   const canSubmit = query.trim().length > 0 && !loading;
 
   return (
@@ -46,7 +46,12 @@ export default function AssembledContextView(props: AssembledContextViewProps) {
       {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
       {!loading && !error && (
-        <AssemblyOutcome owner={owner} repo={repo} result={result} />
+        <AssemblyOutcome
+          owner={owner}
+          repo={repo}
+          result={result}
+          backend={backend}
+        />
       )}
     </div>
   );
@@ -102,25 +107,48 @@ function PromptDebugPoints() {
 
 type AssemblyOutcomeProps = Pick<
   AssembledContextViewProps,
-  "owner" | "repo" | "result"
+  "owner" | "repo" | "result" | "backend"
 >;
 
 /** Owns the raw/rendered toggle: it is a reading preference of the result, and nothing the query form needs to know about. */
-function AssemblyOutcome({ owner, repo, result }: AssemblyOutcomeProps) {
+function AssemblyOutcome({ backend, ...outcome }: AssemblyOutcomeProps) {
   const [raw, setRaw] = useState(false);
 
   return (
-    <AssemblyResult
-      owner={owner}
-      repo={repo}
-      result={result}
-      raw={raw}
-      onToggleRaw={() => setRaw((v) => !v)}
-    />
+    <>
+      <BuilderNote result={outcome.result} backend={backend} />
+      <AssemblyResult
+        {...outcome}
+        raw={raw}
+        onToggleRaw={() => setRaw((v) => !v)}
+      />
+    </>
   );
 }
 
-type AssemblyResultProps = AssemblyOutcomeProps & {
+/** Which path wrote the block when lore-v2 was asked for: the context builder, or the template assembly it fell back to. */
+function BuilderNote({
+  result,
+  backend,
+}: Pick<AssemblyOutcomeProps, "result" | "backend">) {
+  if (!result || backend !== "lore-v2") {
+    return null;
+  }
+
+  const first = (result.sections ?? []).at(0);
+
+  return first?.header === BUILDER_SECTION ? (
+    <Alert variant="secondary">Written by the context builder (lore-v2).</Alert>
+  ) : (
+    <Alert variant="secondary">
+      The context builder did not answer; this is Lore&apos;s template assembly.
+    </Alert>
+  );
+}
+
+const BUILDER_SECTION = "Context builder";
+
+type AssemblyResultProps = Omit<AssemblyOutcomeProps, "backend"> & {
   raw: boolean;
   onToggleRaw: () => void;
 };
