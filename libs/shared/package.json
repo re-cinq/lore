@@ -226,6 +226,10 @@
       "types": "./dist/domain/repo-context.d.ts",
       "default": "./dist/domain/repo-context.js"
     },
+    "./context-model.js": {
+      "types": "./dist/domain/context-model.d.ts",
+      "default": "./dist/domain/context-model.js"
+    },
     "./knowledge-backend.js": {
       "types": "./dist/domain/knowledge-backend.d.ts",
       "default": "./dist/domain/knowledge-backend.js"

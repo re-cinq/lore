@@ -152,7 +152,7 @@ async function assembledResponse(pool: Pool, q: ContextQuery) {
   const startedAt = Date.now();
   const result = await builtOrAssembled(
     q.backend === "lore-v2"
-      ? contextBuilderFor(pool, builderRequest(q, query))
+      ? await contextBuilderFor(pool, builderRequest(q, query))
       : null,
     () => reportedTemplateAssembly(pool, query, q),
   );

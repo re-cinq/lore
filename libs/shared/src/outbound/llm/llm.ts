@@ -39,6 +39,26 @@ export class Llm {
     return provider;
   }
 
+  /** The provider for a use on a vendor and model named at run time (the org settings page), not by env; one is held per use, vendor and model. */
+  static forModel(
+    use: string,
+    named: { provider: string; model: string },
+  ): LlmProvider {
+    const key = `${use}:${named.provider}:${named.model}`;
+    const held = perUse.get(key);
+
+    if (held) {
+      return held;
+    }
+    const provider = selectProviderFor(use, namedEnv(use, named), {
+      usage,
+    });
+
+    perUse.set(key, provider);
+
+    return provider;
+  }
+
   static setInstance(provider: LlmProvider): void {
     current = provider;
   }
@@ -58,4 +78,17 @@ export class Llm {
   static get usageConfigured(): boolean {
     return usage !== undefined;
   }
+}
+
+function namedEnv(
+  use: string,
+  named: { provider: string; model: string },
+): NodeJS.ProcessEnv {
+  const prefix = `LORE_${use.toUpperCase()}_LLM`;
+
+  return {
+    ...process.env,
+    [`${prefix}_PROVIDER`]: named.provider,
+    [`${prefix}_MODEL`]: named.model,
+  };
 }

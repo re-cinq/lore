@@ -135,6 +135,49 @@ describe("org settings + repo sessions", () => {
       });
     });
 
+    it("stores context_llm_provider vertex and context_llm_model gemini-3-flash-preview", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        {
+          entries: [
+            { key: "context_llm_provider", value: "vertex" },
+            { key: "context_llm_model", value: "gemini-3-flash-preview" },
+          ],
+        },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        params: pool.query.mock.calls.map(([, params]) => params),
+      }).toEqual({
+        status: 200,
+        params: [
+          ["context_llm_provider", "vertex"],
+          ["context_llm_model", "gemini-3-flash-preview"],
+        ],
+      });
+    });
+
+    it("refuses a context_llm_provider of ollama and writes nothing", async () => {
+      const pool = makePool();
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        { entries: [{ key: "context_llm_provider", value: "ollama" }] },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        writes: pool.query.mock.calls.length,
+      }).toEqual({ status: 400, writes: 0 });
+    });
+
     it("refuses an unknown key", async () => {
       const res = await call("PUT", "/api/settings", {
         entries: [{ key: "not_a_setting", value: "x" }],

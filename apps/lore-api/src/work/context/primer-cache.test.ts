@@ -3,11 +3,13 @@ import { primerCache } from "./primer-cache.js";
 
 function counting() {
   const written: string[] = [];
-  const cache = primerCache(async (repo) => {
-    written.push(repo);
+  const primerAt = primerCache();
+  const cache = (repo: string, head: string) =>
+    primerAt(repo, head, async () => {
+      written.push(repo);
 
-    return `primer ${written.length} of ${repo}`;
-  });
+      return `primer ${written.length} of ${repo}`;
+    });
 
   return { cache, written };
 }
@@ -48,9 +50,11 @@ describe("primerCache", () => {
       () => Promise.reject(new Error("model down")),
       () => Promise.resolve("primer"),
     ];
-    const cache = primerCache(() =>
-      (outcomes.shift() ?? (() => Promise.resolve("")))(),
-    );
+    const primerAt = primerCache();
+    const cache = (repo: string, head: string) =>
+      primerAt(repo, head, () =>
+        (outcomes.shift() ?? (() => Promise.resolve("")))(),
+      );
 
     await expect(cache("re-cinq/lore", "abc123")).rejects.toThrow(
       new Error("model down"),

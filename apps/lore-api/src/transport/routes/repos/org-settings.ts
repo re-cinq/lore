@@ -15,6 +15,11 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import { parseSlackUsers } from "@re-cinq/lore-shared/digest/people.js";
+import {
+  CONTEXT_MODEL_KEY,
+  CONTEXT_PROVIDER_KEY,
+  contextSettingError,
+} from "@re-cinq/lore-shared/context-model.js";
 
 // Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
@@ -23,6 +28,8 @@ const WRITABLE_KEYS = new Set([
   "ingest_token",
   "approval_config",
   "slack_users",
+  CONTEXT_PROVIDER_KEY,
+  CONTEXT_MODEL_KEY,
 ]);
 
 const SettingsBody = z.object({
@@ -118,16 +125,26 @@ async function serveOrgSettingsWrite(
       .response({ error: `not a writable setting: ${unknown.key}` })
       .code(400);
   }
+  const refused = refusalOf(entries);
 
-  enforceTrue(
-    !entries.some(isInvalidSlackUsers),
-    apiError(400),
-    "slack_users must map GitHub logins to Slack user ids (U…)",
-  );
+  enforceTrue(!refused, apiError(400), refused ?? "");
 
   await applySettingEntries(pool, entries);
 
   return h.response({ ok: true });
+}
+
+/** Why a write of these entries is refused, or null: a slack_users map the digest cannot use, or a context provider the builder does not know. */
+function refusalOf(entries: SettingsBody["entries"]): string | null {
+  if (entries.some(isInvalidSlackUsers)) {
+    return "slack_users must map GitHub logins to Slack user ids (U…)";
+  }
+
+  return (
+    entries
+      .map(({ key, value }) => contextSettingError(key, value.trim()))
+      .find((error) => error !== null) ?? null
+  );
 }
 
 /** The daily digest reads slack_users with no user in front of it, so a map it could not use is refused here (specs/daily-digest FR12). */
