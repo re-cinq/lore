@@ -132,19 +132,27 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
 describe("withTxn retry-on-abort (fake port)", () => {
   const ABORT = "Transaction has been aborted. Please retry";
 
+  const apiError = (message: string) =>
+    new dgraph.APIError("http://dgraph/mutate", [{ code: "Error", message }]);
+
   interface ScriptedTxn {
     txn: DgraphTxn;
     discarded: boolean;
   }
 
-  function scriptedPort(behaviors: Array<"abort" | "ok" | "schema-error">): {
+  function scriptedPort(
+    behaviors: Array<"abort" | "ok" | "schema-error" | "too-old">,
+  ): {
     port: DgraphClientPort;
     txns: ScriptedTxn[];
+    mutations: unknown[];
   } {
     const txns: ScriptedTxn[] = [];
+    const mutations: unknown[] = [];
 
     return {
       txns,
+      mutations,
       port: {
         newTxn: () => {
           const behavior = behaviors[txns.length] ?? "ok";
@@ -162,7 +170,16 @@ describe("withTxn retry-on-abort (fake port)", () => {
                 return { data: { found: [{ uid: "0xok" }] } };
               },
 
-              mutate: async () => ({ data: {} }),
+              mutate: async (mutation) => {
+                enforceTrue(
+                  behavior !== "too-old",
+                  apiError,
+                  "Transaction is too old",
+                );
+                mutations.push(mutation);
+
+                return { data: {} };
+              },
 
               discard: async () => {
                 scripted.discarded = true;
@@ -201,6 +218,48 @@ describe("withTxn retry-on-abort (fake port)", () => {
     expect(txns).toHaveLength(2);
     expect(slept).toEqual([200]);
     expect(txns.map((t) => t.discarded)).toEqual([true, true]);
+  });
+
+  it("retries a Transaction is too old write on a fresh txn and returns the 2nd attempt's result", async () => {
+    const { port, txns, mutations } = scriptedPort(["too-old", "ok"]);
+    const { slept, sleep } = recordingSleep();
+    const mutation = { deleteNquads: "<0xc0> <p> * .", commitNow: true };
+    const result = await withTxn(port, (txn) => txn.mutate(mutation), {
+      sleep,
+      random: () => 1,
+    });
+
+    expect({
+      result,
+      mutations,
+      slept,
+      discarded: txns.map((t) => t.discarded),
+    }).toEqual({
+      result: { data: {} },
+      mutations: [mutation],
+      slept: [200],
+      discarded: [true, true],
+    });
+  });
+
+  it("replaceEdgeWithFacets survives a Transaction is too old on its set and writes the edge on the retry", async () => {
+    const { port, txns, mutations } = scriptedPort(["ok", "too-old", "ok"]);
+
+    await replaceEdgeWithFacets(port, "0xc0", "Coverage.covers", [
+      { uid: "0xf1", facets: { ranges: "1-2" } },
+    ]);
+
+    expect(txns).toHaveLength(3);
+    expect(mutations).toEqual([
+      { deleteNquads: "<0xc0> <Coverage.covers> * .", commitNow: true },
+      {
+        setJson: {
+          uid: "0xc0",
+          "Coverage.covers": [{ uid: "0xf1", "Coverage.covers|ranges": "1-2" }],
+        },
+        commitNow: true,
+      },
+    ]);
   });
 
   it("rethrows a non-abort error immediately: 1 txn, 0 sleeps", async () => {
