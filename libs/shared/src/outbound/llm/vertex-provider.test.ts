@@ -50,6 +50,22 @@ describe("VertexProvider", () => {
     });
   });
 
+  it("posts gemini-3-flash-preview, which Vertex serves only globally, to the global endpoint over a europe-west1 region", async () => {
+    const captured: Captured[] = [];
+    const provider = new VertexProvider({
+      model: "gemini-3-flash-preview",
+      region: "europe-west1",
+      credentials: signedIn,
+      fetchFn: answering("answer", captured),
+    });
+
+    await provider.complete({ prompt: "user-text" });
+
+    expect(captured[0]?.url).toBe(
+      "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/publishers/google/models/gemini-3-flash-preview:generateContent",
+    );
+  });
+
   it("returns the text, 10+5 tokens and the gemini-2.5-flash price under vendor vertex", async () => {
     const provider = new VertexProvider({
       model: "gemini-2.5-flash",
