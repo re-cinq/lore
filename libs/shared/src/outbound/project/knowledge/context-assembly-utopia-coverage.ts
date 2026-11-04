@@ -3,7 +3,14 @@
 import type { SearchHit } from "../../../domain/utopia/read-shapes.js";
 import type { SourceItem } from "./context-assembly-format.js";
 import { ITEM_LIMITS } from "./context-assembly-fetchers-content.js";
-import { coverageText } from "./context-assembly-utopia-coverage-text.js";
+import {
+  citedSpans,
+  coverageText,
+} from "./context-assembly-utopia-coverage-text.js";
+import {
+  withBodies,
+  type RepoFiles,
+} from "./context-assembly-utopia-bodies.js";
 import { mkItem, normalizeScores } from "./context-assembly-items.js";
 
 export interface CoverageSection {
@@ -21,37 +28,58 @@ export const COVERAGE_SECTIONS: Partial<Record<string, CoverageSection>> = {
   },
 };
 
-/** The coverage source's items for a section, one per external id in the rank of its best hit, scored so the best is 1. */
-export function coverageItems(
+/** The coverage source's items for a section, one per external id in the rank of its best hit, scored so the best is 1; a coupling item carries the lines it cites when the repository's files can be read (FR13.8b). */
+export async function coverageItems(
   hits: SearchHit[],
   coverageSourceId: string,
   section: CoverageSection,
-): SourceItem[] {
+  files?: RepoFiles,
+): Promise<SourceItem[]> {
+  const byId = hitsById(hits, coverageSourceId, section.prefixes);
+
+  return normalizeScores(
+    await Promise.all(
+      [...byId]
+        .slice(0, section.limit)
+        .map(([id, chunks]) => toItem(id, chunks, section, files)),
+    ),
+  );
+}
+
+/** The section's hits of the coverage source by external id, in the rank of each id's first hit. */
+function hitsById(
+  hits: SearchHit[],
+  coverageSourceId: string,
+  prefixes: readonly string[],
+): Map<string, SearchHit[]> {
   const byId = new Map<string, SearchHit[]>();
 
   for (const hit of hits) {
     const id = hit.sourceId === coverageSourceId ? hit.externalId : null;
 
-    if (id && section.prefixes.some((prefix) => id.startsWith(prefix))) {
+    if (id && prefixes.some((prefix) => id.startsWith(prefix))) {
       byId.set(id, [...(byId.get(id) ?? []), hit]);
     }
   }
 
-  return normalizeScores(
-    [...byId]
-      .slice(0, section.limit)
-      .map(([id, chunks]) => toItem(id, chunks, section)),
-  );
+  return byId;
 }
 
-function toItem(
+async function toItem(
   externalId: string,
   chunks: SearchHit[],
   section: CoverageSection,
-): SourceItem {
+  files: RepoFiles | undefined,
+): Promise<SourceItem> {
   const texts = chunks.map((chunk) => coverageText(externalId, chunk.text));
+  const lines = [...new Set(texts)].join("\n");
+  const spans = chunks.flatMap((chunk) => citedSpans(externalId, chunk.text));
+  const text =
+    files && section.contentType === "coupling"
+      ? await withBodies(lines, spans, files)
+      : lines;
 
-  return mkItem([...new Set(texts)].join("\n"), {
+  return mkItem(text, {
     source_path: pathOf(externalId),
     content_type: section.contentType,
     score: Math.max(...chunks.map((chunk) => chunk.score)),

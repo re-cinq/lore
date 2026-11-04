@@ -8,6 +8,7 @@ import {
 } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import type { UtopiaMirror } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia.js";
 import type { UtopiaMemoryRead } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia-memory.js";
+import type { RepoFiles } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia-bodies.js";
 import type { AssembleOptions } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 import type { MemorySearchResult } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import {
@@ -20,6 +21,7 @@ import {
   type StoredMemorySource,
 } from "../../../outbound/utopia/memory-sources.js";
 import { kindSourceFor } from "../../../outbound/utopia/kind-sources.js";
+import { projectFor } from "../../../outbound/project-boot.js";
 import { orgMemoryBase } from "./utopia-memory-base.js";
 
 export interface UtopiaMemoryQuery {
@@ -129,19 +131,23 @@ async function storedSources(
 }
 
 /** What an assembly needs to read Utopia: the reader, the repo's mirror and the memory search its `memories` and `episodes` sections go through; the search is absent without a reader. */
+type UtopiaAssemblyOptions = Pick<
+  AssembleOptions,
+  "utopiaReads" | "utopiaMirror" | "utopiaMemories" | "utopiaFiles"
+>;
+
 export async function utopiaAssemblyOptions(
   pool: Pool,
   repo: string | undefined,
   utopiaMirror: UtopiaMirror | undefined,
   env: UtopiaEnv = process.env,
-): Promise<
-  Pick<AssembleOptions, "utopiaReads" | "utopiaMirror" | "utopiaMemories">
-> {
+): Promise<UtopiaAssemblyOptions> {
   const utopiaReads = utopiaReadsFrom(env);
 
   return {
     utopiaReads,
     utopiaMirror: await withKindSources(pool, repo, utopiaMirror),
+    utopiaFiles: repo ? repoFiles(repo) : undefined,
     utopiaMemories: utopiaReads
       ? repoFirstSearch(pool, utopiaReads, repo, env)
       : undefined,
@@ -167,6 +173,14 @@ async function withKindSources(
     ...(coverage ? { coverageSourceId: coverage.id } : {}),
     ...(history ? { historySourceId: history.id } : {}),
   };
+}
+
+/** The repository's files at its default branch, read through GitHub; a repository Lore cannot read answers null for every path. */
+function repoFiles(repo: string): RepoFiles {
+  return (path) =>
+    projectFor(repo)
+      .then((project) => project.repo.read(path))
+      .catch(() => null);
 }
 
 /** The memory search with the repo's own memories ahead of the org's. */

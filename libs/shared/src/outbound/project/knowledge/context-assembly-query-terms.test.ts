@@ -68,6 +68,20 @@ describe("mentionsAny", () => {
   });
 });
 
+describe("mentionsAny snake_case", () => {
+  it("is false for a memory that names only run_id, a snake_case field every ticket could name, and true for one naming LORE_API_URL", () => {
+    const terms = queryTerms(
+      "Record the run_id on the pause and read LORE_API_URL from the env.",
+    );
+
+    expect(terms).toEqual(["run_id", "LORE_API_URL"]);
+    expect(
+      mentionsAny("env/bowman: push token read-only, run_id 7", terms),
+    ).toBe(false);
+    expect(mentionsAny("set LORE_API_URL before npm start", terms)).toBe(true);
+  });
+});
+
 describe("areaCount", () => {
   it("counts 2 areas for board.ts and LoopPaused.tsx in loops/board plus specs/loop-pause/spec.md, symbols, routes and ids left out", () => {
     expect(

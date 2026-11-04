@@ -21,7 +21,10 @@ import {
   bothPages,
   historySection,
 } from "./context-assembly-utopia-history.js";
-import { widenedChunks } from "./context-assembly-utopia-sections.js";
+import {
+  storedDocuments,
+  widenedChunks,
+} from "./context-assembly-utopia-sections.js";
 import {
   memorySectionReader,
   type UtopiaMemoryRead,
@@ -31,6 +34,10 @@ import {
   coverageItems,
 } from "./context-assembly-utopia-coverage.js";
 import type { SectionReader } from "./context-assembly-types.js";
+import {
+  memoizedFiles,
+  type RepoFiles,
+} from "./context-assembly-utopia-bodies.js";
 
 /** Where a repository's mirror lives: its knowledge base and the `docs` source its documents were pushed to (`settings.utopia`). */
 export interface UtopiaMirror {
@@ -47,6 +54,8 @@ export interface UtopiaArm extends UtopiaMirror {
   reads: UtopiaReads;
   /** The memory search behind the `memories` and `episodes` sections; without it they say there is no reader. */
   memories?: UtopiaMemoryRead;
+  /** The repository's files, which finish a coupling item with the test and covered lines it cites (FR13.8b); without them the item names its lines only. */
+  files?: RepoFiles;
 }
 
 const PAGE_SIZE = 50;
@@ -67,8 +76,9 @@ export function utopiaArmOf(
   reads: UtopiaReads | null | undefined,
   mirror: UtopiaMirror | undefined,
   memories?: UtopiaMemoryRead,
+  files?: RepoFiles,
 ): UtopiaArm | null {
-  return reads && mirror ? { reads, ...mirror, memories } : null;
+  return reads && mirror ? { reads, ...mirror, memories, files } : null;
 }
 
 /** One assembly's reader: every section shares one search, and a second page is asked for only by a section the first left short. */
@@ -123,10 +133,10 @@ function docsSectionReader(
 ): SectionReader {
   const page = searchPages(arm, query);
   const codePage = codeQuery ? searchPages(arm, codeQuery) : page;
-  const stored = storedDocuments(arm);
+  const stores = storesOf(arm);
 
   return async ({ source }) => {
-    const read = hitsReader(arm, { source, areas }, stored);
+    const read = hitsReader(arm, { source, areas }, stores);
 
     if (!read) {
       return { sources: [], status: "disabled" };
@@ -140,26 +150,37 @@ function docsSectionReader(
   };
 }
 
+/** What a section's items are finished from, each read once per assembly: the docs source's stored documents, and the repository's files when the arm has them. */
+interface Stores {
+  stored: (path: string) => Promise<StoredDocument | null>;
+  files: RepoFiles | undefined;
+}
+
+function storesOf(arm: UtopiaArm): Stores {
+  return {
+    stored: storedDocuments(arm),
+    files: arm.files ? memoizedFiles(arm.files) : undefined,
+  };
+}
+
 function hitsReader(
   arm: UtopiaArm,
   { source, areas }: { source: string; areas: number },
-  stored: (path: string) => Promise<StoredDocument | null>,
+  { stored, files }: Stores,
 ): HitsReader | null {
   const docs = SECTIONS[source];
-  const limit = docs ? scopedLimit(docs.limit, areas) : 0;
 
-  return docs
-    ? {
-        itemsOf: (hits) =>
-          widenedDocuments(
-            hits,
-            { docsSourceId: arm.docsSourceId, types: docs.types, limit },
-            stored,
-          ),
-        limit,
-        eager: false,
-      }
-    : coverageReader(arm, source);
+  if (!docs) {
+    return coverageReader(arm, source, files);
+  }
+  const limit = scopedLimit(docs.limit, areas);
+  const filter = { docsSourceId: arm.docsSourceId, types: docs.types, limit };
+
+  return {
+    itemsOf: (hits) => widenedDocuments(hits, filter, stored),
+    limit,
+    eager: false,
+  };
 }
 
 /** A ticket naming several places gets room for each: one more document per place past the first, up to twice the section's limit. */
@@ -167,13 +188,17 @@ function scopedLimit(limit: number, areas: number): number {
   return limit + Math.min(limit, Math.max(0, areas - 1));
 }
 
-function coverageReader(arm: UtopiaArm, source: string): HitsReader | null {
+function coverageReader(
+  arm: UtopiaArm,
+  source: string,
+  files: RepoFiles | undefined,
+): HitsReader | null {
   const coverage = COVERAGE_SECTIONS[source];
   const sourceId = arm.coverageSourceId;
 
   return coverage && sourceId
     ? {
-        itemsOf: async (hits) => coverageItems(hits, sourceId, coverage),
+        itemsOf: (hits) => coverageItems(hits, sourceId, coverage, files),
         limit: coverage.limit,
         eager: true,
       }
@@ -199,26 +224,6 @@ function searchPages(
       topK: PAGE_SIZE,
       offset: index * PAGE_SIZE,
     }));
-}
-
-/** Each stored document of the docs source read once per assembly however many sections widen their hits from it; a read that fails leaves the hits as they came. */
-function storedDocuments(
-  arm: UtopiaArm,
-): (path: string) => Promise<StoredDocument | null> {
-  const documents = new Map<string, Promise<StoredDocument | null>>();
-  const { reads, kbId, docsSourceId } = arm;
-
-  return (path) => {
-    const started =
-      documents.get(path) ??
-      reads
-        .documentByExternalId(kbId, docsSourceId, `doc:${path}`)
-        .catch(() => null);
-
-    documents.set(path, started);
-
-    return started;
-  };
 }
 
 /** The first page's documents, or both pages' when the first left the section short and Utopia has more; an eager reader has the second page on its way before the first answers. */

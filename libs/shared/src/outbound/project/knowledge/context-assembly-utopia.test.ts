@@ -345,6 +345,55 @@ describe("utopiaSectionReader code and coupling", () => {
     });
   });
 
+  it("finishes the coupling item with lines 12-14 of pr-body.test.ts, the test the statement is validated by, when the arm reads the repository's files", async () => {
+    const validated = tuple(
+      [
+        attr("s", "text", "A PR footer names its task."),
+        [null, "s", "validated_by", "t1", null, {}, null, null],
+        attr("t1", "title", "prints Lore-Task"),
+        attr("t1", "path", "libs/shared/src/domain/pr-body.test.ts"),
+        attr("t1", "line_start", "12"),
+        attr("t1", "line_end", "14"),
+      ],
+      [
+        ["s", "Statement", true],
+        ["t1", "Test", true],
+      ],
+      `stmt:${SPEC}#0146`,
+    );
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
+    const withFiles = utopiaSectionReader(
+      {
+        reads: searchOver([
+          hit(`stmt:${SPEC}#0146`, validated, 0.016, { sourceId: COVERAGE }),
+        ]),
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        coverageSourceId: COVERAGE,
+        files: async (path) =>
+          path === "libs/shared/src/domain/pr-body.test.ts"
+            ? lines.join("\n")
+            : null,
+      },
+      "prFooter",
+    );
+
+    expect(await withFiles(section("coupling"))).toMatchObject({
+      sources: [
+        {
+          text: [
+            `${SPEC}#0146: A PR footer names its task.`,
+            "  validated by prints Lore-Task (libs/shared/src/domain/pr-body.test.ts:12)",
+            "  --- libs/shared/src/domain/pr-body.test.ts:12-14",
+            "  line 12",
+            "  line 13",
+            "  line 14",
+          ].join("\n"),
+        },
+      ],
+    });
+  });
+
   it("asks for both pages at once for code, the second window before the first page answers", async () => {
     const windows: SearchWindow[] = [];
     const eager = utopiaSectionReader(

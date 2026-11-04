@@ -82,15 +82,20 @@ export function fileNamesOf(terms: string[]): string[] {
   return [...new Set(terms.map(fileNameOf).filter((file) => file !== null))];
 }
 
-/** Whether the text names any of the ticket's files or symbols, case aside; a path counts by its file name, so a memory that says `board.ts` meets a ticket that gives the whole path, and a requirement id counts for nothing, since every DoD run cites one. */
+/** Whether the text names any of the ticket's files or symbols, case aside; a path counts by its file name, so a memory that says `board.ts` meets a ticket that gives the whole path. A requirement id counts for nothing, since every DoD run cites one, and so does a lower-case snake_case name such as `run_id`, a field any memory could carry. */
 export function mentionsAny(text: string, terms: string[]): boolean {
   const haystack = text.toLowerCase();
 
   return terms.some(
     (term) =>
       !isRequirement(term) &&
+      !isSnakeField(term) &&
       haystack.includes((fileNameOf(term) ?? term).toLowerCase()),
   );
+}
+
+function isSnakeField(term: string): boolean {
+  return /^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(term);
 }
 
 function isRequirement(term: string): boolean {

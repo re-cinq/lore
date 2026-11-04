@@ -38,6 +38,7 @@ import {
   utopiaSectionReader,
   type UtopiaMirror,
 } from "./context-assembly-utopia.js";
+import type { RepoFiles } from "./context-assembly-utopia-bodies.js";
 import type { UtopiaMemoryRead } from "./context-assembly-utopia-memory.js";
 import type { AssemblyTrace } from "./context-assembly-trace.js";
 import {
@@ -94,6 +95,8 @@ export interface AssembleOptions {
   utopiaMirror?: UtopiaMirror;
   /** Utopia's memory search for the `memories` and `episodes` sections; absent, they say there is no reader. */
   utopiaMemories?: UtopiaMemoryRead;
+  /** The repository's files, which finish Utopia's coupling items with the lines they cite (FR13.8b). */
+  utopiaFiles?: RepoFiles;
 }
 
 /** One assembly from the chosen store. "both" is Lore's then Utopia's, each labelled and each on half the budget, so the two are compared at the same cost as one. */
@@ -194,9 +197,9 @@ async function assembleFromUtopia(
 }
 
 function utopiaArmFrom(options: AssembleOptions) {
-  const { utopiaReads, utopiaMirror, utopiaMemories } = options;
+  const { utopiaReads, utopiaMirror, utopiaMemories, utopiaFiles } = options;
 
-  return utopiaArmOf(utopiaReads, utopiaMirror, utopiaMemories);
+  return utopiaArmOf(utopiaReads, utopiaMirror, utopiaMemories, utopiaFiles);
 }
 
 interface SectionFetchContext {
