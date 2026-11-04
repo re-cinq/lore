@@ -6,14 +6,25 @@ export interface AssemblyQueryFormProps {
   query: string;
   template: string;
   templates: string[];
+  /** The store `/api/context` reads; empty lets the repo's own setting choose. */
+  backend: string;
   loading: boolean;
   canSubmit: boolean;
   onQueryChange: (value: string) => void;
   onTemplateChange: (value: string) => void;
+  onBackendChange: (value: string) => void;
   onSubmit: () => void;
 }
 
-/** The query textarea, the template picker and the submit — one form because they are one decision: what to assemble and how. */
+const BACKENDS = [
+  { value: "", label: "repo default" },
+  { value: "lore", label: "lore" },
+  { value: "utopia", label: "utopia" },
+  { value: "both", label: "both" },
+  { value: "lore-v2", label: "lore-v2 (context builder)" },
+];
+
+/** The query textarea, the template and backend pickers and the submit — one form because they are one decision: what to assemble and how. */
 export default function AssemblyQueryForm({
   canSubmit,
   ...props
@@ -58,41 +69,81 @@ type FormControlsProps = Omit<
   "query" | "onQueryChange" | "onSubmit"
 >;
 
-/** The template picker and the submit, which travel together: the template decides WHICH assembly runs, so choosing one and running it is a single decision. */
+/** The pickers and the submit, which travel together: template and backend decide WHICH assembly runs, so choosing them and running it is a single decision. */
 function FormControls({ loading, canSubmit, ...field }: FormControlsProps) {
   return (
     <div className={styles.controls}>
-      <label htmlFor="template" className="meta">
-        Template
-      </label>
-      <TemplateSelect {...field} />
-      <button type="submit" className="btn" disabled={!canSubmit}>
-        {loading ? "Assembling…" : "Assemble"}
-      </button>
+      <OptionSelect
+        id="template"
+        label="Template"
+        value={field.template}
+        options={field.templates.map((t) => ({ value: t, label: t }))}
+        onChange={field.onTemplateChange}
+      />
+      <BackendSelect {...field} />
+      <SubmitButton loading={loading} canSubmit={canSubmit} />
     </div>
   );
 }
 
-type TemplateSelectProps = Pick<
-  AssemblyQueryFormProps,
-  "template" | "templates" | "onTemplateChange"
->;
+function BackendSelect({
+  backend,
+  onBackendChange,
+}: Pick<AssemblyQueryFormProps, "backend" | "onBackendChange">) {
+  return (
+    <OptionSelect
+      id="backend"
+      label="Backend"
+      value={backend}
+      options={BACKENDS}
+      onChange={onBackendChange}
+    />
+  );
+}
 
-function TemplateSelect({
-  template,
-  templates,
-  onTemplateChange,
-}: TemplateSelectProps) {
+function SubmitButton({
+  loading,
+  canSubmit,
+}: Pick<AssemblyQueryFormProps, "loading" | "canSubmit">) {
+  return (
+    <button type="submit" className="btn" disabled={!canSubmit}>
+      {loading ? "Assembling…" : "Assemble"}
+    </button>
+  );
+}
+
+interface OptionSelectProps {
+  id: string;
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}
+
+type SelectProps = Omit<OptionSelectProps, "label">;
+
+function OptionSelect({ id, label, ...select }: OptionSelectProps) {
+  return (
+    <>
+      <label htmlFor={id} className="meta">
+        {label}
+      </label>
+      <Select id={id} {...select} />
+    </>
+  );
+}
+
+function Select({ id, value, options, onChange }: SelectProps) {
   return (
     <select
-      id="template"
-      value={template}
-      onChange={(e) => onTemplateChange(e.target.value)}
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
       className={styles.select}
     >
-      {templates.map((t) => (
-        <option key={t} value={t}>
-          {t}
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
         </option>
       ))}
     </select>

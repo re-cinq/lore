@@ -62,11 +62,13 @@ const baseProps = (
   query: "add auth",
   template: "implementation",
   templates: ["default", "implementation", "review", "research"],
+  backend: "",
   result: null,
   loading: false,
   error: null,
   onQueryChange: vi.fn(),
   onTemplateChange: vi.fn(),
+  onBackendChange: vi.fn(),
   onSubmit: vi.fn(),
   ...over,
 });
@@ -97,6 +99,19 @@ describe("AssembledContextView — form + state", () => {
 
     expect(select.value).toBe("review");
     expect(select.querySelectorAll("option")).toHaveLength(4);
+  });
+
+  it("offers the repo default, lore, utopia, both and lore-v2 as backends", () => {
+    render(<AssembledContextView {...baseProps({ backend: "lore-v2" })} />);
+    const select = screen.getByLabelText("Backend") as HTMLSelectElement;
+
+    expect({
+      value: select.value,
+      options: [...select.options].map((option) => option.value),
+    }).toEqual({
+      value: "lore-v2",
+      options: ["", "lore", "utopia", "both", "lore-v2"],
+    });
   });
 
   it("pushes query and template edits up via callbacks", () => {

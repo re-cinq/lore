@@ -6,34 +6,43 @@ import { repoRoute } from "@/lib/repo-route";
 export const GET = repoRoute(
   "context-preview",
   async (fullName, searchParams) => {
-    const { query, template, debug } = parsePreviewParams(searchParams);
+    const { query, ...options } = parsePreviewParams(searchParams);
 
     if (!query) {
       return NextResponse.json({ error: "query is required" }, { status: 400 });
     }
 
-    return previewResponse(fullName, query, template, debug);
+    return previewResponse(fullName, query, options);
   },
 );
 
-function parsePreviewParams(searchParams: URLSearchParams): {
-  query: string | null;
+interface PreviewOptions {
   template: string;
+  /** `&backend=…` when the page named one, else empty so the repo's setting chooses. */
+  backend: string;
   debug: string;
-} {
+}
+
+function parsePreviewParams(
+  searchParams: URLSearchParams,
+): PreviewOptions & { query: string | null } {
   const query = searchParams.get("query");
   const template = searchParams.get("template") || "implementation";
+  const named = searchParams.get("backend");
+  const backend = named ? `&backend=${encodeURIComponent(named)}` : "";
   const debug = searchParams.get("debug") === "1" ? "&debug=1" : "";
 
-  return { query, template, debug };
+  return { query, template, backend, debug };
 }
+
+/** The context builder (lore-v2) asks a model several questions, so it gets two minutes where a template assembly needs seconds. */
+const PREVIEW_TIMEOUT_MS = 120_000;
 
 /** The authorized half: the session's lore-api credentials, then the same `/api/context` call a task runner makes. */
 async function previewResponse(
   fullName: string,
   query: string,
-  template: string,
-  debug: string,
+  { template, backend, debug }: PreviewOptions,
 ) {
   // Deliberately no per-repo GitHub check: this preview shows the same org-wide context every repo tab already shows.
   const gate = await authorizeSessionLoreApi();
@@ -43,9 +52,9 @@ async function previewResponse(
   }
   const { apiUrl, token } = gate;
   const upstream = await fetch(
-    `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
+    `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${backend}${debug}`,
     {
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(PREVIEW_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${token}` },
     },
   );

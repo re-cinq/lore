@@ -23,11 +23,14 @@ export interface AssembledContextViewProps {
   /** Controlled template value (data down); edits flow up via onTemplateChange. */
   template: string;
   templates: string[];
+  /** Controlled backend value; empty lets the repo's own setting choose. */
+  backend: string;
   result: AssembledResult | null;
   loading: boolean;
   error: string | null;
   onQueryChange: (value: string) => void;
   onTemplateChange: (value: string) => void;
+  onBackendChange: (value: string) => void;
   onSubmit: () => void;
 }
 
@@ -58,8 +61,8 @@ function AssembledHeader() {
         <PromptDebugHelp />
       </div>
       <p className={`meta ${styles.lede}`}>
-        The turn-1 context block, assembled live for your query and template,
-        with a trace of every assembly decision.
+        The turn-1 context block, assembled live for your query, template and
+        backend, with a trace of every assembly decision.
       </p>
     </>
   );
