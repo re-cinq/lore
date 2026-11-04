@@ -4,9 +4,8 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
+  autoMergeStartItems,
   floorRepoOf,
-  gitItem,
-  valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { autoMergeEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreReviewVerdict } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
@@ -81,10 +80,6 @@ function workKeys(run: Parameters<typeof startValue>[0]): string[] {
 async function startRun(repo: string, pull: PullRef): Promise<void> {
   await startLine(floorClient().lines, LINE, {
     repo: floorRepoOf(repo),
-    startItems: {
-      repo: gitItem(repo, pull.branch),
-      pr_url: valueItem(pull.url),
-      head_sha: valueItem(pull.headSha ?? ""),
-    },
+    startItems: autoMergeStartItems(repo, pull),
   });
 }
