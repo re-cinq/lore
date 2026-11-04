@@ -6,7 +6,9 @@
 | Spec    | [spec.md](./spec.md)   |
 | Created | 2026-11-04             |
 
-Each phase is one pull request, and the phases merge in order. Phase 1 fixes the "did my click register?" problem by itself, so it should not wait for the others.
+Each phase is one pull request. Phase 1 fixes the "did my click register?" problem by itself, so it should not wait for the others.
+
+**T017 and T018 ship first, as their own small PR, ahead of Phase 1** (amended 2026-11-04 after T001). The `{ since }` cost read is the whole 30 s on the measured plan, and its uncaught failure is what makes the page say "No planning run yet" and open the editor during a run. Those two tasks alone should take that plan's run list from a 500 after 30 s to about 1–2 s. The other phases still follow in order.
 
 Within a phase, a task marked `[P]` has no unfinished prerequisite and can run beside the other tasks of its phase. A task with `(depends on …)` waits for those tasks. Two tasks that edit the same file are chained, never parallel.
 
@@ -16,7 +18,7 @@ Every task that adds a behaviour adds its test and links the statement it proves
 
 ## Phase 0: Baseline (before any code)
 
-- [ ] T001 **Record the slow reads (SC-003, before).** Pick one production plan with two or more planning runs and an open spec PR. With a read-scope token, time `GET /api/assembly-runs?repo=…&subject_key=plan:<id>&blueprint=feature-planning`, `GET /api/assembly-lines/<run id>/nodes` and `GET /api/pr-status?repo=…&pr_number=…` five times each (`curl -w '%{time_total}'`). Record the medians and the worst run in the Phase 3 PR description. Keep the script in the scratchpad, not the repo.
+- [x] T001 **Record the slow reads (SC-003, before).** Done on 2026-11-04 against `re-cinq/Otto` plan `64e50ec3-…`. The numbers are in the spec's opening table. The run list fails with a 500 after 30.5 s, every time. The cause is the `{ since }` cost read (1 run: 1.0 s, 2 runs: 28.4 s). Visits take 0.3–0.5 s. This plan's runs carry no spec PR, so PR status was not timed. T022 repeats the same reads.
 
 ## Phase 1: Instant feedback (PR 1)
 

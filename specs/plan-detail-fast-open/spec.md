@@ -15,6 +15,20 @@ There are two causes:
 1. **No loading boundary.** The only `loading.tsx` near the plan page is the repository's (`apps/web-ui/src/app/repos/[owner]/[repo]/loading.tsx`). Next.js shows a loading boundary only when the segment directly under it changes. Going from `/plans` to `/plans/<id>` keeps that segment as `plans`, so Next keeps the old page on screen until the server render finishes.
 2. **A slow server render.** `PlanDetailPage` waits for the plan, then for the planning run (`planRunFor`), which waits for the run list, then for the run's visits and the spec PR's status. Behind those calls, lore-api makes three floor round trips for the run list, one of them a cost read that sums every floor run in the org since the plan's oldest run (`apps/lore-api/src/work/floor/floor-costs.ts`). It makes about four floor calls for the visits, one of them twice. It makes at least four GitHub calls in sequence for the PR, starting with minting a new installation token on every call (`apps/lore-api/src/outbound/github-client.ts`). None of the web-ui calls has a deadline.
 
+**Measured on 2026-11-04** with the plan `64e50ec3-2dfb-457a-ae4f-fd3859a7c227` of `re-cinq/Otto`, which has seven planning runs, from 2026-10-07 to 2026-10-12:
+
+| Read | Time | Answer |
+|---|---|---|
+| `GET /api/plans/:id` | 0.46 s | 200 |
+| `GET /api/assembly-runs?…&engine=lore` (Postgres only) | 0.47 s | 200 |
+| `GET /api/assembly-runs?subject_key=plan:…&blueprint=feature-planning` | **30.5 s, twice** | **500** |
+| `GET /api/assembly-lines/:id/nodes`, for each of three of its runs | 0.3–0.5 s | 200 |
+| `GET /api/floor-runs?repo=re-cinq/Otto&line=feature-planning&limit=1` | 1.0 s | 200 |
+| the same with `limit=2` | **28.4 s** | 200 |
+| `GET /api/floor-runs?repo=re-cinq/Otto&line=code-review&limit=5` (recent runs) | 1.8 s | 200 |
+
+The only difference between `limit=1` and `limit=2` is the cost read: one run is read as `{ run }`, two or more as `{ since: oldest }`. The floor's summary of every run since 2026-10-11 takes about 28 s. On `/api/floor-runs`, that failure is caught (`floor-run-rows.ts`), so it is only slow. On `/api/assembly-runs` it is not caught, so the call returns 500 after the floor client's 30 s timeout. web-ui's `readRuns` then reads the 500 as an empty list. So today this plan's page takes more than 30 s, then says "No planning run yet" and opens the editor for a run that is waiting at `author`. That is the very state SC-004 forbids.
+
 This feature makes a click show its effect at once (FR1, FR2), renders the plan before its run arrives (FR3–FR5), and takes the waste out of the reads behind it (FR6–FR9).
 
 ## FR1: The plan page has its own loading skeleton
