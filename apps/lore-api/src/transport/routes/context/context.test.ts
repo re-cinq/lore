@@ -250,6 +250,31 @@ describe("GET /api/context", () => {
 
     expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("both");
   });
+
+  it("assembles from lore when the request names backend=lore-v2 and no model is named for context", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const res = await get(
+      makePool(),
+      "/api/context?query=hi&repo=o/r&backend=lore-v2",
+    );
+
+    expect({
+      status: res.statusCode,
+      backend: vi.mocked(assembleContext).mock.calls[0]?.[2]?.backend,
+    }).toEqual({ status: 200, backend: "lore" });
+  });
+
+  it("logs no builder line for backend=lore even when a model is named for context", async () => {
+    process.env.LORE_CONTEXT_LLM_PROVIDER = "anthropic";
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await get(makePool(), "/api/context?query=hi&repo=o/r&backend=lore");
+
+    expect(
+      log.mock.calls.filter(([line]) => String(line).includes("builder=")),
+    ).toEqual([]);
+  });
 });
 
 const reader = new PeriodicExportingMetricReader({

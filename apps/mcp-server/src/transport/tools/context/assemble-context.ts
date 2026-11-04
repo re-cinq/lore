@@ -14,8 +14,10 @@ import {
 } from "../shared/deps.js";
 import { repoParam, withRepo, type ServerMode } from "../shared/repo-scope.js";
 import { updateBanner } from "../../../work/update/mcp-update.js";
-import { backendParam } from "../shared/backend-param.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  ContextBackendSchema,
+  type ContextBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -23,7 +25,7 @@ interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;
   agent_id?: string;
-  backend?: KnowledgeBackend;
+  backend?: ContextBackend;
 }
 
 interface AssembleContextArgs extends AssembleContextExtraArgs {
@@ -42,13 +44,15 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .string()
     .default("default")
     .describe(
-      "Ignored: the block is built from the task's own questions. Only the template assembly the API falls back to (when it has no model for context) reads it; removed in the next release.",
+      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under backend lore-v2.",
     ),
   max_tokens: z
     .number()
     .min(2000)
     .default(8000)
-    .describe("Caps the block's length; floor 2000. Defaults to 8000."),
+    .describe(
+      "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
+    ),
   agent_id: z
     .string()
     .optional()
@@ -59,7 +63,10 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
     ),
-  backend: backendParam,
+  // Optional, not defaulted: an unset backend lets the API apply the repo's settings.context_backend before falling back to Utopia.
+  backend: ContextBackendSchema.optional().describe(
+    "utopia (default), lore, or both: the template assembly over that store. lore-v2: a block built from the task's own questions over Lore's stores.",
+  ),
 };
 
 export function registerAssembleContextTool(
@@ -68,8 +75,8 @@ export function registerAssembleContextTool(
 ) {
   server.tool(
     "lore_assemble_context",
-    `Builds ONE context block for a task from the task's own questions: a repo primer, key facts each citing its source, where to look (specs, files, tests), and previous work (issues, pull requests, commits, sessions), reading the repositories it depends on beside it. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships.`,
+    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. With backend lore-v2 the block is instead built from the task's own questions: a repo primer, key facts each citing its source, where to look, and previous work. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
     { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
       trackLatency("lore_assemble_context", () => assembleForMode(args, mode)),

@@ -93,7 +93,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](libs/server-core/src/outbound/proxy-cache.test.ts#L83), [`proxy-cache.test.ts:158`](libs/server-core/src/outbound/proxy-cache.test.ts#L158))
 
 7. **AC7** On an authoritative access denial (HTTP 401/403), no cached copy
-   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by does not serve a stale cached copy when the backend denies access (403)](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L186))
+   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by does not serve a stale cached copy when the backend denies access (403)](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L192))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
    overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/outbound/proxy-cache.ts#L190))

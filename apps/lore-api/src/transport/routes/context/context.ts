@@ -8,7 +8,10 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
-import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  ContextBackendSchema,
+  storeOf,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 import {
   assemblyScope,
   templateAssembly,
@@ -39,8 +42,8 @@ const ContextQuery = z.object({
     .default(8000),
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
-  // Unset → the repo's settings.context_backend, then "utopia"; an unknown store is a 400, never a silent Lore read.
-  backend: KnowledgeBackendSchema.optional(),
+  // Unset → the repo's settings.context_backend, then "utopia"; an unknown store is a 400, never a silent Lore read. Only lore-v2 runs the context builder.
+  backend: ContextBackendSchema.optional(),
 });
 
 type ContextQuery = z.infer<typeof ContextQuery>;
@@ -143,11 +146,13 @@ function joinWithinBudget(contents: string[], maxChars: number): string | null {
   return parts.length > 0 ? parts.join(SEPARATOR) : null;
 }
 
-/** The block for a query: the context builder's when a model is named for it, else the template assembly (#4090). `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
+/** The block for a query: the context builder's when the request names backend lore-v2 and a model is named for it, else the template assembly (#4090). `text` is nulled when empty rather than served as an empty string: a caller distinguishes "assembled nothing" from "assembled blank", and only the first is worth telling an agent about. */
 async function assembledResponse(pool: Pool, q: ContextQuery) {
   const query = q.query as string;
   const result = await builtOrAssembled(
-    contextBuilderFor(pool, builderRequest(q, query)),
+    q.backend === "lore-v2"
+      ? contextBuilderFor(pool, builderRequest(q, query))
+      : null,
     () => reportedTemplateAssembly(pool, query, q),
   );
 
@@ -166,7 +171,6 @@ function builderRequest(q: ContextQuery, query: string) {
     query,
     maxTokens: q.max_tokens,
     agentId: q.agent_id,
-    backend: q.backend,
     crossRepoRequested: q.cross_repo,
   };
 }
@@ -178,7 +182,7 @@ async function reportedTemplateAssembly(
   q: ContextQuery,
 ) {
   const repo = q.repo || undefined;
-  const scope = await assemblyScope(pool, repo, q.backend);
+  const scope = await assemblyScope(pool, repo, storeOf(q.backend));
 
   return reportingAssembly(
     { backend: scope.backend, repo, template: q.template, query },

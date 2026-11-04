@@ -1,12 +1,10 @@
-// What the context builder reads through in lore-api: the repository's files and issues on GitHub, the template assembly for each question, the mirrored tracker and the memory search for earlier work, on the model named for the `context` use.
+// What the context builder (backend lore-v2) reads through in lore-api: the repository's files and issues on GitHub, Lore's template assembly for each question and Lore's memory search for earlier work, on the model named for the `context` use.
 
 import type { Pool } from "pg";
 import type { Project } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { useNamesProvider } from "@re-cinq/lore-shared/llm/select-provider.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
-import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import {
   buildContext,
   type ContextBuilderDeps,
@@ -16,8 +14,6 @@ import {
   writePrimer,
 } from "@re-cinq/lore-shared/context-builder/repo-primer.js";
 import { projectFor } from "../../outbound/project-boot.js";
-import { kindSourceFor } from "../../outbound/utopia/kind-sources.js";
-import { searchUtopiaMemories } from "../utopia/memory/utopia-memory-search.js";
 import {
   assemblyScope,
   templateAssembly,
@@ -32,7 +28,6 @@ export interface BuilderRequest {
   query: string;
   maxTokens: number;
   agentId?: string;
-  backend?: KnowledgeBackend;
   crossRepoRequested: boolean;
 }
 
@@ -47,10 +42,7 @@ const REGISTRY_TIMEOUT_MS = 5_000;
 const MAX_MANIFESTS = 20;
 const MEMORY_LIMIT = 6;
 const MAX_ISSUE_CHARS = 3_000;
-const TRACKER_KINDS = ["issues", "pull-requests", "git-history"] as const;
-const PAGE = { topK: 20, offset: 0 };
-/** Under backend `lore` Utopia is not read: Lore holds no mirror of issues, pull requests or commits. */
-const NO_TRACKER = { tracker: [], trackerSources: [] };
+const STORE = "lore";
 
 const primerAt = primerCache(async (repo) => {
   const project = await projectFor(repo);
@@ -92,7 +84,7 @@ async function builderDeps(
 ): Promise<ContextBuilderDeps> {
   const [project, scope] = await Promise.all([
     projectFor(request.repo),
-    assemblyScope(pool, request.repo, request.backend),
+    assemblyScope(pool, request.repo, STORE),
   ]);
   const tree = once(() => project.repo.tree());
 
@@ -103,7 +95,7 @@ async function builderDeps(
     readFile: (path) => project.repo.read(path),
     answer: (question, repo) => answerText(pool, question, { repo, request }),
     issue: (number) => issueText(project, number),
-    previousWork: (terms) => previousWork(pool, { request, scope }, terms),
+    previousWork: (terms) => previousWork(pool, request, terms),
     relatedRepos: () => relatedFor(pool, { request, scope }, tree),
   };
 }
@@ -117,7 +109,7 @@ async function answerText(
   question: string,
   { repo, request }: { repo: string; request: BuilderRequest },
 ): Promise<string> {
-  const scope = await assemblyScope(pool, repo, request.backend);
+  const scope = await assemblyScope(pool, repo, STORE);
   const assembled = await templateAssembly(pool, question, {
     ...scope,
     repo,
@@ -141,58 +133,16 @@ async function issueText(
 
 async function previousWork(
   pool: Pool,
-  asked: Asked,
+  request: BuilderRequest,
   terms: string[],
 ): Promise<string[]> {
-  const query = terms.join(" ") || asked.request.query;
-  const [tracker, memories] = await Promise.all([
-    asked.scope.backend === "lore"
-      ? NO_TRACKER
-      : trackerHits(pool, asked.request.repo, query),
-    memoryHits(pool, asked, query),
-  ]);
-
-  return previousWorkLines({ ...tracker, memories });
-}
-
-async function trackerHits(pool: Pool, repo: string, query: string) {
-  const reads = utopiaReadsFrom(process.env);
-  const sources = await Promise.all(
-    TRACKER_KINDS.map((kind) => kindSourceFor(pool, repo, kind)),
+  const memories = await searchMemories(
+    pool,
+    terms.join(" ") || request.query,
+    { agentId: request.agentId, limit: MEMORY_LIMIT },
   );
-  const stored = sources.filter((source) => source !== null);
-  const kbId = stored.at(0)?.kbId;
 
-  if (!reads || !kbId) {
-    return { tracker: [], trackerSources: [] };
-  }
-  const page = await reads.search(kbId, query, PAGE);
-
-  return {
-    tracker: page.hits,
-    trackerSources: stored.map((source) => source.id),
-  };
-}
-
-async function memoryHits(
-  pool: Pool,
-  { request, scope }: Asked,
-  query: string,
-): Promise<unknown> {
-  const reads = utopiaReadsFrom(process.env);
-
-  if (scope.backend !== "lore" && reads) {
-    return searchUtopiaMemories(pool, reads, {
-      query,
-      repo: request.repo,
-      limit: MEMORY_LIMIT,
-    });
-  }
-
-  return searchMemories(pool, query, {
-    agentId: request.agentId,
-    limit: MEMORY_LIMIT,
-  });
+  return previousWorkLines(memories);
 }
 
 async function relatedFor(

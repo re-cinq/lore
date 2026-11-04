@@ -20,8 +20,8 @@ one source at a time wastes the agent's first turns and leaves the caller to
 stitch the pieces into a coherent, token-budgeted block. `lore_assemble_context` is
 the single call that retrieves from every source, orders sections by a
 task-type template, fits a token budget, and emits a provenance-tagged block an
-LLM consumes directly. Since 2026-11-03 the block is built from the task's own
-questions rather than from a template; see [Context builder](#context-builder-2026-11-03-4090).
+LLM consumes directly. A call naming `backend: "lore-v2"` gets a block built from
+the task's own questions instead; see [Context builder](#context-builder-2026-11-03-4090).
 
 ## Interface
 
@@ -31,8 +31,8 @@ Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools
 - **description** (verbatim):
 
 ```text
-Builds ONE context block for a task from the task's own questions: a repo primer, key facts each citing its source, where to look (specs, files, tests), and previous work (issues, pull requests, commits, sessions), reading the repositories it depends on beside it. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
-Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships.
+Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. With backend lore-v2 the block is instead built from the task's own questions: a repo primer, key facts each citing its source, where to look, and previous work. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.
 ```
 
 ### Input schema (Zod)
@@ -40,12 +40,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `query` | string | yes | — | Natural-language description of the context needed. Drives retrieval and ranking across all sources. |
-| `template` | string | no | `default` | Ignored: the block is built from the task's own questions. Only the template assembly the API falls back to (when it has no model for context) reads it; removed in the next release. |
-| `max_tokens` | number | no | `8000` | Caps the block's length; floor 2000. Defaults to 8000. |
+| `template` | string | no | `default` | Section-ordering profile. Recognized values: 'default' \| 'review' \| 'implementation' \| 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under `lore-v2`. |
+| `max_tokens` | number | no | `8000` | Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000. |
 | `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted; in the agent gateway the description says it is required. |
 | `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |
 | `cross_repo` | boolean | no | `false` | When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false. |
-| `backend` | `"lore" \| "utopia" \| "both"` | no | — | utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. |
+| `backend` | `"lore" \| "utopia" \| "both" \| "lore-v2"` | no | — | utopia (default), lore, or both: the template assembly over that store. lore-v2: a block built from the task's own questions over Lore's stores. |
 
 The whole handler body is wrapped in `trackLatency('lore_assemble_context', …)` which
 records latency + success into `memory.audit_log` and an OTEL span.
@@ -111,7 +111,7 @@ sources. ([validated by `debug trace reports per-section status and omit reason 
 
 On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
-a reachable non-empty response returns the live text. ([validated by returns an empty-but-reachable context as-is instead of a stale cached copy](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L173), [validated by returns the live result on a reachable hit](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L205))
+a reachable non-empty response returns the live text. ([validated by returns an empty-but-reachable context as-is instead of a stale cached copy](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L179), [validated by returns the live result on a reachable hit](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L211))
 
 *(added 2026-10-01, #2103)* The shared agent gateway has no checkout, so it never
 shells out to git for a repo or branch: a call that names no repo is answered with
@@ -119,7 +119,7 @@ shells out to git for a repo or branch: a call that names no repo is answered wi
 says it is required there, and an API refusal reads as "Lore API rejected
 lore_assemble_context" with the API's reason, never as an unreachable API. A laptop's
 stdio adapter still reads its checkout's git remote.
-([validated by asks for the repo instead of proxying an empty one when the call names none](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L219), [validated by logs sources none and tokens 0 for an answer with no sections](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L89), [validated by says assembly needs the API when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L252), [validated by hands the read the repo re-cinq/lore the call names](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L144), [validated by answers that the gateway needs the repo named when an agent call omits it](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L154), [`reports the API's refusal as a rejection with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L231), [`reads the checkout on a laptop when the call names nothing`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L26), [`never shells out to git in the agent gateway, which has no checkout, and leaves an omitted repo to the caller`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L33), [`takes the repo and branch the call names in either mode`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L43), [`tells the gateway's caller the repo is required, and a laptop's that it is auto-detected`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L52), [`refuses a repo that is not owner/name, with `..`, `?` or extra slashes`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L85), [`accepts owner/name with dots, dashes and underscores`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L99), [`answers with the refusal and never calls the read for a hostile repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L107), [`answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L128); implemented by [`repo-scope.ts`](apps/mcp-server/src/transport/tools/shared/repo-scope.ts))
+([validated by asks for the repo instead of proxying an empty one when the call names none](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L225), [validated by logs sources none and tokens 0 for an answer with no sections](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L95), [validated by says assembly needs the API when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L258), [validated by hands the read the repo re-cinq/lore the call names](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L144), [validated by answers that the gateway needs the repo named when an agent call omits it](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L154), [`reports the API's refusal as a rejection with its reason, not as an unreachable API`](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L237), [`reads the checkout on a laptop when the call names nothing`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L26), [`never shells out to git in the agent gateway, which has no checkout, and leaves an omitted repo to the caller`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L33), [`takes the repo and branch the call names in either mode`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L43), [`tells the gateway's caller the repo is required, and a laptop's that it is auto-detected`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L52), [`refuses a repo that is not owner/name, with `..`, `?` or extra slashes`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L85), [`accepts owner/name with dots, dashes and underscores`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L99), [`answers with the refusal and never calls the read for a hostile repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L107), [`answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo`](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L128); implemented by [`repo-scope.ts`](apps/mcp-server/src/transport/tools/shared/repo-scope.ts))
 
 *(added 2026-10-11, #2156)* On the shared agent gateway `repo` is a required parameter of every tool that reads a repo, enforced by the tool's Zod schema with the "pass repo as owner/name" hint; one gateway serves every pod, so no process-wide setting can name a call's repo and an omitted one is never filled from the environment, the working directory or a git remote. ([validated by rejects an omitted repo in the gateway with the owner/name hint, and accepts one on a laptop](apps/mcp-server/src/transport/tools/shared/repo-scope.test.ts#L63))
 
@@ -140,7 +140,7 @@ The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.
 ([validated by rejects max_tokens below the 2000 floor](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L47), [validated by accepts max_tokens at the 2000 floor](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L53))
 
-*(added 2026-10-16)* An optional `backend` param — "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L59), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L123), [validated by forwards max_tokens 16000, cross_repo true and agent_id agent-7 to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L137))
+*(added 2026-10-16)* An optional `backend` param — "utopia (default), lore, or both — compare Lore's stores with Utopia; Utopia sources fill in as their readers land" — accepts only those three values and is forwarded to `GET /api/context` as `backend`; left unset it is not sent, so the API applies the repo's `settings.context_backend`. ([validated by accepts backend both and refuses backend dgraph](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L59), [validated by forwards backend=utopia to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L129), [validated by forwards max_tokens 16000, cross_repo true and agent_id agent-7 to GET /api/context](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L143))
 
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a
@@ -148,7 +148,7 @@ populated DB; the engine itself is covered above.)*
 
 ## Proxy timeout *(2026-10-31)*
 
-`lore_assemble_context`, `lore_search_context` and `lore_search_memory` give the API 45 s per attempt (`ASSEMBLY_PROXY_LIMITS`), above the 30 s tail Utopia-backed assembly measured on 2026-10-31. ([validated by waits 45s per attempt on /api/context and names 45s in the timeout detail](../../../libs/server-core/src/outbound/proxy.test.ts#L499), [validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L110)) ([validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/search-context.test.ts#L153), [validated by gives a memory search 45s per attempt](../../../apps/mcp-server/src/transport/tools/memory/search-memory.test.ts#L43))
+`lore_assemble_context`, `lore_search_context` and `lore_search_memory` give the API 45 s per attempt (`ASSEMBLY_PROXY_LIMITS`), above the 30 s tail Utopia-backed assembly measured on 2026-10-31. ([validated by waits 45s per attempt on /api/context and names 45s in the timeout detail](../../../libs/server-core/src/outbound/proxy.test.ts#L499), [validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L116)) ([validated by gives the API 45s per attempt](../../../apps/mcp-server/src/transport/tools/context/search-context.test.ts#L153), [validated by gives a memory search 45s per attempt](../../../apps/mcp-server/src/transport/tools/memory/search-memory.test.ts#L43))
 
 A timed-out assembly is retried once, two attempts in all. ([validated by retries a timed-out /api/context assembly once, 2 attempts in all](../../../libs/server-core/src/outbound/proxy.test.ts#L518))
 
@@ -156,7 +156,11 @@ Every other proxied call keeps 15 s and four attempts. ([validated by keeps 15s 
 
 ## Context builder *(2026-11-03, #4090)*
 
-`/api/context` builds the block from the question instead of from a template the caller picks. 1,136 real calls (pod transcripts 2026-09-09..10-01, the gateway log 10-25..11-02, laptop sessions) showed that callers mostly pass no template (72% of pod calls), that no assembly comes near its budget (median 1.5–2.5k of 8k tokens), and that docs and spec + tests are the most useful sources for every kind of task while memories and episodes are the least, whatever the template. A query's wording does not tell a review from an implementation either. The block is therefore built in four parts, each from evidence it cites.
+`/api/context` builds the block from the question instead of from a template the caller picks when the call names `backend: "lore-v2"`; `lore`, `utopia` and `both` keep the template assembly described above. ([validated by accepts backend lore-v2](../../../apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L66), [validated by logs no builder line for backend=lore even when a model is named for context](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L267))
+
+The builder reads Lore's stores only: every question is answered by the template assembly over backend `lore`, so `lore-v2` never reads Utopia. ([validated by assembles from lore when the request names backend=lore-v2 and no model is named for context](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L254))
+
+1,136 real calls (pod transcripts 2026-09-09..10-01, the gateway log 10-25..11-02, laptop sessions) showed that callers mostly pass no template (72% of pod calls), that no assembly comes near its budget (median 1.5–2.5k of 8k tokens), and that docs and spec + tests are the most useful sources for every kind of task while memories and episodes are the least, whatever the template. A query's wording does not tell a review from an implementation either. The block is therefore built in four parts, each from evidence it cites.
 
 ### Parts of the block
 
@@ -178,11 +182,11 @@ An answer that rests on a spec requirement, an ADR or a stated rule quotes its s
 
 It points; it does not copy their content.
 
-**Previous work** lists the issues, pull requests, commits, past sessions and run episodes on the same topic, one line each: what it was, its outcome and the lesson. ([validated by keeps the hits of the issues and pull-requests sources, once each, and drops a docs hit](apps/lore-api/src/work/context/previous-work.test.ts#L21), [validated by reads memory hits from Lore's bare list and Utopia's results envelope alike](apps/lore-api/src/work/context/previous-work.test.ts#L47), [validated by cuts a 2000-character memory to 600 characters](apps/lore-api/src/work/context/previous-work.test.ts#L73))
+**Previous work** lists the issues, pull requests, past sessions and run episodes on the same topic, one line each: what it was, its outcome and the lesson. ([validated by lists memory session-summary/2026-09-28 once when the search found it twice](apps/lore-api/src/work/context/previous-work.test.ts#L5), [validated by cuts a 2000-character memory to 600 characters](apps/lore-api/src/work/context/previous-work.test.ts#L16))
 
 Previous work is found first through what the query names: an issue or pull request number, a spec path, an FR id or a file path. ([validated by reads issue 621 and PR #2154 as numbers](libs/shared/src/work/context-builder/query-anchors.test.ts#L20), [validated by keeps FR-050 and a dotted FR id as they are written](libs/shared/src/work/context-builder/query-anchors.test.ts#L26), [validated by finds nothing in a query that names nothing](libs/shared/src/work/context-builder/query-anchors.test.ts#L32), [validated by looks up issue 621 the query names and hands its text to the write-up](libs/shared/src/work/context-builder/build-context.test.ts#L105))
 
-A topic search of the repository's mirrored issues, pull requests, commits and memories adds the rest. ([validated by searches previous work by the model's search terms and the requirements the query names](libs/shared/src/work/context-builder/build-context.test.ts#L118))
+A topic search of Lore's memories, sessions and episodes adds the rest. ([validated by searches previous work by the model's search terms and the requirements the query names](libs/shared/src/work/context-builder/build-context.test.ts#L118))
 
 For a task that writes (a digest, a changelog, a document), previous work also carries one or two earlier outputs of the same kind as examples of their format and voice. ([validated by asks for earlier outputs as examples when the task writes a digest, changelog or document](libs/shared/src/work/context-builder/builder-prompts.test.ts#L34))
 
@@ -200,13 +204,13 @@ Every statement in the block is supported by the evidence it was written from. A
 
 ### Arguments
 
-`template` is accepted and ignored, so a caller that still sends it gets the same block; it is removed from the schema in the release after.
+Under `lore-v2`, `template` is accepted and ignored, so a caller that still sends it gets the same block.
 
-`max_tokens` caps the block's length, `backend` chooses the store the questions are answered from, `agent_id` scopes the memories they read, and `cross_repo` adds the repositories in `settings.cross_repo_repos` to those read. ([validated by keeps the block under 900 words at 8000 or 2000 tokens and under 700 words at 1000 tokens](libs/shared/src/work/context-builder/builder-prompts.test.ts#L40))
+`max_tokens` caps the block's length, `agent_id` scopes the memories they read, and `cross_repo` adds the repositories in `settings.cross_repo_repos` to those read. ([validated by keeps the block under 900 words at 8000 or 2000 tokens and under 700 words at 1000 tokens](libs/shared/src/work/context-builder/builder-prompts.test.ts#L40))
 
 ### Fallback
 
-When the builder cannot run (no model is configured for the `context` use, or a model call or a read fails), `/api/context` returns the assembly this spec described before 2026-11-03, so a call is never answered with an error the old path could have answered. ([validated by serves the template assembly when no model is named for the context use](apps/lore-api/src/work/context/built-or-assembled.test.ts#L12), [validated by serves the template assembly with the reason when the builder throws](apps/lore-api/src/work/context/built-or-assembled.test.ts#L19), [validated by serves the template assembly when the builder writes nothing](apps/lore-api/src/work/context/built-or-assembled.test.ts#L40), [validated by serves the builder's block as one Context builder section of its 4-chars-per-token size](apps/lore-api/src/work/context/built-or-assembled.test.ts#L30))
+When the builder cannot run (no model is configured for the `context` use, or a model call or a read fails), a `lore-v2` call gets the template assembly over backend `lore`, so a call is never answered with an error the old path could have answered. ([validated by serves the template assembly when no model is named for the context use](apps/lore-api/src/work/context/built-or-assembled.test.ts#L12), [validated by serves the template assembly with the reason when the builder throws](apps/lore-api/src/work/context/built-or-assembled.test.ts#L19), [validated by serves the template assembly when the builder writes nothing](apps/lore-api/src/work/context/built-or-assembled.test.ts#L40), [validated by serves the builder's block as one Context builder section of its 4-chars-per-token size](apps/lore-api/src/work/context/built-or-assembled.test.ts#L30))
 
 The model is the one named for the `context` use (`LORE_CONTEXT_LLM_PROVIDER`, `LORE_CONTEXT_LLM_MODEL`), so the builder can run on another vendor than every other model call.
 

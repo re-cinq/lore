@@ -5,6 +5,21 @@ export const KnowledgeBackendSchema = z.enum(["lore", "utopia", "both"]);
 
 export type KnowledgeBackend = z.infer<typeof KnowledgeBackendSchema>;
 
+/** What `/api/context` answers from: a knowledge backend through the template assembly, or `lore-v2`, the context builder (#4090) reading Lore's stores. */
+export const ContextBackendSchema = z.enum([
+  ...KnowledgeBackendSchema.options,
+  "lore-v2",
+]);
+
+export type ContextBackend = z.infer<typeof ContextBackendSchema>;
+
+/** The store a context backend reads: `lore-v2` reads Lore's. */
+export function storeOf(
+  backend?: ContextBackend,
+): KnowledgeBackend | undefined {
+  return backend === "lore-v2" ? "lore" : backend;
+}
+
 /** The request's choice wins, then the repo's `settings.context_backend`, then Utopia. */
 export function resolveBackend(
   requested?: KnowledgeBackend,
