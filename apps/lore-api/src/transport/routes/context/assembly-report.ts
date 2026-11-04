@@ -1,12 +1,19 @@
 import { recordContextAssembly } from "@re-cinq/lore-shared/otel/metrics.js";
 import type { AssemblyTrace } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+import type { ContextBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { sourcesOf } from "../../../work/context-evals/assembled-for-eval.js";
 
 interface AssemblyKey {
-  backend: KnowledgeBackend;
+  backend: ContextBackend;
   repo: string | undefined;
   template: string | undefined;
+  query: string;
+}
+
+interface AssemblyTally {
+  sections: string[];
+  tokens: number;
+  ms: number;
 }
 
 /** Runs one assembly and reports it: a log line and a count by backend and outcome, so whether a pod got Utopia content is readable without a floor transcript. A throw is counted as an error and rethrown. */
@@ -27,6 +34,20 @@ export async function reportingAssembly<
   }
 }
 
+const CHARS_PER_TOKEN = 4;
+
+/** Reports a block the context builder wrote, on the same count and line as a template assembly, its one section `builder`. */
+export function reportBuilt(key: AssemblyKey, text: string, ms: number): void {
+  recordContextAssembly({ backend: key.backend, outcome: "ok" });
+  console.log(
+    assembledLine(key, {
+      sections: ["builder"],
+      tokens: Math.ceil(text.length / CHARS_PER_TOKEN),
+      ms,
+    }),
+  );
+}
+
 function reportAssembled(
   key: AssemblyKey,
   trace: AssemblyTrace | undefined,
@@ -40,9 +61,12 @@ function reportAssembled(
     backend: key.backend,
     outcome: outcomeOf(sections, trace),
   });
-  console.log(
-    `[context] assembled backend=${key.backend} repo=${key.repo ?? "-"} template=${key.template ?? "-"} sections=${sections.join(",")} tokens=${tokens} ms=${ms}`,
-  );
+  console.log(assembledLine(key, { sections, tokens, ms }));
+}
+
+/** The query rides last and quoted, so calls can be studied from the API's log alone (#4090). */
+export function assembledLine(key: AssemblyKey, tally: AssemblyTally): string {
+  return `[context] assembled backend=${key.backend} repo=${key.repo ?? "-"} template=${key.template ?? "-"} sections=${tally.sections.join(",")} tokens=${tally.tokens} ms=${tally.ms} query=${JSON.stringify(key.query)}`;
 }
 
 /** ok when a section kept content; else error when a reader failed (a section-level throw is caught into its status), else empty. */

@@ -250,6 +250,31 @@ describe("GET /api/context", () => {
 
     expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("both");
   });
+
+  it("assembles from lore when the request names backend=lore-v2 and no model is named for context", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const res = await get(
+      makePool(),
+      "/api/context?query=hi&repo=o/r&backend=lore-v2",
+    );
+
+    expect({
+      status: res.statusCode,
+      backend: vi.mocked(assembleContext).mock.calls[0]?.[2]?.backend,
+    }).toEqual({ status: 200, backend: "lore" });
+  });
+
+  it("logs no builder line for backend=lore even when a model is named for context", async () => {
+    process.env.LORE_CONTEXT_LLM_PROVIDER = "anthropic";
+    vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await get(makePool(), "/api/context?query=hi&repo=o/r&backend=lore");
+
+    expect(
+      log.mock.calls.filter(([line]) => String(line).includes("builder=")),
+    ).toEqual([]);
+  });
 });
 
 const reader = new PeriodicExportingMetricReader({
@@ -291,7 +316,7 @@ describe("GET /api/context assembly report", () => {
     vi.clearAllMocks();
   });
 
-  it("logs backend=utopia, repo o/r, template default, sections docs and tokens=120 for an assembly that kept one docs document", async () => {
+  it("logs backend=utopia, repo o/r, template default, sections docs, tokens=120 and query hi for an assembly that kept one docs document", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     vi.mocked(assembleContext).mockResolvedValue({
@@ -303,7 +328,7 @@ describe("GET /api/context assembly report", () => {
 
     expect(log.mock.calls.map(([line]) => line)).toEqual([
       expect.stringMatching(
-        /^\[context\] assembled backend=utopia repo=o\/r template=default sections=docs tokens=120 ms=\d+$/,
+        /^\[context\] assembled backend=utopia repo=o\/r template=default sections=docs tokens=120 ms=\d+ query="hi"$/,
       ),
     ]);
   });

@@ -62,6 +62,12 @@ describe("the lore_assemble_context schema", () => {
       dgraph: schema.safeParse({ query: "q", backend: "dgraph" }).success,
     }).toEqual({ both: "both", dgraph: false });
   });
+
+  it("accepts backend lore-v2", () => {
+    expect(
+      schema.safeParse({ query: "q", backend: "lore-v2" }).data?.backend,
+    ).toBe("lore-v2");
+  });
 });
 
 describe("lore_assemble_context audit logging", () => {

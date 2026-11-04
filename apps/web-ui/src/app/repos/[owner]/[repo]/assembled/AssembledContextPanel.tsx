@@ -12,6 +12,7 @@ interface AssemblyRequest {
   repo: string;
   query: string;
   template: string;
+  backend: string;
 }
 
 interface AssemblyOutcome {
@@ -47,29 +48,33 @@ export default function AssembledContextPanel({
 
 /** The query being asked and the last answer to it. */
 function useAssembly(owner: string, repo: string) {
-  const { query, template, ...controls } = useAssemblyRequest();
+  const request = useAssemblyRequest();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssembledResult | null>(null);
+  const { query, template, backend } = request;
   const onSubmit = () =>
     void runAssembly(
-      { owner, repo, query, template },
+      { owner, repo, query, template, backend },
       { setLoading, setError, setResult },
     );
 
-  return { query, template, ...controls, result, loading, error, onSubmit };
+  return { ...request, result, loading, error, onSubmit };
 }
 
 /** Defaults to the `implementation` template because that is the one a dev session actually runs — this page exists to show what a real assembly produces. */
 function useAssemblyRequest() {
   const [query, setQuery] = useState("");
   const [template, setTemplate] = useState("implementation");
+  const [backend, setBackend] = useState("");
 
   return {
     query,
     template,
+    backend,
     onQueryChange: setQuery,
     onTemplateChange: setTemplate,
+    onBackendChange: setBackend,
   };
 }
 
@@ -93,7 +98,7 @@ async function fetchAssembly(
 ): Promise<AssemblyOutcome> {
   try {
     const response = await fetch(contextPreviewUrl(request), {
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!response.ok) {
@@ -107,8 +112,15 @@ async function fetchAssembly(
 }
 
 /** `debug=1` is what makes the API return the trace — without it the response is just the block, and this page exists to show the decisions behind it. */
-function contextPreviewUrl({ owner, repo, query, template }: AssemblyRequest) {
-  const params = `query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}`;
+function contextPreviewUrl({
+  owner,
+  repo,
+  query,
+  template,
+  backend,
+}: AssemblyRequest) {
+  const named = backend ? `&backend=${encodeURIComponent(backend)}` : "";
+  const params = `query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${named}`;
 
   return `/api/repos/${owner}/${repo}/context-preview?${params}&debug=1`;
 }

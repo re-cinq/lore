@@ -36,7 +36,7 @@ docs/ADRs/specs when no query is supplied. This is the read counterpart to the
 | `repo` | string | no | — | `owner/name`. Drives the no-query chunk-join path; passed to the engine when a query is present. |
 | `template` | string | no | `"default"` | Template name forwarded to `assembleContext`. |
 | `debug` | string | no | — | `"1"` or `"true"` enables the engine debug trace. Any other value → false. |
-| `backend` | string | no | repo's `settings.context_backend`, then `"utopia"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16); anything else → 400. |
+| `backend` | string | no | repo's `settings.context_backend`, then `"utopia"` | `lore`, `utopia` or `both` (ADR-052 amendment 2026-10-16) for the template assembly, or `lore-v2` for the context builder over Lore's stores (#4090); anything else → 400. |
 
 ### Response
 
@@ -103,6 +103,8 @@ An unknown `template` name is rejected with 400. ([validated by `context.test.ts
 
 *(added 2026-10-16)* An optional `backend` (`lore`, `utopia`, `both`) is forwarded to `assembleContext`; an unknown backend is rejected with 400. ([validated by returns 400 for a backend of dgraph](apps/lore-api/src/transport/routes/context/context.test.ts#L224), [validated by assembles from utopia when the request names backend=utopia over a repo set to both](apps/lore-api/src/transport/routes/context/context.test.ts#L230))
 
+*(added 2026-11-04, #4090)* `backend=lore-v2` runs the context builder instead, over Lore's stores, and falls back to the template assembly over `lore` when the builder cannot run; `lore`, `utopia` and `both` never run the builder. ([validated by assembles from lore when the request names backend=lore-v2 and no model is named for context](apps/lore-api/src/transport/routes/context/context.test.ts#L254), [validated by logs no builder line for backend=lore even when a model is named for context](apps/lore-api/src/transport/routes/context/context.test.ts#L267))
+
 With no `backend` param the repo's `settings.context_backend` decides, read in the same settings lookup as `cross_repo`, and `utopia` when the repo names none. ([validated by assembles from both when the request names no backend and the repo's context_backend is both](apps/lore-api/src/transport/routes/context/context.test.ts#L242))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/transport/routes/context/context.test.ts#L49))
@@ -121,15 +123,15 @@ Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts
 
 A throwing engine returns 500. ([validated by `context.test.ts:202`](apps/lore-api/src/transport/routes/context/context.test.ts#L211))
 
-An assembly writes one line `[context] assembled backend=<lore|utopia|both> repo=<owner/name> template=<name> sections=<sections that kept content> tokens=<n> ms=<total>`. *(2026-10-31)* ([validated by logs backend=utopia, repo o/r, template default, sections docs and tokens=120 for an assembly that kept one docs document](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L294))
+An assembly writes one line `[context] assembled backend=<lore|utopia|both> repo=<owner/name> template=<name> sections=<sections that kept content> tokens=<n> ms=<total> query=<the query, JSON-quoted>`. *(2026-10-31; the query added 2026-11-03, #4090)* ([validated by logs backend=utopia, repo o/r, template default, sections docs, tokens=120 and query hi for an assembly that kept one docs document](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L319), [validated by carries the query Otto issue 621 reproduction, quoted, after the sections](../../../apps/lore-api/src/transport/routes/context/assembly-report.test.ts#L5), [validated by writes - for a missing repo and template](../../../apps/lore-api/src/transport/routes/context/assembly-report.test.ts#L21))
 
-An assembly counts one `lore_context_assembly_total` by `backend` and `outcome`: `ok` when a section kept content, `empty` when none did. *(2026-10-31)* ([validated by counts an ok utopia assembly, then an empty one with no kept section](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L311))
+An assembly counts one `lore_context_assembly_total` by `backend` and `outcome`: `ok` when a section kept content, `empty` when none did. *(2026-10-31)* ([validated by counts an ok utopia assembly, then an empty one with no kept section](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L336))
 
-A throwing assembly counts `outcome=error` and returns 500. *(2026-10-31)* ([validated by counts outcome=error and answers 500 when the assembly throws](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L330))
+A throwing assembly counts `outcome=error` and returns 500. *(2026-10-31)* ([validated by counts outcome=error and answers 500 when the assembly throws](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L355))
 
-The trace the report reads is kept in memory only; the response carries it only when `debug` is set. *(2026-10-31)* ([validated by omits the trace from the response when debug is not set](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L347))
+The trace the report reads is kept in memory only; the response carries it only when `debug` is set. *(2026-10-31)* ([validated by omits the trace from the response when debug is not set](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L372))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L52))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by](../../../apps/lore-api/src/transport/routes/context/context.ts#L62))
 
 ## Out of Scope
 

@@ -14,8 +14,10 @@ import {
 } from "../shared/deps.js";
 import { repoParam, withRepo, type ServerMode } from "../shared/repo-scope.js";
 import { updateBanner } from "../../../work/update/mcp-update.js";
-import { backendParam } from "../shared/backend-param.js";
-import type { KnowledgeBackend } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  ContextBackendSchema,
+  type ContextBackend,
+} from "@re-cinq/lore-shared/knowledge-backend.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -23,7 +25,7 @@ interface AssembleContextExtraArgs {
   max_tokens?: number;
   cross_repo?: boolean;
   agent_id?: string;
-  backend?: KnowledgeBackend;
+  backend?: ContextBackend;
 }
 
 interface AssembleContextArgs extends AssembleContextExtraArgs {
@@ -42,7 +44,7 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .string()
     .default("default")
     .describe(
-      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries.",
+      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under backend lore-v2.",
     ),
   max_tokens: z
     .number()
@@ -61,7 +63,10 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
     ),
-  backend: backendParam,
+  // Optional, not defaulted: an unset backend lets the API apply the repo's settings.context_backend before falling back to Utopia.
+  backend: ContextBackendSchema.optional().describe(
+    "utopia (default), lore, or both: the template assembly over that store. lore-v2: a block built from the task's own questions over Lore's stores.",
+  ),
 };
 
 export function registerAssembleContextTool(
@@ -70,7 +75,7 @@ export function registerAssembleContextTool(
 ) {
   server.tool(
     "lore_assemble_context",
-    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
+    `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. With backend lore-v2 the block is instead built from the task's own questions: a repo primer, key facts each citing its source, where to look, and previous work. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
 Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
     { ...ASSEMBLE_CONTEXT_INPUT, repo: repoParam(mode) },
     async (args) =>
@@ -128,6 +133,9 @@ function buildAssembleExtras(
   return extras;
 }
 
+/** The builder (lore-v2) writes for up to two minutes, and a retry would start a second build, so it gets one long attempt. */
+const BUILDER_PROXY_LIMITS = { timeoutMs: 120_000, maxAttempts: 1 };
+
 /** Cached for 10 minutes on the query itself: a session re-orienting asks the same question repeatedly, and each miss is a full assembly across every source. */
 async function cachedAssemble(
   key: { query: string; template: string; repo: string },
@@ -143,10 +151,14 @@ async function cachedAssemble(
     () =>
       proxyGetApi(
         `/api/context?${new URLSearchParams({ ...key, ...extras }).toString()}`,
-        ASSEMBLY_PROXY_LIMITS,
+        limitsFor(extras.backend),
       ),
     { label: false },
   );
+}
+
+function limitsFor(backend: string | undefined) {
+  return backend === "lore-v2" ? BUILDER_PROXY_LIMITS : ASSEMBLY_PROXY_LIMITS;
 }
 
 interface AssembleSection {

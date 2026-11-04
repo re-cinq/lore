@@ -42,6 +42,10 @@
       "types": "./dist/work/digest/*.d.ts",
       "default": "./dist/work/digest/*.js"
     },
+    "./context-builder/*.js": {
+      "types": "./dist/work/context-builder/*.d.ts",
+      "default": "./dist/work/context-builder/*.js"
+    },
     "./onboard/*.js": {
       "types": "./dist/work/onboard/*.d.ts",
       "default": "./dist/work/onboard/*.js"

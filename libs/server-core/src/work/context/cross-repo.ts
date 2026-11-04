@@ -9,6 +9,7 @@ import type { UtopiaMirror } from "@re-cinq/lore-shared/project/knowledge/contex
 interface RepoSettingsRow {
   settings?: {
     cross_repo?: boolean;
+    cross_repo_repos?: unknown;
     context_backend?: unknown;
     utopia?: unknown;
   };
@@ -17,6 +18,8 @@ interface RepoSettingsRow {
 /** What a repo's own settings say about assembling its context: whether linked repos join in (`cross_repo`), which store answers when the request names none (`context_backend`), and where its Utopia mirror lives (`utopia`). */
 export interface RepoContextSettings {
   crossRepo: boolean;
+  /** The repos `settings.cross_repo_repos` links, read beside this one when cross-repo context is on. */
+  linkedRepos?: string[];
   contextBackend?: KnowledgeBackend;
   utopiaMirror?: UtopiaMirror;
 }
@@ -45,16 +48,30 @@ export async function repoContextSettings(
 }
 
 function contextSettingsOf(
-  settings: RepoSettingsRow["settings"],
+  settings: RepoSettingsRow["settings"] = {},
 ): RepoContextSettings {
-  const backend = KnowledgeBackendSchema.safeParse(settings?.context_backend);
-  const utopiaMirror = utopiaMirrorOf(settings?.utopia);
+  const backend = KnowledgeBackendSchema.safeParse(settings.context_backend);
+  const utopiaMirror = utopiaMirrorOf(settings.utopia);
 
   return {
-    crossRepo: settings?.cross_repo === true,
+    crossRepo: settings.cross_repo === true,
+    ...linkedReposOf(settings.cross_repo_repos),
     ...(backend.success ? { contextBackend: backend.data } : {}),
     ...(utopiaMirror ? { utopiaMirror } : {}),
   };
+}
+
+/** The repo names the setting lists; no field at all when it lists none. */
+function linkedReposOf(
+  value: unknown,
+): Pick<RepoContextSettings, "linkedRepos"> {
+  const linkedRepos = Array.isArray(value)
+    ? value.filter(
+        (repoName): repoName is string => typeof repoName === "string",
+      )
+    : [];
+
+  return linkedRepos.length > 0 ? { linkedRepos } : {};
 }
 
 /** The mirror to read when the settings name the knowledge base and the docs source; none before the first document is pushed. */

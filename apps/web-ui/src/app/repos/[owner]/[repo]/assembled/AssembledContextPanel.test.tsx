@@ -102,6 +102,25 @@ describe("AssembledContextPanel", () => {
     );
   });
 
+  it("fetches the context-preview endpoint with backend lore-v2 when lore-v2 is picked", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(sampleResult));
+
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AssembledContextPanel owner="re-cinq" repo="lore" />);
+
+    typeQuery("add auth");
+    fireEvent.change(screen.getByLabelText("Backend"), {
+      target: { value: "lore-v2" },
+    });
+    submit();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/repos/re-cinq/lore/context-preview?query=add%20auth&template=implementation&backend=lore-v2&debug=1",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
+  });
+
   it("renders the assembled trace after a successful fetch", async () => {
     vi.stubGlobal(
       "fetch",

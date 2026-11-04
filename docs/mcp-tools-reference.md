@@ -44,7 +44,7 @@ Every tool is namespaced with the **`lore_` prefix** (Anthropic-recommended name
 
 #### `lore_assemble_context`
 
-One-line purpose: assemble ONE token-budgeted, template-ordered context block from every source (conventions, ADRs, memories, facts, episodes, graph) for a task.
+One-line purpose: assemble ONE context block for a task. Under `backend: "lore-v2"` the block is built from the task's own questions over Lore's stores: a repo primer, key facts with their sources, where to look, and previous work (issues, pull requests, sessions), with the repositories it depends on read beside it. Every other backend, and a `lore-v2` call when the API has no model for the `context` use or the builder fails, gets the template assembly (conventions, ADRs, memories, facts, episodes, graph in a template's order).
 
 - **When to use:** the mandatory first call when starting a task — you want a single synthesized briefing rather than hand-stitching the narrower retrieval tools.
 - **When not to use:** for raw matching passages / exact wording use `lore_search_context`; for past learnings and facts use `lore_search_memory`; for entity relationships use `lore_query_graph`. Those three are the building blocks this tool already combines.
@@ -52,14 +52,14 @@ One-line purpose: assemble ONE token-budgeted, template-ordered context block fr
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `query` | yes | — | Natural-language description of the context needed (e.g. `implement auth middleware`, `review PR #42`). Drives retrieval and ranking across all sources. |
-| `template` | no | `default` | Section-ordering/budget profile: `default` \| `review` \| `implementation` \| `research`. Unrecognized values silently fall back to `default`. The per-template default budget (e.g. research's 16000) is NOT auto-applied — pass `max_tokens` to raise it. |
-| `max_tokens` | no | `8000` | Token budget; floor 2000. Over-budget content is truncated and the section marked truncated. **Direct-DB path only; ignored when proxying.** |
+| `template` | no | `default` | Chooses the template assembly's section order; ignored under `lore-v2`. |
+| `max_tokens` | no | `8000` | Caps the block's length (the builder writes at most 900 words, fewer under a smaller budget); floor 2000. |
 | `repo` | no | auto-detect | Target repo as `owner/repo`; auto-detected from the git remote when omitted. |
 | `agent_id` | no | ambient | Overrides the agent id used to scope memories/facts. **Direct-DB path only; ignored when proxying.** |
 | `cross_repo` | no | `false` | Also pull context from linked repos. If `false` but the repo's `settings.cross_repo` is true, cross-repo is still enabled. **Direct-DB path only; ignored when proxying.** |
-| `backend` | no | repo's `settings.context_backend`, then `utopia` | `utopia` (default), `lore`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
+| `backend` | no | repo's `settings.context_backend`, then `utopia` | `lore-v2` runs the context builder over Lore's stores. `utopia` (default), `lore`, or `both` — compare Lore's stores with Utopia; Utopia sources fill in as their readers land. Under `utopia` each section reads `<source>: no Utopia reader yet`; under `both` Lore's block comes first and Utopia's second, each on half the budget (ADR-052 amendment 2026-10-16). |
 
-- **Returns:** on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
+- **Returns:** from the context builder, a markdown block with the sections `Repo primer`, `Key facts` (answered questions with sources, then one `Unanswered:` line), `Where to look` and `Previous work`. From the template assembly: on the direct-DB path, a single text block prefixed with an HTML comment carrying `template/sections/tokens` metadata; `No relevant context found for this query.` when every source is empty. On the proxy path, the API text as-is (no metadata comment), optionally prefixed with a `<!-- lore-cache: HIT/STALE -->` marker.
 - **Where it runs:** direct Postgres when `LORE_DB_HOST` is set; otherwise proxies `GET /api/context` to `LORE_API_URL`.
 - **Cache/mutation:** read-only. Proxy path uses a 600s read-through cache. Records a latency row via `trackLatency`. On the proxy path `query`, `template`, `repo`, `max_tokens`, `cross_repo`, `agent_id` and `backend` are forwarded.
 

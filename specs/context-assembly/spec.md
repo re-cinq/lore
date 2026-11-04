@@ -117,7 +117,7 @@ context it did, via the web-ui **Assembled** tab.
   ([validated by `tag-tree.test.ts:52`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L52), [`tag-tree.test.ts:62`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L62))
 - The debug view renders an included source card and an omitted one with its
   reason, links every contributing document to its context detail page, and shows
-  the prompt as the tag tree. ([validated by `AssembledContextView.test.tsx:135`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L135), [`AssembledContextView.test.tsx:172`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L172), [`AssembledContextView.test.tsx:181`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L181), [`AssembledContextView.test.tsx:207`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L207), [`AssembledContextView.test.tsx:220`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L220), [`AssembledContextView.test.tsx:233`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L233))
+  the prompt as the tag tree. ([validated by `AssembledContextView.test.tsx:135`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L150), [`AssembledContextView.test.tsx:172`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L187), [`AssembledContextView.test.tsx:181`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L196), [`AssembledContextView.test.tsx:207`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L222), [`AssembledContextView.test.tsx:220`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L235), [`AssembledContextView.test.tsx:233`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L248))
 
 ## Functional Requirements
 
@@ -298,7 +298,7 @@ The tool retrieves from all available sources:
   contributing documents with provenance. ([validated by `context-assembly.test.ts:282`](libs/server-core/src/work/context/context-assembly.test.ts#L290))
 - Audit log records each `lore_assemble_context` call with: query, template used,
   sources hit, total tokens returned. *(Audit-log persistence is tracked as
-  follow-up — the in-memory trace lands first.)* ([validated by Logging captures call variables: query, template used, sources hit, total tokens returned](apps/mcp-server/src/transport/tools/context/assemble-context.acceptance.test.ts#L45), [validated by logs query, template, sources hit, and tokens to console.error after a successful proxy call](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L68))
+  follow-up — the in-memory trace lands first.)* ([validated by Logging captures call variables: query, template used, sources hit, total tokens returned](apps/mcp-server/src/transport/tools/context/assemble-context.acceptance.test.ts#L45), [validated by logs query, template, sources hit, and tokens to console.error after a successful proxy call](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L74))
 - **Embedder health is a value, not a log line.** The embedding service keeps
   `{ lastOkAt, lastFailureAt, lastStatus, consecutiveFailures }`: a refused
   Vertex call records its HTTP status, a call that never reached Vertex (no
@@ -320,8 +320,16 @@ The tool retrieves from all available sources:
 ### Out of Scope
 
 - LLM-based summarization within assembly (just retrieval +
-  formatting, no additional LLM calls).
-- Dynamic template selection based on query analysis.
+  formatting, no additional LLM calls). *(Amended 2026-11-03, #4090: the
+  engine itself still makes no model call, and backends `lore`, `utopia`
+  and `both` serve it as before. Only a call naming backend `lore-v2` gets
+  the [context builder](../mcp-tools/assemble-context/spec.md#context-builder-2026-11-03-4090),
+  which asks a model for the task's questions, answers each with this
+  engine's `default` sections over Lore's stores, and writes the block; a
+  `lore-v2` call gets this engine's output when the builder cannot run.)*
+- Dynamic template selection based on query analysis. *(Amended 2026-11-03,
+  #4090: not added. Callers no longer choose a template at all; `template`
+  is accepted and ignored for one release, then removed.)*
 - Template management UI.
 - Template versioning.
 
