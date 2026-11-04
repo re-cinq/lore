@@ -46,6 +46,15 @@ describe("setupSpecTraceSchema (applier unit)", () => {
     );
   });
 
+  it("calls alter with a schema declaring Coverage.covers with its reverse edge and no count index", async () => {
+    const client = makeCapturingClient();
+
+    await setupSpecTraceSchema(client as unknown as DgraphClientPort);
+    expect(client.capturedSchema).toMatch(
+      /^Coverage\.covers: \[uid\] @reverse \.$/m,
+    );
+  });
+
   it("calls alter with a schema declaring every traceability node type's xid. ([validated by FR — setup-spec-trace-schema applier](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L48))", async () => {
     const client = makeCapturingClient();
 

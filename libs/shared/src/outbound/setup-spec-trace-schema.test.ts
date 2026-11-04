@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "../lib/repo-root.js";
@@ -127,6 +127,37 @@ describe.skipIf(!reachable)(
           list: true,
         });
       }
+    });
+
+    it("declares Coverage.covers with a reverse edge and no count index", async () => {
+      const { schema } = await querySchema(
+        "schema(pred: [Coverage.covers]) {reverse count}",
+      );
+
+      expect(schema).toEqual([{ predicate: "Coverage.covers", reverse: true }]);
+    });
+
+    it("drops the count index from a graph where Coverage.covers still has one", async () => {
+      await vi.waitFor(
+        async () => {
+          const res = await fetch(`${DGRAPH_HTTP}/alter`, {
+            signal: AbortSignal.timeout(30_000),
+            method: "POST",
+            body: "Coverage.covers: [uid] @reverse @count .",
+          });
+
+          expect(await res.json()).toMatchObject({
+            data: { code: "Success" },
+          });
+        },
+        { timeout: 30_000, interval: 1_000 },
+      );
+      applySchema();
+      const { schema } = await querySchema(
+        "schema(pred: [Coverage.covers]) {reverse count}",
+      );
+
+      expect(schema).toEqual([{ predicate: "Coverage.covers", reverse: true }]);
     });
 
     it("lists Statement.violated and Statement.violation_reason in the Statement type", async () => {
