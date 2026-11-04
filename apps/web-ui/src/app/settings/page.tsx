@@ -6,6 +6,7 @@ import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { githubAppInstallUrl } from "./github-app-install-url";
+import { DEFAULT_CONTEXT_MODELS } from "./ContextModelForm";
 import SettingsView, {
   type SettingsApprovalConfig,
   type SettingsViewProps,
@@ -13,7 +14,11 @@ import SettingsView, {
 
 type SettingsViewData = Omit<
   SettingsViewProps,
-  "saveSettings" | "saveApprovalConfig" | "regenerateToken" | "saveSlackPeople"
+  | "saveSettings"
+  | "saveApprovalConfig"
+  | "regenerateToken"
+  | "saveSlackPeople"
+  | "saveContextModel"
 >;
 
 /** A refused Slack-people save comes back here with the text as typed and the lines it could not read. */
@@ -35,6 +40,7 @@ export default async function SettingsPage({
       saveSettings={saveSettings}
       saveApprovalConfig={saveApprovalConfig}
       saveSlackPeople={saveSlackPeople}
+      saveContextModel={saveContextModel}
       regenerateToken={regenerateToken}
     />
   );
@@ -56,8 +62,16 @@ function viewDataFrom(
     slackPeopleLines:
       refused.slack_people ?? formatSlackPeople(loaded.settingsMap.slack_users),
     slackPeopleRejected: refused.slack_people_rejected?.split("\n") ?? [],
+    ...contextModelFrom(loaded.settingsMap),
     githubInstallations: loaded.githubInstallations,
     githubInstallUrl: githubAppInstallUrl(process.env.GITHUB_APP_SLUG),
+  };
+}
+
+function contextModelFrom(settingsMap: Record<string, string>) {
+  return {
+    contextProvider: settingsMap.context_llm_provider || "",
+    contextModel: settingsMap.context_llm_model || "",
   };
 }
 
@@ -154,6 +168,21 @@ async function saveSlackPeople(formData: FormData) {
     redirect(`/settings?${back}`);
   }
   await putOrgSettings([{ key: "slack_users", value: JSON.stringify(people) }]);
+  revalidatePath("/settings");
+}
+
+/** Both keys are written together: a blank model would be skipped as "leave it alone", so it is stored as the provider's default instead. */
+async function saveContextModel(formData: FormData) {
+  "use server";
+  const provider = (formData.get("context_llm_provider") as string) || "vertex";
+  const model =
+    ((formData.get("context_llm_model") as string) || "").trim() ||
+    (DEFAULT_CONTEXT_MODELS[provider] ?? "");
+
+  await putOrgSettings([
+    { key: "context_llm_provider", value: provider },
+    { key: "context_llm_model", value: model },
+  ]);
   revalidatePath("/settings");
 }
 

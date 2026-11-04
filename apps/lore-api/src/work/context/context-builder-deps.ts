@@ -3,7 +3,12 @@
 import type { Pool } from "pg";
 import type { Project } from "@re-cinq/lore-shared";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
-import { useNamesProvider } from "@re-cinq/lore-shared/llm/select-provider.js";
+import type { LlmProvider } from "@re-cinq/lore-shared/llm/llm-provider.js";
+import {
+  CONTEXT_MODEL_KEY,
+  CONTEXT_PROVIDER_KEY,
+  contextModelOf,
+} from "@re-cinq/lore-shared/context-model.js";
 import { searchMemories } from "@re-cinq/lore-shared/project/knowledge/memory-search.js";
 import {
   buildContext,
@@ -37,6 +42,12 @@ interface Asked {
   scope: AssemblyScope;
 }
 
+/** A builder request and the model it writes with. */
+interface Building {
+  request: BuilderRequest;
+  llm: LlmProvider;
+}
+
 const USE = "context";
 const REGISTRY_TIMEOUT_MS = 5_000;
 const MAX_MANIFESTS = 20;
@@ -44,45 +55,42 @@ const MEMORY_LIMIT = 6;
 const MAX_ISSUE_CHARS = 3_000;
 const STORE = "lore";
 
-const primerAt = primerCache(async (repo) => {
-  const project = await projectFor(repo);
-  const documents = await Promise.all(
-    PRIMER_DOCUMENTS.map(async (name) => ({
-      name,
-      text: await project.repo.read(name),
-    })),
-  );
+const primerAt = primerCache();
 
-  const present = documents.filter(
-    (doc): doc is { name: string; text: string } => doc.text !== null,
-  );
-
-  return writePrimer(Llm.for(USE), {
-    documents: present,
-    tree: present.length === 0 ? await project.repo.tree() : [],
-  });
-});
-
-/** The builder for a request, or null when no model is named for the `context` use or the request names no repository: then the template assembly answers. */
-export function contextBuilderFor(
+/** The builder for a request, on the model the Settings page names (else the `LORE_CONTEXT_LLM_*` env, else Vertex gemini-3-flash-preview); null when the page says off or the request names no repository: then the template assembly answers. */
+export async function contextBuilderFor(
   pool: Pool,
   request: BuilderRequest,
-): (() => Promise<string>) | null {
-  if (!request.repo || !useNamesProvider(USE, process.env)) {
+): Promise<(() => Promise<string>) | null> {
+  const named = request.repo
+    ? contextModelOf(await savedContextModel(pool), process.env)
+    : null;
+
+  if (!named) {
     return null;
   }
+  const llm = Llm.forModel(USE, named);
 
   return async () => {
-    const deps = await builderDeps(pool, request);
+    const deps = await builderDeps(pool, { request, llm });
     const built = await buildContext(request, deps);
 
     return built.text;
   };
 }
 
+async function savedContextModel(pool: Pool): Promise<Record<string, string>> {
+  const { rows } = await pool.query<{ key: string; value: string }>(
+    `SELECT key, value FROM lore.settings WHERE key = ANY($1)`,
+    [[CONTEXT_PROVIDER_KEY, CONTEXT_MODEL_KEY]],
+  );
+
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
 async function builderDeps(
   pool: Pool,
-  request: BuilderRequest,
+  { request, llm }: Building,
 ): Promise<ContextBuilderDeps> {
   const [project, scope] = await Promise.all([
     projectFor(request.repo),
@@ -91,8 +99,8 @@ async function builderDeps(
   const tree = once(() => project.repo.tree());
 
   return {
-    llm: Llm.for(USE),
-    primer: async () => primerAt(request.repo, await headOf(project)),
+    llm,
+    primer: () => primerOf(request.repo, { project, llm }),
     tree,
     readFile: (path) => project.repo.read(path),
     answer: (question, repo) => answerText(pool, question, { repo, request }),
@@ -100,6 +108,35 @@ async function builderDeps(
     previousWork: (terms) => previousWork(pool, request, terms),
     relatedRepos: () => relatedFor(pool, { request, scope }, tree),
   };
+}
+
+async function primerOf(
+  repo: string,
+  { project, llm }: { project: Project; llm: LlmProvider },
+): Promise<string> {
+  return primerAt(repo, await headOf(project), () =>
+    writtenPrimer(project, llm),
+  );
+}
+
+async function writtenPrimer(
+  project: Project,
+  llm: LlmProvider,
+): Promise<string> {
+  const documents = await Promise.all(
+    PRIMER_DOCUMENTS.map(async (name) => ({
+      name,
+      text: await project.repo.read(name),
+    })),
+  );
+  const present = documents.filter(
+    (doc): doc is { name: string; text: string } => doc.text !== null,
+  );
+
+  return writePrimer(llm, {
+    documents: present,
+    tree: present.length === 0 ? await project.repo.tree() : [],
+  });
 }
 
 async function headOf(project: Project): Promise<string> {

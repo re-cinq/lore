@@ -35,6 +35,9 @@ function renderView(
       slackPeopleLines=""
       slackPeopleRejected={[]}
       saveSlackPeople={action}
+      contextProvider=""
+      contextModel=""
+      saveContextModel={action}
       regenerateToken={action}
       githubInstallations={[]}
       githubInstallUrl={null}
@@ -56,6 +59,7 @@ describe("SettingsView", () => {
       "Platform",
       "Approval gates",
       "Slack people",
+      "Context builder",
       "Developer install",
       "Regenerate ingest token",
     ]);

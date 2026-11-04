@@ -83,3 +83,30 @@ describe("Llm.for", () => {
     expect(Llm.for("eval")).toBe(Llm.for("eval"));
   });
 });
+
+describe("Llm.forModel", () => {
+  afterEach(() => Llm.reset());
+
+  it("returns a vertex provider for the context use named vertex gemini-3-flash-preview, the same one on a second ask", () => {
+    const named = { provider: "vertex", model: "gemini-3-flash-preview" };
+
+    expect({
+      vendor: Llm.forModel("context", named).vendor,
+      held: Llm.forModel("context", named) === Llm.forModel("context", named),
+    }).toEqual({ vendor: "vertex", held: true });
+  });
+
+  it("builds a new provider when the model moves off gemini-3-flash-preview", () => {
+    const first = Llm.forModel("context", {
+      provider: "vertex",
+      model: "gemini-3-flash-preview",
+    });
+
+    expect(
+      Llm.forModel("context", {
+        provider: "vertex",
+        model: "gemini-2.5-flash",
+      }),
+    ).not.toBe(first);
+  });
+});

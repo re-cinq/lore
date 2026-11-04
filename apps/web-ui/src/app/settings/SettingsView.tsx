@@ -8,6 +8,7 @@ import { SettingsCard } from "@/components/SettingsCard";
 import { SettingsHeader } from "@/components/SettingsHeader";
 import ApprovalGatesForm from "./ApprovalGatesForm";
 import SlackPeopleForm from "./SlackPeopleForm";
+import ContextModelForm from "./ContextModelForm";
 import GithubConnectSection, {
   type GithubInstallationRow,
 } from "./GithubConnectSection";
@@ -37,6 +38,10 @@ export interface SettingsViewProps {
   /** Lines the last save refused, shown back with the text as typed; empty when nothing was refused. */
   slackPeopleRejected: string[];
   saveSlackPeople: (formData: FormData) => void | Promise<void>;
+  /** The org settings `context_llm_provider` and `context_llm_model`; empty when nothing is saved. */
+  contextProvider: string;
+  contextModel: string;
+  saveContextModel: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
@@ -51,6 +56,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-platform", label: "Platform" },
   { id: "set-approval", label: "Approval gates" },
   { id: "set-slack", label: "Slack people" },
+  { id: "set-context", label: "Context builder" },
   { id: "set-install", label: "Developer install" },
   { id: "set-danger", label: "Danger zone", danger: true },
 ];
@@ -69,6 +75,7 @@ export default function SettingsView(props: SettingsViewProps) {
         <PlatformConfigForm {...props} />
         <ApprovalGatesForm {...props} />
         <SlackPeopleForm {...props} />
+        <ContextModelForm {...props} />
         <InstallCommand {...props} />
         <RegenerateTokenSection regenerateToken={props.regenerateToken} />
       </SettingsLayout>
