@@ -145,7 +145,7 @@ Coverage.tool: string @index(hash) .
 Coverage.commit: string @index(hash) .
 Coverage.generated_at: dateTime @index(hour) .
 Coverage.line_count: int .
-Coverage.covers: [uid] @reverse @count .
+Coverage.covers: [uid] @reverse .
 ADR.repo: string @index(hash) .
 ADR.number: int @index(int) .
 ADR.title: string @index(term) .

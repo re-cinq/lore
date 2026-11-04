@@ -258,7 +258,7 @@ export async function runInTxn<T>(
   }
 }
 
-/** True for a failure a new txn can get past: dgraph's abort/conflict errors, which the driver normalizes into one plain-Error message, so this mirrors its own `isAbortedError` (message carries "abort" + "retry"), and `Transaction is too old`, raised when the txn started before the last rollup of a list it touches, so a later start clears it. */
+/** True for a failure a new txn can get past: dgraph's abort/conflict errors, which the driver normalizes into one plain-Error message, so this mirrors its own `isAbortedError` (message carries "abort" + "retry"), and `Transaction is too old`, which Dgraph raises on a write to a `@count` predicate when it cannot read the list, and which sometimes passes on a later attempt. */
 export function isTxnAborted(err: unknown): boolean {
   if (!(err instanceof Error)) {
     return false;

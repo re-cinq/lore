@@ -222,7 +222,7 @@ Coverage.tool:          string @index(hash) .        # lcov | cobertura | go-cov
 Coverage.commit:        string @index(hash) .        # idempotency key component
 Coverage.generated_at:  dateTime @index(hour) .       # filter/sort coverage by recency
 Coverage.line_count:    int .
-Coverage.covers:        [uid] @reverse @count .
+Coverage.covers:        [uid] @reverse .          # no @count: nothing counts it, and it failed uploads (#4097)
 
 # ADR (MADR decision records — the "why" behind statements/criteria)
 ADR.repo:               string @index(hash) .
@@ -237,7 +237,7 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L168))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L199))
 
 `lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
@@ -306,10 +306,10 @@ type, so the same projection code hangs nodes off `Repo` on `main` and off
 
 `Overlay.xid` is a hash upsert index and `Overlay.branch` /
 `Overlay.head_commit` are indexed, so a branch's overlay is found by name and
-the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L206))
+the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L237))
 
 The `Overlay` node carries the same chunk container edges the `Repo` root does —
-`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L220))
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L251))
 
 ### Which branch is an overlay
 
