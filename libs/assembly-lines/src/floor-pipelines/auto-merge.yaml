@@ -12,8 +12,13 @@ line:
   args:
     repo:
       kind: git
-    # One run per pull request: the loop starts it again only after a run ends.
     pr_url:
+      kind: value
+    # One run per pull request: the loop starts it again only after a run ends.
+    # A subject of its own, not pr_url: the floor holds one open run per
+    # repository and subject whichever line it is on, so a review asked for while
+    # this run waits would join it and never start.
+    merge_pr_url:
       kind: value
       subject: true
     # The head commit the run was started for: the loop takes a pull request

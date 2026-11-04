@@ -63,7 +63,8 @@ function threadVerdict(input: MergeReadyInput): MergeReadyVerdict | null {
 
 /** A review still running, or none yet on this head (the re-check runs on every push), and changes it asked for are all waited out. */
 function reviewVerdict(input: MergeReadyInput): MergeReadyVerdict | null {
-  if (input.review === "approved") {
+  // The check still reads approved while a re-review of the same head runs, so an open run holds the merge too.
+  if (input.review === "approved" && input.openReviewRuns === 0) {
     return null;
   }
 

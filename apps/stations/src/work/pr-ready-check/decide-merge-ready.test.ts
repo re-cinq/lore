@@ -73,4 +73,11 @@ describe("decideMergeReady", () => {
       { kind: "wait", reason: "review_changes_requested" },
     ]);
   });
+
+  it("waits while a review asked for by hand runs on a head its last review approved", () => {
+    expect(verdict({ review: "approved", openReviewRuns: 1 })).toEqual({
+      kind: "wait",
+      reason: "review_pending",
+    });
+  });
 });

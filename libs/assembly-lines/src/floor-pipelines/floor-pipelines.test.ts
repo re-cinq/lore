@@ -790,10 +790,10 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("keys an auto-merge run on its pr_url and defines no agent", () => {
+  it("keys an auto-merge run on merge_pr_url and defines no agent", () => {
     const { line, agent_definitions: agents } = pipelineOf("auto-merge");
 
-    expect({ subject: line.args.pr_url, agents }).toEqual({
+    expect({ subject: line.args.merge_pr_url, agents }).toEqual({
       subject: { kind: "value", subject: true },
       agents: undefined,
     });

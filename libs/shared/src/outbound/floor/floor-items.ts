@@ -23,6 +23,22 @@ export function pullRequestUrl(repo: string, prNumber: number): string {
   return `https://${GITHUB_HOST}/${repo}/pull/${prNumber}`;
 }
 
+/** The `auto-merge` line's subject argument: one that no other line shares, since the floor holds one open run per repository and subject whichever line it is on. */
+export const AUTO_MERGE_SUBJECT = "merge_pr_url";
+
+/** What an `auto-merge` run starts with: the branch, the pull request, its subject, and the head it was started on. */
+export function autoMergeStartItems(
+  repo: string,
+  pull: { branch: string; url: string; headSha?: string },
+): Record<string, Item> {
+  return {
+    repo: gitItem(repo, pull.branch),
+    pr_url: valueItem(pull.url),
+    [AUTO_MERGE_SUBJECT]: valueItem(pull.url),
+    head_sha: valueItem(pull.headSha ?? ""),
+  };
+}
+
 export interface PullRequestLocation {
   repo: string;
   prNumber: number;
