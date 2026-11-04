@@ -229,7 +229,7 @@ export const TXN_ABORT_DELAYS_MS: readonly number[] = [
   200, 500, 1000, 2000, 4000,
 ];
 
-/** Runs `fn` in a fresh, always-discarded txn; an aborted attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
+/** Runs `fn` in a fresh, always-discarded txn; an aborted or too-old attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,
@@ -258,14 +258,17 @@ export async function runInTxn<T>(
   }
 }
 
-/** True for dgraph's abort/conflict errors — the driver normalizes both into one plain-Error message, so this mirrors its own `isAbortedError` (message carries "abort" + "retry"). */
+/** True for a failure a new txn can get past: dgraph's abort/conflict errors, which the driver normalizes into one plain-Error message, so this mirrors its own `isAbortedError` (message carries "abort" + "retry"), and `Transaction is too old`, raised when the txn started before the last rollup of a list it touches, so a later start clears it. */
 export function isTxnAborted(err: unknown): boolean {
   if (!(err instanceof Error)) {
     return false;
   }
   const message = err.message.toLowerCase();
 
-  return message.includes("abort") && message.includes("retry");
+  return (
+    message.includes("transaction is too old") ||
+    (message.includes("abort") && message.includes("retry"))
+  );
 }
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */
