@@ -222,7 +222,7 @@ Coverage.tool:          string @index(hash) .        # lcov | cobertura | go-cov
 Coverage.commit:        string @index(hash) .        # idempotency key component
 Coverage.generated_at:  dateTime @index(hour) .       # filter/sort coverage by recency
 Coverage.line_count:    int .
-Coverage.covers:        [uid] @reverse .          # no @count: nothing counts it, and it failed uploads (#4097)
+Coverage.covers:        [uid] @reverse .          # no @count: nothing counts it, and the count index failed uploads (#4097)
 
 # ADR (MADR decision records — the "why" behind statements/criteria)
 ADR.repo:               string @index(hash) .
