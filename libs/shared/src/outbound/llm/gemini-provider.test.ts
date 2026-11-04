@@ -204,6 +204,12 @@ describe("computeGeminiCost", () => {
     ).toBeCloseTo(0.25 + 1.5, 6);
   });
 
+  it("prices gemini-3-flash-preview at $0.50 in and $3.00 out per 1M tokens", () => {
+    expect(
+      computeGeminiCost("gemini-3-flash-preview", 1_000_000, 1_000_000),
+    ).toBeCloseTo(0.5 + 3.0, 6);
+  });
+
   it("falls back to the flash rate for an unrecognized model", () => {
     expect(computeGeminiCost("gemini-future-tier", 1000, 500)).toBeCloseTo(
       computeGeminiCost("gemini-2.5-flash", 1000, 500),
