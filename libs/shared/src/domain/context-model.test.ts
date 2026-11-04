@@ -45,8 +45,11 @@ describe("contextModelOf", () => {
     ).toEqual({ provider: "anthropic", model: "claude-haiku-4-5" });
   });
 
-  it("is off when neither the settings nor the env name a provider", () => {
-    expect(contextModelOf({}, {})).toBeNull();
+  it("writes with vertex gemini-3-flash-preview when neither the settings nor the env name a provider", () => {
+    expect(contextModelOf({}, {})).toEqual({
+      provider: "vertex",
+      model: "gemini-3-flash-preview",
+    });
   });
 });
 

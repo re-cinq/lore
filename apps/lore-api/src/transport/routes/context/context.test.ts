@@ -251,10 +251,15 @@ describe("GET /api/context", () => {
     expect(vi.mocked(assembleContext).mock.calls[0][2]?.backend).toBe("both");
   });
 
-  it("assembles from lore when the request names backend=lore-v2 and no model is named for context", async () => {
+  it("assembles from lore when the request names backend=lore-v2 and the settings page says off", async () => {
     vi.mocked(assembleContext).mockResolvedValue({ text: "ctx", sections: [] });
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ key: "context_llm_provider", value: "off" }],
+    });
     const res = await get(
-      makePool(),
+      pool,
       "/api/context?query=hi&repo=o/r&backend=lore-v2",
     );
 

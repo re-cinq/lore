@@ -174,7 +174,7 @@ async function saveSlackPeople(formData: FormData) {
 /** Both keys are written together: a blank model would be skipped as "leave it alone", so it is stored as the provider's default instead. */
 async function saveContextModel(formData: FormData) {
   "use server";
-  const provider = (formData.get("context_llm_provider") as string) || "off";
+  const provider = (formData.get("context_llm_provider") as string) || "vertex";
   const model =
     ((formData.get("context_llm_model") as string) || "").trim() ||
     (DEFAULT_CONTEXT_MODELS[provider] ?? "");

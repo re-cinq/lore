@@ -57,7 +57,7 @@ const STORE = "lore";
 
 const primerAt = primerCache();
 
-/** The builder for a request, or null when neither the org settings page nor the `LORE_CONTEXT_LLM_*` env names a model, or the request names no repository: then the template assembly answers. */
+/** The builder for a request, on the model the Settings page names (else the `LORE_CONTEXT_LLM_*` env, else Vertex gemini-3-flash-preview); null when the page says off or the request names no repository: then the template assembly answers. */
 export async function contextBuilderFor(
   pool: Pool,
   request: BuilderRequest,

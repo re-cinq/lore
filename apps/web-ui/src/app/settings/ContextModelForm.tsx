@@ -64,7 +64,7 @@ function ProviderField({ provider }: { provider: string }) {
       <select
         id="context_llm_provider"
         name="context_llm_provider"
-        defaultValue={provider || "off"}
+        defaultValue={provider || "vertex"}
       >
         {CONTEXT_PROVIDERS.map((value) => (
           <option key={value} value={value}>

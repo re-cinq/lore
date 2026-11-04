@@ -839,9 +839,9 @@ is deleted. ([validated by links to no task page](apps/web-ui/src/app/assembly-r
 - FR-19.25a: *(Added 2026-11-04.)* The writable keys include
   `context_llm_provider` and `context_llm_model`, the context builder's
   model, which the Settings page's **Context builder** card edits: a
-  provider select (Off, Vertex, Anthropic) and a model field suggesting
-  `gemini-3-flash-preview`. A provider other than `off`, `vertex` or
-  `anthropic` is refused with `400` and nothing is written. ([validated by stores context_llm_provider vertex and context_llm_model gemini-3-flash-preview](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L138), [validated by refuses a context_llm_provider of ollama and writes nothing](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L166), [validated by refuses a context_llm_provider of ollama](libs/shared/src/domain/context-model.test.ts#L54), [validated by accepts vertex and a blank provider, and leaves every other key alone](libs/shared/src/domain/context-model.test.ts#L60), [validated by shows the saved vertex provider and gemini-3-flash-preview model](apps/web-ui/src/app/settings/ContextModelForm.test.tsx#L7), [validated by offers off, vertex and anthropic as providers, with off selected when nothing is saved](apps/web-ui/src/app/settings/ContextModelForm.test.tsx#L22))
+  provider select (Off, Vertex, Anthropic; Vertex when nothing is
+  saved) and a model field suggesting `gemini-3-flash-preview`. A provider other than `off`, `vertex` or
+  `anthropic` is refused with `400` and nothing is written. ([validated by stores context_llm_provider vertex and context_llm_model gemini-3-flash-preview](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L138), [validated by refuses a context_llm_provider of ollama and writes nothing](apps/lore-api/src/transport/routes/repos/org-settings.test.ts#L166), [validated by refuses a context_llm_provider of ollama](libs/shared/src/domain/context-model.test.ts#L57), [validated by accepts vertex and a blank provider, and leaves every other key alone](libs/shared/src/domain/context-model.test.ts#L63), [validated by shows the saved vertex provider and gemini-3-flash-preview model](apps/web-ui/src/app/settings/ContextModelForm.test.tsx#L7), [validated by offers off, vertex and anthropic as providers, with vertex selected when nothing is saved](apps/web-ui/src/app/settings/ContextModelForm.test.tsx#L22))
 
 - FR-19.26: lore-api serves the context browser's chunk reads —
   `GET /api/chunks` (ranked, org-wide or repo-scoped, one row past the

@@ -19,7 +19,7 @@ describe("ContextModelForm", () => {
     }).toEqual({ provider: "vertex", model: "gemini-3-flash-preview" });
   });
 
-  it("offers off, vertex and anthropic as providers, with off selected when nothing is saved", () => {
+  it("offers off, vertex and anthropic as providers, with vertex selected when nothing is saved", () => {
     render(
       <ContextModelForm
         contextProvider=""
@@ -32,6 +32,6 @@ describe("ContextModelForm", () => {
     expect({
       options: [...provider.options].map((option) => option.value),
       selected: provider.value,
-    }).toEqual({ options: ["off", "vertex", "anthropic"], selected: "off" });
+    }).toEqual({ options: ["off", "vertex", "anthropic"], selected: "vertex" });
   });
 });
