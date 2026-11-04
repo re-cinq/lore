@@ -96,7 +96,7 @@ describe("Llm.forModel", () => {
     }).toEqual({ vendor: "vertex", held: true });
   });
 
-  it("builds a new provider when the model moves from gemini-3-flash-preview to gemini-2.5-flash", () => {
+  it("builds a new provider when the model moves off gemini-3-flash-preview", () => {
     const first = Llm.forModel("context", {
       provider: "vertex",
       model: "gemini-3-flash-preview",
