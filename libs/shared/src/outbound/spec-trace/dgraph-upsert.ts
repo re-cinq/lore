@@ -229,7 +229,7 @@ export const TXN_ABORT_DELAYS_MS: readonly number[] = [
   200, 500, 1000, 2000, 4000,
 ];
 
-/** Runs `fn` in a fresh, always-discarded txn; an aborted attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
+/** Runs `fn` in a fresh, always-discarded txn; an aborted or too-old attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,

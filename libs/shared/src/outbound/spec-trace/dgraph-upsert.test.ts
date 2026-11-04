@@ -326,13 +326,19 @@ describe("withTxn retry-on-abort (fake port)", () => {
     });
   });
 
-  it("isTxnAborted accepts the driver's abort shapes and rejects everything else", () => {
+  it("isTxnAborted accepts the driver's abort shapes and Dgraph's too-old refusal, and rejects everything else", () => {
     expect(isTxnAborted(new Error(ABORT))).toBe(true);
     expect(isTxnAborted(new Error("Transaction aborted, please retry"))).toBe(
       true,
     );
+    expect(isTxnAborted(apiError("Transaction is too old"))).toBe(true);
     expect(isTxnAborted(new Error("connection refused"))).toBe(false);
     expect(isTxnAborted(new Error("retry later"))).toBe(false);
+    expect(
+      isTxnAborted(
+        new Error("Transaction has already been committed or discarded"),
+      ),
+    ).toBe(false);
     expect(isTxnAborted("Transaction has been aborted. Please retry")).toBe(
       false,
     );
