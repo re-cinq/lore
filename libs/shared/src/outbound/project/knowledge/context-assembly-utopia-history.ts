@@ -17,6 +17,8 @@ export interface HistorySearch {
   sourceId: string;
   /** Both pages of a search by the ticket's file names. */
   pages(query: string): Promise<SearchHit[]>;
+  /** The stored text of a commit, or null when Utopia no longer holds it. */
+  whole(externalId: string): Promise<string | null>;
 }
 
 /** The history section for a ticket's file names: empty without a name, asking Utopia nothing; disabled without a git-history source. */
@@ -32,7 +34,11 @@ export async function historySection(
     return { sources: [], status: "empty" };
   }
   const hits = await search.pages(files.join(" "));
-  const sources = commitItems(hits, search.sourceId, files);
+  const sources = await Promise.all(
+    commitItems(hits, search.sourceId, files).map((commit) =>
+      wholeCommit(commit, search),
+    ),
+  );
 
   return { sources, status: sources.length > 0 ? "ok" : "empty" };
 }
@@ -54,6 +60,16 @@ function commitItems(
   ].reverse();
 
   return normalizeScores(firstOfEach.slice(0, HISTORY_LIMIT).map(toItem));
+}
+
+/** A hit is the chunk the search matched, often the `Files changed:` line alone; the commit is read whole so its subject and pull request come along. */
+async function wholeCommit(
+  commit: SourceItem,
+  search: HistorySearch,
+): Promise<SourceItem> {
+  const text = await search.whole(commit.source_path ?? "");
+
+  return text ? { ...commit, text } : commit;
 }
 
 function toItem([id, hit]: [string | null, SearchHit]): SourceItem {

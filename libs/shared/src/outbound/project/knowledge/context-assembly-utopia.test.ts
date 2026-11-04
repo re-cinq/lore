@@ -769,6 +769,49 @@ describe("utopiaSectionReader history (FR13.11)", () => {
     }).toEqual({ paths: ["commit:c7", "commit:c6"], text: touching });
   });
 
+  it("reads commit c9 whole from its stored document when its hit is only the chunk listing pr-body.ts", async () => {
+    const whole = [
+      "# Footer: name the task (#2513)",
+      "",
+      "- **Pull request:** https://github.com/re-cinq/lore/pull/2513",
+      `- **Files changed:** ${FOOTER}`,
+    ].join("\n");
+    const chunkReads: UtopiaReads = {
+      search: async () => ({
+        hits: [
+          hit("commit:c9", `- **Files changed:** ${FOOTER}`, 0.03, {
+            sourceId: HISTORY,
+          }),
+        ],
+        hasMore: false,
+        vectorUsed: true,
+      }),
+      documentByExternalId: async (_kbId, sourceId, externalId) =>
+        sourceId === HISTORY
+          ? {
+              id: "d9",
+              externalId,
+              filename: "commit-c9",
+              status: "ready",
+              docTime: null,
+              version: 1,
+              content: whole,
+            }
+          : null,
+    };
+    const history = await utopiaSectionReader(
+      {
+        reads: chunkReads,
+        kbId: "kb-1",
+        docsSourceId: DOCS,
+        historySourceId: HISTORY,
+      },
+      `Edit \`${FOOTER}\``,
+    )({ header: "Recent Changes", source: "history", priority: 3 });
+
+    expect(history.sources.map(({ text }) => text)).toEqual([whole]);
+  });
+
   it("answers empty and asks Utopia nothing for a ticket that names no file", async () => {
     asked.length = 0;
 
