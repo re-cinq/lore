@@ -17,7 +17,7 @@ export async function costUsdOf(
   return totals.at(0)?.costUsd ?? null;
 }
 
-/** The cost of each run. A list of up to ten asks for each run's own cost, in parallel; a longer one asks once for everything since the oldest began. A failed read is logged and drops only the runs it was for, so a slow floor costs the list its costs, never the list. */
+/** The cost of each run. A list of up to ten asks for each run's own cost, in parallel; a longer one asks once for everything since the oldest began. A failed read is logged and drops only the runs it was for, so a floor that refuses the read costs the list its costs, never the list. A slow read still holds the list until the floor client's 30 s timeout. */
 export async function costsByRunOf(
   costs: Costs,
   runs: readonly { id: string; createdAt: Date }[],
