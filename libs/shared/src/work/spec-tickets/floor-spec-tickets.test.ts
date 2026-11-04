@@ -254,3 +254,120 @@ describe("startSpecTicketRuns", () => {
     ]);
   });
 });
+
+const TESTED = "[validated by works](a.test.ts#L1)";
+const ALSO_TESTED = "[validated by holds](b.test.ts#L2)";
+const PLANNED = "[from plan](https://lore.example/plans/p1#p_a)";
+
+const LINKS_ONLY = [
+  {
+    change: "removes both links of a group",
+    before: `It works. (#1) (${TESTED}, ${ALSO_TESTED})`,
+    after: "It works. (#1)",
+  },
+  {
+    change: "takes one link out of a group of two",
+    before: `It works. (#1) (${TESTED}, ${ALSO_TESTED})`,
+    after: `It works. (#1) (${TESTED})`,
+  },
+  {
+    change: "adds a second link to a group of one",
+    before: `It works. (#1) (${TESTED})`,
+    after: `It works. (#1) (${TESTED}, ${ALSO_TESTED})`,
+  },
+  {
+    change: "removes a group that sits before the sentence's period",
+    before: `It works (#1) ([validated by](ci.yml#L5)).`,
+    after: "It works (#1).",
+  },
+  {
+    change: "takes one link of two out of a group before a period",
+    before: `It works (#1) (${TESTED}, ${ALSO_TESTED}).`,
+    after: `It works (#1) (${TESTED}).`,
+  },
+  {
+    change:
+      "takes a test link out of the group it shares with a from-plan link",
+    before: `It works. (${PLANNED}, ${TESTED})`,
+    after: `It works. (${PLANNED})`,
+  },
+  {
+    change: "moves a test link labelled only by its title",
+    before: "It works. ([stays up](a.test.ts#L1), [also](b.test.ts#L5))",
+    after: "It works. ([stays up](a.test.ts#L8), [also](b.test.ts#L5))",
+  },
+  {
+    change: "moves a test link labelled only by its file and line",
+    before: "It works. ([a.test.ts:1](a.test.ts#L1))",
+    after: "It works. ([a.test.ts:8](a.test.ts#L8))",
+  },
+  {
+    change: "moves a test link with a stray bracket in its label",
+    before: "It works. ([[stays up](a.test.ts#L1))",
+    after: "It works. ([[stays up](a.test.ts#L8))",
+  },
+  {
+    change: "moves an implemented-by link to source",
+    before: "It works. ([implemented by](src/a.ts#L1))",
+    after: "It works. ([implemented by](src/a.ts#L8))",
+  },
+  {
+    change: "removes an implemented-by link to source",
+    before: "It works. ([implemented by](src/a.ts#L1))",
+    after: "It works.",
+  },
+  {
+    change: "moves the line anchor of a link to source inside a sentence",
+    before: "The [`run` handler](src/a.ts#L1) answers it.",
+    after: "The [`run` handler](src/a.ts#L8) answers it.",
+  },
+];
+
+const REAL_CHANGES = [
+  {
+    change: "rewords a statement while removing its links",
+    before: `It works. (#1) (${TESTED}, ${ALSO_TESTED})`,
+    after: "It works always. (#1)",
+  },
+  {
+    change: "removes an issue tag beside a group",
+    before: `It works. (#1) (${TESTED})`,
+    after: `It works. (${TESTED})`,
+  },
+  {
+    change: "removes a from-plan link",
+    before: `It works. (${PLANNED}, ${TESTED})`,
+    after: `It works. (${TESTED})`,
+  },
+  {
+    change: "points a link to source at another file",
+    before: "The [`run` handler](src/a.ts#L1) answers it.",
+    after: "The [`run` handler](src/b.ts#L1) answers it.",
+  },
+  {
+    change: "removes a link to source from a sentence",
+    before: "The [`run` handler](src/a.ts#L1) answers it.",
+    after: "The handler answers it.",
+  },
+];
+
+describe("onlyLinksChanged on citation groups and other link shapes", () => {
+  it.each(LINKS_ONLY)("is true when a patch $change", ({ before, after }) => {
+    expect(onlyLinksChanged(patchOf(before, after))).toBe(true);
+  });
+
+  it.each(REAL_CHANGES)(
+    "is false when a patch $change",
+    ({ before, after }) => {
+      expect(onlyLinksChanged(patchOf(before, after))).toBe(false);
+    },
+  );
+});
+
+function patchOf(before: string, after: string): string {
+  return [
+    "@@ -7,1 +7,1 @@",
+    `-- **FR1**: ${before}`,
+    `+- **FR1**: ${after}`,
+  ].join("\n");
+}

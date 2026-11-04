@@ -1,6 +1,7 @@
 // The spec-tickets line on the external floor: every merged specs/<name>/spec.md gets one run that splits the spec into a user story and task tickets, and a later merge of the same spec updates the tickets that run filed. One run per spec is open at a time: a merge that lands while the earlier run is still filing cancels it, or two runs would each read "no tickets yet" and file over each other.
 import type { FloorClient } from "@re-cinq/floor-client";
 import { parseDocStatus, statusTier } from "../../domain/spec-status.js";
+import { isTestFile } from "../../domain/test-paths.js";
 import {
   floorRepoOf,
   gitItem,
@@ -70,9 +71,18 @@ export function mergedSpecPaths(files: readonly ChangedFile[]): string[] {
     .map(({ path }) => path);
 }
 
-const TEST_LINK = /\(?\[validated by(?: [^\]]*)?\]\([^)]*\)\)?/g;
+const LINK = String.raw`\[[^\]]*\]\([^)\s]*\)`;
+const LINK_RE = new RegExp(LINK, "g");
+/** A parenthetical holding nothing but links, which is what a citation group is. */
+const LINK_GROUP_RE = new RegExp(
+  String.raw`\s*\(\s*${LINK}(?:\s*[,;]\s*${LINK})*\s*\)`,
+  "g",
+);
+const COVERAGE_LABEL = /^\[(?:validated|implemented) by\b/;
+const LINK_TARGET = /\]\(([^)#]*)/;
+const LINE_ANCHOR_RE = /#L\d+(?:-L?\d+)?\)/g;
 
-/** True when every removed line has an added line that differs from it by test links alone, and the other way round. */
+/** True when every removed line has an added line that differs from it by test links and moved line anchors alone, and the other way round. */
 export function onlyLinksChanged(patch: string | null): boolean {
   if (patch === null) {
     return false;
@@ -91,11 +101,32 @@ function linesWithoutLinks(patch: string, sign: "-" | "+"): string[] {
   return patch
     .split("\n")
     .filter((line) => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
-    .map((line) =>
-      line.slice(1).replace(TEST_LINK, "").replace(/\s+/g, " ").trim(),
-    )
+    .map((line) => withoutTestLinks(line.slice(1)))
     .filter(Boolean)
     .sort();
+}
+
+/** A line as far as its wording goes: test links out of their groups with the group's punctuation, any other link's line anchor dropped, spacing evened. */
+function withoutTestLinks(line: string): string {
+  return line
+    .replace(LINK_GROUP_RE, groupWithoutTestLinks)
+    .replace(LINK_RE, (link) => (isTestLink(link) ? "" : link))
+    .replace(LINE_ANCHOR_RE, ")")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function groupWithoutTestLinks(group: string): string {
+  const kept = (group.match(LINK_RE) ?? []).filter((link) => !isTestLink(link));
+
+  return kept.length > 0 ? ` (${kept.join(", ")})` : "";
+}
+
+/** A link says it is a test link in its label, or by pointing at a test file whatever its label says. */
+function isTestLink(link: string): boolean {
+  return (
+    COVERAGE_LABEL.test(link) || isTestFile(LINK_TARGET.exec(link)?.[1] ?? "")
+  );
 }
 
 /** One run per merged revision of a spec: two merges of the same spec before the first run ends each get their own. */
