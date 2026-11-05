@@ -49,13 +49,18 @@ export function splitHashedLabel(label: string): {
   return { text: quoted ? `\`${hashed[1]}\`` : hashed[1], hash: hashed[2] };
 }
 
-/** The label carrying `hash`: an existing hash replaced, otherwise appended, inside the backticks when the label has them. */
+const FILE_LINE_RE = /^([^\s:]+):\d+$/;
+
+/** The label carrying `hash`: an existing hash replaced, otherwise appended, inside the backticks when the label has them. A `name.test.ts:196` label trades its line for the hash, as `name.test.ts@hash`: the line it names goes stale, the hash does not. */
 export function withAnchorHash(label: string, hash: string): string {
   const { text } = splitHashedLabel(label);
   const quoted = IN_BACKTICKS_RE.exec(text);
+  const inner = (quoted ? quoted[1] : text).replace(FILE_LINE_RE, "$1");
 
-  if (quoted) {
-    return `\`${quoted[1]}@${hash}\``;
+  if (quoted || inner !== text) {
+    const hashed = `${inner}@${hash}`;
+
+    return quoted ? `\`${hashed}\`` : hashed;
   }
 
   return text === "" ? `@${hash}` : `${text} @${hash}`;

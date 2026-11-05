@@ -276,6 +276,12 @@ lore:line_start a owl:DatatypeProperty ;
   rdfs:domain lore:Section, lore:Statement, lore:Test, lore:CodeDefinition ;
   rdfs:range xsd:integer .
 
+lore:anchor_hash a owl:DatatypeProperty ;
+  rdfs:label "anchor_hash" ;
+  rdfs:comment "Content hash of the test's declaration line: the first 8 hex characters of the sha256 of the line lowercased with everything but a-z and 0-9 removed. A spec link ending in @<hash> names the test whose line carries it." ;
+  rdfs:domain lore:Test ;
+  rdfs:range xsd:string .
+
 lore:line_end a owl:DatatypeProperty ;
   rdfs:label "line_end" ;
   rdfs:comment "Last line (1-based, inclusive)." ;

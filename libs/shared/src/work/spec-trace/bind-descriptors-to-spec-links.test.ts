@@ -140,22 +140,52 @@ The system farewells the user.
 `;
     const hashedSpecs = [{ path: SPEC_PATH, content: HASHED_SPEC }];
 
-    it("binds the descriptor whose declaration hash is aaaaaaaa to the greeting statement, though both lines fall in its span", () => {
+    it("binds a link whose stale line 99 lies outside every test by its hash aaaaaaaa", () => {
       const [bound] = bindDescriptorsToSpecLinks(
         [descriptor({ anchorHash: "aaaaaaaa" })],
-        hashedSpecs,
+        [
+          {
+            path: SPEC_PATH,
+            content:
+              "# X\n\nThe system greets the user.\n([validated by @aaaaaaaa](src/greet.test.ts#L99))\n",
+          },
+        ],
       );
 
-      expect(bound.spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
+      expect(bound.spec).toBe(`${SPEC_PATH}#0`);
     });
 
-    it("binds no statement to a descriptor whose hash no link carries, though both hashed links fall in its span", () => {
-      const [bound] = bindDescriptorsToSpecLinks(
-        [descriptor({ anchorHash: "cccccccc" })],
+    it("binds the farewell statement, not the greeting one, to a second descriptor whose declaration hash is bbbbbbbb", () => {
+      const bound = bindDescriptorsToSpecLinks(
+        [
+          descriptor({ anchorHash: "aaaaaaaa" }),
+          descriptor({
+            id: "src/greet.test.ts::farewells",
+            anchorHash: "bbbbbbbb",
+          }),
+        ],
         hashedSpecs,
       );
 
-      expect(bound.spec).toBeUndefined();
+      expect(bound.map((each) => each.spec)).toEqual([
+        `${SPEC_PATH}#${greetOrdinal}`,
+        `${SPEC_PATH}#${farewellOrdinal}`,
+      ]);
+    });
+
+    it("binds a hashed link citing a line in a test's body by that line's range", () => {
+      const [bound] = bindDescriptorsToSpecLinks(
+        [descriptor({ startLine: 25, endLine: 35, anchorHash: "dddddddd" })],
+        [
+          {
+            path: SPEC_PATH,
+            content:
+              "# X\n\nThe system farewells the user.\n([validated by @eeeeeeee](src/greet.test.ts#L30))\n",
+          },
+        ],
+      );
+
+      expect(bound.spec).toBe(`${SPEC_PATH}#0`);
     });
   });
 });

@@ -12,7 +12,7 @@ import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 8 } };
+const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 9 } };
 let repoSettings: Record<string, unknown> = SETTINGS;
 
 vi.mock("../../outbound/project-boot.js", () => ({

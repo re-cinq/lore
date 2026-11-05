@@ -104,6 +104,9 @@ function testAttributes(
       knownAs(test, title),
       attribute(test, "path", descriptor.file),
       ...lineAttributes(test, descriptor),
+      ...(descriptor.anchorHash === undefined
+        ? []
+        : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
       attribute(test, "permalink", permalinkOf(input, descriptor)),
     ],
   };

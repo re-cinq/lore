@@ -14,7 +14,7 @@ import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { knowledgeBaseToMirror } from "./repo-mirror.js";
 
 const ENV = { UTOPIA_API_URL: "http://utopia.test" };
-const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 8 } };
+const SETTINGS = { utopia: { kb_id: "kb-1", ontology_version: 9 } };
 const SPLIT_SETTINGS = {
   utopia: { ...SETTINGS.utopia, history_sources_split: true },
 };
@@ -104,7 +104,7 @@ const mirrorOf = (
 ) => knowledgeBaseToMirror(pool as unknown as Pool, repo, settings, env);
 
 describe("knowledgeBaseToMirror", () => {
-  it("answers kb-1 without calling Utopia or writing when settings.utopia names kb-1 at ontology version 8", async () => {
+  it("answers kb-1 without calling Utopia or writing when settings.utopia names kb-1 at ontology version 9", async () => {
     const pool = makePool();
     const kbId = await mirrorOf(pool, "re-cinq/lore", SETTINGS);
 
@@ -137,7 +137,7 @@ describe("knowledgeBaseToMirror", () => {
       ],
       writes: [
         ["re-cinq/lore", "kb-new"],
-        { utopia: { kb_id: "kb-new", ontology_version: 8 } },
+        { utopia: { kb_id: "kb-new", ontology_version: 9 } },
       ],
     });
   });
@@ -204,7 +204,7 @@ const mirrorFailures = async (): Promise<Array<DataPoint<unknown>>> => {
 };
 
 describe("knowledgeBaseToMirror on a base set up at ontology version 1", () => {
-  it("re-imports the ontology into kb-1 once for two concurrent ingests, binds the eighteen kind words, stores version 8, and answers kb-1", async () => {
+  it("re-imports the ontology into kb-1 once for two concurrent ingests, binds the eighteen kind words, stores version 9, and answers kb-1", async () => {
     const pool = makePool();
     const kbIds = await Promise.all([
       mirrorOf(pool, "re-cinq/lore", SETTINGS_V1),
@@ -468,7 +468,7 @@ describe("knowledgeBaseToMirror on a base whose repo sets history_extract", () =
     await mirrorOf(pool, "re-cinq/lore", {
       utopia: {
         kb_id: "kb-1",
-        ontology_version: 8,
+        ontology_version: 9,
         history_sources_split: true,
         history_extract: true,
         history_extract_applied: true,

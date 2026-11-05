@@ -418,7 +418,7 @@ describe("withAnchorHash", () => {
       withAnchorHash("validated by", "a3f9c1d2"),
       withAnchorHash("`x.test.ts@00000000`", "a3f9c1d2"),
     ]).toEqual([
-      "`x.test.ts:196@a3f9c1d2`",
+      "`x.test.ts@a3f9c1d2`",
       "validated by @a3f9c1d2",
       "`x.test.ts@a3f9c1d2`",
     ]);

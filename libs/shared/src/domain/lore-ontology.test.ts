@@ -34,14 +34,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 8", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 9", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 8,
+      version: 9,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });

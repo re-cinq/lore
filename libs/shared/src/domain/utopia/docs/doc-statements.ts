@@ -4,12 +4,14 @@ import {
   linksForStatements,
   parseCodeLinksInStatement,
   resolveLinkPath,
+  splitHashedLabel,
   trailingLinkHrefs,
   type SpecLinkRef,
 } from "../../spec-link-parser.js";
 import type { Statement as DocStatement } from "../../spec-segment.js";
 import { stripCoverageLinks } from "../../spec-link-strip.js";
 import { testTitleAt } from "../../spec-trace/test-declarations.js";
+import { resolveAnchorLine } from "../../spec-trace/resolve-anchor-line.js";
 import {
   cutText,
   joinFragments,
@@ -34,7 +36,7 @@ export interface DocStatementsInput {
   /** ISO 8601 commit time, when the caller knows it. */
   commitTime?: string;
   kind: MirroredDocKind;
-  /** Linked test files' source at the commit, by repo path: a link whose label is no title is named by the test declared at its anchor. */
+  /** Linked test files' source at the commit, by repo path: a hashed link is read at the line its hash now sits on, and a link whose label is no title is named by the test declared there. */
   testSources?: ReadonlyMap<string, string>;
 }
 
@@ -159,13 +161,17 @@ function pushedText(text: string): string {
   return cutText(stripCoverageLinks(text));
 }
 
-/** The test the link names, or nothing when neither its label nor the source at its anchor gives the test's title. */
+/** The test the link names, or nothing when neither its label nor the source at its anchor gives the test's title. A hashed link's anchor is the line carrying its hash, wherever the test moved. */
 function testFragment(
   names: DocNames,
   statement: string,
-  link: SpecLinkRef,
+  written: SpecLinkRef,
 ): Fragment[] {
-  const path = resolveLinkPath(link.path, names.path);
+  const path = resolveLinkPath(written.path, names.path);
+  const link = {
+    ...written,
+    line: resolveAnchorLine(written, names.testSources.get(path) ?? null),
+  };
   const title = labelTitle(link.label) ?? sourceTitle(names, path, link.line);
 
   return title === null
@@ -193,13 +199,13 @@ function titledTestFragment(
   };
 }
 
-/** A `file.test.ts:21` label names where a test once stood, not what it is called. */
-const FILE_LINE_LABEL = /^[^\s:]+:\d+$/;
+/** A `file.test.ts:21` or bare `file.test.ts` label names where a test stands, not what it is called. */
+const FILE_LINE_LABEL = /^[^\s:]+(?::\d+|\.[A-Za-z0-9]+)$/;
 
-/** The label after "validated by", its backticks dropped; null when that leaves nothing or a `file:line`. */
+/** The label after "validated by", its `@hash` and backticks dropped; null when that leaves nothing, a `file:line` or a file name. */
 function labelTitle(label: string): string | null {
-  const title = label
-    .replace(/^validated by\b\s*/i, "")
+  const title = splitHashedLabel(label)
+    .text.replace(/^validated by\b\s*/i, "")
     .replace(/^`(.*)`$/, "$1")
     .trim();
 
@@ -218,13 +224,13 @@ function sourceTitle(
     : testTitleAt(source, line);
 }
 
-/** The test files whose links' labels give no title, once each in link order: the files {@link DocStatementsInput.testSources} needs. */
-export function untitledTestPaths(
+/** The test files a link needs read, once each in link order: one whose label gives no title, or that carries a hash to find its line by. The files {@link DocStatementsInput.testSources} needs. */
+export function testPathsToRead(
   input: Pick<DocStatementsInput, "path" | "content">,
 ): string[] {
   const paths = linksForStatements(input.content)
     .flatMap(({ testLinks }) => testLinks)
-    .filter((link) => labelTitle(link.label) === null)
+    .filter((link) => link.hash !== null || labelTitle(link.label) === null)
     .map((link) => resolveLinkPath(link.path, input.path));
 
   return [...new Set(paths)];
