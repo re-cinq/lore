@@ -16,7 +16,11 @@ function costsFloor(failing: string[] = []) {
   const summary = async (filter: Filter) => {
     filters.push(filter);
 
-    enforceTrue(!(failing.includes(filter.run)), Error, `floor costs: 503 for ${filter.run}`);
+    enforceTrue(
+      !failing.includes(filter.run),
+      Error,
+      `floor costs: 503 for ${filter.run}`,
+    );
 
     return filter.run
       ? [{ key: filter.run, costUsd: Number(filter.run.slice(4)) }]
