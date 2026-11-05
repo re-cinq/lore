@@ -712,7 +712,8 @@ export interface paths {
     /** GET /api/context */
     get: operations["get_api_context"];
     put?: never;
-    post?: never;
+    /** POST /api/context */
+    post: operations["post_api_context"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1405,6 +1406,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/changelog/{week}/intro": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/changelog/{week}/intro */
+    post: operations["post_api_repos_owner_repo_changelog_week_intro"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/chunk-summary": {
     parameters: {
       query?: never;
@@ -1569,6 +1587,23 @@ export interface paths {
     get: operations["get_api_repos_owner_repo_events_id_payload"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/explain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/explain */
+    post: operations["post_api_repos_owner_repo_explain"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3226,6 +3261,9 @@ export interface components {
       /** @constant */
       ok: true;
     };
+    ChangelogIntroStarted: {
+      runId: string;
+    };
     ChangelogPage: {
       weeks: {
         weekKey: string;
@@ -3600,6 +3638,15 @@ export interface components {
     };
     EventPayload: {
       [key: string]: unknown;
+    };
+    Explanation: {
+      answer: string;
+      statements: {
+        text: string;
+        /** @enum {string} */
+        via: "validated" | "implemented" | "covered";
+      }[];
+      model: string | null;
     };
     FloorGitCredential: {
       username: string;
@@ -4707,6 +4754,9 @@ export interface components {
               tracker_since?: string;
               docs_source_id?: string;
               sources_extract_off?: boolean;
+              history_sources_split?: boolean;
+              history_extract?: boolean;
+              history_extract_applied?: boolean;
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
@@ -4841,6 +4891,9 @@ export interface components {
                 tracker_since?: string;
                 docs_source_id?: string;
                 sources_extract_off?: boolean;
+                history_sources_split?: boolean;
+                history_extract?: boolean;
+                history_extract_applied?: boolean;
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";
@@ -7232,7 +7285,7 @@ export interface operations {
         max_tokens?: number;
         agent_id?: string;
         cross_repo?: string | boolean;
-        backend?: "lore" | "utopia" | "both";
+        backend?: "lore" | "utopia" | "both" | "lore-v2";
       };
       header?: never;
       path?: never;
@@ -7251,6 +7304,51 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_context: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          repo?: string;
+          query?: string;
+          /**
+           * @default default
+           * @enum {string}
+           */
+          template?: "default" | "review" | "implementation" | "research";
+          debug?: string | boolean;
+          /** @default 8000 */
+          max_tokens?: number;
+          agent_id?: string;
+          cross_repo?: string | boolean;
+          /** @enum {string} */
+          backend?: "lore" | "utopia" | "both" | "lore-v2";
+        };
+      };
+    };
+    responses: {
+      /** @description The assembled context block */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssembledContext"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -7336,7 +7434,7 @@ export interface operations {
             body: string;
           };
           /** @enum {string} */
-          backend?: "lore" | "utopia" | "both";
+          backend?: "lore" | "utopia" | "both" | "lore-v2";
         };
       };
     };
@@ -8627,6 +8725,36 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  post_api_repos_owner_repo_changelog_week_intro: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        week: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Starts the finished week's weekly-changelog run again, or joins the open one, so its introduction is written and the week stored anew */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangelogIntroStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_repos_owner_repo_chunk-summary": {
     parameters: {
       query?: never;
@@ -8942,6 +9070,44 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_explain: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          path: string;
+          start_line: number;
+          end_line: number;
+          code: string;
+        };
+      };
+    };
+    responses: {
+      /** @description What a span of code does, in at most two paragraphs grounded in the spec statements linked to it; I don't know when none are */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

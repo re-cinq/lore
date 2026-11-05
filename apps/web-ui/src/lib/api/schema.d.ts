@@ -7285,7 +7285,7 @@ export interface operations {
         max_tokens?: number;
         agent_id?: string;
         cross_repo?: string | boolean;
-        backend?: "lore" | "utopia" | "both";
+        backend?: "lore" | "utopia" | "both" | "lore-v2";
       };
       header?: never;
       path?: never;

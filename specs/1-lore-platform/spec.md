@@ -1237,7 +1237,7 @@ share one persistence surface instead of inline SQL. ([validated by `awaitingApp
   install has no offline mode (ADR-032), and `lore_search_context` with no
   Lore API configured says so instead of scanning local files. The
   last-synced CLAUDE.md files and ADRs in `~/.re-cinq/lore` stay readable
-  as files. ([validated by says the corpus search needs LORE_API_URL instead of scanning local files](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L28))
+  as files. ([validated by says the corpus search needs LORE_API_URL instead of scanning local files @1d1519e3](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L28))
 - Dgraph's one pod MUST NOT be deleted by node scale-down: a PodDisruptionBudget of `minAvailable: 1` protects it, because a restart can leave its disk attached to the old node and every graph read and ingest failing for about 40 minutes. ([validated by declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod @a8443587](libs/shared/src/domain/infra-contract/security-posture.test.ts#L110))
 
 ## Operational Targets & Constraints (Background)

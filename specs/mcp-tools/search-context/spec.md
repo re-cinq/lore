@@ -59,7 +59,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    the corpus at all. ([validated by `answers a natural-language query with scored passages carrying their source path` @4a7c1614](apps/lore-api/src/transport/routes/context/search-context.test.ts#L69), [`sends 0.0163 as a number when pg hands back the numeric as a string` @5243f6c2](apps/lore-api/src/transport/routes/context/search-context.test.ts#L96), [`retries a provisioned team schema's miss against org_shared` @7f4d91f3](apps/lore-api/src/transport/routes/context/search-context.test.ts#L112), [`refuses an empty query with 400 before searching` @dbf711a9](apps/lore-api/src/transport/routes/context/search-context.test.ts#L134), [validated by says no results for deploys when the API matches nothing @e525c16a](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L214))
 
 4. **No API** — the tool says the corpus search needs `LORE_API_URL` rather than
-   answer from local files. ([validated by says the corpus search needs LORE_API_URL instead of scanning local files](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L28))
+   answer from local files. ([validated by says the corpus search needs LORE_API_URL instead of scanning local files @1d1519e3](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L28))
 
 ## Output
 

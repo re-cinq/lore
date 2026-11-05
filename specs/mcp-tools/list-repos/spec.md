@@ -51,7 +51,7 @@ The tool takes no parameters — the schema object is `{}`.
    COALESCE(tc.task_count, 0)::int AS task_count`, ordered by `r.onboarded_at
    DESC`.
 3. **Empty guard** — if the result array is empty, return the literal text
-   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by reports no repos when the first page is empty](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L67))
+   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by reports no repos when the first page is empty @b0537601](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L67))
 
 4. **Success envelope** — return `JSON.stringify(repos, null, 2)`.
 5. Any thrown error is caught and returned as `"Error listing repos: {message}"`.
