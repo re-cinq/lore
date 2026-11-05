@@ -2,10 +2,10 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 8;
+export const LORE_INGEST_WORKFLOW_VERSION = 9;
 
-// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure. v8: the graph job runs one at a time, because uploads stacked beside each other could never finish a large delta.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 8
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure. v8: the graph job runs one at a time, because uploads stacked beside each other could never finish a large delta. v9: the fetch of lore-code-trace retries any error, 7 attempts 30 seconds apart, because one dropped connection from a runner skipped the projection while the run stayed green.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 9
 name: Lore Context Ingest
 
 on:
@@ -145,11 +145,14 @@ jobs:
             exit 1
           fi
           # The binary that posts the delta is served by Lore itself, so it
-          # always matches the server's ingest contract. A fetch that fails is
-          # plausibly transient - warn and rely on the next doc push, which
-          # diffs from the last commit Lore ingested and so catches up.
+          # always matches the server's ingest contract. A fetch gets 7
+          # attempts 30 seconds apart, retrying any error, so one dropped
+          # connection or a lore-api rollout does not skip the projection. One
+          # that still fails is plausibly transient - warn and rely on the next
+          # doc push, which diffs from the last commit Lore ingested and so
+          # catches up.
           for artifact in linux-amd64 checksums.txt; do
-            if ! curl -fsSL "\${LORE_INGEST_URL}/dist/lore-code-trace/\${artifact}" -o "\${artifact}"; then
+            if ! curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "\${LORE_INGEST_URL}/dist/lore-code-trace/\${artifact}" -o "\${artifact}"; then
               echo "::warning::lore-code-trace (\${artifact}) could not be fetched from Lore - specs and ADRs were NOT projected (transient - next doc push retries)"
               rm -f linux-amd64 checksums.txt
               exit 0

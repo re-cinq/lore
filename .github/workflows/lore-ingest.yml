@@ -1,4 +1,4 @@
-# lore-ingest-version: 8
+# lore-ingest-version: 9
 name: Lore Context Ingest
 
 on:
@@ -138,11 +138,14 @@ jobs:
             exit 1
           fi
           # The binary that posts the delta is served by Lore itself, so it
-          # always matches the server's ingest contract. A fetch that fails is
-          # plausibly transient - warn and rely on the next doc push, which
-          # diffs from the last commit Lore ingested and so catches up.
+          # always matches the server's ingest contract. A fetch gets 7
+          # attempts 30 seconds apart, retrying any error, so one dropped
+          # connection or a lore-api rollout does not skip the projection. One
+          # that still fails is plausibly transient - warn and rely on the next
+          # doc push, which diffs from the last commit Lore ingested and so
+          # catches up.
           for artifact in linux-amd64 checksums.txt; do
-            if ! curl -fsSL "${LORE_INGEST_URL}/dist/lore-code-trace/${artifact}" -o "${artifact}"; then
+            if ! curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/${artifact}" -o "${artifact}"; then
               echo "::warning::lore-code-trace (${artifact}) could not be fetched from Lore - specs and ADRs were NOT projected (transient - next doc push retries)"
               rm -f linux-amd64 checksums.txt
               exit 0

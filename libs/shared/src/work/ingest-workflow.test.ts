@@ -57,8 +57,8 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 8 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(8);
+  it("is version 9 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(9);
   });
 
   it("projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph", () => {
@@ -445,5 +445,27 @@ describe("ingestWorkflowStatus", () => {
         `# lore-ingest-version: ${LORE_INGEST_WORKFLOW_VERSION + 1}\n`,
       ),
     ).toBe("aligned");
+  });
+});
+
+describe("the graph job's fetch retries", () => {
+  const script = extractRunBlock("Fetch lore-code-trace");
+
+  it("asks curl for 7 attempts 30 seconds apart, retrying any error, and gives each connect 20 seconds", () => {
+    const argsFile = join(mkdtempSync(join(tmpdir(), "curl-args-")), "args");
+
+    runScript(script, { CURL_STUB_EXIT: "22", CURL_STUB_ARGS: argsFile });
+    const args = readFileSync(argsFile, "utf8").trim().split("\n");
+    const start = args.indexOf("--connect-timeout");
+
+    expect(args.slice(start, start + 7)).toEqual([
+      "--connect-timeout",
+      "20",
+      "--retry",
+      "6",
+      "--retry-delay",
+      "30",
+      "--retry-all-errors",
+    ]);
   });
 });
