@@ -75,14 +75,15 @@ jobs:
           if [ -z "${LORE_INGEST_URL}" ]; then
             echo "::warning::LORE_INGEST_URL not set — skipping test ingest"; exit 0
           fi
-          # Soft-fail the download: during the cutover rollout the mcp image may not
-          # be serving /dist yet. Warn + skip (the run step is gated on the file)
-          # rather than redden main; a later push picks it up once deployed.
-          if ! curl -fsSL "${LORE_INGEST_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace; then
-            echo "::warning::lore-code-trace not served at ${LORE_INGEST_URL}/dist yet — skipping (pending mcp deploy)"
+          # Each download gets 7 attempts 30 seconds apart, retrying any error, so a
+          # dropped connection or a lore-api rollout does not skip the test ingest.
+          # A binary that still can't be fetched warns and skips (the run step is
+          # gated on the file) rather than redden main; a later push posts the report.
+          if ! curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace; then
+            echo "::warning::lore-code-trace could not be fetched from Lore - skipping test ingest"
             rm -f lore-code-trace; exit 0
           fi
-          curl -fsSL "${LORE_INGEST_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
           echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
           chmod +x lore-code-trace
 
