@@ -4,7 +4,7 @@
 |---------|----------------------------------|
 | Feature | External floor, code-review lines |
 | Branch  | `feat/external-floor-code-review` |
-| Status  | In Progress                      |
+| Status  | Shipped                          |
 | Created | 2026-09-30                       |
 | Owner   | Platform Engineering             |
 
