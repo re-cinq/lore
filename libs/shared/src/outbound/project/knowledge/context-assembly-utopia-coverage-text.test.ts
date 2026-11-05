@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { coverageText } from "./context-assembly-utopia-coverage-text.js";
+import {
+  citedSpans,
+  coverageText,
+} from "./context-assembly-utopia-coverage-text.js";
 
 const SPEC = "specs/6-dark-factory/spec.md";
 const TEST_FILE = "libs/shared/src/domain/pr-body.test.ts";
@@ -118,5 +121,28 @@ describe("coverageText", () => {
     expect(coverageText("code:a.ts", " tail of a split item ")).toEqual(
       "code:a.ts\ntail of a split item",
     );
+  });
+});
+
+describe("citedSpans", () => {
+  it("cites the test prints Lore-Task from line 12 with no end for stmt:specs/6-dark-factory/spec.md#0146, and nothing for its implemented-by file", () => {
+    expect(citedSpans(`stmt:${SPEC}#0146`, statementTuple)).toEqual([
+      { path: TEST_FILE, start: 12, end: null },
+    ]);
+  });
+
+  it("cites the test itself from line 12 then the covered ranges 7-7 and 9-14 of pr-body.ts for a test: item", () => {
+    expect(citedSpans(`test:${TEST_FILE}`, testTuple)).toEqual([
+      { path: TEST_FILE, start: 12, end: null },
+      { path: "libs/shared/src/domain/pr-body.ts", start: 7, end: 7 },
+      { path: "libs/shared/src/domain/pr-body.ts", start: 9, end: 14 },
+    ]);
+  });
+
+  it("cites nothing for a code: item or a chunk that is no tuple", () => {
+    expect(
+      citedSpans("code:libs/shared/src/domain/pr-body.ts", codeTuple),
+    ).toEqual([]);
+    expect(citedSpans("test:a.test.ts", "tail of a split item")).toEqual([]);
   });
 });

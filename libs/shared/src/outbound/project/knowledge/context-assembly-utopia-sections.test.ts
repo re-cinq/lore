@@ -46,6 +46,18 @@ describe("widenedChunks", () => {
     ]);
   });
 
+  it("leads two FR lines under Requirements with the heading once, on the first", () => {
+    expect(
+      widenedChunks(CONTENT, [
+        "Resuming a loop deletes",
+        "A paused loop's pill",
+      ]),
+    ).toEqual([
+      "## Requirements\n- FR4 — A paused loop's pill shows the reason, since when, and until when if the pause has an end, and links to the run that paused it. ([validated by draws the pause](apps/web-ui/src/x.test.tsx#L12))",
+      "- FR5 — Resuming a loop deletes its pause row.",
+    ]);
+  });
+
   it("keeps a hit the document no longer contains as it came", () => {
     expect(widenedChunks(CONTENT, ["Text of an older version."])).toEqual([
       "Text of an older version.",

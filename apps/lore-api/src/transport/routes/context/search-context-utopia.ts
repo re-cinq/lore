@@ -1,7 +1,5 @@
-import {
-  utopiaDocuments,
-  type UtopiaArm,
-} from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia.js";
+import type { UtopiaArm } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia.js";
+import { utopiaDocuments } from "@re-cinq/lore-shared/project/knowledge/context-assembly-utopia-documents.js";
 
 const DOCUMENT_TYPES = new Set(["spec", "adr", "doc"]);
 const MAX_WINDOW = 50;

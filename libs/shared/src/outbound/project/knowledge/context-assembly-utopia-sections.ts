@@ -1,11 +1,36 @@
 // A doc hit widened to the whole statement it was cut from (specs/utopia-graph-mirror FR13.10): Utopia's chunk ends where the chunker cut, mid-sentence as often as not, so the item is re-read from the stored document as the block (a paragraph or a list item) around the hit, under the heading it stands beneath.
 
+import type { StoredDocument } from "../../../domain/utopia/read-shapes.js";
+import type { UtopiaReads } from "../../utopia/utopia-reads.js";
+
 const HEADING_RE = /^#{1,6} /;
 
-/** The blocks of the document the chunks fall in, each once, in the order they stand in the file, each led by its heading; a chunk the document does not contain stays as it came. */
+/** Each stored document of the docs source read once per assembly however many sections widen their hits from it; a read that fails leaves the hits as they came. */
+export function storedDocuments(arm: {
+  reads: UtopiaReads;
+  kbId: string;
+  docsSourceId: string;
+}): (path: string) => Promise<StoredDocument | null> {
+  const documents = new Map<string, Promise<StoredDocument | null>>();
+  const { reads, kbId, docsSourceId } = arm;
+
+  return (path) => {
+    const started =
+      documents.get(path) ??
+      reads
+        .documentByExternalId(kbId, docsSourceId, `doc:${path}`)
+        .catch(() => null);
+
+    documents.set(path, started);
+
+    return started;
+  };
+}
+
+/** The blocks of the document the chunks fall in, each once, in the order they stand in the file, a run of blocks under one heading led by that heading once; a chunk the document does not contain stays as it came. */
 export function widenedChunks(content: string, chunks: string[]): string[] {
   const lines = content.split("\n");
-  const blocks = new Map<number, string>();
+  const starts = new Set<number>();
   const strays: string[] = [];
 
   for (const chunk of chunks) {
@@ -15,20 +40,31 @@ export function widenedChunks(content: string, chunks: string[]): string[] {
       strays.push(chunk);
       continue;
     }
-    const start = blockStart(lines, line);
-
-    blocks.set(start, blockText(lines, start));
+    starts.add(blockStart(lines, line));
   }
 
-  return [...inFileOrder(blocks), ...strays];
+  return [
+    ...headedBlocks(
+      lines,
+      [...starts].sort((a, b) => a - b),
+    ),
+    ...strays,
+  ];
 }
 
-function blockText(lines: string[], start: number): string {
-  return [...headingOf(lines, start), ...blockOf(lines, start)].join("\n");
-}
+function headedBlocks(lines: string[], starts: number[]): string[] {
+  let lastHeading: number | null = null;
 
-function inFileOrder(blocks: Map<number, string>): string[] {
-  return [...blocks].sort(([a], [b]) => a - b).map(([, text]) => text);
+  return starts.map((start) => {
+    const heading = headingLineOf(lines, start);
+    const led = heading !== null && heading !== lastHeading;
+
+    lastHeading = heading;
+
+    return [...(led ? [lines[heading]] : []), ...blockOf(lines, start)].join(
+      "\n",
+    );
+  });
 }
 
 /** The line the chunk's first words of prose stand on; null when the document has no such line. Utopia leads a chunk with the path of headings above it, so the anchor is the chunk's first line that is no heading. */
@@ -82,12 +118,12 @@ function blockOf(lines: string[], start: number): string[] {
   return block;
 }
 
-function headingOf(lines: string[], start: number): string[] {
+function headingLineOf(lines: string[], start: number): number | null {
   for (let back = start - 1; back >= 0; back -= 1) {
     if (HEADING_RE.test(lines[back])) {
-      return [lines[back]];
+      return back;
     }
   }
 
-  return [];
+  return null;
 }

@@ -7,6 +7,63 @@ interface Tuple {
   s: Statement[];
 }
 
+/** Lines of one file a coupling item cites: a test from its first line to its last (null when the push knew no last line), or a range a test covers. */
+export interface Span {
+  path: string;
+  start: number;
+  end: number | null;
+}
+
+/** The spans a `stmt:` or `test:` tuple cites, in the order the item names them: each test a statement is validated by, or the test itself then each range it covers; nothing for a `code:` item or a chunk that is no tuple. */
+export function citedSpans(externalId: string, hitText: string): Span[] {
+  const tuple = parseTuple(hitText);
+  const kind = externalId.slice(0, externalId.indexOf(":"));
+
+  if (!tuple || (kind !== "stmt" && kind !== "test")) {
+    return [];
+  }
+  const [statement] = namesOfKind(tuple, "Statement");
+  const tests =
+    kind === "stmt"
+      ? objectsOf(tuple, statement, "validated_by")
+      : namesOfKind(tuple, "Test");
+
+  return tests.flatMap((test) => [
+    testSpan(tuple, test),
+    ...(kind === "test" ? coveredSpans(tuple, test) : []),
+  ]);
+}
+
+function testSpan(tuple: Tuple, test: string): Span {
+  const end = valueOf(tuple, test, "line_end");
+
+  return {
+    path: valueOf(tuple, test, "path"),
+    start: Number(valueOf(tuple, test, "line_start")),
+    end: end ? Number(end) : null,
+  };
+}
+
+/** `7-7,9-14` of a `covers` row read as one span per range. */
+function coveredSpans(tuple: Tuple, test: string): Span[] {
+  return tuple.s.flatMap((row) => {
+    const file = row[1] === test && row[2] === "covers" ? row[3] : null;
+
+    return file
+      ? String(row[5].lines)
+          .split(",")
+          .filter((range) => range !== "")
+          .map((range) => rangeSpan(fileOf(tuple, file), range))
+      : [];
+  });
+}
+
+function rangeSpan(path: string, range: string): Span {
+  const bounds = range.split("-").map(Number);
+
+  return { path, start: bounds[0], end: bounds[bounds.length - 1] };
+}
+
 /** The item's lines, or the hit text as it came when it is no tuple (a chunk of a split item). */
 export function coverageText(externalId: string, hitText: string): string {
   const tuple = parseTuple(hitText);
