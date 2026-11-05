@@ -12321,7 +12321,7 @@
               "properties": {
                 "weekKey": {
                   "type": "string",
-                  "pattern": "^\\d{4}-W\\d{2}$"
+                  "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
                 },
                 "from": {
                   "type": "string"
@@ -12392,7 +12392,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^\\d{4}-W\\d{2}$"
+                "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
               },
               {
                 "type": "null"

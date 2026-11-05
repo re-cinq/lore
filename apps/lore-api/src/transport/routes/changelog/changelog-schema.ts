@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ChangelogChangeSchema } from "@re-cinq/lore-shared/models/changelog-week.js";
 
-export const WeekKey = z.string().regex(/^\d{4}-W\d{2}$/);
+/** An ISO week of any year: the year in digits, the week 01 to 53. */
+export const WeekKey = z.string().regex(/^\d+-W(0[1-9]|[1-4]\d|5[0-3])$/);
 
 export const ChangelogQuerySchema = z.object({
   before: WeekKey.optional(),

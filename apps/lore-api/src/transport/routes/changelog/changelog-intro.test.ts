@@ -71,6 +71,23 @@ describe("POST /api/repos/{owner}/{repo}/changelog/{week}/intro", () => {
     });
   });
 
+  it("starts weekly-changelog for re-cinq/lore:999-W10, a three-digit year", async () => {
+    const { post, started } = scene();
+
+    expect({ status: (await post("999-W10")).status, started }).toEqual({
+      status: 202,
+      started: [{ line: "weekly-changelog", key: "re-cinq/lore:999-W10" }],
+    });
+  });
+
+  it("refuses 12026-W01, a week that has not ended, with 400", async () => {
+    expect((await scene().post("12026-W01")).status).toBe(400);
+  });
+
+  it("refuses week 2026-W54, past any year's last week, with 400", async () => {
+    expect((await scene().post("2026-W54")).status).toBe(400);
+  });
+
   it("refuses week yesterday with 400", async () => {
     expect((await scene().post("yesterday")).status).toBe(400);
   });
