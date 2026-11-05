@@ -117,6 +117,53 @@ describe("GeminiProvider", () => {
     ]);
   });
 
+  it("caps a gemini-2.5-flash call at 2000 output tokens through maxOutputTokens and sets no thinking level", async () => {
+    let body: any;
+    const fetchFn = async (_url: any, init: any) => {
+      body = JSON.parse(init.body);
+
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }] } }],
+        }),
+        { status: 200 },
+      );
+    };
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await provider.complete({ prompt: "p", maxTokens: 2000 });
+
+    expect(body.generationConfig).toEqual({ maxOutputTokens: 2000 });
+  });
+
+  it("asks gemini-3-flash-preview for the low thinking level, since its default is dynamic reasoning", async () => {
+    let body: any;
+    const fetchFn = async (_url: any, init: any) => {
+      body = JSON.parse(init.body);
+
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "ok" }] } }],
+        }),
+        { status: 200 },
+      );
+    };
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      model: "gemini-3-flash-preview",
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await provider.complete({ prompt: "p" });
+
+    expect(body.generationConfig).toEqual({
+      thinkingConfig: { thinkingLevel: "low" },
+    });
+  });
+
   it("sends no generationConfig for a plain call that names no temperature", async () => {
     const bodies: any[] = [];
     const fetchFn = async (_url: any, init: any) => {

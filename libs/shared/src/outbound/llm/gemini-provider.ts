@@ -115,6 +115,8 @@ interface GenerateRequest {
   systemPrompt?: string;
   responseSchema?: Record<string, unknown>;
   temperature?: number;
+  maxTokens?: number;
+  model: string;
 }
 
 /** The generateContent request body. A system instruction and a response schema are both omitted entirely when absent rather than sent empty — Gemini treats a present-but-blank `systemInstruction` as an instruction. */
@@ -130,12 +132,21 @@ function generateBody(req: GenerateRequest): Record<string, unknown> {
   };
 }
 
+/** A Gemini 3 model reasons at a dynamic (high) level unless told otherwise; Lore's calls are extraction and write-up, so they take the low level. */
+const GEMINI_3_RE = /^gemini-3/;
+
 function generationConfigOf({
   temperature,
   responseSchema,
+  maxTokens,
+  model,
 }: GenerateRequest): Record<string, unknown> {
   return {
     ...(temperature === undefined ? {} : { temperature }),
+    ...(maxTokens === undefined ? {} : { maxOutputTokens: maxTokens }),
+    ...(GEMINI_3_RE.test(model)
+      ? { thinkingConfig: { thinkingLevel: "low" } }
+      : {}),
     ...(responseSchema
       ? { responseMimeType: "application/json", responseSchema }
       : {}),
@@ -269,7 +280,7 @@ export class GeminiProvider implements LlmProvider {
     const start = Date.now();
 
     try {
-      const response = await this.generate(model, req);
+      const response = await this.generate(model, { ...req, model });
       const metrics = this.summarizeCall(model, response, start);
 
       await this.logCall(req, metrics);
@@ -289,6 +300,7 @@ export class GeminiProvider implements LlmProvider {
   ): Promise<GeminiCallMetrics & { text: string }> {
     const response = await this.generate(model, {
       ...req,
+      model,
       responseSchema: req.toolSchema,
     });
     const metrics = this.summarizeCall(model, response, start);

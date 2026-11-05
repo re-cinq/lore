@@ -80,7 +80,8 @@ export const COMPOSE_SYSTEM = [
   "Never invent a path, number, date or tool. Never state a relationship the evidence does not state",
   "(one ticket superseding another, a pull request being the base of a change): leave it out or mark it (inferred).",
   "Evidence about a repository that is neither the task's nor one it depends on is left out.",
-  "The reader has the task text: never restate the task, its acceptance criteria, its references or the issue it came from.",
+  "The reader has the task text: never restate the task, its acceptance criteria, its references or the issue it came from,",
+  "and never copy a section of it (Implements, Acceptance criteria, How to test, References, Related, Context, Needs a person).",
 ].join(" ");
 
 export function composePrompt(
@@ -101,7 +102,7 @@ export function composePrompt(
 
 function composeFormat(task: ContextTask): string[] {
   return [
-    "Write markdown with exactly these sections, nothing before the first and nothing after the last:",
+    "Write markdown with exactly these four sections and no other, nothing before the first and nothing after the last:",
     "## Key facts — only the questions the evidence answers, each in bold with a 1 to 3 sentence answer and its citations.",
     "When an answer rests on a spec requirement, an ADR or a stated rule, quote its sentence (at most 40 words).",
     "A question the evidence does not answer is left out without a word about it.",
