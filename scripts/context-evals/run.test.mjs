@@ -561,7 +561,7 @@ test("posts the 2 newest priority tickets and skips the issue without a priority
   ]);
 });
 
-test("renders the lore table with a mean score of 2.50, 1500 chars, a p50 of 200 ms and each ticket's useful items", async () => {
+test("renders the lore table with a mean score of 2.50, 1500 chars, a p50 of 200 ms and each ticket's sections and useful items", async () => {
   const api = ticketApi((n) => graded(n === 1 ? 2 : 3));
   const { markdown } = await runTicketEval(api, [issue(8), issue(7)]);
 
@@ -570,11 +570,24 @@ test("renders the lore table with a mean score of 2.50, 1500 chars, a p50 of 200
     "",
     "Mean score 2.50, mean block 2500 chars, p50 latency 200 ms.",
     "",
-    "| Ticket | Score | Useful | Noise |",
-    "| --- | --- | --- | --- |",
-    "| #8 Ticket 8 | 2 | fact 2 | generic background |",
-    "| #7 Ticket 7 | 3 | fact 3 | generic background |",
+    "| Ticket | Score | Sections | Useful | Noise |",
+    "| --- | --- | --- | --- | --- |",
+    "| #8 Ticket 8 | 2 | adrs | fact 2 | generic background |",
+    "| #7 Ticket 7 | 3 | adrs | fact 3 | generic background |",
   ]);
+});
+
+test("counts 1 of 2 lore-v2 blocks as fallen back when its sections say fallback", async () => {
+  const api = ticketApi((n) => ({
+    ...graded(3),
+    sections: n === 1 ? ["fallback: failed: empty block"] : ["builder"],
+  }));
+  const { markdown } = await runTicketEval(api, [issue(8), issue(7)], {
+    backend: "lore-v2",
+    count: 2,
+  });
+
+  assert.match(markdown, /p50 latency 300 ms, 1 of 2 fell back\./);
 });
 
 test("renders a table per store and keeps both verdicts when the backend is both", async () => {
