@@ -1,4 +1,4 @@
-# lore-ingest-version: 7
+# lore-ingest-version: 8
 name: Lore Context Ingest
 
 on:
@@ -106,6 +106,12 @@ jobs:
 
   graph:
     runs-on: ubuntu-latest
+    # One upload at a time: a delta is a diff from the last commit Lore ingested,
+    # so a second one beside it repeats the work and aborts its graph writes. A
+    # newer push replaces a queued run, and its diff covers the one it replaced.
+    concurrency:
+      group: lore-graph-projection
+      cancel-in-progress: false
     steps:
       # Full history: the delta is a diff against the last commit Lore
       # ingested, which a shallow clone cannot reach.

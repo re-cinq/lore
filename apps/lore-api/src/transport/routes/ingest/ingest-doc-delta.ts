@@ -10,6 +10,8 @@ export interface DocDelta {
   deleted?: string[];
   present?: string[];
   force?: boolean;
+  seq?: number;
+  total?: number;
 }
 
 /** Project a doc delta's files, then delete what it names as deleted and what a full ingest no longer names at all. */
@@ -18,6 +20,27 @@ export async function applyDocDelta(
   repo: string,
   delta: DocDelta,
 ): Promise<{ projected: number; deleted: number }> {
+  const started = Date.now();
+  const { projected, gone } = await projectAndPrune(deps, repo, delta);
+  const projectedAt = Date.now();
+
+  await mirrorDelta(deps, repo, delta, gone);
+  console.log(
+    chunkLine(repo, delta, {
+      projected,
+      projectingMs: projectedAt - started,
+      mirroringMs: Date.now() - projectedAt,
+    }),
+  );
+
+  return { projected, deleted: gone.length };
+}
+
+async function projectAndPrune(
+  deps: IngestDeltaDeps,
+  repo: string,
+  delta: DocDelta,
+): Promise<{ projected: number; gone: string[] }> {
   const { project, remove, list } = docFunctions(deps, delta.kind);
   const projected = await projectFiles(project, repo, delta);
   const gone = [
@@ -26,9 +49,19 @@ export async function applyDocDelta(
   ];
 
   await removeDocs(remove, repo, gone);
-  await mirrorDelta(deps, repo, delta, gone);
 
-  return { projected, deleted: gone.length };
+  return { projected, gone };
+}
+
+/** Where one chunk's time went: a successful one is otherwise silent, so a slow ingest could not say which part was slow. */
+function chunkLine(
+  repo: string,
+  { kind, commit, seq = 1, total = 1, files = [] }: DocDelta,
+  spent: { projected: number; projectingMs: number; mirroringMs: number },
+): string {
+  const seconds = (ms: number) => Math.round(ms / 1000);
+
+  return `[ingest-delta] ${kind} ${repo}@${commit.slice(0, 9)} chunk ${seq}/${total}: projected ${spent.projected} of ${files.length} files in ${seconds(spent.projectingMs)}s, mirrored in ${seconds(spent.mirroringMs)}s`;
 }
 
 const MIRRORED_KINDS: Partial<Record<string, "spec" | "adr">> = {
