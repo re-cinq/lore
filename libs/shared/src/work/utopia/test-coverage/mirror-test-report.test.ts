@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { mirrorTestReport, tombstoneTestFiles } from "./mirror-test-report.js";
 import type { PushItem } from "../../../domain/utopia/statements.js";
+import type { MirrorDeps } from "../push-items.js";
 import type { PushAction } from "../../../outbound/utopia/utopia-client.js";
 
 const run = {
@@ -36,7 +37,7 @@ describe("mirrorTestReport", () => {
     const client = pushClient((candidate) =>
       candidate.externalId === "test:src/a.test.ts" ? "created" : "updated",
     );
-    const outcome = await mirrorTestReport(client, run);
+    const outcome = await mirrorTestReport(withLedger(client), run);
 
     expect({
       outcome,
@@ -60,7 +61,7 @@ describe("mirrorTestReport", () => {
         return client.push(candidate);
       },
     };
-    const outcome = await mirrorTestReport(failing, run);
+    const outcome = await mirrorTestReport(withLedger(failing), run);
 
     expect({
       outcome,
@@ -95,3 +96,92 @@ describe("tombstoneTestFiles", () => {
     });
   });
 });
+
+class MemoryLedger {
+  readonly byPath = new Map<string, string[]>();
+  sweeps = 0;
+
+  async pushedFor(path: string): Promise<string[]> {
+    return this.byPath.get(path) ?? [];
+  }
+
+  async record(path: string, externalIds: string[]): Promise<void> {
+    this.byPath.set(path, externalIds);
+  }
+}
+
+function upkeptClient(ledger: MemoryLedger) {
+  const client = pushClient(() => "created");
+
+  return {
+    client,
+    deps: {
+      push: client.push,
+      ledger,
+      sweepMissing: async () => {
+        ledger.sweeps += 1;
+      },
+    },
+  };
+}
+
+describe("mirrorTestReport with a ledger", () => {
+  it("tombstones test:src/a.test.ts.2 when the last push had it and this one does not", async () => {
+    const ledger = new MemoryLedger();
+
+    ledger.byPath.set("test:src/a.test.ts", [
+      "test:src/a.test.ts",
+      "test:src/a.test.ts.2",
+    ]);
+    const { client, deps } = upkeptClient(ledger);
+
+    await mirrorTestReport(deps, run);
+
+    expect(
+      client.pushed
+        .filter((candidate) => "deleted" in candidate)
+        .map((candidate) => candidate.externalId),
+    ).toEqual(["test:src/a.test.ts.2"]);
+  });
+
+  it("records the item ids pushed for each test file", async () => {
+    const ledger = new MemoryLedger();
+    const { deps } = upkeptClient(ledger);
+
+    await mirrorTestReport(deps, run);
+
+    expect(Object.fromEntries(ledger.byPath)).toEqual({
+      "test:src/a.test.ts": ["test:src/a.test.ts"],
+      "test:src/b.test.ts": ["test:src/b.test.ts"],
+    });
+  });
+
+  it("sweeps the source once after tombstoning a dropped part", async () => {
+    const ledger = new MemoryLedger();
+
+    ledger.byPath.set("test:src/a.test.ts", ["test:src/a.test.ts.2"]);
+    ledger.byPath.set("test:src/b.test.ts", ["test:src/b.test.ts.2"]);
+    const { deps } = upkeptClient(ledger);
+
+    await mirrorTestReport(deps, run);
+
+    expect(ledger.sweeps).toBe(1);
+  });
+
+  it("sweeps nothing when no part was dropped", async () => {
+    const ledger = new MemoryLedger();
+    const { deps } = upkeptClient(ledger);
+
+    await mirrorTestReport(deps, run);
+
+    expect(ledger.sweeps).toBe(0);
+  });
+});
+
+function withLedger(client: { push: MirrorDeps["push"] }) {
+  return {
+    push: client.push,
+    ledger: new MemoryLedger(),
+    sweepMissing: async () => {},
+  };
+}

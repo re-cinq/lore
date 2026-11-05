@@ -38,6 +38,13 @@ const failing: TaggedRunResult[] = [
   { id: ROUNDS_TEST.id, passed: false, covered: [] },
 ];
 
+const coveringFiles = (count: number): TaggedRunResult["covered"] =>
+  Array.from({ length: count }, (_, index) => ({
+    file: `libs/shared/src/module-${index}/module-${index}.ts`,
+    startLine: 1,
+    endLine: 40,
+  }));
+
 const relationsOf = (pushed: StatementItem[], phrase: string) =>
   pushed.flatMap((part) => part.s.filter((row) => row[2] === phrase));
 
@@ -234,8 +241,6 @@ describe("testReportItems", () => {
         "test:src/a.test.ts.4",
         "test:src/a.test.ts.5",
         "test:src/a.test.ts.6",
-        "test:src/a.test.ts.7",
-        "test:src/a.test.ts.8",
       ],
       fits: pushed.map(() => true),
       heads: pushed.map(() => [
@@ -244,6 +249,32 @@ describe("testReportItems", () => {
       ]),
       tests: 120,
     });
+  });
+
+  it("splits one test covering 400 files into items that each fit", () => {
+    const pushed = build([ROUNDS_TEST], passing(coveringFiles(400)));
+
+    expect({
+      split: pushed.length > 1,
+      allFit: pushed.every((part) => fitsOneItem(part)),
+    }).toEqual({ split: true, allFit: true });
+  });
+
+  it("lists the test in every item that carries its covers relation", () => {
+    const pushed = build([ROUNDS_TEST], passing(coveringFiles(400)));
+    const undeclared = pushed.filter(
+      (part) =>
+        relationsOf([part], "covers").length > 0 &&
+        !part.e.some(([name]) => name === ROUNDS),
+    );
+
+    expect(undeclared).toEqual([]);
+  });
+
+  it("covers all 400 files across the split items", () => {
+    const pushed = build([ROUNDS_TEST], passing(coveringFiles(400)));
+
+    expect(relationsOf(pushed, "covers")).toHaveLength(400);
   });
 
   it("names the statement and test exactly as the doc mirror names them", () => {
