@@ -25,12 +25,12 @@ export function PlanHeaderSkeleton() {
   );
 }
 
-/** The run card: its summary line, then its next step. */
+/** The run's summary row: what the run is doing, then the outlined "Open the run" link beside it. */
 export function PlanRunSkeleton() {
   return (
-    <div className={`spec-card ${styles.run}`} aria-hidden>
-      <Skeleton width="55%" />
-      <Skeleton width="30%" height={30} />
+    <div className={styles.run} aria-hidden>
+      <Skeleton width="40%" />
+      <Skeleton width={120} height={30} />
     </div>
   );
 }

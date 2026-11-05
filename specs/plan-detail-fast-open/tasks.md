@@ -71,5 +71,5 @@ Phase 2 ships as **two PRs**. PR 2a adds the channel to lore-api and changes not
 
 ## Phase 4: Close out
 
-- [ ] T023 **Check SC-001 and SC-002 by hand.** On production, with throttling at "Fast 4G" in DevTools, click three plan cards. Each one shows the pending mark or the skeleton at once, and the header appears before the run card. In the Network panel, check that the socket carries no `agent_event` frame for the plan page (SC-005). Record a short GIF in the last PR.
+- [ ] T023 **Check SC-001 and SC-002 by hand.** On production, with throttling at "Fast 4G" in DevTools, click three plan cards. Each one shows the pending mark or the skeleton at once, and the header appears before the run card. In the Network panel, check that the socket carries no `agent_event` frame for the plan page (SC-005). Record a short GIF in the last PR. Check too that a pending card dims (FR2), with the cache disabled so the spinner shows before the prefetch.
 - [ ] T024 **Flip the spec's status.** In `specs/plan-detail-fast-open/spec.md`, set `| Status |` to `Implemented` once every FR statement carries a link. T047 already rewrote `specs/7-feature-planning/spec.md`'s plan-page run statement. Check it still reads true after PR 3. (depends on T039, T048, T021)
