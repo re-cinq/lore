@@ -30,18 +30,33 @@ interface LineRange {
   end: number;
 }
 
+/** One test file of a report, its items built only when asked, so a mirror can hold one file's items at a time. */
+export interface TestFileItems {
+  /** `test:<path>`, the id of the file's first item. */
+  key: string;
+  items(): StatementItem[];
+}
+
 export function testReportItems(input: TestReportInput): StatementItem[] {
+  return testReportFiles(input).flatMap((file) => file.items());
+}
+
+export function testReportFiles(input: TestReportInput): TestFileItems[] {
   const resultById = new Map(
     input.results.map((result) => [result.id, result]),
   );
 
-  return [...testsByFile(input.tests)].flatMap(([path, tests]) =>
-    splitToFit(
-      `test:${path}`,
-      tests.map((test) => testFragment(input, test, resultById.get(test.id))),
-      (part) => joinFragments(fileHead(input.repo, path), part),
-    ),
-  );
+  return [...testsByFile(input.tests)].map(([path, tests]) => ({
+    key: `test:${path}`,
+    items: () =>
+      splitToFit(
+        `test:${path}`,
+        tests.flatMap((test) =>
+          testPieces(input, test, resultById.get(test.id)),
+        ),
+        (part) => joinFragments(fileHead(input.repo, path), part),
+      ),
+  }));
 }
 
 export function testFileTombstones(paths: string[]): Tombstone[] {
@@ -70,24 +85,26 @@ function fileHead(repo: string, path: string): Fragment {
   };
 }
 
-function testFragment(
+/** A test as pieces the splitter may put in different items: its attributes and outcome, then one piece per file it covers, each naming the test so the relation's subject is listed wherever it lands. A test that covers hundreds of files therefore spans several items instead of overflowing one. */
+function testPieces(
   input: TestReportInput,
   descriptor: TestDescriptor,
   result: TaggedRunResult | undefined,
-): Fragment {
+): Fragment[] {
   const title = titleOf(descriptor);
   const test = testName(input.repo, descriptor.file, title);
-  const runParts = result
-    ? [
-        outcomeFragment(input.repo, test, descriptor, result),
-        ...coverageFragments(input, test, result.covered ?? []),
-      ]
-    : [];
+  const attributes = testAttributes(input, descriptor, test, title);
 
-  return joinFragments(
-    testAttributes(input, descriptor, test, title),
-    runParts,
-  );
+  if (!result) {
+    return [attributes];
+  }
+
+  return [
+    joinFragments(attributes, [
+      outcomeFragment(input.repo, test, descriptor, result),
+    ]),
+    ...coverageFragments(input, test, result.covered ?? []),
+  ];
 }
 
 function testAttributes(
@@ -173,7 +190,10 @@ function coverageFragments(
     const lines = ranges.map(({ start, end }) => `${start}-${end}`).join(",");
 
     return {
-      e: [[file, "SourceFile", true]],
+      e: [
+        [test, "Test", true],
+        [file, "SourceFile", true],
+      ],
       s: [
         relation(test, "covers", file, { lines }),
         ...sourceFileStatements(file, path),

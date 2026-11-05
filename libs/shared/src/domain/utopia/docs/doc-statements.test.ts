@@ -177,7 +177,7 @@ describe("statementItems", () => {
     ).toEqual([["re-cinq/lore:adrs/ADR-052.md", "Adr", true]]);
   });
 
-  it("splits a statement with 80 test links into four items under 200 statements each that repeat the section and statement entities", () => {
+  it("splits a statement with 80 test links into three items under 200 statements each that repeat the section and statement entities", () => {
     const links = Array.from(
       { length: 80 },
       (_, i) => `[validated by case ${i}](src/a.test.ts#L${i + 1})`,
@@ -197,9 +197,8 @@ describe("statementItems", () => {
         "stmt:specs/mirror/spec.md#0000",
         "stmt:specs/mirror/spec.md#0000.2",
         "stmt:specs/mirror/spec.md#0000.3",
-        "stmt:specs/mirror/spec.md#0000.4",
       ],
-      fits: [true, true, true, true],
+      fits: [true, true, true],
       heads: parts.map(() => [
         [`${DOC}#many`, "Section", true],
         [`${DOC}#s0000`, "Statement", true],
@@ -223,14 +222,14 @@ describe("statementItems", () => {
     expect(textsOf(statement)).toEqual([`${words.slice(0, 4000)}…`]);
   });
 
-  it("keeps the text on the first of four split parts and on none of .2, .3 and .4", () => {
+  it("keeps the text on the first of three split parts and on none of .2 and .3", () => {
     const links = Array.from(
       { length: 80 },
       (_, i) => `[validated by case ${i}](src/a.test.ts#L${i + 1})`,
     );
     const pushed = build(`## Many\n\n- FR1 — Linked. (${links.join(", ")})\n`);
 
-    expect(pushed.map(textsOf)).toEqual([["FR1 — Linked."], [], [], []]);
+    expect(pushed.map(textsOf)).toEqual([["FR1 — Linked."], [], []]);
   });
 });
 

@@ -12,7 +12,11 @@ import {
 } from "@re-cinq/lore-shared/utopia/mirror-code.js";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
-import { kindMirrorDeps } from "../kind-source.js";
+import { kindMirrorDeps, sweepKindSource } from "../kind-source.js";
+import {
+  pushedItemsFor,
+  savePushedItems,
+} from "../../../outbound/utopia/pushed-items.js";
 import { settled } from "../repo-mirror.js";
 
 /** A test report as the delta route received it. Its items name no commit, so an unchanged test re-pushes byte for byte. */
@@ -31,8 +35,22 @@ export async function mirrorReportFor(
   const deps = run.tests.length > 0 ? await coverageDepsFor(repo) : null;
 
   if (deps) {
-    settled(await mirrorTestReport(deps, run));
+    settled(await mirrorTestReport({ ...deps, ...reportUpkeep(repo) }, run));
   }
+}
+
+/** The ids last pushed per test file, and the sweep that deletes what a tombstone only marked. */
+function reportUpkeep(repo: string) {
+  const pool = getPool();
+
+  return {
+    ledger: {
+      pushedFor: (key: string) => pushedItemsFor(pool, repo, key),
+      record: (key: string, externalIds: string[]) =>
+        savePushedItems(pool, repo, key, externalIds),
+    },
+    sweepMissing: () => sweepKindSource(pool, repo, "test-coverage"),
+  };
 }
 
 export async function unmirrorTestFilesFor(
