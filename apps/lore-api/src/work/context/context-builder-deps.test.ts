@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Pool } from "pg";
-import { contextBuilderFor } from "./context-builder-deps.js";
+import { answerScope, contextBuilderFor } from "./context-builder-deps.js";
 
 function savedSettings(saved: Record<string, string>): Pool {
   return {
@@ -49,5 +49,25 @@ describe("contextBuilderFor", () => {
         { ...request, repo: "" },
       ),
     ).toBeNull();
+  });
+});
+
+describe("answerScope", () => {
+  const poolWith = (settings: unknown) =>
+    ({ query: async () => ({ rows: [{ settings }] }) }) as unknown as Pool;
+
+  it("answers a repository's questions over utopia when its settings name no store", async () => {
+    const scope = await answerScope(poolWith({}), "re-cinq/lore");
+
+    expect(scope.backend).toBe("utopia");
+  });
+
+  it("answers a repository's questions over lore when its settings say context_backend lore", async () => {
+    const scope = await answerScope(
+      poolWith({ context_backend: "lore" }),
+      "re-cinq/lore",
+    );
+
+    expect(scope.backend).toBe("lore");
   });
 });
