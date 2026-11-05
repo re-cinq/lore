@@ -14,6 +14,7 @@ describe("queryAnchors", () => {
       ],
       requirements: ["FR4"],
       numbers: [],
+      literals: [],
     });
   });
 
@@ -29,11 +30,26 @@ describe("queryAnchors", () => {
     ).toEqual(["FR-050", "FR12.8b"]);
   });
 
+  it("takes a quoted log line and a backticked name as literals, leaving a backticked path to paths", () => {
+    expect(
+      queryAnchors(
+        "lore-api logs 'source extraction switch: utopia answered 401' from `mirrorDocument` in `apps/lore-api/src/work/utopia/repo-mirror.ts`",
+      ),
+    ).toMatchObject({
+      literals: [
+        "source extraction switch: utopia answered 401",
+        "mirrorDocument",
+      ],
+      paths: ["apps/lore-api/src/work/utopia/repo-mirror.ts"],
+    });
+  });
+
   it("finds nothing in a query that names nothing", () => {
     expect(queryAnchors("daily digest voice and intro")).toEqual({
       paths: [],
       requirements: [],
       numbers: [],
+      literals: [],
     });
   });
 });

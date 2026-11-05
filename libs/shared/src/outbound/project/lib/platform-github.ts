@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- one class implementing two ports, one delegating method per port method: the length IS the port surface, and splitting the class would put half of GitHub in one file and half in another. */
 import { mergedPullsTouching } from "./platform-github-pulls-touching.js";
+import { searchCode } from "./platform-github-code-search.js";
 import type { Octokit } from "octokit";
 import type {
   BranchHistoryOptions,
@@ -22,6 +23,7 @@ import type {
   CloseReason,
   IssueEdit,
   CheckRunInput,
+  CodeMatch,
   LinkedPullRequest,
 } from "./github-port.js";
 import type {
@@ -288,6 +290,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   async mergedPullsTouching(repo: string, path: string): Promise<PullRef[]> {
     return mergedPullsTouching(await this.octo(), repo, path);
+  }
+
+  async searchCode(repo: string, term: string): Promise<CodeMatch[]> {
+    return searchCode(await this.octo(), repo, term);
   }
 
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {

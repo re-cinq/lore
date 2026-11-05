@@ -14,6 +14,7 @@ import {
 import type { AssembledForEval, AssembledSource } from "./evaluate-document.js";
 import type { TicketBackend } from "./evaluate-ticket.js";
 import { contextBuilderFor } from "../context/context-builder-deps.js";
+import { builtOrAssembled } from "../context/built-or-assembled.js";
 
 const TICKET_BUDGET = 8000;
 
@@ -71,7 +72,7 @@ export async function assembleForTicket(
   return { text: result.text, sections: kept.map((section) => section.source) };
 }
 
-/** The context builder's block, as `/api/context` serves it for backend lore-v2; the template assembly over Lore's stores when no model is named for it. */
+/** The block a lore-v2 caller gets, fallback included: the builder's when it writes one, the template assembly over Lore's stores otherwise, its section naming which (`builder`, or `fallback: <reason>`), so the eval grades what a caller is handed and counts the fallbacks. */
 async function builtForTicket(
   pool: Pool,
   repo: string,
@@ -83,10 +84,15 @@ async function builtForTicket(
     maxTokens: TICKET_BUDGET,
     crossRepoRequested: false,
   });
+  const answer = await builtOrAssembled(build, () =>
+    assembleForTicket(pool, repo, query, "lore"),
+  );
 
-  return build
-    ? { text: await build(), sections: ["builder"] }
-    : assembleForTicket(pool, repo, query, "lore");
+  return {
+    text: answer.text,
+    sections:
+      answer.builder === "on" ? ["builder"] : [`fallback: ${answer.builder}`],
+  };
 }
 
 interface AssemblyRequest {

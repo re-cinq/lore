@@ -2,6 +2,7 @@
 
 import type { LlmProvider } from "../../outbound/llm/llm-provider.js";
 import { candidatePaths } from "./candidate-paths.js";
+import { relevantSlice } from "./file-slice.js";
 import { queryAnchors, type QueryAnchors } from "./query-anchors.js";
 import {
   COMPOSE_SYSTEM,
@@ -17,11 +18,19 @@ import {
   type FilePicks,
 } from "./builder-prompts.js";
 
+/** A fragment of code a text search found, with the file holding it. */
+export interface CodeHit {
+  path: string;
+  text: string;
+}
+
 export interface ContextBuilderDeps {
   llm: LlmProvider;
   primer(): Promise<string>;
   tree(): Promise<string[]>;
   readFile(path: string): Promise<string | null>;
+  /** The lines of the repository's code holding a term, so a fact in a string literal is found without its path. */
+  grep(term: string): Promise<CodeHit[]>;
   /** The repository's own assembly for a question: its docs, specs, code and memories. */
   answer(question: string, repo: string): Promise<string>;
   issue(number: number): Promise<string | null>;
@@ -32,12 +41,15 @@ export interface ContextBuilderDeps {
 export interface BuiltContext {
   text: string;
   evidence: Evidence;
+  /** Milliseconds each stage took, so a slow build names its stage. */
+  stages: Record<string, number>;
 }
 
 interface Evidence {
   primer: string;
   answers: { question: string; answer: string }[];
   files: Record<string, string>;
+  grep: CodeHit[];
   issues: string[];
   previous_work: string[];
   related_repos: Record<string, string>;
@@ -45,19 +57,41 @@ interface Evidence {
 
 const MAX_FILES = 6;
 const CANDIDATES = 300;
-const MAX_FILE_CHARS = 15_000;
+const MAX_FILE_CHARS = 6_000;
 const MAX_EVIDENCE_CHARS = 150_000;
 const COMPOSE_MAX_TOKENS = 4_000;
+const MAX_GREP_TERMS = 4;
+const MAX_HITS_PER_TERM = 5;
 
 export async function buildContext(
   task: ContextTask,
   deps: ContextBuilderDeps,
 ): Promise<BuiltContext> {
   const anchors = queryAnchors(task.query);
-  const plan = await planned(task, anchors, deps.llm);
-  const evidence = await gathered(task, { anchors, plan }, deps);
+  const stages: Record<string, number> = {};
+  const [plan, picks] = await timed(stages, "plan", () =>
+    Promise.all([
+      planned(task, anchors, deps.llm),
+      pickedPaths(task, anchors, deps),
+    ]),
+  );
+  const evidence = await timed(stages, "evidence", () =>
+    gathered(task, { anchors, plan, picks }, deps),
+  );
+  const text = await timed(stages, "compose", () =>
+    composed(task, evidence, deps.llm),
+  );
+
+  return { text, evidence, stages };
+}
+
+async function composed(
+  task: ContextTask,
+  evidence: Evidence,
+  llm: LlmProvider,
+): Promise<string> {
   const related = Object.keys(evidence.related_repos);
-  const written = await deps.llm.complete({
+  const written = await llm.complete({
     systemPrompt: COMPOSE_SYSTEM,
     prompt: composePrompt(task, related, evidenceText(evidence)),
     maxTokens: COMPOSE_MAX_TOKENS,
@@ -65,7 +99,20 @@ export async function buildContext(
     jobName: "context-builder",
   });
 
-  return { text: written.text.trim(), evidence };
+  return written.text.trim();
+}
+
+async function timed<T>(
+  stages: Record<string, number>,
+  stage: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const started = Date.now();
+  const result = await run();
+
+  stages[stage] = Date.now() - started;
+
+  return result;
 }
 
 async function planned(
@@ -87,25 +134,33 @@ async function planned(
   };
 }
 
+interface Gathering {
+  anchors: QueryAnchors;
+  plan: ContextPlan;
+  picks: string[];
+}
+
 async function gathered(
   task: ContextTask,
-  { anchors, plan }: { anchors: QueryAnchors; plan: ContextPlan },
+  { anchors, plan, picks }: Gathering,
   deps: ContextBuilderDeps,
 ): Promise<Evidence> {
-  const [primer, files, searched] = await Promise.all([
+  const words = [task.query, ...plan.questions].join(" ").split(/[^\w]+/);
+  const [primer, files, grep, searched] = await Promise.all([
     deps.primer(),
-    openedFiles(task, { anchors, plan }, deps),
+    readAll(picks, words, deps),
+    searchedCode([...anchors.literals, ...plan.search_terms], deps),
     searchedEvidence(task, { anchors, plan }, deps),
   ]);
 
-  return { primer, files, ...searched };
+  return { primer, files, grep, ...searched };
 }
 
 async function searchedEvidence(
   task: ContextTask,
   { anchors, plan }: { anchors: QueryAnchors; plan: ContextPlan },
   deps: ContextBuilderDeps,
-): Promise<Omit<Evidence, "primer" | "files">> {
+): Promise<Omit<Evidence, "primer" | "files" | "grep">> {
   const [answers, issues, previous_work, related_repos] = await Promise.all([
     Promise.all(plan.questions.map((q) => answered(q, task.repo, deps))),
     namedIssues(anchors.numbers, deps),
@@ -124,37 +179,36 @@ async function answered(
   return { question, answer: await deps.answer(question, repo) };
 }
 
-async function openedFiles(
+/** The real paths the model picks for the task, from the ones the query names and the ones sharing its words, beside the planning rather than after it. */
+async function pickedPaths(
   task: ContextTask,
-  { anchors, plan }: { anchors: QueryAnchors; plan: ContextPlan },
+  anchors: QueryAnchors,
   deps: ContextBuilderDeps,
-): Promise<Record<string, string>> {
+): Promise<string[]> {
   const tree = await deps.tree();
   const candidates = candidatePaths(tree, {
-    text: [task.query, ...plan.questions].join(" "),
+    text: task.query,
     named: anchors.paths,
     limit: CANDIDATES,
   });
-  const picks = await pickedFiles(task, plan.questions, candidates, deps.llm);
+  const picks = await pickedFiles(task, candidates, deps.llm);
   const held = new Set(tree);
-  const chosen = [...new Set(picks.filter((path) => held.has(path)))].slice(
+
+  return [...new Set(picks.filter((path) => held.has(path)))].slice(
     0,
     MAX_FILES,
   );
-
-  return readAll(chosen, deps);
 }
 
 async function pickedFiles(
   task: ContextTask,
-  questions: string[],
   candidates: string[],
   llm: LlmProvider,
 ): Promise<string[]> {
   const { parsed } = await llm.completeWithTool<Partial<FilePicks>>({
     ...PICK_TOOL,
     systemPrompt: PICK_SYSTEM,
-    prompt: pickPrompt(task, questions, candidates),
+    prompt: pickPrompt(task, candidates),
     temperature: 0,
     jobName: "context-builder",
   });
@@ -164,6 +218,7 @@ async function pickedFiles(
 
 async function readAll(
   paths: string[],
+  words: string[],
   deps: ContextBuilderDeps,
 ): Promise<Record<string, string>> {
   const contents = await Promise.all(paths.map((path) => deps.readFile(path)));
@@ -172,9 +227,29 @@ async function readAll(
     paths.flatMap((path, index) => {
       const content = contents[index];
 
-      return content === null ? [] : [[path, content.slice(0, MAX_FILE_CHARS)]];
+      return content === null
+        ? []
+        : [[path, relevantSlice(content, words, MAX_FILE_CHARS)]];
     }),
   );
+}
+
+/** The code lines holding the query's literals and the plan's search terms, a few per term; a search that fails finds nothing. */
+async function searchedCode(
+  terms: string[],
+  deps: ContextBuilderDeps,
+): Promise<CodeHit[]> {
+  const searched = [...new Set(terms)].slice(0, MAX_GREP_TERMS);
+  const hits = await Promise.all(
+    searched.map((term) =>
+      deps
+        .grep(term)
+        .then((found) => found.slice(0, MAX_HITS_PER_TERM))
+        .catch((): CodeHit[] => []),
+    ),
+  );
+
+  return hits.flat();
 }
 
 async function namedIssues(

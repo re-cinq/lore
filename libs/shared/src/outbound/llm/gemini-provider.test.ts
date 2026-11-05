@@ -139,11 +139,11 @@ describe("GeminiProvider", () => {
     expect(bodies[0]).not.toHaveProperty("generationConfig");
   });
 
-  it("throws a clear error instead of a JSON.parse crash when candidates carry no content", async () => {
+  it("throws naming MAX_TOKENS instead of a JSON.parse crash when the candidate carries no text", async () => {
     const fetchFn = async () =>
       new Response(
         JSON.stringify({
-          candidates: [{ content: { parts: [] } }],
+          candidates: [{ content: { parts: [] }, finishReason: "MAX_TOKENS" }],
           usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 0 },
         }),
         { status: 200 },
@@ -160,7 +160,44 @@ describe("GeminiProvider", () => {
         toolDescription: "Extract facts",
         toolSchema: { type: "object" },
       }),
-    ).rejects.toThrow("Gemini returned no content in candidates");
+    ).rejects.toThrow("Gemini returned no text (MAX_TOKENS)");
+  });
+
+  it("throws naming the block reason on a plain call answered with no candidate, instead of an empty string", async () => {
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({ promptFeedback: { blockReason: "SAFETY" } }),
+        { status: 200 },
+      );
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await expect(provider.complete({ prompt: "x" })).rejects.toThrow(
+      "Gemini returned no text (SAFETY)",
+    );
+  });
+
+  it("sends a 90 s abort signal by default and the configured 50 ms one, failing a call that never answers", async () => {
+    const signals: AbortSignal[] = [];
+    const fetchFn = async (_url: any, init: any) => {
+      signals.push(init.signal);
+
+      return new Promise<Response>((resolve, reject) => {
+        init.signal.addEventListener("abort", () => reject(init.signal.reason));
+      });
+    };
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+      timeoutMs: 50,
+    });
+
+    await expect(provider.complete({ prompt: "x" })).rejects.toThrow(
+      /timeout|timed out/i,
+    );
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
   });
 
   it("throws with the status text on a non-ok response", async () => {
