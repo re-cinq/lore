@@ -24,12 +24,16 @@ import {
 } from "./decoration-math.js";
 
 interface State {
-  index: SpecCodeIndex;
+  /** What the workspace's own specs link, built from local files. */
+  local: SpecCodeIndex;
+  /** Each opened file's coverage layer, read from lore-api once per file until the next rebuild; null while the read is on its way. */
+  coverage: Map<string, SpecCodeIndex | null>;
   show: { implemented: boolean; covered: boolean };
 }
 
 const state: State = {
-  index: new Map(),
+  local: new Map(),
+  coverage: new Map(),
   show: { implemented: true, covered: true },
 };
 
@@ -198,9 +202,8 @@ async function rebuildIndex(): Promise<void> {
     return;
   }
 
-  const local = buildLocalIndex(await readSpecSources(root));
-
-  state.index = mergeIndexes(local, await readCoverageIndex(root));
+  state.local = buildLocalIndex(await readSpecSources(root));
+  state.coverage = new Map();
   applyToVisibleEditors();
 }
 
@@ -218,7 +221,7 @@ function applyToEditor(editor: vscode.TextEditor): void {
   }
   const { document } = editor;
   const rel = toRepoRelative(root, document.uri.fsPath);
-  const entries = entriesForPath(state.index, rel);
+  const entries = entriesForPath(indexFor(root, rel), rel);
   const lastLine = document.lineCount - 1;
   const { implemented, covered } = partitionByLayer(entries);
 
@@ -270,26 +273,54 @@ async function readSpecSources(root: string): Promise<SpecSource[]> {
   return sources.filter((s): s is SpecSource => s !== null);
 }
 
-// The coverage half of the index, or an empty one. Every reason it can be missing — no credentials, no detectable repo, an unreachable API — leaves the LOCAL index intact: highlighting what the workspace itself knows is still useful offline, so a failure here is logged rather than surfaced.
-async function readCoverageIndex(root: string): Promise<SpecCodeIndex> {
+/** The local layer, with the file's coverage laid over it once read. */
+function indexFor(root: string, rel: string | null): SpecCodeIndex {
+  return rel ? mergeIndexes(state.local, coverageOf(root, rel)) : state.local;
+}
+
+/** The file's coverage layer if it has been read, else empty while one read of it starts. Only the open file is asked for: reading the whole repository's graph at once cost lore-api about 600 MB and killed it (#4143). */
+function coverageOf(root: string, rel: string): SpecCodeIndex {
+  const known = state.coverage.get(rel);
+
+  if (known === undefined) {
+    state.coverage.set(rel, null);
+    void readCoverage(root, rel);
+  }
+
+  return known ?? new Map();
+}
+
+// Every reason the coverage can be missing (no credentials, no detectable repo, an unreachable API) leaves the local layer standing: what the workspace itself knows is still useful offline, so a failure is logged rather than surfaced.
+async function readCoverage(root: string, rel: string): Promise<void> {
   const creds = resolveCredentials();
   const repo = detectRepo(root);
 
   if (!creds || !repo) {
-    return new Map();
+    state.coverage.set(rel, new Map());
+
+    return;
   }
 
   try {
-    return buildCoverageIndex(
-      await new LoreClient(creds.apiUrl, creds.token).graph(repo),
-    );
+    state.coverage.set(rel, await fetchCoverage(creds, repo, rel));
+    applyToVisibleEditors();
   } catch (err) {
+    state.coverage.set(rel, new Map());
     console.error(
-      `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
+      `[lore] coverage read for ${rel} failed: ${err instanceof Error ? err.message : err}`,
     );
-
-    return new Map();
   }
+}
+
+async function fetchCoverage(
+  creds: { apiUrl: string; token: string },
+  repo: string,
+  rel: string,
+): Promise<SpecCodeIndex> {
+  const client = new LoreClient(creds.apiUrl, creds.token);
+  const { tests } = await client.testsCovering(repo, rel);
+
+  return buildCoverageIndex(rel, tests);
 }
 
 function resolveCredentials(): { apiUrl: string; token: string } | null {

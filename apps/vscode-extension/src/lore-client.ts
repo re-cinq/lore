@@ -1,6 +1,7 @@
 // Mirrors mcp-server's proxyGetApi bearer-auth+retry shape (15s timeout, retry on 408/429/5xx).
 
-import type { SpecGraph, TraceDocument } from "@re-cinq/lore-shared";
+import type { TraceDocument } from "@re-cinq/lore-shared";
+import type { CoveringTestRanges } from "./spec-index.js";
 
 const RETRY_DELAYS_MS = [200, 600, 1800];
 
@@ -59,9 +60,14 @@ export class LoreClient {
     private readonly retryDelaysMs: readonly number[] = RETRY_DELAYS_MS,
   ) {}
 
-  /** The repo's spec force-graph — the "graph request to the remote server". */
-  graph(repo: string): Promise<SpecGraph> {
-    return this.get<SpecGraph>(`/api/repos/${repo}/trace/graph`);
+  /** The tests that ran one file, each with the statement it validates and the file's lines it ran. */
+  testsCovering(
+    repo: string,
+    path: string,
+  ): Promise<{ tests: CoveringTestRanges[] }> {
+    return this.get<{ tests: CoveringTestRanges[] }>(
+      `/api/repos/${repo}/trace/tests-covering?path=${encodeURIComponent(path)}`,
+    );
   }
 
   specs(repo: string): Promise<{ specs: string[] }> {
