@@ -76,17 +76,17 @@ proxied body, the `unreachableError` message, or
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
 - Handler `readMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts)).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/shared/deps.ts#L16)); `readMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts@3fc8f66b](../../../apps/mcp-server/src/transport/tools/shared/deps.ts#L16)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 
 ## Acceptance Criteria
 
-1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](libs/server-core/src/work/memory/memory.test.ts#L150))
+1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key` @6995295e](libs/server-core/src/work/memory/memory.test.ts#L150))
 
-2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](libs/server-core/src/work/memory/memory.test.ts#L177))
+2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"` @6e5086ca](libs/server-core/src/work/memory/memory.test.ts#L177))
 
-3. A missing key returns null. ([validated by `returns null when the key does not exist`](libs/server-core/src/work/memory/memory.test.ts#L198))
+3. A missing key returns null. ([validated by `returns null when the key does not exist` @34bb9217](libs/server-core/src/work/memory/memory.test.ts#L198))
 
 4. The tool-level "not found" / file-fallback framing has no unit seam.
    *(untested: the handler null→message mapping and the file branch need
@@ -94,7 +94,7 @@ proxied body, the `unreachableError` message, or
 
 5. In local stdio mode (no DB), the tool proxies the read and returns the
    proxied body on success; a 401 is reported as a denied error on the first
-   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful read](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L33), [validated by returns the latest value monday of key deploy-day from the file store](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L69), [validated by returns value friday for version 1](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L81), [validated by returns both values for version all](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L93), [validated by reports key never-written as not found](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L103), [validated by reports a store whose memories.json holds null as a read error](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L112), [`reports a
+   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful read @c406083d](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L33), [validated by returns the latest value monday of key deploy-day from the file store @402cec5c](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L69), [validated by returns value friday for version 1 @f387362f](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L81), [validated by returns both values for version all @cfee30cb](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L93), [validated by reports key never-written as not found @09e1f5a4](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L103), [validated by reports a store whose memories.json holds null as a read error @065a4e48](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L112), [`reports a
    denied error on a 401 to a memory read without
    retrying`](apps/mcp-server/src/transport/tools/memory/read-memory.test.ts#L47))
 

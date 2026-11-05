@@ -68,15 +68,15 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
      `resolvedType = task_type`; a missing or removed type is refused (`namedTaskType`).
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
-     ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
-4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L82)) — rejects descriptions
+     ([handler wrapper @5b26907f](../../../libs/server-core/src/work/pipeline/pipeline.ts#L71)).
+4. **Shared CRUD** ([`createTask@49f3a996`](../../../libs/shared/src/domain/pipeline-task-core.ts#L82)) — rejects descriptions
    over 32000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a
    disallowed type throws `Task type "{t}" not allowed at trust level "{level}" for {repo}. Allowed: …`,
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
    (description, task_type, target_repo, created_by, context_bundle, priority[, task_group_id])
    … RETURNING id, status, priority, created_at`, optional `UPDATE … SET context_refs`,
-   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L106))
+   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter` @953a2b54](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L88), [validated by `inserts six parameters and no task_group_id column without a group id` @9da975b0](../../../libs/shared/src/domain/pipeline-tasks.trust.test.ts#L106))
 5. **Success message** — both transports return:
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*
@@ -104,7 +104,7 @@ message, or the `"Error creating pipeline task: …"` message. **Never throws.**
 A valid create inserts a `pipeline.tasks` row, records the `pending` transition
 event, and returns the new id with `pending` status — exercised end-to-end via the
 retry path, which calls the same shared `createTask`.
-([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
+([validated by `creates a linked task when the original is failed` @58cb1119](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
 
 An empty or whitespace-only description is rejected by the input schema before
 any insert; a normal description is accepted.
@@ -115,7 +115,7 @@ explicit value wins.
 *(untested: `detectCurrentRepo()` reads the ambient git remote — no deterministic seam without live repo state.)*
 
 A task must name its type: the input schema rejects a call with no `task_type`, and task creation refuses a missing type and the removed `implementation` and `general` types, pointing at the implementation loop, in the Postgres store and the in-memory one alike.
-([validated by answers onboard for a task of type onboard](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
+([validated by answers onboard for a task of type onboard @c3830c79](libs/shared/src/domain/task-types/retired-task-types.test.ts#L5), [validated by refuses a task with no type, pointing at the implementation loop @41798eb3](libs/shared/src/domain/task-types/retired-task-types.test.ts#L9), [validated by refuses the removed %s task type, pointing at the implementation loop @4b34859f](libs/shared/src/domain/task-types/retired-task-types.test.ts#L17), [validated by refuses a task with no type, as the Postgres store does @d4a2ad1a](libs/shared/src/outbound/project/tasks/task-store-memory.test.ts#L99))
 
 A description over 32000 chars (`MAX_TASK_DESCRIPTION_CHARS`, one shared constant) is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
@@ -132,7 +132,7 @@ pickup hint; a 401 is reported as a denied error.
 The shared trust gate allows `onboard` at every trust tier — it produces a
 docs-only scaffolding PR and is guarded against duplicates by its own route, so
 restricting it to `full` would only break the reonboard repair path on
-auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by refuses an implementation-loop task at trust level docs](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s` @4ac792dc](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L33), [validated by refuses an implementation-loop task at trust level docs @cd8ff1a0](libs/shared/src/domain/pipeline-tasks.trust.test.ts#L48))
 
 `buildContextBundle` (`apps/lore-api/src/work/pipeline/context-bundle.ts`) assembles this same `context` shape (`pipeline_task_id`, `spec_file`, `seed_query`, `branch`) into the markdown sections handed to an agent: an absent or empty `context` renders an empty string.
 

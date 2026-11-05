@@ -26,7 +26,7 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../apps/lore-api/src/app/build-server.ts#L117)), dispatched by
+([registration@8d9ffb27](../../../apps/lore-api/src/app/build-server.ts#L117)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
@@ -124,19 +124,19 @@ A request without `session_log` returns 400. ([validated by `returns 400 when
 session_log is missing`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L51))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `returns 403 when the token lacks write scope`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L57))
+([validated by `returns 403 when the token lacks write scope` @6529450e](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L57))
 
 A string summary shorter than 10 chars is skipped with `{ status: "skipped",
 reason: "empty session" }`. ([validated by `skips when the string summary is too
 short`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L69))
 
 An object `session_log` with a `.summary` field uses that field. ([validated by
-`uses the object .summary field`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L75), [validated by `session-summary.test.ts:71`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L75))
+`uses the object .summary field`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L75), [validated by `session-summary.test.ts@1d93ece7`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L75))
 
 An object without `.summary` falls back to `JSON.stringify`. ([validated by
 `falls back to JSON.stringify for objects without a summary`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L87))
 
-A null pool returns 503. ([validated by `returns 503 when pool is null`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L99))
+A null pool returns 503. ([validated by `returns 503 when pool is null` @254c21f5](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L99))
 
 An insert that conflicts yields `{ status: "duplicate" }`. ([validated by
 `returns duplicate when the insert conflicts`](apps/lore-api/src/transport/routes/memory/session-summary.test.ts#L134))
@@ -162,5 +162,5 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Episode lifecycle (decay, consolidation).
 - Token issuance and the scope schema.
 
-Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L28)
-(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts#L117).
+Code: handler [`handleSessionSummary@4fb90233`](../../../apps/lore-api/src/transport/routes/memory/session-summary.ts#L28)
+(IMPLEMENTED_BY); route [registration@8d9ffb27](../../../apps/lore-api/src/app/build-server.ts#L117).

@@ -159,7 +159,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `Authorization` header is parsed by the shared `extractBearer` — anchored
   to the start, scheme case-insensitive per RFC 7235, first value of a
   multi-value header — and secrets (registration token, token hashes) are
-  compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts:5`](libs/shared/src/transport/http/bearer.test.ts#L5), [`bearer.test.ts:9`](libs/shared/src/transport/http/bearer.test.ts#L9), [`bearer.test.ts:14`](libs/shared/src/transport/http/bearer.test.ts#L14), [`bearer.test.ts:18`](libs/shared/src/transport/http/bearer.test.ts#L18), [`secret-equals.test.ts:5`](libs/shared/src/lib/secret-equals.test.ts#L5))
+  compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts@fbbf2449`](libs/shared/src/transport/http/bearer.test.ts#L5), [`bearer.test.ts@af01c97f`](libs/shared/src/transport/http/bearer.test.ts#L9), [`bearer.test.ts@93e2563b`](libs/shared/src/transport/http/bearer.test.ts#L14), [`bearer.test.ts@c7a0d59b`](libs/shared/src/transport/http/bearer.test.ts#L18), [`secret-equals.test.ts@069a77b8`](libs/shared/src/lib/secret-equals.test.ts#L5))
 - Every cluster-agent — the satellite, the central one and a laptop's under
   `npm start` — persists its identity (`{id, token}`) in the Kubernetes Secret
   `lore-cluster-agent-identity`, written through the Kubernetes API (the
@@ -263,7 +263,7 @@ one dispatch mechanism, not a special case plus a remote case.
   and nothing queued behind it was claimed for hours. A graph run whose visit
   failed this way takes its failed edge on the next reaper tick; a single-CR
   run, which has no watcher event to close it, is ended by that tick with the
-  launch error as its reason. ([validated by returns github-permission for an installation token refused for a repository the App cannot reach](libs/shared/src/lib/error-classify.test.ts#L96))
+  launch error as its reason. ([validated by returns github-permission for an installation token refused for a repository the App cannot reach @b51c7965](libs/shared/src/lib/error-classify.test.ts#L96))
 - A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
   converges on the name its previous attempt used, and that attempt's CR may
   still be standing — its terminal event has already been consumed, so nothing
@@ -383,7 +383,7 @@ pull, so recovery splits by who holds the claim:
 - Two reported-state lookups make that routing possible without a cluster: a
   station run is found by its Agent CR name, newest row first, and a CR's
   stored pod-log chunks are listed and reassembled by that same name — the key
-  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts:1772`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1779), [`assembly-runs.test.ts:1797`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1804), [`pod-logs.test.ts:120`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts:134`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
+  a reader still holds when the Job name is known only to another cluster. ([validated by `assembly-runs.test.ts@53696eee`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1779), [`assembly-runs.test.ts@be36a3c9`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts#L1804), [`pod-logs.test.ts@9546a4f1`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L120), [`pod-logs.test.ts@45a246f9`](libs/shared/src/outbound/project/pod-logs/pod-logs.test.ts#L134))
 - The per-task token reclaim is a write with the same boundary: the DELETE
   goes to central when any of the task's station runs is visible from here or
   the task has no station run at all (a legacy single-CR task launched
@@ -673,7 +673,7 @@ they are alive.
   ready-to-paste command from them. The LLM credential and GHCR pull
   credentials stay deliberately un-baked.
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts:7`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
+  so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts@8975585c`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts@41811ad1`](libs/shared/src/outbound/project/audit/audit-read.test.ts#L33))
 
 ## FR9 — Pausing a cluster
 

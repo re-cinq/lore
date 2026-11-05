@@ -26,7 +26,7 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../apps/lore-api/src/app/build-server.ts#L99)).
+([registration@854d3711](../../../apps/lore-api/src/app/build-server.ts#L99)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
@@ -53,7 +53,7 @@ Registered as the first entry in the route table, matched on path only
 4. Extract the bearer token (`Authorization` header, `Bearer ` stripped). If
    present, call `validateClientToken(pool, bearer, "read")`; absent → not
    authed. A lookup that throws (database down) also reads as not authed, so
-   the probe answers its bare status rather than a 500. ([validated by `answers the bare status when a client token's lookup throws`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L159))
+   the probe answers its bare status rather than a 500. ([validated by `answers the bare status when a client token's lookup throws` @03aae60a](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L159))
 5. **Authenticated branch** (`isAuthed` true):
    1. Default `tasks = { processed_today: 0, pending: 0 }`.
    2. If `health.connected` **and** `pool` is non-null, run
@@ -132,7 +132,7 @@ header`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L146))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts:107`](apps/lore-api/src/transport/http/rate-limit.test.ts#L109))
+unauthenticated when connected`](apps/lore-api/src/transport/routes/healthz/healthz.test.ts#L53), [validated by `rate-limit.test.ts@f2aee70c`](apps/lore-api/src/transport/http/rate-limit.test.ts#L109))
 
 ## Out of Scope
 

@@ -42,7 +42,7 @@ Registers a new GitHub repo with Lore and spawns an onboard pipeline task: the F
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo onboarding requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `onboardRepo(getPool()!, full_name)`
-   ([handler](../../../apps/lore-api/src/work/repo/repo-onboard.ts#L256)):
+   ([handler@c2428f73](../../../apps/lore-api/src/work/repo/repo-onboard.ts#L256)):
    1. Split `full_name` on `/`. If either `owner` or `name` is empty, throw
       `Invalid repo full_name: "{fullName}". Expected "owner/repo" format.`
    2. Upsert into `lore.repos (owner, name, full_name)` with
@@ -80,16 +80,16 @@ case). **Never throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L43))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts@254c21f5`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L43))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L49))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts@235fb534`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L49))
 
-A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L55))
+A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts@9bc855dd`](apps/lore-api/src/transport/routes/repos/onboard.test.ts#L55))
 
 A 409 from the route is the guard refusing a duplicate, not an outage: the tool
 returns the refusal body verbatim so the caller keeps `blocked` and the in-flight
 `task_id`, while a genuine transport failure still reports as unreachable. The
-`reonboard` flag is passed straight through. ([validated by returns the guard's refusal body verbatim on a 409, not the unreachable-retry copy, since the caller needs task_id to poll](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L22), [`still reports a genuine outage as unreachable`](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L42), [`passes reonboard through to the API`](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L54))
+`reonboard` flag is passed straight through. ([validated by returns the guard's refusal body verbatim on a 409, not the unreachable-retry copy, since the caller needs task_id to poll @3b3659c8](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L22), [`still reports a genuine outage as unreachable` @601835a8](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L42), [`passes reonboard through to the API` @9a2c232e](apps/mcp-server/src/transport/tools/repo/onboard-repo.test.ts#L54))
 
 The MCP-tool wrapper's own `LORE_DB_HOST` gate and JSON-envelope framing reuse
 the same `onboardRepo` handler the route covers. *(untested: the tool wrapper has

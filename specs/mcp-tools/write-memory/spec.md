@@ -70,7 +70,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is given
    2. **If `extract_facts`** — dynamically `import("memory.js")`, grab
       `getMemoryPool()`, `SELECT id FROM memory.memories WHERE key = $1 AND
       (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`, and on a hit
-      fire `extractFacts(id, value, pool)` ([facts](../../../libs/server-core/src/work/memory/facts.ts#L176))
+      fire `extractFacts(id, value, pool)` ([facts@b236e299](../../../libs/server-core/src/work/memory/facts.ts#L176))
       fire-and-forget (`.catch(() => {})`). Does **not** block the response.
    3. Return `JSON.stringify(result)` as text.
 4. **Proxy path** — DB unavailable: `proxyMemory("write", { key, value,
@@ -94,17 +94,17 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
 - Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/work/memory/memory.ts)); `extractFacts` (async).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/transport/tools/shared/deps.ts#L16)); `writeMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts@3fc8f66b](../../../apps/mcp-server/src/transport/tools/shared/deps.ts#L16)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).
 
 ## Acceptance Criteria
 
 1. A first write of a key inserts version 1 and returns the write result with
-   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](libs/server-core/src/work/memory/memory.test.ts#L50))
+   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result` @de94bd84](libs/server-core/src/work/memory/memory.test.ts#L50))
 
 2. A write to an existing key increments the version and updates the row in
-   place. ([validated by `increments version when the key already exists`](libs/server-core/src/work/memory/memory.test.ts#L82))
+   place. ([validated by `increments version when the key already exists` @e57730ec](libs/server-core/src/work/memory/memory.test.ts#L82))
 
 3. The handler orchestration (repo detect, embedding, file fallback,
    `extract_facts` trigger) has no unit seam. *(untested: the DB branch needs a
@@ -113,14 +113,14 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 4. In local stdio mode (no DB), the tool proxies the write and returns the
    proxied body on success; a 401 is reported as a denied error on the first
-   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful write](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L32), [validated by writes key offline-key to the file store and returns version 1](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L117), [validated by reports the file store's failure when the agent's directory is a plain file](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L132), [`reports a
+   attempt, without the retriable-status backoff loop. ([validated by returns the proxied body on a successful write @605b87d9](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L32), [validated by writes key offline-key to the file store and returns version 1 @1f8698ab](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L117), [validated by reports the file store's failure when the agent's directory is a plain file @faa5a7cf](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L132), [`reports a
    denied error on a 401 to a memory write without
    retrying`](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L46))
 
 5. *(added 2026-10-01, #2103)* In the agent gateway, which has no checkout to
-   detect a repo from, the write is scoped to the `repo` the call names. ([validated by in the agent gateway scopes the write to the repo the call names](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L60), [validated by in the agent gateway sends no repo when the call names none](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L74))
+   detect a repo from, the write is scoped to the `repo` the call names. ([validated by in the agent gateway scopes the write to the repo the call names @e63001d2](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L60), [validated by in the agent gateway sends no repo when the call names none @eec8aacc](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L74))
 
-6. *(added 2026-10-01, #2344)* A `repo` that is not owner/name is rejected before any API call, rather than being dropped or interpolated. ([validated by rejects the repo ../lore before any API call](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L103))
+6. *(added 2026-10-01, #2344)* A `repo` that is not owner/name is rejected before any API call, rather than being dropped or interpolated. ([validated by rejects the repo ../lore before any API call @ff27ddef](apps/mcp-server/src/transport/tools/memory/write-memory.test.ts#L103))
 
 ## Out of Scope
 

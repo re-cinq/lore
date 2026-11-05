@@ -31,7 +31,7 @@ product used across teams and repos with different access levels.
 2. **Access-controlled** — users only see logs for repos they have
    access to (verified via GitHub API)
 3. **Redacted** — secrets, tokens, and credentials stripped before
-   storage ([validated by `redact.test.ts:78`](libs/shared/src/lib/redact.test.ts#L78))
+   storage ([validated by `redact.test.ts@b12695e0`](libs/shared/src/lib/redact.test.ts#L78))
 
 4. **Encrypted at rest** — logs stored encrypted, decrypted on read
 5. **Retention policy** — auto-delete after configurable TTL
@@ -85,17 +85,17 @@ async function persistLogs(taskId: string, repo: string, logs: string): Promise<
 A redaction pipeline that strips:
 - Environment variable assignments (`export VAR=value`, `VAR=value`)
 - Common secret patterns:
-  - API keys (sk-*, ghp_*, ghs_*, AKIA*, xoxb-*) ([validated by `redacts GitHub personal access tokens (ghp_)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L5), [validated by `redacts GitHub server tokens (ghs_)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L13), [validated by `redacts Anthropic API keys (sk-ant-)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L21), [validated by `redacts generic sk- prefixed keys`](libs/shared/src/lib/redact-secret-patterns.test.ts#L29), [validated by `redacts AWS access keys (AKIA)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L37), [validated by `redacts Slack tokens (xoxb-, xoxp-)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L45), [validated by `redacts GitLab tokens (glpat-)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L53))
-  - JWT tokens (eyJ*) ([validated by `redacts JWTs`](libs/shared/src/lib/redact-secret-patterns.test.ts#L61))
-  - Private keys (-----BEGIN.*PRIVATE KEY-----) ([validated by `redacts RSA private keys`](libs/shared/src/lib/redact-secret-patterns.test.ts#L74), [validated by `redacts generic private keys (EC, DSA)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L87))
-  - Connection strings (postgres://, mysql://, mongodb://) ([validated by `redacts PostgreSQL connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L99), [validated by `redacts MySQL connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L107), [validated by `redacts MongoDB connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L115), [validated by `redacts Redis connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L123), [validated by `redacts AMQP connection strings`](libs/shared/src/lib/redact-secret-patterns.test.ts#L131))
-  - Base64-encoded blobs > 100 chars ([validated by `redacts long base64 blobs`](libs/shared/src/lib/redact-secret-patterns.test.ts#L147))
-  - GitHub installation tokens in their HTTP Basic form, `Authorization: Basic base64("x-access-token:ghs_…")` as a git push prints it, which is shorter than the generic blob floor ([validated by `redacts the Basic header a git push prints for x-access-token:ghs_abcdefghijklmnopqrstuvwxyz1234`](libs/shared/src/lib/redact.test.ts#L245), [validated by `redacts %s`](libs/shared/src/lib/redact.test.ts#L214))
+  - API keys (sk-*, ghp_*, ghs_*, AKIA*, xoxb-*) ([validated by `redacts GitHub personal access tokens (ghp_)` @cbccc38c](libs/shared/src/lib/redact-secret-patterns.test.ts#L5), [validated by `redacts GitHub server tokens (ghs_)` @0fdcfbb3](libs/shared/src/lib/redact-secret-patterns.test.ts#L13), [validated by `redacts Anthropic API keys (sk-ant-)` @fd0a4610](libs/shared/src/lib/redact-secret-patterns.test.ts#L21), [validated by `redacts generic sk- prefixed keys` @5fe4f2a4](libs/shared/src/lib/redact-secret-patterns.test.ts#L29), [validated by `redacts AWS access keys (AKIA)` @133924fc](libs/shared/src/lib/redact-secret-patterns.test.ts#L37), [validated by `redacts Slack tokens (xoxb-, xoxp-)` @a5d6b934](libs/shared/src/lib/redact-secret-patterns.test.ts#L45), [validated by `redacts GitLab tokens (glpat-)` @9e6290a2](libs/shared/src/lib/redact-secret-patterns.test.ts#L53))
+  - JWT tokens (eyJ*) ([validated by `redacts JWTs` @ba68e074](libs/shared/src/lib/redact-secret-patterns.test.ts#L61))
+  - Private keys (-----BEGIN.*PRIVATE KEY-----) ([validated by `redacts RSA private keys` @7a420b17](libs/shared/src/lib/redact-secret-patterns.test.ts#L74), [validated by `redacts generic private keys (EC, DSA)` @28131dfb](libs/shared/src/lib/redact-secret-patterns.test.ts#L87))
+  - Connection strings (postgres://, mysql://, mongodb://) ([validated by `redacts PostgreSQL connection strings` @88faf2f9](libs/shared/src/lib/redact-secret-patterns.test.ts#L99), [validated by `redacts MySQL connection strings` @a08772b7](libs/shared/src/lib/redact-secret-patterns.test.ts#L107), [validated by `redacts MongoDB connection strings` @2683face](libs/shared/src/lib/redact-secret-patterns.test.ts#L115), [validated by `redacts Redis connection strings` @7d1f8132](libs/shared/src/lib/redact-secret-patterns.test.ts#L123), [validated by `redacts AMQP connection strings` @cb3f0466](libs/shared/src/lib/redact-secret-patterns.test.ts#L131))
+  - Base64-encoded blobs > 100 chars ([validated by `redacts long base64 blobs` @338de24d](libs/shared/src/lib/redact-secret-patterns.test.ts#L147))
+  - GitHub installation tokens in their HTTP Basic form, `Authorization: Basic base64("x-access-token:ghs_…")` as a git push prints it, which is shorter than the generic blob floor ([validated by `redacts the Basic header a git push prints for x-access-token:ghs_abcdefghijklmnopqrstuvwxyz1234` @9a472a4e](libs/shared/src/lib/redact.test.ts#L245), [validated by `redacts %s` @e99c08eb](libs/shared/src/lib/redact.test.ts#L214))
 - Custom patterns from repo settings (`lore.repos.settings.redact_patterns`)
 
 Redaction replaces matches with `[REDACTED:type]` (e.g., `[REDACTED:api-key]`).
 
-Benign text with no secret pattern is passed through unchanged — normal log lines, code snippets, base64 strings shorter than 100 chars, and the empty string are never redacted. ([validated by `does not redact short base64 strings (< 100 chars)`](libs/shared/src/lib/redact-secret-patterns.test.ts#L156), [validated by `preserves normal text`](libs/shared/src/lib/redact-secret-patterns.test.ts#L164), [validated by `preserves code snippets`](libs/shared/src/lib/redact-secret-patterns.test.ts#L171), [validated by `handles empty string`](libs/shared/src/lib/redact-secret-patterns.test.ts#L177))
+Benign text with no secret pattern is passed through unchanged — normal log lines, code snippets, base64 strings shorter than 100 chars, and the empty string are never redacted. ([validated by `does not redact short base64 strings (< 100 chars)` @7ff0978b](libs/shared/src/lib/redact-secret-patterns.test.ts#L156), [validated by `preserves normal text` @35176317](libs/shared/src/lib/redact-secret-patterns.test.ts#L164), [validated by `preserves code snippets` @52de0820](libs/shared/src/lib/redact-secret-patterns.test.ts#L171), [validated by `handles empty string` @94c72fe5](libs/shared/src/lib/redact-secret-patterns.test.ts#L177))
 
 ```typescript
 function redactSecrets(text: string): string {
@@ -257,7 +257,7 @@ Remove: no more log entries in `task_events` (`to_status = 'log'`).
 1. Logs persist in GCS after pod cleanup and are readable back by key, returning null for a
    never-written key
 
-2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:5`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts:48`](libs/shared/src/lib/redact.test.ts#L48), [validated by `redacts Bearer tokens`](libs/shared/src/lib/redact-secret-patterns.test.ts#L139), [validated by `handles text with multiple secrets`](libs/shared/src/lib/redact-secret-patterns.test.ts#L181), [validated by `redacts secrets embedded in JSON`](libs/shared/src/lib/redact-secret-patterns.test.ts#L196))
+2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts@17019aa0`](libs/shared/src/lib/redact.test.ts#L5), [`redact.test.ts@6673fcae`](libs/shared/src/lib/redact.test.ts#L48), [validated by `redacts Bearer tokens` @4d8bb61a](libs/shared/src/lib/redact-secret-patterns.test.ts#L139), [validated by `handles text with multiple secrets` @d71a5f44](libs/shared/src/lib/redact-secret-patterns.test.ts#L181), [validated by `redacts secrets embedded in JSON` @97bce2fd](libs/shared/src/lib/redact-secret-patterns.test.ts#L196))
 
 3. Users only see logs for repos they have GitHub access to
 4. 403 returned for unauthorized log access

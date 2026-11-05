@@ -72,14 +72,14 @@ three failure texts, or `"Error fetching agent stats: {message}"`.
 ## Acceptance Criteria
 
 The request goes to `GET /api/agent-stats` for the resolved agent with the
-bearer token, and the response is printed as JSON. ([validated by proxies to GET /api/agent-stats for the resolved agent and prints the JSON](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L23), [validated by passes on the API's own message for a 400](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L68), [validated by reports an API answer with no JSON body as a stats error](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L83))
+bearer token, and the response is printed as JSON. ([validated by proxies to GET /api/agent-stats for the resolved agent and prints the JSON @ff0487e9](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L23), [validated by passes on the API's own message for a 400 @89a29313](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L68), [validated by reports an API answer with no JSON body as a stats error @78e643dd](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L83))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by reports a missing API configuration instead of a PostgreSQL message](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L44), [validated by reports a denied error on a 401](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L55))
+PostgreSQL message. ([validated by reports a missing API configuration instead of a PostgreSQL message @27fd1928](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L44), [validated by reports a denied error on a 401 @f9a0f01c](apps/mcp-server/src/transport/tools/graph/agent-stats.test.ts#L55))
 
-Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:377`](libs/server-core/src/work/memory/memory.test.ts#L377))
+Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts@8260edc9`](libs/server-core/src/work/memory/memory.test.ts#L377))
 
-Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:353`](libs/server-core/src/work/memory/memory.test.ts#L353))
+Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts@81581749`](libs/server-core/src/work/memory/memory.test.ts#L353))
 
 ## Out of Scope
 

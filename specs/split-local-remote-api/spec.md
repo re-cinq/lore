@@ -147,7 +147,7 @@ or naming-honesty goal).
   and behave identically (proxy to `LORE_API_URL`, file fallback to `~/.lore`).
   The server-core proxy client round-trips a GET read and a POST write through the
   real lore-api server (the change persists in the DB), and returns
-  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:84`](apps/lore-api/src/integration-tests/proxy.test.ts#L69), [validated by `proxy.test.ts:97`](apps/lore-api/src/integration-tests/proxy.test.ts#L80), [validated by `proxy.test.ts:125`](apps/lore-api/src/integration-tests/proxy.test.ts#L101))
+  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts@8230e4c1`](apps/lore-api/src/integration-tests/proxy.test.ts#L69), [validated by `proxy.test.ts@2d540e6f`](apps/lore-api/src/integration-tests/proxy.test.ts#L80), [validated by `proxy.test.ts@74f661ca`](apps/lore-api/src/integration-tests/proxy.test.ts#L101))
 - **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
   terraform, and CI workflows build/deploy `apps/lore-api`.
 - **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,
@@ -163,7 +163,7 @@ or naming-honesty goal).
   onboarding. The import is indirected through a variable
   (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
   for an untyped package, which makes it invisible to every static dependency
-  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts:16`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts:20`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L20))
+  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts@47af0149`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts@870ce496`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts@51db0a07`](libs/shared/src/outbound/project/lib/runtime-deps.test.ts#L20))
 
 ## Success Criteria
 

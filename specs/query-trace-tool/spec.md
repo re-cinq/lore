@@ -13,7 +13,7 @@ The `lore-query-trace` MCP tool proxies a read to the remote `/trace/document` r
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
+Registered via `server.tool` ([registration@cf264dab](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
 
 - **name**: `lore-query-trace`
 - **description** (verbatim):
@@ -50,47 +50,47 @@ main-branch graph through the remote API.
 Wire `lore-query-trace` to proxy a read to the remote `/trace/document` route and
 project the returned `TraceDocument` into agent-readable text. The orchestrator
 resolves the repo, issues one GET via the proxy, and formats the result
-([`runQueryTrace`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L172));
+([`runQueryTrace@ebf22ef0`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L172));
 the projection itself is a pure function
-([`formatTraceQuery`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L10));
+([`formatTraceQuery@1a734caa`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L10));
 the GET proxy reuses the shared retry/config machinery
-([`proxyGetApi`](../../apps/mcp-server/src/transport/tools/shared/deps.ts#L18)); the tool is
+([`proxyGetApi@a72efe6a`](../../apps/mcp-server/src/transport/tools/shared/deps.ts#L18)); the tool is
 registered read-only on the shared surface
-([`lore-query-trace` registration](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
+([`lore-query-trace` registration @cf264dab](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
 
 ## Acceptance Criteria
 
 With no `statement` selector, the result lists the document coverage and then
 only the `violated`, `drifted`, and `untested` statements, in that order.
-([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L19))
+([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order` @1fe23959](libs/server-core/src/work/spec-trace/query-trace.test.ts#L19))
 
 An ordinal selector returns that statement in full with its test, code, and ADR
 links grouped, and flags it when violated.
-([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L70))
+([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped` @0455d090](libs/server-core/src/work/spec-trace/query-trace.test.ts#L70))
 
 A case-insensitive text-substring selector returns every matching statement.
-([validated by `with a case-insensitive substring selector, returns every matching statement`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L106))
+([validated by `with a case-insensitive substring selector, returns every matching statement` @5bebdc3d](libs/server-core/src/work/spec-trace/query-trace.test.ts#L106))
 
 An empty `TraceDocument` yields a no-graph-data message rather than an error;
 with no selector and no violated/drifted/untested statements, it says so
 instead; and a selector matching nothing returns a no-match message.
-([validated by `with an empty document, returns a no-graph-data message rather than throwing`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L141), [validated by `with no selector and no violated, drifted, or untested statements, says so`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L148), [validated by `with a selector matching nothing, returns a no-match message`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L167))
+([validated by `with an empty document, returns a no-graph-data message rather than throwing` @3c97a142](libs/server-core/src/work/spec-trace/query-trace.test.ts#L141), [validated by `with no selector and no violated, drifted, or untested statements, says so` @1ab7b348](libs/server-core/src/work/spec-trace/query-trace.test.ts#L148), [validated by `with a selector matching nothing, returns a no-match message` @27b2c49d](libs/server-core/src/work/spec-trace/query-trace.test.ts#L167))
 
 The tool proxies a GET to the repo's `trace/document` route and formats the
 returned document.
-([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L210), [validated by reads the document of spec specs/auth/spec.md through the read cache path](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L23))
+([validated by `proxies a GET to the repo's trace/document route and formats the result` @61cd0971](libs/server-core/src/work/spec-trace/query-trace.test.ts#L210), [validated by reads the document of spec specs/auth/spec.md through the read cache path @aaca71c9](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L23))
 
 The tool resolves the repo from `detectCurrentRepo` when `repo` is omitted, and
 reports clearly when none can be detected.
-([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L230))
+([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found` @df092cd1](libs/server-core/src/work/spec-trace/query-trace.test.ts#L230))
 
 With `LORE_API_URL` or the token unset, the tool returns a not-configured text
 response rather than throwing.
-([validated by `returns a not-configured message when no proxy is configured`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L239))
+([validated by `returns a not-configured message when no proxy is configured` @0bc8c53b](libs/server-core/src/work/spec-trace/query-trace.test.ts#L239))
 
 A `403 insufficient scope` from the remote surfaces a read-scope hint; a
 non-403 unreachable error omits it.
-([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error`](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268), [validated by asks for the tests covering src/auth/token.ts live](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L34))
+([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope` @84e97645](libs/server-core/src/work/spec-trace/query-trace.test.ts#L251), [validated by `omits the scope hint for a non-403 unreachable error` @c1d47398](libs/server-core/src/work/spec-trace/query-trace.test.ts#L268), [validated by asks for the tests covering src/auth/token.ts live @6e7b3a2a](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L34))
 
 ## The `tests_covering` shape
 
@@ -104,31 +104,31 @@ which names the covered source file in `path`, optionally narrows to `ranges`,
 and optionally names the branch whose overlay should answer.
 
 A request naming no covered file is refused rather than answered for the whole
-repo. ([validated by returns 400 when no path names the covered file](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L44))
+repo. ([validated by returns 400 when no path names the covered file @a778015a](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L44))
 
-The route returns the port's covering tests under a `tests` key. ([validated by returns the port's covering tests under a tests key](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L52))
+The route returns the port's covering tests under a `tests` key. ([validated by returns the port's covering tests under a tests key @7ecdad81](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L52))
 
-It parses `ranges` and passes them with the branch to the port, ([validated by passes parsed ranges and the branch to the port](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L65))
+It parses `ranges` and passes them with the branch to the port, ([validated by passes parsed ranges and the branch to the port @5a56a105](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L65))
 
-It omits ranges entirely when the query names none, so an unnarrowed question stays unnarrowed. ([validated by omits ranges from the target when the query names none](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L82))
+It omits ranges entirely when the query names none, so an unnarrowed question stays unnarrowed. ([validated by omits ranges from the target when the query names none @e1155b6d](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L82))
 
-A `ranges` query past the length bound is refused. ([validated by returns 400 when the ranges query exceeds the length bound](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L90))
+A `ranges` query past the length bound is refused. ([validated by returns 400 when the ranges query exceeds the length bound @4f0a9f17](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L90))
 
 The repo-bound view binds its own repo and forwards the target and branch to the
-port, ([validated by binds the view's repo and forwards target plus branch to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L29))
+port, ([validated by binds the view's repo and forwards target plus branch to the port @5b0a700d](libs/shared/src/outbound/project/trace/trace.test.ts#L29))
 
-It returns what the port answered unchanged when no branch narrows the read. ([validated by returns the port's covering tests unchanged when no branch narrows the read](libs/shared/src/outbound/project/trace/trace.test.ts#L46))
+It returns what the port answered unchanged when no branch narrows the read. ([validated by returns the port's covering tests unchanged when no branch narrows the read @0d6f8b75](libs/shared/src/outbound/project/trace/trace.test.ts#L46))
 
 The tool renders one row per test file, marking the row that came from the
-branch overlay and the statement each file validates. ([validated by renders one row per test file, marking the overlay row and the statement it validates](libs/server-core/src/work/spec-trace/query-trace.test.ts#L310))
+branch overlay and the statement each file validates. ([validated by renders one row per test file, marking the overlay row and the statement it validates @488c103e](libs/server-core/src/work/spec-trace/query-trace.test.ts#L310))
 
 An empty answer renders as a sentence saying so, never as empty output — an
-agent cannot tell a blank reply from a broken one. ([validated by renders a no-tests-cover sentence for an empty list](libs/server-core/src/work/spec-trace/query-trace.test.ts#L332))
+agent cannot tell a blank reply from a broken one. ([validated by renders a no-tests-cover sentence for an empty list @eaaadb1f](libs/server-core/src/work/spec-trace/query-trace.test.ts#L332))
 
-The branch and ranges reach the proxied URL url-encoded. ([validated by passes branch and ranges through to the proxied url, url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L341))
+The branch and ranges reach the proxied URL url-encoded. ([validated by passes branch and ranges through to the proxied url, url-encoded @54dcb846](libs/server-core/src/work/spec-trace/query-trace.test.ts#L341))
 
 An unreachable API is reported as prose rather than thrown, like every other
-shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for tests_covering](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366), [validated by answers the callers of runQueryTrace with the API's body](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L60))
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for tests_covering @3dbbab61](libs/server-core/src/work/spec-trace/query-trace.test.ts#L366), [validated by answers the callers of runQueryTrace with the API's body @71f369da](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L60))
 
 ## The `failures_touching` shape
 
@@ -142,33 +142,33 @@ The read is served by
 `GET /api/repos/{owner}/{repo}/trace/failures-touching`, which names the
 source file in `path`. It reads through the Project's trace view, like every
 other `/trace` kind: the failure reader sits beside the other graph reads in the
-outbound tier, so a deployment's trace port answers it wherever the graph lives. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
+outbound tier, so a deployment's trace port answers it wherever the graph lives. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port @949295ff](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
-A request naming no source file is refused. ([validated by returns 400 when no path names the source file](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L37))
+A request naming no source file is refused. ([validated by returns 400 when no path names the source file @dfdc967a](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L37))
 
-The route returns the recorded failures under a `failures` key. ([validated by returns the validate failure recorded on src/widget.ts under a failures key](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L65))
+The route returns the recorded failures under a `failures` key. ([validated by returns the validate failure recorded on src/widget.ts under a failures key @7101c4b9](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L65))
 
-It asks the trace port with the repo and the requested path. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
+It asks the trace port with the repo and the requested path. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port @949295ff](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
 With no graph configured it returns an empty list rather than failing — the
 same degradation the impact route makes, because an absent graph is a missing
-convenience, not a broken build. ([validated by returns an empty list when no Dgraph client is configured](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L44))
+convenience, not a broken build. ([validated by returns an empty list when no Dgraph client is configured @bd0819ef](apps/lore-api/src/transport/routes/trace/trace-failures-touching.test.ts#L44))
 
 The tool lists each failure with its node, its attempt, the commit it failed on
-and the sha that later fixed it. ([validated by lists each failure with its node, attempt, commit and the sha that fixed it](libs/server-core/src/work/spec-trace/query-trace.test.ts#L408))
+and the sha that later fixed it. ([validated by lists each failure with its node, attempt, commit and the sha that fixed it @316ac693](libs/server-core/src/work/spec-trace/query-trace.test.ts#L408))
 
 A failure no later attempt resolved is marked still open, so a round does not
-read an unfixed failure as a solution to copy. ([validated by marks a failure with no resolving commit as still open](libs/server-core/src/work/spec-trace/query-trace.test.ts#L419))
+read an unfixed failure as a solution to copy. ([validated by marks a failure with no resolving commit as still open @d63662d3](libs/server-core/src/work/spec-trace/query-trace.test.ts#L419))
 
-An empty answer renders as a sentence saying so. ([validated by renders a no-recorded-failures sentence for an empty list](libs/server-core/src/work/spec-trace/query-trace.test.ts#L427))
+An empty answer renders as a sentence saying so. ([validated by renders a no-recorded-failures sentence for an empty list @f3dd8484](libs/server-core/src/work/spec-trace/query-trace.test.ts#L427))
 
 Only the first line of a failure's detail is shown, capped — the point is
-recognition, and the whole log lives in the run's pod logs. ([validated by truncates a detail longer than 120 characters to one capped line](libs/server-core/src/work/spec-trace/query-trace.test.ts#L433))
+recognition, and the whole log lives in the run's pod logs. ([validated by truncates a detail longer than 120 characters to one capped line @d85f6abd](libs/server-core/src/work/spec-trace/query-trace.test.ts#L433))
 
-The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441), [validated by asks for the failures touching src/auth/token.ts live](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L47), [validated by refuses a call with no repo in the agent gateway](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L72))
+The requested path reaches the proxied URL url-encoded. ([validated by proxies a GET to the repo's failures-touching route with the path url-encoded @6eb0e152](libs/server-core/src/work/spec-trace/query-trace.test.ts#L441), [validated by asks for the failures touching src/auth/token.ts live @cfbc0abe](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L47), [validated by refuses a call with no repo in the agent gateway @b6aa27db](apps/mcp-server/src/transport/tools/spec-trace/query-trace.test.ts#L72))
 
 An unreachable API is reported as prose rather than thrown, like every other
-shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for failures_touching](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
+shape this tool serves. ([validated by reports the proxy failure rather than throwing when the api is unreachable for failures_touching @267356c4](libs/server-core/src/work/spec-trace/query-trace.test.ts#L455))
 
 ## The `callers` shape
 
@@ -178,13 +178,13 @@ or which ones it calls.
 The read is served by `GET /api/repos/{owner}/{repo}/trace/callers`, which names the
 target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edge
 itself when `direction=callees`, read through the Project's trace view. It answers
-one hop; `depth` is not walked yet. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
+one hop; `depth` is not walked yet. ([validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port @949295ff](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
-Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
+Each caller comes back with its file, its symbol name and the line it starts on. ([validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
 
-With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L37))
+With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured @259a2ede](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L37))
 
-A request that names no symbol is refused with 400. ([validated by answers 400 when the symbol is missing](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L43))
+A request that names no symbol is refused with 400. ([validated by answers 400 when the symbol is missing @15132cfb](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L43))
 
 ## Out of Scope
 
