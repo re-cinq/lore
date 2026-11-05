@@ -19,6 +19,8 @@ export interface CoveringTest {
   /** The spec statement the file's tests validate, when one is declared; absent from an overlay, which writes no statement edges. */
   statement?: string;
   origin: "main" | "overlay";
+  /** The 1-based inclusive line ranges of the asked-about file the test file's tests ran. */
+  ranges: [number, number][];
 }
 
 /** What the caller wants covered: one file, optionally narrowed to line ranges. */
@@ -66,8 +68,18 @@ export async function testsCoveringInScope(
   return dedupe(
     covs
       .filter((cov) => coversTarget(cov, target))
-      .flatMap((cov) => (cov.tc ?? []).map((tc) => toCoveringTest(tc, origin))),
+      .flatMap((cov) => coveringTestsOf(cov, origin)),
   );
+}
+
+/** The test files of one coverage record, each carrying the record's ranges of the file. */
+function coveringTestsOf(
+  cov: GraphCoverage,
+  origin: CoveringTest["origin"],
+): CoveringTest[] {
+  const ranges = coveredRanges(cov);
+
+  return (cov.tc ?? []).map((tc) => toCoveringTest(tc, origin, ranges));
 }
 
 /** The overlay's answer REPLACES main's for a file the branch covers; a file the branch never touched falls through to main. */
@@ -129,6 +141,7 @@ function coveredRanges(cov: GraphCoverage): [number, number][] {
 function toCoveringTest(
   chunk: GraphTestChunk,
   origin: CoveringTest["origin"],
+  ranges: [number, number][],
 ): CoveringTest {
   const statement = firstStatementText(chunk.stmts);
 
@@ -136,23 +149,24 @@ function toCoveringTest(
     testFile: chunk["TestChunk.file_path"] ?? "",
     ...(statement ? { statement } : {}),
     origin,
+    ranges,
   };
 }
 
-/** Drops repeat sightings of a file — several coverage records can name the same test file. */
+/** One entry per test file — several coverage records can name the same one — carrying the ranges of all of them. */
 function dedupe(tests: CoveringTest[]): CoveringTest[] {
-  const seen = new Set<string>();
+  const byFile = new Map<string, CoveringTest>();
 
-  return tests.filter((test) => {
-    const key = test.testFile;
+  for (const test of tests) {
+    const seen = byFile.get(test.testFile);
 
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
+    byFile.set(
+      test.testFile,
+      seen ? { ...seen, ranges: [...seen.ranges, ...test.ranges] } : test,
+    );
+  }
 
-    return true;
-  });
+  return [...byFile.values()];
 }
 
 /** The statement text of the first validating edge, or undefined when the chunk validates none. */

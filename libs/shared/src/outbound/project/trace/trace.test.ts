@@ -45,7 +45,7 @@ describe("TraceView.testsCovering", () => {
 
   it("returns the port's covering tests unchanged when no branch narrows the read", async () => {
     const answer: CoveringTest[] = [
-      { testFile: "src/a.test.ts", origin: "main" },
+      { testFile: "src/a.test.ts", origin: "main", ranges: [[1, 9]] },
     ];
 
     const out = await viewOver([], answer).testsCovering({ file: "src/a.ts" });

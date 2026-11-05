@@ -25,8 +25,16 @@ const APPLIER = join(
 const reachable = await dgraphReachable();
 
 describe("preferOverlay", () => {
-  const fromMain = { testFile: "a.test.ts", origin: "main" as const };
-  const fromOverlay = { testFile: "b.test.ts", origin: "overlay" as const };
+  const fromMain = {
+    testFile: "a.test.ts",
+    origin: "main" as const,
+    ranges: [],
+  };
+  const fromOverlay = {
+    testFile: "b.test.ts",
+    origin: "overlay" as const,
+    ranges: [],
+  };
 
   it("replaces main's answer for the file when the overlay covers it", () => {
     expect(preferOverlay([fromMain], [fromOverlay])).toEqual([fromOverlay]);
@@ -98,7 +106,9 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
         file: "src/widget.ts",
         ranges: [[12, 14]],
       }),
-    ).toEqual([{ testFile: "src/widget.test.ts", origin: "main" }]);
+    ).toEqual([
+      { testFile: "src/widget.test.ts", origin: "main", ranges: [[10, 20]] },
+    ]);
   });
 
   it("returns nothing for a range no test covers", async () => {
@@ -135,7 +145,9 @@ describe.skipIf(!reachable)("testsCoveringInScope (live Dgraph)", () => {
         file: "src/widget.ts",
         ranges: [[2, 3]],
       }),
-    ).toEqual([{ testFile: "src/widget.test.ts", origin: "overlay" }]);
+    ).toEqual([
+      { testFile: "src/widget.test.ts", origin: "overlay", ranges: [[1, 5]] },
+    ]);
   });
 
   it("does not see the branch's coverage from the main scope", async () => {

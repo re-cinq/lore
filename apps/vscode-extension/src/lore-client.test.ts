@@ -144,4 +144,22 @@ describe("LoreClient", () => {
       },
     });
   });
+
+  it("asks for the tests covering one file, not the repository's whole graph", async () => {
+    let url = "";
+    const baseUrl = await startServer((req, res) => {
+      url = req.url ?? "";
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ tests: [] }));
+    });
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
+
+    expect({
+      answer: await client.testsCovering("owner/repo", "src/a b.ts"),
+      url,
+    }).toEqual({
+      answer: { tests: [] },
+      url: "/api/repos/owner/repo/trace/tests-covering?path=src%2Fa%20b.ts",
+    });
+  });
 });

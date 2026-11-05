@@ -1,13 +1,11 @@
 // Merges two layers with local precedence: inline spec.md links ("implemented") win over graph coverage ranges ("covered").
 
-import type { SpecGraph, SpecGraphNode } from "@re-cinq/lore-shared";
 import {
   parseCodeLinksInStatement,
   parseTestLinksInStatement,
   type SpecLinkRef,
 } from "@re-cinq/lore-shared/spec-link-parser.js";
 import { segmentStatements } from "@re-cinq/lore-shared/spec-segment.js";
-import { parseRangesFacet } from "./coverage-ranges.js";
 
 export type HighlightLayer = "implemented" | "covered";
 
@@ -133,100 +131,54 @@ function addEntry(index: SpecCodeIndex, path: string, entry: RangeEntry): void {
   index.set(path, [entry]);
 }
 
-/** Walks Statement → validated_by Test → covers File chains into the coverage layer. */
-export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
+/** One covering test of a file as lore-api's `tests-covering` read answers it. */
+export interface CoveringTestRanges {
+  testFile: string;
+  /** The spec statement the test validates; a test that validates none colours nothing. */
+  statement?: string;
+  /** 1-based inclusive line ranges of the file the test ran. */
+  ranges: [number, number][];
+}
+
+/** The coverage layer of one file: a `covered` entry per range a statement-validating test ran, relating back to that test file. */
+export function buildCoverageIndex(
+  path: string,
+  tests: CoveringTestRanges[],
+): SpecCodeIndex {
   const index: SpecCodeIndex = new Map();
-  const nodeById = new Map<string, SpecGraphNode>(
-    graph.nodes.map((n) => [n.id, n]),
-  );
-  const statementByTest = buildStatementByTest(nodeById, graph.links);
 
-  for (const link of graph.links) {
-    if (link.kind !== "covers") {
-      continue;
-    }
-    const context = resolveCoverageContext(link, nodeById, statementByTest);
-
-    if (!context) {
-      continue;
-    }
-    const { test, file, stmt } = context;
-
-    addCoveredIntervals(index, file, stmt, relatedTestTarget(test));
+  for (const entry of tests.flatMap(coveredEntries)) {
+    addEntry(index, path, entry);
   }
 
   return index;
 }
 
-/** Test node id → the statement that `validated_by`-links to it. */
-function buildStatementByTest(
-  nodeById: Map<string, SpecGraphNode>,
-  links: SpecGraph["links"],
-): Map<string, SpecGraphNode> {
-  const statementByTest = new Map<string, SpecGraphNode>();
-
-  for (const link of links) {
-    if (link.kind !== "validated_by") {
-      continue;
-    }
-    const stmt = nodeById.get(link.source);
-
-    if (stmt) {
-      statementByTest.set(link.target, stmt);
-    }
+/** One `covered` entry per range the test ran, none for a test that validates no statement. */
+function coveredEntries({
+  testFile,
+  statement,
+  ranges,
+}: CoveringTestRanges): RangeEntry[] {
+  if (!statement) {
+    return [];
   }
+  const related = [{ label: basename(testFile), path: testFile, line: null }];
 
-  return statementByTest;
+  return ranges.map(([startLine, endLine]) => ({
+    startLine,
+    endLine,
+    layer: "covered",
+    evidence: "execution-verified",
+    statementText: statement.trim(),
+    specPath: "",
+    specLine: 0,
+    related,
+  }));
 }
 
-interface CoverageContext {
-  test: SpecGraphNode;
-  file: { path: string; detail: string | undefined };
-  stmt: SpecGraphNode;
-}
-
-/** Resolves a `covers` link's test/file/statement triple, or null when any leg is missing. */
-function resolveCoverageContext(
-  link: SpecGraph["links"][number],
-  nodeById: Map<string, SpecGraphNode>,
-  statementByTest: Map<string, SpecGraphNode>,
-): CoverageContext | null {
-  const test = nodeById.get(link.source);
-  const file = nodeById.get(link.target);
-  const stmt = statementByTest.get(link.source);
-
-  if (!test || !file?.path || !stmt) {
-    return null;
-  }
-
-  return { test, file: { path: file.path, detail: file.detail }, stmt };
-}
-
-function relatedTestTarget(test: SpecGraphNode): LinkTarget[] {
-  return test.path
-    ? [{ label: test.label, path: test.path, line: test.line ?? null }]
-    : [];
-}
-
-/** One covered entry per interval the graph attributes to the statement. */
-function addCoveredIntervals(
-  index: SpecCodeIndex,
-  file: { path: string; detail: string | undefined },
-  stmt: SpecGraphNode,
-  related: LinkTarget[],
-): void {
-  for (const interval of parseRangesFacet(file.detail)) {
-    addEntry(index, file.path, {
-      startLine: interval.startLine,
-      endLine: interval.endLine,
-      layer: "covered",
-      evidence: "execution-verified",
-      statementText: (stmt.detail ?? "").trim(),
-      specPath: stmt.path ?? "",
-      specLine: 0,
-      related,
-    });
-  }
+function basename(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
 }
 
 /** Merges with local precedence: drops a coverage entry when an inline entry already covers the same (statement, file). */

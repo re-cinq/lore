@@ -51,13 +51,23 @@ describe("GET /api/repos/:owner/:repo/trace/tests-covering", () => {
 
   it("returns the port's covering tests under a tests key", async () => {
     fakeTrace([
-      { testFile: "src/a.test.ts", statement: "does a", origin: "main" },
+      {
+        testFile: "src/a.test.ts",
+        statement: "does a",
+        origin: "main",
+        ranges: [[3, 9]],
+      },
     ]);
     const res = await get(`${base}?path=src/a.ts`);
 
     expect(res.result).toEqual({
       tests: [
-        { testFile: "src/a.test.ts", statement: "does a", origin: "main" },
+        {
+          testFile: "src/a.test.ts",
+          statement: "does a",
+          origin: "main",
+          ranges: [[3, 9]],
+        },
       ],
     });
   });
