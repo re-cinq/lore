@@ -206,6 +206,11 @@ For each match, the inserted parenthetical is:
   in the href and omit the `:{line}` suffix in the label:
   `([validated by \`local-runner.test.ts\`](mcp-server/src/local-runner.test.ts))`.
 
+Write the line number, never a hash: once the edits are applied, run
+`npx eslint --fix <spec.md>` on the spec. It turns `{filename}:{line}` into
+`{filename}@{hash}`, the content hash of the cited line, which keeps the
+link pointing at the test when lines move above it.
+
 **Multiple tests for the same statement** collapse into one
 parenthetical, comma-separated:
 

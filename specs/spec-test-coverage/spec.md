@@ -182,12 +182,33 @@ repo that wants hard enforcement can raise the rule to `error` once its specs
 are backfilled. Statement start lines for the report location come from the
 `line` field on `segmentStatements`.
 
+### Anchor hashes (amended 2026-11-05)
+
+A `#Lnn` anchor names a line by number, so every insertion above the cited line broke the link and failed the branch that moved the code. A link now also names its line by content: its label ends in the anchor hash of the cited line, and the `#Lnn` stays only so GitHub and editors open the file there.
+
+- The anchor hash of a line is the first 8 hex characters of the sha256 of the line lowercased with every character but `a-z` and `0-9` removed, so the same line hashes the same in any language and through quoting, spacing and case; lore, re-lint and lore-code-trace compute it alike. ([validated by normalizes and hashes every line of the fixtures re-lint and lore-code-trace share @bc3b348b](libs/shared/src/domain/anchor-hash.test.ts#L11), [validated by TestAnchorHashMatchesTheFixturesLoreAndReLintShare @cc6ff565](apps/lore-code-trace/anchor_hash_test.go#L16))
+- A label ending in `@` and 8 hex characters carries that hash, and the parser reads it beside the path and line. ([validated by parses to src/a.test.ts line 12 with hash a3f9c1d2 @26990d5a](libs/shared/src/domain/spec-link-parser.test.ts#L446))
+- The hash goes inside a closing code span and replaces the `:NN` a file label carried, since that number goes stale and the hash does not. ([validated by puts the hash inside a closing code span after a prefix, dropping its :38 @072d7996](libs/shared/src/domain/spec-link-parser.test.ts#L429))
+- Writing a hash into a label twice gives the same label, so the fixer's second pass changes nothing. ([validated by rewrites a bare file label and its own output to the same hashed file label @fee7defa](libs/shared/src/domain/spec-link-parser.test.ts#L435))
+- A hashed link means the line of the cited file carrying its hash, nearest the written line. ([validated by returns line 3, where the hash now sits, for a link written at line 1 @050d7a46](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L10))
+- When no line of the cited file carries its hash, the link means the line it was written with. ([validated by returns the written line 7 for a hash no line carries @c2a3fd15](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L14))
+- The graph stores a hashed test link at the line its hash sits on in the file at the ingested commit, with the hash. ([validated by stores a hashed test link at line 3, where its hash now sits, with the hash @6deb0229](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L421))
+- The graph keys a hashed code link by repository, path and hash, so its chunk keeps its identity when the cited line moves. ([validated by keys a hashed code link by repo|path|hash, so the chunk keeps its xid when the line moves @36fbe282](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L448))
+- The ingest hands the spec projector the commit of the delta, where it reads the files a spec's links cite. ([validated by hands the projector the delta's commit, where the files a spec's links cite are read @42ab44e9](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L833))
+- lore-code-trace stamps each test descriptor with the hash of its declaration line. ([validated by TestStampAnchorHashesHashesTheDeclarationLineAndSkipsAMissingFile @b6628a35](apps/lore-code-trace/anchor_hash_test.go#L39))
+- A link whose hash is a test's declaration hash binds that test, wherever its written line lies. ([validated by binds a link whose stale line 99 lies outside every test by its hash aaaaaaaa @f1ecde97](libs/shared/src/work/spec-trace/bind-descriptors-to-spec-links.test.ts#L143))
+- A link whose hash is no test's declaration, one citing a line in a test's body, binds by its line falling in the test's span. ([validated by binds a hashed link citing a line in a test's body by that line's range @a32fd370](libs/shared/src/work/spec-trace/bind-descriptors-to-spec-links.test.ts#L176))
+- The Utopia mirror names the test a hashed link cites by the title declared at the line its hash sits on. ([validated by names the test at the line its hash sits on, line 2, though the link says 40 @e7e3278d](libs/shared/src/domain/utopia/docs/doc-statements.test.ts#L314))
+- A test pushed to Utopia from a run carries its anchor hash when its descriptor has one. ([validated by returns anchor_hash a3f9c1d2 for a test whose descriptor carries it, and none for one that does not @e757ea33](libs/shared/src/domain/utopia/test-coverage/test-report-statements.test.ts#L94))
+
+The fixer is re-lint's, documented in its README under "Anchor hashes". `no-stale-spec-links` adds the hash and repoints a link: to the line carrying its hash; to the line a same-size rewrite put in its place, a test renamed where it stood; or to the one line keeping at least 60% of the old line's character pairs, in the cited file or the file git says it was renamed to. Lore runs it as a warning on the links a pull request writes only (`scope: "authored"`); the `spec-link-upkeep` workflow repoints every other link after each merge to main in a pull request of its own, healing renames against the main commit it last processed. `no-rotten-spec-links`, an error, reports only a link nothing can repoint.
+
 ### Decisions (locked)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Source of truth | **Markdown links in `spec.md`** | Git-tracked, author-reviewed, no hallucination, PR-co-located |
-| Link format | **Inline parenthetical at end of statement**: `Statement text. ([label](path#Lline))` | Lowest visual noise; works for prose + lists; rehype detects deterministically; multiple links comma-separated inside one paren |
+| Link format | **Inline parenthetical at end of statement**: `Statement text. ([label @hash](path#Lline))`, the hash naming the line by content (see Anchor hashes) | Lowest visual noise; works for prose + lists; rehype detects deterministically; multiple links comma-separated inside one paren |
 | Test-file detection | Reuse `isTestFile()` from `@re-cinq/lore-shared` on the `<a>` href's path component | Same heuristic the v2 linker used; one shared source of truth |
 | Statement segmentation | Reuse `segmentStatements()` + `classifyByHeuristic()` from `@re-cinq/lore-shared` | The ordinal contract still applies — UI + cron must agree on what counts as a statement |
 | Server-side state | **None.** The v2 tables (`spec_statements`, `spec_test_links`, `spec_coverage_runs`) are scheduled for deletion | Spec authors update the file; UI reads it; cron proposes via PR |

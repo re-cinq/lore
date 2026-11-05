@@ -425,6 +425,23 @@ describe("withAnchorHash", () => {
   });
 });
 
+describe("withAnchorHash on file labels", () => {
+  it("puts the hash inside a closing code span after a prefix, dropping its :38", () => {
+    expect(
+      withAnchorHash("validated by `agents-api.test.ts:38`", "a3f9c1d2"),
+    ).toBe("validated by `agents-api.test.ts@a3f9c1d2`");
+  });
+
+  it("rewrites a bare file label and its own output to the same hashed file label", () => {
+    const once = withAnchorHash("agents-api.test.ts:286", "a3f9c1d2");
+
+    expect([once, withAnchorHash(once, "a3f9c1d2")]).toEqual([
+      "agents-api.test.ts@a3f9c1d2",
+      "agents-api.test.ts@a3f9c1d2",
+    ]);
+  });
+});
+
 describe("a hashed test link", () => {
   it("parses to src/a.test.ts line 12 with hash a3f9c1d2", () => {
     expect(

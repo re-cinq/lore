@@ -30,37 +30,40 @@ export interface SpecLinkRef {
   hash: string | null;
 }
 
-const HASHED_LABEL_RE = /^([\s\S]*?)\s*@([0-9a-f]{8})$/;
-const IN_BACKTICKS_RE = /^`([\s\S]*)`$/;
+// A hash closes the label, or the code span that closes it: `name.test.ts@a3f9c1d2`, validated by `name@a3f9c1d2`, validated by its title @a3f9c1d2.
+const HASHED_LABEL_RE = /^([\s\S]*?)\s*@([0-9a-f]{8})(`?)$/;
+const LAST_CODE_SPAN_RE = /`([^`\s]+)`$/;
+const LINE_SUFFIX_RE = /:\d+$/;
 
-/** A label split into its text and the `@hash` it ends with; a label in backticks keeps them around its text. */
+/** A label split into its text and the `@hash` it ends with, a closing backtick kept on the text. */
 export function splitHashedLabel(label: string): {
   text: string;
   hash: string | null;
 } {
-  const quoted = IN_BACKTICKS_RE.exec(label);
-  const inner = quoted ? quoted[1] : label;
-  const hashed = HASHED_LABEL_RE.exec(inner);
+  const hashed = HASHED_LABEL_RE.exec(label);
 
-  if (!hashed) {
-    return { text: label, hash: null };
-  }
-
-  return { text: quoted ? `\`${hashed[1]}\`` : hashed[1], hash: hashed[2] };
+  return hashed
+    ? { text: `${hashed[1]}${hashed[3]}`, hash: hashed[2] }
+    : { text: label, hash: null };
 }
 
-const FILE_LINE_RE = /^([^\s:]+):\d+$/;
-
-/** The label carrying `hash`: an existing hash replaced, otherwise appended, inside the backticks when the label has them. A `name.test.ts:196` label trades its line for the hash, as `name.test.ts@hash`: the line it names goes stale, the hash does not. */
+/**
+ * The label carrying `hash` in place of any it had. The hash goes inside a closing code span
+ * (`` `name.test.ts@hash` ``), against a one-word label (`L5@hash`), or after the text with a
+ * space. A `name.test.ts:196` next to it trades its line for the hash: that line goes stale.
+ */
 export function withAnchorHash(label: string, hash: string): string {
   const { text } = splitHashedLabel(label);
-  const quoted = IN_BACKTICKS_RE.exec(text);
-  const inner = (quoted ? quoted[1] : text).replace(FILE_LINE_RE, "$1");
+  const span = LAST_CODE_SPAN_RE.exec(text);
 
-  if (quoted || inner !== text) {
-    const hashed = `${inner}@${hash}`;
+  if (span) {
+    const file = span[1].replace(LINE_SUFFIX_RE, "");
 
-    return quoted ? `\`${hashed}\`` : hashed;
+    return `${text.slice(0, span.index)}\`${file}@${hash}\``;
+  }
+
+  if (text !== "" && !/\s/.test(text)) {
+    return `${text.replace(LINE_SUFFIX_RE, "")}@${hash}`;
   }
 
   return text === "" ? `@${hash}` : `${text} @${hash}`;

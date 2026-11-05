@@ -43,41 +43,41 @@ export interface ProjectionOptions {
 }
 
 export async function projectSpecFile(
-  { repo, filePath, content }: SourceDocument,
+  document: SourceDocument,
   dgraph: DgraphClientPort,
-  {
-    embed = getQueryEmbeddings,
-    force = false,
-    readLinked,
-  }: ProjectionOptions = {},
+  options: ProjectionOptions = {},
 ): Promise<{ projected: boolean }> {
+  const { repo, filePath, content } = document;
   const contentHash = sha256(content);
-
   const specXid = `${repo}|${filePath}`;
 
-  if (!force && (await isSpecUnchanged(dgraph, specXid, contentHash))) {
+  if (!options.force && (await isSpecUnchanged(dgraph, specXid, contentHash))) {
     return { projected: false };
   }
+  const target = specTarget(dgraph, document, options);
 
-  const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
-
-  await projectSpecChildren(
-    {
-      dgraph,
-      repo,
-      filePath,
-      specUid,
-      embed,
-      readLinked: readLinked && readOnce(readLinked),
-    },
-    content,
-  );
-
-  await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
+  await projectSpecChildren(await target, content);
+  await upsertByXid(dgraph, "Spec", specXid, {
     "Spec.content_hash": contentHash,
   });
 
   return { projected: true };
+}
+
+/** The Spec node itself, then where its children are written, with the embedder and the linked-file reader the options name. */
+async function specTarget(
+  dgraph: DgraphClientPort,
+  document: SourceDocument,
+  { embed = getQueryEmbeddings, readLinked }: ProjectionOptions,
+): Promise<SpecTarget> {
+  return {
+    dgraph,
+    repo: document.repo,
+    filePath: document.filePath,
+    specUid: await projectSpecNode(dgraph, document),
+    embed,
+    readLinked: readLinked && readOnce(readLinked),
+  };
 }
 
 /** A reader that fetches each path once per projection: many statements cite the same test file. */
