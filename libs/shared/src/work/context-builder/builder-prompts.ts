@@ -17,16 +17,10 @@ export interface FilePicks {
   files: string[];
 }
 
-/** The Lore tools an agent can open what the block points at with; the write-up names no other. */
-export const LORE_READ_TOOLS = [
-  "lore_search_context (passages of the repository's specs, ADRs and docs)",
-  "lore_search_memory (past sessions, decisions and facts)",
-  "lore-query-trace (a spec's statements with their tests and code)",
-  "lore_get_ci_failures (what CI said about the branch)",
-];
-
 const MAX_WORDS = 900;
 const WORDS_PER_TOKEN = 0.7;
+const WRITING_TASK_RE =
+  /\b(digest|changelog|release notes|document|documentation|report|runbook)\b/i;
 
 export const PLAN_TOOL = {
   toolName: "plan_context",
@@ -69,20 +63,14 @@ export function planPrompt(task: ContextTask, anchors: QueryAnchors): string {
 export const PICK_SYSTEM =
   "You pick which repository files an AI coding agent should read before a task.";
 
-export function pickPrompt(
-  task: ContextTask,
-  questions: string[],
-  candidates: string[],
-): string {
+export function pickPrompt(task: ContextTask, candidates: string[]): string {
   return [
     `Task: ${task.query}`,
-    "Questions:",
-    ...questions.map((question) => `- ${question}`),
     "",
     "Candidate files (real paths):",
     ...candidates,
     "",
-    "Give up to 6 paths from the list whose content best answers the questions: source files, specs, ADRs, workflows.",
+    "Give up to 6 paths from the list whose content best tells an agent what it must know for the task: source files, specs, ADRs, workflows.",
   ].join("\n");
 }
 
@@ -92,6 +80,7 @@ export const COMPOSE_SYSTEM = [
   "Never invent a path, number, date or tool. Never state a relationship the evidence does not state",
   "(one ticket superseding another, a pull request being the base of a change): leave it out or mark it (inferred).",
   "Evidence about a repository that is neither the task's nor one it depends on is left out.",
+  "The reader has the task text: never restate the task, its acceptance criteria, its references or the issue it came from.",
 ].join(" ");
 
 export function composePrompt(
@@ -106,23 +95,37 @@ export function composePrompt(
     "Evidence:",
     evidence,
     "",
-    composeFormat(blockWords(task.maxTokens)),
+    ...composeFormat(task),
   ].join("\n");
 }
 
-function composeFormat(words: number): string {
+function composeFormat(task: ContextTask): string[] {
   return [
-    "Write markdown with exactly these sections:",
-    "## Repo primer — the primer as given.",
+    "Write markdown with exactly these sections, nothing before the first and nothing after the last:",
     "## Key facts — only the questions the evidence answers, each in bold with a 1 to 3 sentence answer and its citations.",
     "When an answer rests on a spec requirement, an ADR or a stated rule, quote its sentence (at most 40 words).",
-    'Leave out the questions the evidence does not answer and name them on one closing line, "Unanswered: ...".',
+    "A question the evidence does not answer is left out without a word about it.",
     "## Where to look — the specs, files (with line ranges where the evidence shows them) and tests the task touches,",
-    `each with why it matters and how to open it: read the file, or one of these tools: ${LORE_READ_TOOLS.join("; ")}.`,
+    "one line each: the path and why it matters. No instructions on how to open it.",
     "## Previous work — one line per related issue, pull request, commit or session: what it was, its outcome, the lesson.",
-    "When the task writes something (a digest, a changelog, a document), add one or two earlier outputs of that kind, quoted briefly, as examples of format and voice.",
-    `Keep the block under ${words} words.`,
-  ].join("\n");
+    ...examplesAsk(task.query),
+    "## Repo primer — the primer as given.",
+    `Keep the block under ${blockWords(task.maxTokens)} words.`,
+  ];
+}
+
+/** The ask for earlier outputs, for a task that writes something; nothing for any other. */
+function examplesAsk(query: string): string[] {
+  return writesSomething(query)
+    ? [
+        "The task writes something: add one or two earlier outputs of that kind, quoted briefly, as examples of format and voice.",
+      ]
+    : [];
+}
+
+/** Whether the task produces a text (a digest, a changelog, a document) whose earlier instances show its format and voice. */
+export function writesSomething(query: string): boolean {
+  return WRITING_TASK_RE.test(query);
 }
 
 function blockWords(maxTokens: number): number {

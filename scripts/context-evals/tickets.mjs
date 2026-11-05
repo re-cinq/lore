@@ -51,6 +51,15 @@ export async function runTickets(run) {
 const sidesOf = (graded, backend) =>
   backend === "both" ? graded : { [backend]: graded };
 
+/** How many blocks the builder did not write, when any fell back to the template assembly. */
+const fallbackNote = (verdicts) => {
+  const fallen = verdicts.filter((v) =>
+    v.sections.some((section) => section.startsWith("fallback")),
+  ).length;
+
+  return fallen > 0 ? `, ${fallen} of ${verdicts.length} fell back` : "";
+};
+
 const mean = (values) =>
   values.length === 0
     ? 0
@@ -79,13 +88,13 @@ function sideTable(side, results) {
   return [
     `### ${side}`,
     "",
-    `Mean score ${mean(verdicts.map((v) => v.score)).toFixed(2)}, mean block ${Math.round(mean(verdicts.map((v) => v.chars)))} chars, p50 latency ${median(verdicts.map((v) => v.latency_ms))} ms.`,
+    `Mean score ${mean(verdicts.map((v) => v.score)).toFixed(2)}, mean block ${Math.round(mean(verdicts.map((v) => v.chars)))} chars, p50 latency ${median(verdicts.map((v) => v.latency_ms))} ms${fallbackNote(verdicts)}.`,
     "",
-    "| Ticket | Score | Useful | Noise |",
-    "| --- | --- | --- | --- |",
+    "| Ticket | Score | Sections | Useful | Noise |",
+    "| --- | --- | --- | --- | --- |",
     ...graded.map(
       ({ number, title, [side]: v }) =>
-        `| #${number} ${cell(title)} | ${v.score} | ${cell(v.useful.join("; "))} | ${cell(v.noise)} |`,
+        `| #${number} ${cell(title)} | ${v.score} | ${cell(v.sections.join(", "))} | ${cell(v.useful.join("; "))} | ${cell(v.noise)} |`,
     ),
     "",
   ];

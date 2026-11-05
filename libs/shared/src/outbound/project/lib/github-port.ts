@@ -99,6 +99,12 @@ export interface CommitDetail {
   files: string[];
 }
 
+/** One file a code search found, with the fragment around the match. */
+export interface CodeMatch {
+  path: string;
+  text: string;
+}
+
 export interface GitHubPort {
   readonly name: string;
   isConfigured(): boolean;
@@ -183,6 +189,8 @@ export interface GitHubPort {
   ): Promise<boolean>;
   /** The merged pull requests behind the newest default-branch commits that touched `path` (octokit only). */
   mergedPullsTouching?(repo: string, path: string): Promise<PullRef[]>;
+  /** The default-branch files holding `term`, each with the fragment that matched (octokit only). */
+  searchCode?(repo: string, term: string): Promise<CodeMatch[]>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

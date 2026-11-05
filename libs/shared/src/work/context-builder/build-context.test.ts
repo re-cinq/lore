@@ -17,6 +17,7 @@ function scene(
   const asked: { question: string; repo: string }[] = [];
   const opened: string[] = [];
   const looked: number[] = [];
+  const grepped: string[] = [];
   const deps: ContextBuilderDeps = {
     llm,
     primer: async () => "Lore is shared context for Claude Code.",
@@ -36,12 +37,22 @@ function scene(
 
       return `issue ${number}: a user story`;
     },
+    grep: async (term) => {
+      grepped.push(term);
+
+      return [
+        {
+          path: "apps/lore-api/src/routes/embeddings.ts",
+          text: `log("${term}")`,
+        },
+      ];
+    },
     previousWork: async (terms) => [`PR #2213 merged: ${terms.join(", ")}`],
     relatedRepos: async () => [],
     ...overrides,
   };
 
-  return { llm, deps, asked, opened, looked };
+  return { llm, deps, asked, opened, looked, grepped };
 }
 
 const TASK = {
@@ -127,6 +138,46 @@ describe("buildContext", () => {
     expect(composeRequest(llm).prompt).toContain(
       "PR #2213 merged: api embed, FR4",
     );
+  });
+
+  it("greps the code for the query's quoted literal and the plan's search terms and hands the hits to the write-up", async () => {
+    const { llm, deps, grepped } = scene({
+      questions: ["q"],
+      search_terms: ["api embed"],
+      files: [],
+    });
+
+    await buildContext(
+      { ...TASK, query: "Drop the 'embed route gone' log line" },
+      deps,
+    );
+
+    expect(grepped).toEqual(["embed route gone", "api embed"]);
+    expect(composeRequest(llm).prompt).toContain(
+      '"path": "apps/lore-api/src/routes/embeddings.ts",\n   "text": "log(\\"embed route gone\\")"',
+    );
+  });
+
+  it("picks files from the query before the plan is written, so the two model calls run side by side", async () => {
+    const { llm, deps } = scene({
+      questions: ["q"],
+      search_terms: [],
+      files: [],
+    });
+
+    await buildContext(TASK, deps);
+
+    expect(
+      llm.calls.slice(0, 2).map((call) => call.prompt.split("\n")[0]),
+    ).toEqual([`Repository: re-cinq/lore`, `Task: ${TASK.query}`]);
+  });
+
+  it("reports the milliseconds of the plan, evidence and compose stages", async () => {
+    const { deps } = scene({ questions: [], search_terms: [], files: [] });
+
+    const built = await buildContext(TASK, deps);
+
+    expect(Object.keys(built.stages)).toEqual(["plan", "evidence", "compose"]);
   });
 
   it("asks re-cinq/HALEngine, which the repository depends on, the task itself and names it to the write-up", async () => {

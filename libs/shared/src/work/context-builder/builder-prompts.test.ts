@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPOSE_SYSTEM,
-  LORE_READ_TOOLS,
   composePrompt,
+  pickPrompt,
+  writesSomething,
 } from "./builder-prompts.js";
 
 const TASK = {
@@ -12,29 +13,34 @@ const TASK = {
 };
 
 describe("composePrompt", () => {
-  it("names lore_search_context, lore_search_memory, lore-query-trace and lore_get_ci_failures as the only tools to point at", () => {
+  it("asks for key facts, where to look and previous work, with the primer last and no Unanswered line", () => {
     const prompt = composePrompt(TASK, [], "{}");
+    const headings = [...prompt.matchAll(/^## ([A-Za-z ]+)/gm)].map((match) =>
+      match[1].trim(),
+    );
 
-    expect(LORE_READ_TOOLS.map((tool) => tool.split(" ")[0])).toEqual([
-      "lore_search_context",
-      "lore_search_memory",
-      "lore-query-trace",
-      "lore_get_ci_failures",
+    expect(headings).toEqual([
+      "Key facts",
+      "Where to look",
+      "Previous work",
+      "Repo primer",
     ]);
-    expect(LORE_READ_TOOLS.every((tool) => prompt.includes(tool))).toBe(true);
-  });
-
-  it("asks for the closing Unanswered line and quotes of at most 40 words", () => {
-    const prompt = composePrompt(TASK, [], "{}");
-
-    expect(prompt).toContain('"Unanswered: ..."');
+    expect(prompt).not.toContain("Unanswered");
     expect(prompt).toContain("quote its sentence (at most 40 words)");
   });
 
-  it("asks for earlier outputs as examples when the task writes a digest, changelog or document", () => {
-    expect(composePrompt(TASK, [], "{}")).toContain(
-      "add one or two earlier outputs of that kind",
-    );
+  it("asks for paths with why they matter and no instructions on how to open them", () => {
+    const prompt = composePrompt(TASK, [], "{}");
+
+    expect(prompt).toContain("No instructions on how to open it");
+    expect(prompt).not.toContain("lore_search_context");
+  });
+
+  it("asks for earlier outputs as examples for a task writing a digest, and not for one dropping a route", () => {
+    expect(
+      composePrompt({ ...TASK, query: "Write the weekly digest" }, [], "{}"),
+    ).toContain("add one or two earlier outputs of that kind");
+    expect(composePrompt(TASK, [], "{}")).not.toContain("earlier outputs");
   });
 
   it("keeps the block under 900 words at 8000 or 2000 tokens and under 700 words at 1000 tokens", () => {
@@ -48,14 +54,38 @@ describe("composePrompt", () => {
   });
 });
 
+describe("writesSomething", () => {
+  it("is true for a changelog, release notes or runbook task and false for a route change", () => {
+    expect(
+      ["Update the CHANGELOG", "Draft release notes", "Write the runbook"].map(
+        writesSomething,
+      ),
+    ).toEqual([true, true, true]);
+    expect(writesSomething("Drop POST /api/embed")).toBe(false);
+  });
+});
+
+describe("pickPrompt", () => {
+  it("lists the task and the candidate paths and asks for up to 6", () => {
+    const prompt = pickPrompt(TASK, ["a.ts", "b.md"]);
+
+    expect(prompt).toContain("Task: Drop POST /api/embed");
+    expect(prompt).toContain("a.ts\nb.md");
+    expect(prompt).toContain("up to 6 paths");
+  });
+});
+
 describe("COMPOSE_SYSTEM", () => {
-  it("forbids a relationship the evidence does not state and evidence about unrelated repositories", () => {
-    expect(COMPOSE_SYSTEM).toContain(
+  it("forbids a relationship the evidence does not state, evidence about unrelated repositories, and restating the task", () => {
+    const rules = [
       "Never state a relationship the evidence does not state",
-    );
-    expect(COMPOSE_SYSTEM).toContain("mark it (inferred)");
-    expect(COMPOSE_SYSTEM).toContain(
+      "mark it (inferred)",
       "neither the task's nor one it depends on is left out",
+      "never restate the task",
+    ];
+
+    expect(rules.filter((rule) => COMPOSE_SYSTEM.includes(rule))).toEqual(
+      rules,
     );
   });
 });

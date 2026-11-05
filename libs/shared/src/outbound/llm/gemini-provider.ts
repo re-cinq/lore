@@ -3,8 +3,12 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import type { LlmCallRecord, UsagePort } from "../project/usage/usage-port.js";
 import { computeGeminiCost } from "./gemini-pricing.js";
+import {
+  textFromResponse,
+  tokensFromResponse,
+  type GeminiResponse,
+} from "./gemini-response.js";
 
-// Pricing lives in gemini-pricing.ts, re-exported for import-path back-compat.
 export { computeGeminiCost, GEMINI_MODEL_PRICING } from "./gemini-pricing.js";
 import type {
   LlmCompleteRequest,
@@ -17,16 +21,6 @@ import type {
 const ZERO_CACHE = { cacheCreationTokens: 0, cacheReadTokens: 0 };
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
-
-interface GeminiUsageMetadata {
-  promptTokenCount?: number;
-  candidatesTokenCount?: number;
-}
-
-interface GeminiResponse {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  usageMetadata?: GeminiUsageMetadata;
-}
 
 /** Where one generateContent call goes and what authenticates it. */
 export interface GenerateTarget {
@@ -45,7 +39,11 @@ export interface GeminiProviderOptions {
   /** The Gemini API by key unless another host serves the same body (Vertex). */
   endpoint?: GenerateEndpoint;
   vendor?: string;
+  /** How long one generateContent call may take before it fails; a stalled call otherwise hangs its caller for good. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 90_000;
 
 interface GeminiCallMetrics {
   model: string;
@@ -53,30 +51,6 @@ interface GeminiCallMetrics {
   outputTokens: number;
   costUsd: number;
   durationMs: number;
-}
-
-function textFromResponse(response: GeminiResponse): string {
-  const part = candidateParts(response)?.[0];
-
-  return part?.text ?? "";
-}
-
-function candidateParts(
-  response: GeminiResponse,
-): Array<{ text?: string }> | undefined {
-  const candidate = response.candidates?.[0];
-
-  return candidate?.content?.parts;
-}
-
-function tokensFromResponse(response: GeminiResponse): {
-  inputTokens: number;
-  outputTokens: number;
-} {
-  return {
-    inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
-    outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
-  };
 }
 
 function usageLogEntry(
@@ -171,11 +145,13 @@ function generationConfigOf({
 function generateInit(
   headers: Record<string, string>,
   body: Record<string, unknown>,
+  timeoutMs: number,
 ): RequestInit {
   return {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   };
 }
 
@@ -241,7 +217,14 @@ export class GeminiProvider implements LlmProvider {
   ): Promise<GeminiResponse> {
     const { url, headers } = await this.endpoint(model);
     const doFetch = this.opts.fetchFn ?? fetch;
-    const res = await doFetch(url, generateInit(headers, generateBody(req)));
+    const res = await doFetch(
+      url,
+      generateInit(
+        headers,
+        generateBody(req),
+        this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      ),
+    );
 
     if (!res.ok) {
       throw new Error(`Gemini API error: ${res.status} ${res.statusText}`);
@@ -310,11 +293,6 @@ export class GeminiProvider implements LlmProvider {
     });
     const metrics = this.summarizeCall(model, response, start);
 
-    enforceTrue(
-      metrics.text,
-      Error,
-      "Gemini returned no content in candidates",
-    );
     await this.logCall(req, metrics);
     logCallLine("tool call", metrics);
 

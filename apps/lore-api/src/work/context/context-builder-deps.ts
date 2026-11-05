@@ -75,8 +75,16 @@ export async function contextBuilderFor(
     const deps = await builderDeps(pool, { request, llm });
     const built = await buildContext(request, deps);
 
+    console.log(`[context] builder stages ${stageLine(built.stages)}`);
+
     return built.text;
   };
+}
+
+function stageLine(stages: Record<string, number>): string {
+  return Object.entries(stages)
+    .map(([stage, ms]) => `${stage}=${ms}ms`)
+    .join(" ");
 }
 
 async function savedContextModel(pool: Pool): Promise<Record<string, string>> {
@@ -102,11 +110,20 @@ async function builderDeps(
     llm,
     primer: () => primerOf(request.repo, { project, llm }),
     tree,
-    readFile: (path) => project.repo.read(path),
+    ...repoReads(project),
     answer: (question, repo) => answerText(pool, question, { repo, request }),
     issue: (number) => issueText(project, number),
     previousWork: (terms) => previousWork(pool, request, terms),
     relatedRepos: () => relatedFor(pool, { request, scope }, tree),
+  };
+}
+
+function repoReads(
+  project: Project,
+): Pick<ContextBuilderDeps, "readFile" | "grep"> {
+  return {
+    readFile: (path) => project.repo.read(path),
+    grep: (term) => project.repo.search(term),
   };
 }
 

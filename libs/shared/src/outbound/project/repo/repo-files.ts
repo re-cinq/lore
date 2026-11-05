@@ -2,6 +2,7 @@ import type { PullRef } from "../pulls/pull-requests-port.js";
 import type {
   BranchHistoryOptions,
   CheckRunInput,
+  CodeMatch,
   CommitDetail,
   GitHubPort,
   TrackerActivityOptions,
@@ -109,6 +110,11 @@ export class RepoFiles {
       this.github.deleteFile?.(this.repo, branch, { path, message }) ??
       NOTHING_DELETED
     );
+  }
+
+  /** The files holding `term` with the fragment that matched; none when the adapter cannot search. */
+  async search(term: string): Promise<CodeMatch[]> {
+    return (await this.github.searchCode?.(this.repo, term)) ?? [];
   }
 
   /** The merged pull requests that touched `path`; none when the adapter cannot say. */

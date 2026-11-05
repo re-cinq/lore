@@ -1,4 +1,4 @@
-// The block's opening: what the repository says about itself, or the list of what it holds when it says nothing.
+// The block's closing primer: what the repository says about itself, or the list of what it holds when it says nothing.
 
 import type { LlmProvider } from "../../outbound/llm/llm-provider.js";
 import { topLevelEntries } from "./candidate-paths.js";
@@ -17,9 +17,9 @@ const PRIMER_SYSTEM =
   "You write a repository primer for AI coding agents. State only what the files say; never infer a rule.";
 
 const PRIMER_ASK = [
-  "From the files below, write a primer of at most 250 words in markdown bullets:",
-  "what the repository is, its main parts and where they live, where its specs, ADRs and tests are,",
-  "and up to 5 rules the files state.",
+  "From the files below, write a primer of at most 120 words in markdown bullets:",
+  "one line on what the repository is, its main parts and where they live, where its specs, ADRs and tests are,",
+  "and up to 5 rules the files state. No heading, no preamble.",
 ].join(" ");
 
 export async function writePrimer(
