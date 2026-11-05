@@ -1,7 +1,11 @@
 /** Renders one impact statement as a comment block, and groups/caps statements by spec — the per-finding half of the sticky PR comment. */
 
 import type { ImpactStatement } from "./impact-statement.js";
-import { summarizeStatement, windowRewrite } from "./impact-render.js";
+import {
+  summarizeStatement,
+  wholeProse,
+  windowRewrite,
+} from "./impact-render.js";
 
 /** Rows shown before the rest is folded away — a wall of them reads as noise. */
 export const MAX_ROWS = 10;
@@ -91,15 +95,12 @@ function specSection(
 
 /** A statement rendered as a block, not a table row — tables forced paragraph-length prose into unreadable columns. */
 function statementBlock(s: ImpactStatement): string[] {
-  const before = summarizeStatement(s.statementText);
-  const after = s.rewrittenAs ? summarizeStatement(s.rewrittenAs) : null;
-
   return [
     `**${statementLabel(s)}**`,
     s.testsTouched
       ? "✓ this PR also changes the tests that validate it"
       : "⚠ the tests that validate it are **not** touched by this PR",
-    ...rewriteLines(before, after, s.section),
+    ...rewriteLines(s.statementText, s.rewrittenAs, s.section),
     "",
     `validated by ${testsCell(s.tests)}`,
     ...(s.changedFile !== s.specPath
@@ -119,22 +120,27 @@ function statementLabel(s: ImpactStatement): string {
   return summary.length > 60 ? `${summary.slice(0, 59)}…` : summary;
 }
 
-/** The rewrite section: a windowed diff for a real text change, a links-only note when only parentheticals moved, else a plain quote. */
+/** The rewrite section: a windowed diff for a real text change, a links-only note when only parentheticals moved, else a plain quote. Compares whole statements, because a change past the quote's length limit is still a change. */
 function rewriteLines(
   before: string,
-  after: string | null,
+  after: string | undefined,
   section: string | undefined,
 ): string[] {
-  if (after && after !== before) {
-    return windowedDiffLines(before, after);
+  const wholeBefore = wholeProse(before);
+  const wholeAfter = after ? wholeProse(after) : "";
+
+  if (wholeAfter && wholeAfter !== wholeBefore) {
+    return windowedDiffLines(wholeBefore, wholeAfter);
   }
 
-  if (after) {
-    return linksOnlyLines(before, section);
+  const quote = summarizeStatement(before);
+
+  if (wholeAfter) {
+    return linksOnlyLines(quote, section);
   }
 
   // Without a section the label already carried this text; repeating it would print the same sentence twice.
-  return section ? ["", `> ${before}`] : [];
+  return section ? ["", `> ${quote}`] : [];
 }
 
 /** Windowed on the divergence: truncating both sides at the same length would render two identical-looking lines. */
