@@ -25,18 +25,18 @@ to delete by itself. The people reading the channel can point at it instead.
 1. The route verifies Slack's request signature and replay window with the
    same check as the `/lore` slash command (`authenticateSlack`); a request
    that fails it is refused with 401 and nothing is deleted.
-   ([validated by refuses a bad signature with 401 and deletes nothing](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L97))
+   ([validated by refuses a bad signature with 401 and deletes nothing @05801f71](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L97))
 2. A `url_verification` envelope is answered with its `challenge`, as plain
    text with status 200, so Slack accepts the URL as the app's event endpoint.
-   ([validated by answers the url_verification handshake with its challenge](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L60))
+   ([validated by answers the url_verification handshake with its challenge @4c5b46fb](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L60))
 3. A `reaction_added` event whose reaction is `wastebasket` on a message
    deletes that message with `chat.delete` (channel + ts from the event's
    `item`), using `LORE_SLACK_BOT_TOKEN`. The route answers 200 without waiting
    for the delete, because Slack re-sends an event it has not seen
    acknowledged within 3 seconds.
-   ([validated by deletes message 1790590000.000100 in C0LORE when someone reacts with wastebasket](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L72))
+   ([validated by deletes message 1790590000.000100 in C0LORE when someone reacts with wastebasket @7d41ef4e](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L72))
 4. Any other event or reaction is acknowledged with 200 and deletes nothing.
-   ([validated by deletes nothing for a thumbsup reaction](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L90))
+   ([validated by deletes nothing for a thumbsup reaction @b160bd42](apps/lore-api/src/transport/routes/webhooks/webhook-slack-events.test.ts#L90))
 
 ## Rationale
 

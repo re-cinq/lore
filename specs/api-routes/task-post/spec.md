@@ -37,7 +37,7 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 - **Method + path**: `POST /api/task`
 - **Auth scope**: `task`. `getRequiredScope` finds no `SCOPE_OVERRIDES` match and
   the first `ROUTE_SCOPES` prefix hit is `/api/task` → `"task"`
-  ([scope map](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L37)). The legacy
+  ([scope map @843e714d](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L37)). The legacy
   `LORE_INGEST_TOKEN` and any `admin`-scoped token also pass. Rate-limit bucket
   is `task` (60/min).
 - **Body**: JSON object. The `action` field is the discriminator.
@@ -147,49 +147,49 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any body is read. ([validated by returns 503 when pool is null](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L70))
+A null pool returns 503 before any body is read. ([validated by returns 503 when pool is null @254c21f5](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L70))
 
-A `retry` action returns the `retryTask` result verbatim. A retry that is refused answers `409` with the reason, and `404` for a task that does not exist, as cancel, run-now and revise do; a failed `implementation` or `general` task cannot be retried, because its type was removed, and stays failed. ([validated by retries a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L76), [validated by answers 409 with the reason when retrying a failed implementation task, whose type was removed](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L83), [validated by answers 404 when retrying a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L95), [validated by refuses to retry a failed implementation task, whose type was removed, and leaves it failed](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L91))
+A `retry` action returns the `retryTask` result verbatim. A retry that is refused answers `409` with the reason, and `404` for a task that does not exist, as cancel, run-now and revise do; a failed `implementation` or `general` task cannot be retried, because its type was removed, and stays failed. ([validated by retries a task @4e2806c3](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L76), [validated by answers 409 with the reason when retrying a failed implementation task, whose type was removed @76f47914](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L83), [validated by answers 404 when retrying a task that does not exist @fd36aacd](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L95), [validated by refuses to retry a failed implementation task, whose type was removed, and leaves it failed @a94ddde5](libs/shared/src/domain/pipeline-tasks.escalate.test.ts#L91))
 
-A `cancel` action returns the cancelled task and its new status. ([validated by cancels a task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L113))
+A `cancel` action returns the cancelled task and its new status. ([validated by cancels a task @4a1144b3](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L113))
 
-Cancelling an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when cancelling a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L122))
+Cancelling an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when cancelling a task that does not exist @79600dbb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L122))
 
-Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L132))
+Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task @d684af3a](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L132))
 
-A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L276))
+A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition @d492c271](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L276))
 
-A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
+A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running @cae05f0f](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
 
-A cancel the task refuses ends no run. ([validated by ends no run when the task itself cannot be cancelled](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L52))
+A cancel the task refuses ends no run. ([validated by ends no run when the task itself cannot be cancelled @9e076fbf](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L52))
 
-A `run-now` action escalates a pending task and answers with its new priority. ([validated by escalates a pending task to immediate](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L144))
+A `run-now` action escalates a pending task and answers with its new priority. ([validated by escalates a pending task to immediate @1f3cee83](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L144))
 
-Escalating an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when escalating a task that does not exist](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L153))
+Escalating an unknown task id answers 404 rather than reporting success. ([validated by returns 404 when escalating a task that does not exist @717b9e69](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L153))
 
-Escalating a task past `pending` answers 409 with the refusal reason, because a caller told "ok" for a task that never moved cannot tell the difference. ([validated by returns 409 when escalating a running task](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L163))
+Escalating a task past `pending` answers 409 with the refusal reason, because a caller told "ok" for a task that never moved cannot tell the difference. ([validated by returns 409 when escalating a running task @7e414076](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L163))
 
-A `revise` action queues nothing and answers `409`, pointing at a review that requests changes on the pull request: Lore answers it there. ([validated by queues no revision of task t1 and points at a review on its pull request](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L175))
+A `revise` action queues nothing and answers `409`, pointing at a review that requests changes on the pull request: Lore answers it there. ([validated by queues no revision of task t1 and points at a review on its pull request @9374172b](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L175))
 
-`set-priority` with `immediate` echoes `immediate`. ([validated by sets immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L190))
+`set-priority` with `immediate` echoes `immediate`. ([validated by sets immediate priority @afffe38d](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L190))
 
-`set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L206))
+`set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority @c1cc901b](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L206))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L292))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority @4e97e632](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L292))
 
-`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L306))
+`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400 @b2c7ef11](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L306))
 
-A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by updates status with pr_url and error](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L218))
+A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by updates status with pr_url and error @afd1742f](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L218))
 
-A status update without optional fields still returns the status envelope. ([validated by updates status without optional fields](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L234))
+A status update without optional fields still returns the status envelope. ([validated by updates status without optional fields @d058814e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L234))
 
-An out-of-allow-list status returns 400. ([validated by rejects an invalid status](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L243))
+An out-of-allow-list status returns 400. ([validated by rejects an invalid status @9e84e159](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L243))
 
-No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L249), [validated by creates nothing for a body that names neither a task nor a type](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
+No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now @3da0ea7e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L249), [validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
 
-Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
+Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500 @324140cb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
 
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:71`](apps/lore-api/src/transport/http/rate-limit.test.ts#L72))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts@a945c5d2`](apps/lore-api/src/transport/http/rate-limit.test.ts#L72))
 
 ## Out of Scope
 

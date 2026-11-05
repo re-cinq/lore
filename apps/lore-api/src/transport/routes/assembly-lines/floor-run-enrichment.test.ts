@@ -45,7 +45,7 @@ function floorRun(id: string, args: Record<string, unknown>) {
 const pool = makePool() as unknown as Pool;
 
 describe("enrichmentsFor", () => {
-  it("reads the costs of run-1 and run-2 in one lookup", async () => {
+  it("asks for the costs of run-1 and run-2 in one call to costsByRun", async () => {
     const lookups: string[][] = [];
     const costs = async (runs: readonly { id: string }[]) => {
       lookups.push(runs.map((run) => run.id));

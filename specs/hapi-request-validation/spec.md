@@ -16,17 +16,17 @@ The hapi migration (ADR-033) made lore-api's routing declarative, but stopped
 short of the validation lifecycle. Every write route still parses and validates
 its request body **by hand, inside the handler**:
 
-- Routes set [`payload: { parse: false }`](../../apps/lore-api/src/transport/routes/memory/memory.ts#L14)
+- Routes set [`payload: { parse: false }` @4539264f](../../apps/lore-api/src/transport/routes/memory/memory.ts#L14)
   so hapi delivers the body as a raw Buffer, then call
-  [`rawBody`](../../libs/shared/src/transport/http/raw-body.ts#L10) + `JSON.parse`
+  [`rawBody@340ad254`](../../libs/shared/src/transport/http/raw-body.ts#L10) + `JSON.parse`
   (or `parseJsonBodyCapped`)
   themselves. This exists **only** to reproduce the legacy dispatcher's quirk of
   returning `500` on malformed JSON (hapi's own parser returns `400`). It was a
   migration-compatibility artifact, never a desired contract.
 - Field validation is imperative and scattered: `if (!key || !value) return 400`
-  in [`memory.ts`](../../apps/lore-api/src/transport/routes/memory/memory.ts#L23),
+  in [`memory.ts@5aca40e7`](../../apps/lore-api/src/transport/routes/memory/memory.ts#L23),
   `if (!description?.trim())` in
-  [`task-post.ts`](../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L59),
+  [`task-post.ts@9d08a642`](../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L59),
   `enforceFeatureInput(...)` in
   `feature-round-routes.ts`.
   There is no single declaration of "what a valid request to this route looks
@@ -124,7 +124,7 @@ today. Validation errors surface only for authenticated requests.
 
 - **FR1** A single shared adapter (`server/plugins/zod-validate.ts`) converts a
   zod schema into a hapi `options.validate` function for `payload`, `query`, and
-  `params`; `getZodSchema` returns `undefined` for a validator it did not build. ([validated by `zod-validate.test.ts:17`](apps/lore-api/src/transport/http/zod-validate.test.ts#L17), [validated by `zod-validate.test.ts:35`](apps/lore-api/src/transport/http/zod-validate.test.ts#L35))
+  `params`; `getZodSchema` returns `undefined` for a validator it did not build. ([validated by `zod-validate.test.ts@ff54078a`](apps/lore-api/src/transport/http/zod-validate.test.ts#L17), [validated by `zod-validate.test.ts@65a537a8`](apps/lore-api/src/transport/http/zod-validate.test.ts#L35))
 - **FR2** Every native **write** route (`POST`/`PUT`/`DELETE` with a body)
   declares a zod `payload` schema via the adapter; routes with constrained query
   or path params declare `query`/`params` schemas where it removes an in-handler
@@ -132,18 +132,18 @@ today. Validation errors surface only for authenticated requests.
 - **FR3** Validation failures return HTTP `400` with body `{ error: <message> }`
   (the existing convention), never hapi's default `{ statusCode, error, message }`
   envelope. The message names the offending field (dotted path) where zod provides
-  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/transport/http/zod-validate.test.ts#L65), [validated by `zod-validate.test.ts:23`](apps/lore-api/src/transport/http/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts:43`](apps/lore-api/src/transport/http/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts:55`](apps/lore-api/src/transport/http/zod-validate.test.ts#L57))
+  it, falling back to `invalid request` when there are no issues. ([validated by `zod-validate.test.ts@e9a755d5`](apps/lore-api/src/transport/http/zod-validate.test.ts#L65), [validated by `zod-validate.test.ts@e963bd8a`](apps/lore-api/src/transport/http/zod-validate.test.ts#L23), [validated by `zod-validate.test.ts@9e244015`](apps/lore-api/src/transport/http/zod-validate.test.ts#L43), [validated by `zod-validate.test.ts@c02be6d4`](apps/lore-api/src/transport/http/zod-validate.test.ts#L57))
 - **FR4** hapi parses request payloads natively (`parse: true`); handlers receive
   a typed, validated `request.payload`. No native-route handler calls `JSON.parse`,
   `rawBody`, or `parseJsonBodyCapped`. Those helpers are deleted when unused. A
   route whose payload override forces JSON parsing parses a JSON body even when the
-  client sends a non-JSON `Content-Type`. ([validated by `ingest-graph.test.ts:57`](apps/lore-api/src/transport/routes/ingest/ingest-graph.test.ts#L54))
+  client sends a non-JSON `Content-Type`. ([validated by `ingest-graph.test.ts@33f47546`](apps/lore-api/src/transport/routes/ingest/ingest-graph.test.ts#L54))
 - **FR5** Auth, rate-limit, and body-cap behavior are unchanged: `401` (missing
   token) and `403` (under-scoped) still precede validation; `413` still fires at
   1 MB; the per-bucket `429` thresholds are untouched.
 - **FR6** Polymorphic routes (`/api/memory`, `POST /api/task`) validate via a zod
   discriminated union on their dispatch field, or — where a union would contort —
-  a documented permissive schema plus residual handler branching. ([validated by `memory.test.ts:139`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L151))
+  a documented permissive schema plus residual handler branching. ([validated by `memory.test.ts@1f861096`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L151))
 - **FR7** Webhook ingress routes (`/api/webhook/slack`, `/api/webhook/incident`)
   are **out of scope**: they keep `parse: false` and their own HMAC / URL-encoded
   body handling. This feature touches JSON API routes only.
@@ -154,12 +154,12 @@ today. Validation errors surface only for authenticated requests.
   returns nothing outside the webhook routes (FR7) and tests.
 - **SC-2** Malformed JSON to a native route returns `400` (documented change from
   `500`); the affected tests (`memory.test.ts`, `task-post.test.ts`) assert `400`
-  and reference ADR-034. ([validated by `memory.test.ts:340`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L394), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/transport/routes/ingest/ingest-graph.test.ts#L67))
+  and reference ADR-034. ([validated by `memory.test.ts@324140cb`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L394), [validated by `ingest-graph.test.ts@d41c84e1`](apps/lore-api/src/transport/routes/ingest/ingest-graph.test.ts#L67))
 - **SC-3** For each converted route, a request missing or mis-typing a required
   field returns `400` `{ error: <message> }` with the field named — proven by a
   test migrated alongside the route.
 - **SC-4** Auth + rate-limit outcomes unchanged: under-scoped → `403`, missing →
-  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:353`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L407))
+  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts@6529450e`](apps/lore-api/src/transport/routes/memory/memory.test.ts#L407))
 - **SC-5** `apps/lore-api` typechecks (`tsc --noEmit`) and the full vitest suite
   is green. Each route group is an independently-revertable commit.
 

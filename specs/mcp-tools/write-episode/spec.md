@@ -64,7 +64,7 @@ Ingests one raw uncurated text blob as a deduplicated episode; returns {status: 
    6. New insert → `episodeId = rows[0].id`. Fire two best-effort async jobs
       (do not block the response):
       - `extractFactsFromEpisode(episodeId, content, agent, dbPoolRef)`
-        ([facts](../../../libs/server-core/src/work/memory/facts.ts#L260)) — LLM extract (≤10 facts via `parseFacts`), embed each,
+        ([facts@dca4859c](../../../libs/server-core/src/work/memory/facts.ts#L260)) — LLM extract (≤10 facts via `parseFacts`), embed each,
         `INSERT INTO memory.facts (episode_id, …)`, then
         `invalidateContradictions` (cosine ≥ `LORE_FACT_SIMILARITY_THRESHOLD`
         default 0.92 sets `valid_to`/`invalidated_by` + writes
@@ -72,7 +72,7 @@ Ingests one raw uncurated text blob as a deduplicated episode; returns {status: 
       - `repoFromRef = ref.match(/^([^#]+)/)?.[1] || null`; `graphLlmCall =
         createGraphLlmCall(dbPoolRef)`; `extractAndUpdateGraph(dbPoolRef,
         content, repoFromRef, episodeId, null, graphLlmCall)`
-        ([graph](../../../libs/server-core/src/work/memory/graph.ts#L134)) — upsert entities + temporally-invalidating
+        ([graph@ee0165b5](../../../libs/server-core/src/work/memory/graph.ts#L134)) — upsert entities + temporally-invalidating
         edge upserts. `.catch` logs a warning.
    7. `INSERT INTO memory.audit_log (agent_id, operation='lore_write_episode',
       metadata={episode_id, source, ref})` (best-effort `.catch`).
@@ -89,20 +89,20 @@ ingested."}`; the proxied body; the `unreachableError` message; or the
 
 - `getPool()`, `isMemoryDbAvailable()`, `resolveAgentId()`, `sanitizeContent`
   (`redactSecrets`), `getQueryEmbedding()`, `createGraphLlmCall`.
-- Async: `extractFactsFromEpisode` ([facts.ts](../../../libs/server-core/src/work/memory/facts.ts#L260)), `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/work/memory/graph.ts#L134)).
+- Async: `extractFactsFromEpisode` ([facts.ts@dca4859c](../../../libs/server-core/src/work/memory/facts.ts#L260)), `extractAndUpdateGraph` ([graph.ts@ee0165b5](../../../libs/server-core/src/work/memory/graph.ts#L134)).
 - `proxyToApi` / `unreachableError` ([deps.ts](apps/mcp-server/src/transport/tools/shared/deps.ts)).
 - Tables: `memory.episodes` (insert, idempotent on `(agent_id, content_hash)`), `memory.facts` + `memory.fact_conflicts` (async), `memory.entities` + `memory.edges` (async), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`, `LORE_FACT_SIMILARITY_THRESHOLD`, LLM provider env (`LORE_LLM_PROVIDER` / `LORE_FACT_LLM`).
 
 ## Acceptance Criteria
 
-1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](libs/server-core/src/work/memory/facts.test.ts#L5))
+1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings` @df3adbb6](libs/server-core/src/work/memory/facts.test.ts#L5))
 
-2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/work/memory/facts.test.ts#L32), [validated by posts the episode for the ambient agent agent-7 to /api/episode and prints the API's answer](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L23))
+2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts` @ac9ed131](libs/server-core/src/work/memory/facts.test.ts#L32), [validated by posts the episode for the ambient agent agent-7 to /api/episode and prints the API's answer @2b4ef5c9](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L23))
 
-3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/work/memory/facts.test.ts#L71), [validated by keeps the agent_id agent-9 the call names](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L50), [validated by says episodes need the API when LORE_API_URL is unset](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L60))
+3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts` @0edc2ae7](libs/server-core/src/work/memory/facts.test.ts#L71), [validated by keeps the agent_id agent-9 the call names @f75fb8de](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L50), [validated by says episodes need the API when LORE_API_URL is unset @0aaa6ed4](apps/mcp-server/src/transport/tools/graph/write-episode.test.ts#L60))
 
-4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](libs/server-core/src/work/memory/facts.test.ts#L104))
+4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist` @d17f26f9](libs/server-core/src/work/memory/facts.test.ts#L104))
 
 ## Out of Scope
 

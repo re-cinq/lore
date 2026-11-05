@@ -69,26 +69,26 @@ entry is the whole declaration.
 
 - The named station runs and reports one summary line — a
   `(params) => Promise<string>`, which the Floor's scheduler
-  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/transport/routes/stations.test.ts#L30))
+  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported @5dd32784](apps/stations/src/transport/routes/stations.test.ts#L30))
 - A JSON object body is the run's params, read by a sweep exactly as it reads
   an event's (`triggerParams`), so an operator can ask by hand what a tick
   asks on a schedule, such as `{ "repo": "re-cinq/lore", "weeks": 8 }` to the
   changelog tick; no body is no params (amendment 2026-10-23: the route used to
-  drop the body, so every manual trigger ran with none). ([validated by hands the JSON body {repo: re-cinq/lore, weeks: 8} to the station as its params](apps/stations/src/transport/routes/stations.test.ts#L131), [hands empty params to the station when the request has no body](apps/stations/src/transport/routes/stations.test.ts#L154), [reads an event's params](apps/stations/src/work/lib/station.test.ts#L19), [reads an HTTP request's params](apps/stations/src/work/lib/station.test.ts#L33), [answers empty params for a trigger that carries none](apps/stations/src/work/lib/station.test.ts#L39))
+  drop the body, so every manual trigger ran with none). ([validated by hands the JSON body {repo: re-cinq/lore, weeks: 8} to the station as its params @67732d24](apps/stations/src/transport/routes/stations.test.ts#L131), [hands empty params to the station when the request has no body @a0c6df70](apps/stations/src/transport/routes/stations.test.ts#L154), [reads an event's params @09e2a2aa](apps/stations/src/work/lib/station.test.ts#L19), [reads an HTTP request's params @6e3a295a](apps/stations/src/work/lib/station.test.ts#L33), [answers empty params for a trigger that carries none @9f49899f](apps/stations/src/work/lib/station.test.ts#L39))
 - A name nothing answers to is refused with the registry's contents, rather than
-  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/transport/routes/stations.test.ts#L40))
+  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined @b27d6454](apps/stations/src/transport/routes/stations.test.ts#L40))
 - Running a station requires the same token every other service-to-service call
-  presents. ([validated by refuses a caller with no bearer token](apps/stations/src/transport/routes/stations.test.ts#L47))
+  presents. ([validated by refuses a caller with no bearer token @6e739045](apps/stations/src/transport/routes/stations.test.ts#L47))
 - A station already running refuses the second caller rather than sweeping
   twice. The Floor is a single replica today, so this is what makes a second one
-  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station](apps/stations/src/transport/routes/stations.test.ts#L56))
+  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station @1e50d84c](apps/stations/src/transport/routes/stations.test.ts#L56))
 - The guard releases after the run, including after a FAILED one: a station that
   threw must not stay latched, or one bad run wedges it until the process
-  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever](apps/stations/src/transport/routes/stations.test.ts#L81), [`stations.test.ts:84`](apps/stations/src/transport/routes/stations.test.ts#L84))
+  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever @c2c50248](apps/stations/src/transport/routes/stations.test.ts#L81), [`stations.test.ts@864e39e7`](apps/stations/src/transport/routes/stations.test.ts#L84))
 - The caller and the route are two halves of one contract, so they are exercised
   against each other: the summary comes back for the `job_runs` row, and every
   refusal throws rather than resolving to an empty success that would log a
-  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L36), [`station-client-roundtrip.test.ts:42`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L42), [`station-client-roundtrip.test.ts:48`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L48), [`station-client-roundtrip.test.ts:58`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L58))
+  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row @5336f2ee](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L36), [`station-client-roundtrip.test.ts@613a0aa3`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L42), [`station-client-roundtrip.test.ts@3cf60a9a`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L48), [`station-client-roundtrip.test.ts@5a2026a4`](apps/stations/src/transport/routes/station-client-roundtrip.test.ts#L58))
 
 The Floor keeps the schedule, the `job_runs` row and the overlap guard — it
 still owns *when* a station runs; it stops owning *what* the station does.
@@ -405,9 +405,9 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   by `createPipelineRepositories(pool)` and reached as `pipeline()` in Floor or
   `project.pipeline` in lore-api.
 - The in-memory composition supplies a working double behind every field
-  ([validated by carries a working double behind every field](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L7)).
+  ([validated by carries a working double behind every field @415dd057](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L7)).
 - Its `overrides` bag swaps one field and leaves the other seven doubles standing
-  ([validated by replaces only the overridden field, leaving the other seven doubles](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L30)).
+  ([validated by replaces only the overridden field, leaving the other seven doubles @d8331eee](libs/shared/src/outbound/project/pipeline/pipeline-repositories.test.ts#L30)).
 - *(Amended 2026-08: these eight were originally eight independent `queues.ts`
   accessors. That shape only ever described Floor — lore-api, which reaches
   ports through `Project`, had no route to `eventReporter`, `jobRuns`,

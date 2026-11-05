@@ -46,7 +46,7 @@ Fetches specific repo files from GitHub, embeds them, and writes them into Lore'
    *(amended 2026-10-01, #2344)* In the agent gateway, which has no checkout, a call
    with no `repo` is answered with the same "No repo given" text the context and CI
    tools use, and a `repo` that is not owner/name is rejected before any work.
-   ([validated by asks for the repo as owner/name instead of trying to detect one](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L230))
+   ([validated by asks for the repo as owner/name instead of trying to detect one @77a52555](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L230))
 2. **Proxy config gate** — read `LORE_API_URL` + `LORE_INGEST_TOKEN`. If either
    is missing, return the literal text
    `"Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure."`
@@ -88,13 +88,13 @@ the config-required text, the `"Ingestion failed: …"` text, the
 ## Acceptance Criteria
 
 The handler returns the detect-repo guidance when no repo is passed and detection
-returns null. ([validated by returns a detect-repo message when no repo is given and detection fails](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L32))
+returns null. ([validated by returns a detect-repo message when no repo is given and detection fails @0bc5f5ef](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L32))
 
 The handler returns the config-required message when `LORE_API_URL` /
-`LORE_INGEST_TOKEN` are unset. ([validated by returns a config-required message when LORE_API_URL / token are unset](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L42))
+`LORE_INGEST_TOKEN` are unset. ([validated by returns a config-required message when LORE_API_URL / token are unset @935238a4](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L42))
 
 The local-HEAD commit resolution, the proxy POST, and the success / failure
-framing are exercised against a stubbed global `fetch`. ([validated by uses the real local HEAD commit when the detected repo matches the target](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L134), [validated by sends HEAD as the commit when the matching repo's directory is not a git checkout](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L60), [validated by surfaces the status text when a non-ok JSON response names no error](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L94), [validated by surfaces the status text when a non-ok ingest response is not JSON](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L115), [`falls back to HEAD as the commit when the detected repo differs from the target`](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L165), [`surfaces a non-ok ingest response's error message`](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L191), [`reports the caught error message when the ingest request itself throws`](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L211))
+framing are exercised against a stubbed global `fetch`. ([validated by uses the real local HEAD commit when the detected repo matches the target @d535fa34](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L134), [validated by sends HEAD as the commit when the matching repo's directory is not a git checkout @33e4e334](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L60), [validated by surfaces the status text when a non-ok JSON response names no error @234f03ff](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L94), [validated by surfaces the status text when a non-ok ingest response is not JSON @8802bb6a](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L115), [`falls back to HEAD as the commit when the detected repo differs from the target` @d7a54142](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L165), [`surfaces a non-ok ingest response's error message` @97cceaa9](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L191), [`reports the caught error message when the ingest request itself throws` @9b2b1d22](apps/mcp-server/src/transport/tools/repo/ingest-files.test.ts#L211))
 
 ## Out of Scope
 

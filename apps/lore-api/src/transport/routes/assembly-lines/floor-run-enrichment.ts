@@ -24,7 +24,7 @@ const productionReads: EnrichmentReads = {
   taskJoin: enrichmentById,
 };
 
-/** The enrichment of every run, each read from the engine that holds it: one task join for the Postgres runs, and for the floor's one cost read plus one task join for those that keep a task, however many there are. */
+/** The enrichment of every run, each read from the engine that holds it: one task join for the Postgres runs, and for the floor's one cost lookup (a read per run for a short list) plus one task join for those that keep a task, however many there are. */
 export async function enrichmentsFor(
   pool: Pool,
   runs: readonly AssemblyRunSummary[],

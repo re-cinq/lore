@@ -44,11 +44,11 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
 
 1. Resolve the repo root: `getRepoRoot()` or fall back to `process.cwd()`.
 2. Load the manifest with `loadTestCommandManifest(root)`
-   ([loader](apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L130)).
+   ([loader@7ab99ce6](apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L130)).
 3. Delegate to `runTestTool(process.env, manifest, selector, root)`
-   ([handler](../../../apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L105)):
+   ([handler@bc00f764](../../../apps/mcp-server/src/work/spec-trace/spec-trace-tools.ts#L105)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
-      ([gate](../../../libs/shared/src/outbound/project/lib/trust.ts#L12)) returns a non-null
+      ([gate@1dc76dec](../../../libs/shared/src/outbound/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set. When non-null, return it immediately
       **without running the run command**.
    2. **Manifest precondition** — when `manifest` is `null`, return
@@ -81,24 +81,24 @@ the `"No test-command manifest declared for this repo."` text, a JSON
 ## Acceptance Criteria
 
 The tool returns the CI-or-local refusal without running the run command when
-`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the run command on the cluster`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L111), [validated by returns passed true and the covered range the manifest's run command prints for selector a.test.ts](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L15), [validated by refuses on the shared server, where LORE_DB_HOST is set](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L29))
+`LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the run command on the cluster` @9d7442ef](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L111), [validated by returns passed true and the covered range the manifest's run command prints for selector a.test.ts @a6db5c07](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L15), [validated by refuses on the shared server, where LORE_DB_HOST is set @27e90649](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L29))
 
 The null-manifest precondition shares its branch with `listTestsTool` and is
 covered there — no dedicated null-manifest case exists for the run path, but the
 identical guard on the list path is validated.
-([validated by `reports no manifest declared when the manifest is null on a local sandbox`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L82))
+([validated by `reports no manifest declared when the manifest is null on a local sandbox` @87901990](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L82))
 
 `runTestsRun` substitutes the selector into the run command before executing.
-([validated by `substitutes the selector into the run command before executing`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L163))
+([validated by `substitutes the selector into the run command before executing` @f0d1938a](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L163))
 
 `runTestsRun` rejects when the command outlives the timeout.
-([validated by `rejects when the run command outlives the timeout`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L176))
+([validated by `rejects when the run command outlives the timeout` @31c51b4b](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L176))
 
 `runTestsRun` rejects naming the run command when output is not JSON.
-([validated by `rejects naming the run command when output is not JSON`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L187), [validated by reports the error when the run command prints no JSON](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L40))
+([validated by `rejects naming the run command when output is not JSON` @253fd046](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L187), [validated by reports the error when the run command prints no JSON @cf7fb0e8](apps/mcp-server/src/transport/tools/spec-trace/run-test.local.test.ts#L40))
 
 `path_prefix_strip` is removed from covered-chunk file paths.
-([validated by `removes a matching leading prefix`](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L195))
+([validated by `removes a matching leading prefix` @353e6509](apps/mcp-server/src/work/spec-trace/spec-trace-tools.test.ts#L195))
 
 The registration wrapper's `getRepoRoot()` cwd-resolution and `Error: …` framing
 are exercised only end-to-end through the live MCP server. *(untested: the thin

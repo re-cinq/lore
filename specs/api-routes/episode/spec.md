@@ -122,10 +122,10 @@ A request without `content` returns 400 without touching the DB. ([validated by
 `episode.test.ts:57`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L59))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `episode.test.ts:63`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L65))
+([validated by `episode.test.ts@6529450e`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L65))
 
 An insert that conflicts (returns no rows) yields `{ status: "duplicate" }`.
-([validated by `episode.test.ts:75`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L107))
+([validated by `episode.test.ts@ae422704`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L107))
 
 A new episode returns `{ status: "ok", episode_id }`, triggers fact extraction,
 and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([validated by
@@ -134,7 +134,7 @@ and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([valida
 With `ANTHROPIC_API_KEY` unset, graph extraction is skipped entirely. ([validated
 by `episode.test.ts:111`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L143))
 
-A thrown insert returns 500. ([validated by `episode.test.ts:121`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L153))
+A thrown insert returns 500. ([validated by `episode.test.ts@1ae2ee82`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L153))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
 by `episode.test.ts:130`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L162))
@@ -155,5 +155,5 @@ contract.)*
 - Episode lifecycle (decay, consolidation, snapshots).
 - Token issuance and the scope schema.
 
-Code: handler [`handleEpisode`](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L26)
+Code: handler [`handleEpisode@d4dd2175`](../../../apps/lore-api/src/transport/routes/memory/episode.ts#L26)
 (IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/app/build-server.ts).

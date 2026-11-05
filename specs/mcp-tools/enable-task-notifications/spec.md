@@ -72,11 +72,11 @@ message, or the no-repos error. Never throws.
 
 ## Acceptance Criteria
 
-A call while the notifier is already running answers that notifications are already active. ([validated by reports an already running notifier](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L59))
+A call while the notifier is already running answers that notifications are already active. ([validated by reports an already running notifier @ce01bf85](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L59))
 
-With no `task_types` the notifier watches `runbook` and `gap-fill` tasks, and given types replace them. ([validated by watches re-cinq/lore for runbook and gap-fill tasks by default](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L33), [validated by watches the given task types](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L39))
+With no `task_types` the notifier watches `runbook` and `gap-fill` tasks, and given types replace them. ([validated by watches re-cinq/lore for runbook and gap-fill tasks by default @f4cb39e5](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L33), [validated by watches the given task types @d7afda47](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L39))
 
-With no `repos` the notifier watches the checkout's own repo, and an empty list is refused. ([validated by watches the checkout's own repo when no repos are given](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L47), [validated by refuses an empty repo list](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L53))
+With no `repos` the notifier watches the checkout's own repo, and an empty list is refused. ([validated by watches the checkout's own repo when no repos are given @e18e0ecf](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L47), [validated by refuses an empty repo list @6dfb6499](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L53))
 
 `fetchPendingTasks` returns `[]` without querying the DB or the API when
 `repos` or `task_types` is empty; queries the DB pool when one is supplied and

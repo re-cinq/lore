@@ -43,7 +43,7 @@ Re-runs a failed or escalated task by cloning it into a new pipeline task linked
    ([`POST /api/task`](../../api-routes/task-post/spec.md)) under the `task` scope.
 2. The route calls `retryTask(task_id)`
    ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts)).
-3. **Shared CRUD** ([`retryTask`](../../../libs/shared/src/domain/pipeline-task-actions.ts#L14)):
+3. **Shared CRUD** ([`retryTask@d598e6f4`](../../../libs/shared/src/domain/pipeline-task-actions.ts#L14)):
    1. `getTask(pool, taskId)`; if `null`, throw `"Task not found"`.
    2. If `status ∉ {failed, needs-human-help}`, throw
       `"Cannot retry task in {status} state (must be failed or needs-human-help)"`.
@@ -76,32 +76,32 @@ A single MCP text content block — one of: the missing-DB message, the compact
 ## Acceptance Criteria
 
 An `implementation-loop` task is refused regardless of its status, with a message directing the user to remove the `lore:blocked` label from the issue instead of retrying.
-([validated by `refuses an implementation-loop task and mentions removing lore:blocked`](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L16))
+([validated by `refuses an implementation-loop task and mentions removing lore:blocked` @ac04cfa2](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L16))
 
 When an `implementation-loop` task is refused, no INSERT or UPDATE is issued to the database — the guard fires before any write.
-([validated by `leaves the task unchanged — no INSERT or UPDATE issued`](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L31))
+([validated by `leaves the task unchanged — no INSERT or UPDATE issued` @798409bc](libs/shared/src/domain/pipeline-tasks.retry-loop.test.ts#L31))
 
 A failed task spawns a new linked task and returns the new id alongside the
 original via `retry_of`.
-([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
+([validated by `creates a linked task when the original is failed` @58cb1119](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L105))
 
 A task that is not in a retryable state (e.g. running) is rejected with a
 `Cannot retry task in <state> state` error.
-([validated by `throws cannot retry when the task is still running`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L169))
+([validated by `throws cannot retry when the task is still running` @111e4ed6](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L169))
 
 A task whose type has since been retired is rejected with that type's removal
 message and where its work goes now, so a row left behind by a retired line
 cannot be re-run into a line that no longer exists.
-([validated by `throws the spec-task type was removed when retrying a task of a retired type`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L145))
+([validated by `throws the spec-task type was removed when retrying a task of a retired type` @3bf45c4d](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L145))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches the task to retry`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L182))
+([validated by `throws task not found when no row matches the task to retry` @2d2b1613](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L182))
 
 The retry action is posted to `/api/task` and the new task is returned
-verbatim. ([validated by posts the retry action for t1 and returns the new task t2](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L24))
+verbatim. ([validated by posts the retry action for t1 and returns the new task t2 @651321a8](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L24))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by reports a missing API configuration without fetching](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L39))
+message. ([validated by reports a missing API configuration without fetching @20794667](apps/mcp-server/src/transport/tools/pipeline/retry-task.test.ts#L39))
 
 ## Out of Scope
 

@@ -77,7 +77,7 @@ or `"Error: {message}"`. **Never throws.**
 ## Acceptance Criteria
 
 The registered tool description is byte-identical to this spec's verbatim description block, so the two cannot drift apart silently.
-([validated by carries the verbatim description block of specs/mcp-tools/get-task-logs/spec.md](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L131), [validated by passes cursor c9 back with offset 5](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L57), [validated by serves a complete transcript from the cache on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L98), [validated by fetches an incomplete transcript again on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L110), [validated by fetches a transcript with no JSON body again on the second read](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L122))
+([validated by carries the verbatim description block of specs/mcp-tools/get-task-logs/spec.md @c3dd8942](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L131), [validated by passes cursor c9 back with offset 5 @ab35d332](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L57), [validated by serves a complete transcript from the cache on the second read @b789069b](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L98), [validated by fetches an incomplete transcript again on the second read @bbd1718e](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L110), [validated by fetches a transcript with no JSON body again on the second read @cd8b2c23](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L122))
 
 The content after `offset` is returned with the new `next_offset` and a
 `complete` flag derived from task status.
@@ -92,7 +92,7 @@ An unknown task id returns a `Task not found` message.
 In stdio mode (no DB), the tool requires `LORE_API_URL`/`LORE_INGEST_TOKEN`,
 proxies to `GET /api/task-logs` and returns the proxied body on success, a 401
 is reported as a denied error, and a non-auth failure (e.g. 500) is reported
-as unreachable. ([validated by reports the require-URL message without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L32), [validated by returns the error text when fetch throws](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L90), [`lore_get_task_logs
+as unreachable. ([validated by reports the require-URL message without fetching when the env is unset @175b1c9e](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L32), [validated by returns the error text when fetch throws @4e3f3612](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L90), [`lore_get_task_logs
 returns the proxied body on
 success`](apps/mcp-server/src/transport/tools/pipeline/get-task-logs.test.ts#L41), [`lore_get_task_logs
 reports a denied error on a

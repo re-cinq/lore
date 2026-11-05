@@ -26,13 +26,13 @@ API and parses the trailer out of the PR body, then the head commit.
 Registered as `pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET")`
 → `handleTaskByPr(req, res, pool)`
 ([registration](../../../apps/lore-api/src/app/build-server.ts),
-[handler](../../../apps/lore-api/src/transport/routes/tasks/task-by-pr.ts#L9)). Placed
+[handler@210d97e2](../../../apps/lore-api/src/transport/routes/tasks/task-by-pr.ts#L9)). Placed
 **before** the broad `/api/tasks` GET list route. `:n` is constrained to digits.
 
 - **Method + path**: `GET /api/tasks/by-pr/:owner/:repo/:n`. `owner` / `repo` are
   `[^/]+` (URL-decoded); `n` is parsed with `parseInt(…, 10)`.
 - **Auth scope**: `read` (same `/api/tasks` prefix as the list/timeline routes,
-  [scope map](../../../apps/lore-api/src/transport/routes/tasks/task-by-pr.ts#L13)). Rate-limit bucket
+  [scope map @c44d1562](../../../apps/lore-api/src/transport/routes/tasks/task-by-pr.ts#L13)). Rate-limit bucket
   `task` (60/min).
 - **Request**: path params only.
 
@@ -91,23 +91,23 @@ strings: `"database unavailable"`, `"no_trailer_found"`, `"pr_not_found"`,
 
 ## Acceptance Criteria
 
-A null pool returns 503. ([validated by `by-pr.test.ts:46`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L44))
+A null pool returns 503. ([validated by `by-pr.test.ts@254c21f5`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L44))
 
-A non-numeric `:n` PR segment is rejected with 400 `{ error: "invalid pr number" }` without touching the DB. ([validated by `by-pr.test.ts:52`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L50))
+A non-numeric `:n` PR segment is rejected with 400 `{ error: "invalid pr number" }` without touching the DB. ([validated by `by-pr.test.ts@f04ae183`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L50))
 
-A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L63))
+A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path` @23133930](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L63))
 
-A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `by-pr.test.ts:74`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L72))
+A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `by-pr.test.ts@e9e484da`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L72))
 
-A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `by-pr.test.ts:92`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L90))
+A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `by-pr.test.ts@22812583`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L90))
 
-Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L112))
+Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere` @77c938d6](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L112))
 
-A GitHub 404 on the PR returns `pr_not_found`. ([validated by `by-pr.test.ts:133`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L131))
+A GitHub 404 on the PR returns `pr_not_found`. ([validated by `by-pr.test.ts@25e58582`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L131))
 
-A non-404 GitHub error returns 500 `github_api`. ([validated by `by-pr.test.ts:148`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L146))
+A non-404 GitHub error returns 500 `github_api`. ([validated by `by-pr.test.ts@e5da9cbc`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L146))
 
-A DB-error fallback that resolves from the PR body uses the GitHub path without surfacing the DB error. ([validated by `by-pr.test.ts:163`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L161))
+A DB-error fallback that resolves from the PR body uses the GitHub path without surfacing the DB error. ([validated by `by-pr.test.ts@fcfb26ba`](apps/lore-api/src/transport/routes/tasks/by-pr.test.ts#L161))
 
 ## Out of Scope
 

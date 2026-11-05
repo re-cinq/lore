@@ -43,7 +43,7 @@ The tool takes no parameters — the schema object is `{}`.
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo management requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `getOnboardedReposWithCounts(getPool()!)`
-   ([handler](../../../apps/lore-api/src/work/repo/repo-onboard.ts#L104)), which runs a
+   ([handler@7c1ca232](../../../apps/lore-api/src/work/repo/repo-onboard.ts#L104)), which runs a
    single `SELECT` over `lore.repos r LEFT JOIN (SELECT target_repo, COUNT(*) AS
    task_count FROM pipeline.tasks GROUP BY target_repo) tc ON tc.target_repo =
    r.full_name`, projecting `id, owner, name, full_name, team, onboarded_at,
@@ -51,7 +51,7 @@ The tool takes no parameters — the schema object is `{}`.
    COALESCE(tc.task_count, 0)::int AS task_count`, ordered by `r.onboarded_at
    DESC`.
 3. **Empty guard** — if the result array is empty, return the literal text
-   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by reports no repos when the first page is empty](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L67), [validated by counts 2 repos as the total when a page carries no total](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L102), [validated by reports no repos when a page carries no repos list](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L116))
+   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by reports no repos when the first page is empty @b0537601](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L67), [validated by counts 2 repos as the total when a page carries no total @69865b22](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L102), [validated by reports no repos when a page carries no repos list @3ca533b0](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L116))
 
 4. **Success envelope** — return `JSON.stringify(repos, null, 2)`.
 5. Any thrown error is caught and returned as `"Error listing repos: {message}"`.
@@ -83,11 +83,11 @@ unit seam — the empty and populated branches need a live DB.)*
 
 When repos are served over the API proxy, the handler pages in 100-row windows —
 walking `offset` by 100 until every row is fetched — and merges them into one
-array carrying the reported `total`. ([validated by pages through repos beyond the 100-row API cap](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L29))
+array carrying the reported `total`. ([validated by pages through repos beyond the 100-row API cap @40cb745a](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L29))
 
-A proxy failure mid-page (not_configured or denied) short-circuits the pagination loop with the matching error, rather than losing it in a partial page. ([validated by returns a config-required message when the proxy reports not_configured mid-page](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L77), [`returns a denied error when the proxy reports denied`](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L90))
+A proxy failure mid-page (not_configured or denied) short-circuits the pagination loop with the matching error, rather than losing it in a partial page. ([validated by returns a config-required message when the proxy reports not_configured mid-page @00371542](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L77), [`returns a denied error when the proxy reports denied` @447641fe](apps/mcp-server/src/transport/tools/repo/list-repos.test.ts#L90))
 
-The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by returns 503 when pool is null](apps/lore-api/src/transport/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36), [`repos.test.ts:87`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L87), [`repos.test.ts:99`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L99), [`repos.test.ts:105`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L105))
+The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by returns 503 when pool is null @254c21f5](apps/lore-api/src/transport/routes/repos/repos.test.ts#L30), [`repos.test.ts@76c00137`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L36), [`repos.test.ts@321dff41`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L87), [`repos.test.ts@e10ea47b`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L99), [`repos.test.ts@f689a6d9`](apps/lore-api/src/transport/routes/repos/repos.test.ts#L105))
 
 ## Out of Scope
 

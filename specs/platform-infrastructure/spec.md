@@ -26,7 +26,7 @@ The readiness probe reports database connectivity: `getHealthStatus()` returns
 `connected:false` with a reason when the query throws; the `/healthz` handler
 returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error`
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
-the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by returns connected=false when no pool is configured](libs/server-core/src/outbound/healthz.test.ts#L9), [`healthz.test.ts:20`](libs/server-core/src/outbound/healthz.test.ts#L20), [`healthz.test.ts:35`](libs/server-core/src/outbound/healthz.test.ts#L35), [`healthz.test.ts:54`](libs/server-core/src/outbound/healthz.test.ts#L54), [`healthz.test.ts:70`](libs/server-core/src/outbound/healthz.test.ts#L70), [`healthz.test.ts:93`](libs/server-core/src/outbound/healthz.test.ts#L93))
+the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by returns connected=false when no pool is configured @e3a1b55e](libs/server-core/src/outbound/healthz.test.ts#L9), [`healthz.test.ts@bfa899e6`](libs/server-core/src/outbound/healthz.test.ts#L20), [`healthz.test.ts@320d0d01`](libs/server-core/src/outbound/healthz.test.ts#L35), [`healthz.test.ts@d683485f`](libs/server-core/src/outbound/healthz.test.ts#L54), [`healthz.test.ts@e2e0c267`](libs/server-core/src/outbound/healthz.test.ts#L70), [`healthz.test.ts@c375c158`](libs/server-core/src/outbound/healthz.test.ts#L93))
 
 ### Database pool resilience
 
@@ -36,7 +36,7 @@ lore-api pool) attaches an `error` listener at construction, so an idle-client f
 prefix instead of surfacing as an uncaught exception that kills the process; the
 shared pool builder is the test-validated exemplar, and the lore-api pool
 attaches the identical inline handler at its own construction
-site. ([validated by logs a terminated idle client under the db prefix instead of ending the process](libs/shared/src/outbound/db/pg-pool-idle-error.test.ts#L10))
+site. ([validated by logs a terminated idle client under the db prefix instead of ending the process @08499d91](libs/shared/src/outbound/db/pg-pool-idle-error.test.ts#L10))
 
 ### GitHub client
 
@@ -45,9 +45,9 @@ closed, then draft win first; otherwise any failed check yields `checks-failing`
 and any requested-changes review yields `changes-requested` (both over an
 approval); `approved` requires an approval and every check concluded
 success/skipped, so a still-running (null-conclusion) check keeps it `open`, and
-an approval with no checks configured is `approved`. ([validated by `github-client.test.ts:29`](apps/lore-api/src/outbound/github-client.test.ts#L29), [`github-client.test.ts:35`](apps/lore-api/src/outbound/github-client.test.ts#L35), [`github-client.test.ts:45`](apps/lore-api/src/outbound/github-client.test.ts#L45), [`github-client.test.ts:49`](apps/lore-api/src/outbound/github-client.test.ts#L49), [`github-client.test.ts:55`](apps/lore-api/src/outbound/github-client.test.ts#L55), [`github-client.test.ts:67`](apps/lore-api/src/outbound/github-client.test.ts#L67))
+an approval with no checks configured is `approved`. ([validated by `github-client.test.ts@d98c04c8`](apps/lore-api/src/outbound/github-client.test.ts#L29), [`github-client.test.ts@6a2f7856`](apps/lore-api/src/outbound/github-client.test.ts#L35), [`github-client.test.ts@91b6782b`](apps/lore-api/src/outbound/github-client.test.ts#L45), [`github-client.test.ts@3c49b9b1`](apps/lore-api/src/outbound/github-client.test.ts#L49), [`github-client.test.ts@ad509609`](apps/lore-api/src/outbound/github-client.test.ts#L55), [`github-client.test.ts@b6bce9bc`](apps/lore-api/src/outbound/github-client.test.ts#L67))
 
-`fetchPrStatus` returns null without a network call when no GitHub token is configured; otherwise it fetches the PR, reviews, review threads and check-runs concurrently and derives `computed_status`, falling back to an empty list when the reviews or check-runs request fails, while a failure fetching the PR itself propagates; it also reports `unresolved_threads`, the count of review threads nobody resolved yet (read over GraphQL, the only place GitHub states resolution), and null rather than 0 when that read fails, so a failed read never passes for a clean PR ([validated by `github-client.test.ts:146`](apps/lore-api/src/outbound/github-client.test.ts#L146), [`github-client.test.ts:151`](apps/lore-api/src/outbound/github-client.test.ts#L151), [`github-client.test.ts:178`](apps/lore-api/src/outbound/github-client.test.ts#L178), [`github-client.test.ts:193`](apps/lore-api/src/outbound/github-client.test.ts#L193), [`github-client.test.ts:207`](apps/lore-api/src/outbound/github-client.test.ts#L207), [`github-client.test.ts:221`](apps/lore-api/src/outbound/github-client.test.ts#L221))
+`fetchPrStatus` returns null without a network call when no GitHub token is configured; otherwise it fetches the PR, reviews, review threads and check-runs concurrently and derives `computed_status`, falling back to an empty list when the reviews or check-runs request fails, while a failure fetching the PR itself propagates; it also reports `unresolved_threads`, the count of review threads nobody resolved yet (read over GraphQL, the only place GitHub states resolution), and null rather than 0 when that read fails, so a failed read never passes for a clean PR ([validated by `github-client.test.ts@72be76d0`](apps/lore-api/src/outbound/github-client.test.ts#L146), [`github-client.test.ts@e3bef3c3`](apps/lore-api/src/outbound/github-client.test.ts#L151), [`github-client.test.ts@e9b28c1b`](apps/lore-api/src/outbound/github-client.test.ts#L178), [`github-client.test.ts@412b8e5c`](apps/lore-api/src/outbound/github-client.test.ts#L193), [`github-client.test.ts@e04ed06b`](apps/lore-api/src/outbound/github-client.test.ts#L207), [`github-client.test.ts@62de068e`](apps/lore-api/src/outbound/github-client.test.ts#L221))
 
 ### GitHub port — new reads and writes (protected-branch-merge plan)
 
@@ -72,8 +72,8 @@ lore-reviewer's App id and private key live in Google Cloud Secret Manager. ESO 
 `detectCurrentRepo` parses the git origin remote into `owner/repo` for both SSH
 and HTTPS forms (with or without the `.git` suffix), returns null when the git
 command throws, caches the result so a second call does not re-run git, and
-re-runs after `resetRepoCache` clears the cache. ([validated by `repo-detect.test.ts:17`](libs/server-core/src/work/repo/repo-detect.test.ts#L21), [`repo-detect.test.ts:22`](libs/server-core/src/work/repo/repo-detect.test.ts#L26), [`repo-detect.test.ts:30`](libs/server-core/src/work/repo/repo-detect.test.ts#L34), [`repo-detect.test.ts:37`](libs/server-core/src/work/repo/repo-detect.test.ts#L41), [`repo-detect.test.ts:44`](libs/server-core/src/work/repo/repo-detect.test.ts#L48))
-- **FR — detectCurrentBranch** *(added 2026-09-12)*: returns the checked-out branch from `git rev-parse --abbrev-ref HEAD`, null on a detached HEAD or outside a checkout, and re-runs git on every call because a session switches branches and a CI question is about the branch it is on now. ([validated by returns the checked-out branch](libs/server-core/src/work/repo/repo-detect.test.ts#L63), [validated by returns null on a detached HEAD, which names no branch CI could have judged](libs/server-core/src/work/repo/repo-detect.test.ts#L68), [validated by returns a null branch when the git command throws](libs/server-core/src/work/repo/repo-detect.test.ts#L73), [validated by re-runs git on every call, since a checkout can switch branches between two calls](libs/server-core/src/work/repo/repo-detect.test.ts#L80))
+re-runs after `resetRepoCache` clears the cache. ([validated by `repo-detect.test.ts@4cf85a2d`](libs/server-core/src/work/repo/repo-detect.test.ts#L21), [`repo-detect.test.ts@c04c2034`](libs/server-core/src/work/repo/repo-detect.test.ts#L26), [`repo-detect.test.ts@3373f4f2`](libs/server-core/src/work/repo/repo-detect.test.ts#L34), [`repo-detect.test.ts@ecf9e46e`](libs/server-core/src/work/repo/repo-detect.test.ts#L41), [`repo-detect.test.ts@4ef6a3f9`](libs/server-core/src/work/repo/repo-detect.test.ts#L48))
+- **FR — detectCurrentBranch** *(added 2026-09-12)*: returns the checked-out branch from `git rev-parse --abbrev-ref HEAD`, null on a detached HEAD or outside a checkout, and re-runs git on every call because a session switches branches and a CI question is about the branch it is on now. ([validated by returns the checked-out branch @e7b73e27](libs/server-core/src/work/repo/repo-detect.test.ts#L63), [validated by returns null on a detached HEAD, which names no branch CI could have judged @a1f9519b](libs/server-core/src/work/repo/repo-detect.test.ts#L68), [validated by returns a null branch when the git command throws @efce5a26](libs/server-core/src/work/repo/repo-detect.test.ts#L73), [validated by re-runs git on every call, since a checkout can switch branches between two calls @496ba640](libs/server-core/src/work/repo/repo-detect.test.ts#L80))
 
 ### Schema migrations
 
@@ -83,13 +83,13 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 `half_life_days`) and the three `memory.memories` decay columns are added
 `if not exists`, the `confidence` CHECK constraint guards the four tiers
 (`verified`/`observed`/`inferred`/`stale`), and both `memory.fact_conflicts` and
-`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts:36`](apps/lore-api/src/migrations.test.ts#L39), [`migrations.test.ts:46`](apps/lore-api/src/migrations.test.ts#L54), [`migrations.test.ts:60`](apps/lore-api/src/migrations.test.ts#L68), [`migrations.test.ts:66`](apps/lore-api/src/migrations.test.ts#L74), [`migrations.test.ts:70`](apps/lore-api/src/migrations.test.ts#L78))
+`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts@1b0aa9b2`](apps/lore-api/src/migrations.test.ts#L39), [`migrations.test.ts@f1479ff1`](apps/lore-api/src/migrations.test.ts#L54), [`migrations.test.ts@0d64cb8e`](apps/lore-api/src/migrations.test.ts#L68), [`migrations.test.ts@6021e7ea`](apps/lore-api/src/migrations.test.ts#L74), [`migrations.test.ts@d9178c90`](apps/lore-api/src/migrations.test.ts#L78))
 
 ### Route plumbing
 
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
 otherwise returns a caller that routes the prompt through the `Llm` singleton
-under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts:18`](apps/lore-api/src/transport/routes/helpers.test.ts#L18))
+under the `graph-extraction` job name. ([validated by `helpers.test.ts@071f9690`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts@a9c99104`](apps/lore-api/src/transport/routes/helpers.test.ts#L18))
 
 ### Anthropic cost sync window
 
@@ -103,7 +103,7 @@ end strictly *before* that bound, so an `ending_at` at tomorrow's midnight
 would exclude the current day's bucket — leaving exactly 31 candidate daily
 buckets, the documented `1d` maximum, so the limit can never truncate one, the
 first of the month is still covered on the 31st, and a window crossing a month
-boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:29`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts:35`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts:41`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41), [`anthropic-cost-sync.test.ts:47`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L47), [`anthropic-cost-sync.test.ts:54`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L54), [`anthropic-cost-sync.test.ts:60`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L60))
+boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts@6899bd2f`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts@87ca0ed8`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts@ff80fb64`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41), [`anthropic-cost-sync.test.ts@c8e9b4dc`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L47), [`anthropic-cost-sync.test.ts@8fce720f`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L54), [`anthropic-cost-sync.test.ts@56c6accd`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L60))
 
 ## Background: retired with Lore's own Floor (2026-10-02)
 
