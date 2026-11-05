@@ -65,7 +65,12 @@ describe("parseTestLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42, hash: null },
+      {
+        label: "test",
+        path: "agent/src/supervisor/lease.test.ts",
+        line: 42,
+        hash: null,
+      },
     ]);
   });
 
@@ -118,7 +123,9 @@ describe("parseTestLinksInStatement", () => {
       "Statement. ([test](src/x.test.ts#L42)).",
     );
 
-    expect(out).toEqual([{ label: "test", path: "src/x.test.ts", line: 42, hash: null }]);
+    expect(out).toEqual([
+      { label: "test", path: "src/x.test.ts", line: 42, hash: null },
+    ]);
   });
 
   it("collapses internal whitespace in the label", () => {
@@ -154,7 +161,9 @@ describe("parseCodeLinksInStatement", () => {
       "Runs the task. ([from plan](https://lore.example/repos/o/r/plans/p1#b7), [impl](src/runner.ts#L88))",
     );
 
-    expect(out).toEqual([{ label: "impl", path: "src/runner.ts", line: 88, hash: null }]);
+    expect(out).toEqual([
+      { label: "impl", path: "src/runner.ts", line: 88, hash: null },
+    ]);
   });
 
   it("keeps a non-test source path in another language as a code link", () => {
@@ -185,7 +194,12 @@ describe("linksForStatements", () => {
           text: "Returns the value ([validated by run](src/x.test.ts#L42))",
         }),
         testLinks: [
-          { label: "validated by run", path: "src/x.test.ts", line: 42, hash: null },
+          {
+            label: "validated by run",
+            path: "src/x.test.ts",
+            line: 42,
+            hash: null,
+          },
         ],
       },
       {
@@ -203,7 +217,12 @@ describe("findMisplacedCoverageLinks", () => {
     );
 
     expect(out).toEqual([
-      { label: "validated by run", path: "src/x.test.ts", line: 42, hash: null },
+      {
+        label: "validated by run",
+        path: "src/x.test.ts",
+        line: 42,
+        hash: null,
+      },
     ]);
   });
 
@@ -343,7 +362,12 @@ describe("a statement whose test link sits in an earlier trailing group", () => 
 
   it("reads a.test.ts#L3 from the group before a from-plan group", () => {
     expect(parseTestLinksInStatement(statement)).toEqual([
-      { label: "validated by settles once", path: "a.test.ts", line: 3, hash: null },
+      {
+        label: "validated by settles once",
+        path: "a.test.ts",
+        line: 3,
+        hash: null,
+      },
     ]);
   });
 

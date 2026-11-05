@@ -17,6 +17,7 @@ import {
 import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import { resolveAnchorLine } from "../../domain/spec-trace/resolve-anchor-line.js";
 import type { ProjectionContext } from "./project-spec-file-context.js";
 
 /** Parses `[label](path#Lline)` parentheticals from a statement's text. */
@@ -31,9 +32,9 @@ type ChunkXid = (repo: string, link: SpecLinkRef) => string;
 /** File-scoped TestChunk xid (`${repo}|${file}`) — the shared identity coverage also keys on, so a spec link reconciles onto the coverage-bearing node. */
 const fileScopedXid: ChunkXid = (repo, link) =>
   fileScopedTestChunkXid(repo, link.path);
-/** Line/label-scoped CodeChunk xid (`${repo}|${path}|${line}`) — one node per distinct inline link site. */
-const lineScopedXid: ChunkXid = (repo, link) =>
-  `${repo}|${link.path}|${link.line ?? link.label}`;
+/** Anchor-scoped CodeChunk xid (`${repo}|${path}|${hash}`): one node per cited line, which keeps its identity when the file moves around it. A link with no hash falls back to its line, or its label. */
+const anchorScopedXid: ChunkXid = (repo, link) =>
+  `${repo}|${link.path}|${link.hash ?? link.line ?? link.label}`;
 
 /** One linked-chunk facet: how its links are parsed out of a statement, the node type they become, how each is identified, and any extra fields it carries. */
 interface LinkedChunkKind {
@@ -120,11 +121,12 @@ async function projectTestLinks(
     extraFields: (link) => ({
       "TestChunk.test_name": link.label,
       "TestChunk.link_label": link.label,
+      ...anchorHashField("TestChunk", link),
     }),
   });
 }
 
-/** The code chunks this text links to, keyed by LINE range — a code link names a span, and a span that moves is a different span. */
+/** The code chunks this text links to, keyed by the content hash of the cited line: a cited line that moves is the same line. */
 async function projectCodeLinks(
   context: ProjectionContext,
   text: string,
@@ -132,8 +134,16 @@ async function projectCodeLinks(
   return projectLinkedChunks(context, text, {
     parse: parseCodeLinksInStatement,
     nodeType: "CodeChunk",
-    buildXid: lineScopedXid,
+    buildXid: anchorScopedXid,
+    extraFields: (link) => anchorHashField("CodeChunk", link),
   });
+}
+
+function anchorHashField(
+  nodeType: SpecTraceNodeType,
+  link: SpecLinkRef,
+): Record<string, string> {
+  return link.hash === null ? {} : { [`${nodeType}.anchor_hash`]: link.hash };
 }
 
 /** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
@@ -145,7 +155,9 @@ async function projectLinkedChunks(
   const { dgraph, repo, filePath } = context;
   const uids: string[] = [];
 
-  for (const link of resolvedLinks(filePath, text, parse)) {
+  for (const written of resolvedLinks(filePath, text, parse)) {
+    const link = await anchoredLink(context, written);
+
     uids.push(
       await upsertByXid(
         dgraph,
@@ -157,6 +169,21 @@ async function projectLinkedChunks(
   }
 
   return uids;
+}
+
+/** The link at the line its content hash now sits on in the cited file, when the projection can read it. */
+async function anchoredLink(
+  { readLinked }: ProjectionContext,
+  link: SpecLinkRef,
+): Promise<SpecLinkRef> {
+  if (!readLinked || link.hash === null) {
+    return link;
+  }
+
+  return {
+    ...link,
+    line: resolveAnchorLine(link, await readLinked(link.path)),
+  };
 }
 
 /** The parsed links of `text` whose targets resolve to a repo-relative path for xid/coverage joins; anchors and repo-escaping paths are dropped. */

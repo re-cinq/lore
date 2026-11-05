@@ -33,9 +33,10 @@ import {
 export type { MirroredDoc };
 export type { MirroredCode, MirroredReport };
 
-/** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
+/** How one doc file is projected: `force` re-projects a file whose content hash has not changed; `commit` is where the files its links cite are read. */
 export interface DocProjection {
   force: boolean;
+  commit: string;
 }
 
 type ProjectDoc = (
@@ -105,8 +106,14 @@ type DocDeps = Pick<
 /** The doc-kind writes: project one file, list what the graph holds, delete one subtree. */
 function docDeps(must: () => DgraphClientPort): DocDeps {
   return {
-    projectSpec: (repo, path, content, projection) =>
-      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+    projectSpec: async (repo, path, content, { force, commit }) => {
+      const { repo: files } = await projectFor(repo);
+
+      return projectSpecFile({ repo, filePath: path, content }, must(), {
+        force,
+        readLinked: (linked) => files.read(linked, commit),
+      });
+    },
     projectAdr: (repo, path, content, projection) =>
       projectAdrFile({ repo, filePath: path, content }, must(), projection),
     projectCode: (repo, path, content, projection) =>

@@ -38,12 +38,18 @@ import { firstOf } from "./uid-refs.js";
 export interface ProjectionOptions {
   embed?: EmbedFn;
   force?: boolean;
+  /** Reads a linked file at the ingested commit; see {@link ProjectionContext.readLinked}. */
+  readLinked?: (path: string) => Promise<string | null>;
 }
 
 export async function projectSpecFile(
   { repo, filePath, content }: SourceDocument,
   dgraph: DgraphClientPort,
-  { embed = getQueryEmbeddings, force = false }: ProjectionOptions = {},
+  {
+    embed = getQueryEmbeddings,
+    force = false,
+    readLinked,
+  }: ProjectionOptions = {},
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
 
@@ -56,7 +62,14 @@ export async function projectSpecFile(
   const specUid = await projectSpecNode(dgraph, { repo, filePath, content });
 
   await projectSpecChildren(
-    { dgraph, repo, filePath, specUid, embed },
+    {
+      dgraph,
+      repo,
+      filePath,
+      specUid,
+      embed,
+      readLinked: readLinked && readOnce(readLinked),
+    },
     content,
   );
 
@@ -65,6 +78,21 @@ export async function projectSpecFile(
   });
 
   return { projected: true };
+}
+
+/** A reader that fetches each path once per projection: many statements cite the same test file. */
+function readOnce(
+  read: (path: string) => Promise<string | null>,
+): (path: string) => Promise<string | null> {
+  const reads = new Map<string, Promise<string | null>>();
+
+  return (path) => {
+    if (!reads.has(path)) {
+      reads.set(path, read(path));
+    }
+
+    return reads.get(path) ?? read(path);
+  };
 }
 
 /** True when the persisted Spec.content_hash already matches, so re-projection can be skipped. */
