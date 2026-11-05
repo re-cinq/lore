@@ -67,14 +67,14 @@ throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
+The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON @851f37b8](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
 
-The requested period is passed through to `/api/analytics`. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
+The requested period is passed through to `/api/analytics`. ([validated by returns the month's analytics read from /api/analytics?period=month as pretty JSON @851f37b8](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L24))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by reports a missing API configuration for fetching analytics](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L42))
+PostgreSQL message. ([validated by reports a missing API configuration for fetching analytics @a0bf66a3](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L42))
 
-An unreachable API surfaces the underlying failure detail. ([validated by surfaces why analytics could not be fetched when the API body is not JSON](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L50))
+An unreachable API surfaces the underlying failure detail. ([validated by surfaces why analytics could not be fetched when the API body is not JSON @6a6395b7](apps/mcp-server/src/transport/tools/usage/get-analytics.test.ts#L50))
 
 ## Out of Scope
 

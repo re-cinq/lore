@@ -45,8 +45,8 @@ credentials, and the tool proxies.
 1. Null request pool **or** `!isMemoryDbAvailable()` → 503
    `{ error: DB_UNAVAILABLE }`.
 2. `agentStatsBundle(pool, agent_id)` fans out three reads via `Promise.all`:
-   - `agentHealth(agent_id)` ([handler](../../../libs/server-core/src/work/memory/memory-stats.ts#L6)) → memory count, last active, snapshot count.
-   - `agentStats(agent_id)` ([handler](../../../libs/server-core/src/work/memory/memory-stats.ts#L21)) → total/active/invalidated facts, total searches, shared pools created.
+   - `agentHealth(agent_id)` ([handler@8525129b](../../../libs/server-core/src/work/memory/memory-stats.ts#L6)) → memory count, last active, snapshot count.
+   - `agentStats(agent_id)` ([handler@5e24c82f](../../../libs/server-core/src/work/memory/memory-stats.ts#L21)) → total/active/invalidated facts, total searches, shared pools created.
    - A recent-episodes preview: the five newest `memory.episodes` rows for the
      agent with a 200-char content preview and a per-episode fact count.
 3. The episode reads are best-effort — the preview falls back to `[]` and the
@@ -67,15 +67,15 @@ credentials, and the tool proxies.
 
 ## Acceptance Criteria
 
-Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L47))
+Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object` @43504656](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L47))
 
-Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L64))
+Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail` @8a9b380e](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L64))
 
-An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L81))
+An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database` @1a933497](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L81))
 
-A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L89))
+A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing` @3fddd0bf](apps/lore-api/src/transport/routes/analytics/agent-stats.test.ts#L89))
 
-The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts), [implemented by](../../../apps/lore-api/src/transport/routes/analytics/agent-stats.ts#L17))
+The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/app/build-server.ts), [implemented by @4be267ff](../../../apps/lore-api/src/transport/routes/analytics/agent-stats.ts#L17))
 
 ## Out of Scope
 

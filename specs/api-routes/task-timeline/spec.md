@@ -27,7 +27,7 @@ an ordered timeline, and overlays PR state + lease state.
 Registered as `pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET")` →
 `handleTaskTimeline(req, res, pool)`
 ([registration](../../../apps/lore-api/src/app/build-server.ts),
-[handler](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L66)). Placed
+[handler@52c170e5](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L66)). Placed
 **before** the broad `prefix("/api/tasks", "GET")` list route so the timeline
 regex wins.
 
@@ -80,7 +80,7 @@ duration_ms, summary, extras? }`. Degenerate 200s add `pending: "no_branch"`
    3. Any other thrown error logs `"[timeline] listCommits failed:"` →
       `500 { error: "github_api" }`.
 7. **Fold** — `buildTimeline(commitsApi, task.created_at)`
-   ([pure fn](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L29)):
+   ([pure fn @e13b7ebb](../../../apps/lore-api/src/transport/routes/tasks/task-timeline.ts#L29)):
    reverse the newest-first GitHub list to chronological; for each commit parse
    `parseTrailers(message)` and skip commits with none; emit a `TimelineCommit`
    with `outcome = extras["Lore-Outcome"] ?? "success"`,
@@ -110,39 +110,39 @@ Verbatim error strings: `"database unavailable"`, `"not found"`, `"internal"`,
 
 ## Acceptance Criteria
 
-A null pool returns 503. ([validated by `timeline.test.ts:78`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L76))
+A null pool returns 503. ([validated by `timeline.test.ts@254c21f5`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L76))
 
 A path the dispatcher admits but the handler regex rejects returns 404 `not found`.
 
-A throwing task lookup returns 500. ([validated by `timeline.test.ts:84`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L82))
+A throwing task lookup returns 500. ([validated by `timeline.test.ts@b9763f29`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L82))
 
-An unknown task returns `task_not_found`. ([validated by `timeline.test.ts:93`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L91))
+An unknown task returns `task_not_found`. ([validated by `timeline.test.ts@e535040f`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L91))
 
-A task with no branch returns `pending: no_branch` with empty commits. ([validated by `timeline.test.ts:99`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L97))
+A task with no branch returns `pending: no_branch` with empty commits. ([validated by `timeline.test.ts@562e9bd0`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L97))
 
-A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `timeline.test.ts:108`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L106))
+A full run yields ordered stage commits, merged PR state, current stage, and a held lease. ([validated by `timeline.test.ts@1f2f7f21`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L106))
 
-A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `timeline.test.ts:163`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L161))
+A failing PR fetch and empty lease degrade to null PR state and an unheld lease. ([validated by `timeline.test.ts@be161ef5`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L161))
 
-A task with no `pr_number` skips the PR fetch. ([validated by `timeline.test.ts:184`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L182))
+A task with no `pr_number` skips the PR fetch. ([validated by `timeline.test.ts@2c2f3ec6`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L182))
 
-Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `timeline.test.ts:196`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L194))
+Commit field fallbacks (null date, missing extras, non-finite duration) are handled. ([validated by `timeline.test.ts@1faa60a4`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L194))
 
-A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `timeline.test.ts:232`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L230))
+A GitHub 404 on the branch returns `branch_deleted: true`. ([validated by `timeline.test.ts@210296d9`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L230))
 
-A non-404 GitHub error returns 500 `github_api`. ([validated by `timeline.test.ts:245`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L243))
+A non-404 GitHub error returns 500 `github_api`. ([validated by `timeline.test.ts@e5da9cbc`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L243))
 
-A failing lease query leaves the lease null. ([validated by `timeline.test.ts:258`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L256))
+A failing lease query leaves the lease null. ([validated by `timeline.test.ts@f8acf1dc`](apps/lore-api/src/transport/routes/tasks/timeline.test.ts#L256))
 
-`buildTimeline` returns empty when no commit carries trailers. ([validated by `timeline-build.test.ts:15`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L15))
+`buildTimeline` returns empty when no commit carries trailers. ([validated by `timeline-build.test.ts@5660f8ef`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L15))
 
-`buildTimeline` reverses newest-first order into chronological stages. ([validated by `timeline-build.test.ts:23`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L23))
+`buildTimeline` reverses newest-first order into chronological stages. ([validated by `timeline-build.test.ts@62c575e8`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L23))
 
-`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `timeline-build.test.ts:40`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L40))
+`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `timeline-build.test.ts@d2d5bfb7`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L40))
 
-`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `timeline-build.test.ts:57`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L57))
+`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `timeline-build.test.ts@e0d57b2a`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L57))
 
-`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `timeline-build.test.ts:74`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L74))
+`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `timeline-build.test.ts@452b3841`](apps/lore-api/src/transport/routes/tasks/timeline-build.test.ts#L74))
 
 ## Out of Scope
 

@@ -138,7 +138,7 @@ short-lived per-task key into `agent-secrets` and removes it on terminal status 
 *(amended 2026-09-10)* The per-task token is minted FRESH and scoped to the task's repo.
 `@octokit/auth-app` caches installation tokens for up to 59 minutes, so a cached token handed to a
 new pod could expire mid-run — run `d9b207e0`'s `fix-ci` lost a finished commit to exactly that, its
-push rejected with "Bad credentials" 30 minutes in (#2012). ([validated by getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one](libs/shared/src/outbound/project/lib/platform-github.test.ts#L683))
+push rejected with "Bad credentials" 30 minutes in (#2012). ([validated by getInstallationToken for re-cinq/lore asks for a fresh token scoped to lore, never octokit's cached one @7c765979](libs/shared/src/outbound/project/lib/platform-github.test.ts#L683))
 
 A fresh token still lives one hour, so this is a stopgap: a token broker that mints on demand at
 push time replaces the per-task Secret key.
@@ -419,7 +419,7 @@ sits in a Secret at all.
   one.
 - A run credential that reaches a transcript — an agent printing its environment —
   is redacted whole before storage, payload and signature together, like any
-  other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment](libs/shared/src/lib/redact.test.ts#L110))
+  other secret. ([validated by redacts a whole run credential as it appears in an agent's printed environment @1351ba5b](libs/shared/src/lib/redact.test.ts#L110))
 - A credential signed with any other key is refused as `bad-signature`,
   compared in constant time, so a pod cannot forge one for another repo or
   another run.
@@ -430,7 +430,7 @@ sits in a Secret at all.
 - The broker grants a git credential only for the repo the run credential
   names, and only while the station run it names is still open.
 - The broker looks the station run up by the id its credential names, and
-  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L955))
+  both stores answer that lookup the same way. ([validated by findStationRunById returns the open review visit its station run id names @6e96af6c](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L955))
 - `POST /api/github-credentials` hands an open run a token for its repo in the
   git credential-helper shape (`x-access-token` plus the token), minted at the
   moment git asks.

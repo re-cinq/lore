@@ -59,7 +59,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L257))
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts@8dfff1cf`](libs/shared/src/domain/memory-ranking.test.ts#L257))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -174,7 +174,7 @@ repo B
 - FR-3.4: Decay job transitions facts to `stale` when
   `last_retrieved_at < now() - 30 days` (or `last_retrieved_at IS
   NULL AND created_at < now() - 30 days`); already-`verified` facts
-  are left untouched. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-lifecycle.test.ts:424`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L433))
+  are left untouched. ([validated by `memory-lifecycle.test.ts@4d595ada`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L197), [`memory-lifecycle.test.ts@e1dcd1c4`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L433))
 - FR-3.5: On retrieval, if confidence is `stale`, update to
   `observed`.
 - FR-3.6: Include confidence tier in search results and context
@@ -191,18 +191,18 @@ repo B
 - FR-4.4: The decay job's invalidated-fact purge deletes the
   `memory.fact_conflicts` rows and clears the `invalidated_by`
   references that point at the facts it removes, and a failing purge does
-  not stop the memory eviction or the stale transition. ([validated by `memory-lifecycle.test.ts:623`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L623), [`memory-lifecycle.contract.test.ts:59`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L59), [`memory-lifecycle.contract.test.ts:47`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L47), [`importance-decay.test.ts:154`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L154))
+  not stop the memory eviction or the stale transition. ([validated by `memory-lifecycle.test.ts@d874cc5d`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L623), [`memory-lifecycle.contract.test.ts@f6c7adc1`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L59), [`memory-lifecycle.contract.test.ts@a80f8b2c`](libs/shared/src/outbound/project/memory/memory-lifecycle.contract.test.ts#L47), [`importance-decay.test.ts@903563e1`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L154))
 
 ### FR-5: Transfer Scoring
 
 - FR-5.1: Add `computeTransferScore(factText: string): number`
-  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:44`](apps/mcp-server/src/work/context/transfer-score.test.ts#L5))
+  function in `memory-search.ts`. ([validated by `transfer-score.test.ts@ec9e4d5d`](apps/mcp-server/src/work/context/transfer-score.test.ts#L5))
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:50`](apps/mcp-server/src/work/context/transfer-score.test.ts#L11))
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts@71389c89`](apps/mcp-server/src/work/context/transfer-score.test.ts#L11))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:58`](apps/mcp-server/src/work/context/transfer-score.test.ts#L19))
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts@b4b7420f`](apps/mcp-server/src/work/context/transfer-score.test.ts#L19))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:82`](apps/mcp-server/src/work/context/transfer-score.test.ts#L43))
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts@312c4c42`](apps/mcp-server/src/work/context/transfer-score.test.ts#L43))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 
@@ -214,21 +214,21 @@ repo B
 - FR-6.3: In `merge-check`, on PR merge: update contributing
   facts/memories with `half_life_days += 5` (capped at 365, using the
   table defaults 30/60 for a null `half_life_days`); an empty id list
-  is a no-op. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L223), [`memory-lifecycle.test.ts:472`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L481), [`memory-lifecycle.test.ts:242`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L251))
+  is a no-op. ([validated by `memory-lifecycle.test.ts@5145bf5c`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L223), [`memory-lifecycle.test.ts@792b04ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L481), [`memory-lifecycle.test.ts@843335da`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L251))
 - FR-6.4: In `merge-check`, on PR rejection: update contributing
   facts/memories with `half_life_days = MAX(7, half_life_days - 3)`
-  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:229`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L238), [`memory-lifecycle.test.ts:488`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L497))
+  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts@ec609215`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L238), [`memory-lifecycle.test.ts@8280bc0b`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L497))
 - FR-6.5: Audit log outcome feedback events, with the metadata
-  serialized on the row. ([validated by `memory-lifecycle.test.ts:252`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L261), [`memory-lifecycle.test.ts:500`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L509))
+  serialized on the row. ([validated by `memory-lifecycle.test.ts@24c3e468`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L261), [`memory-lifecycle.test.ts@d09e91e5`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L509))
 
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:231`](libs/shared/src/domain/memory-ranking.test.ts#L257))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:206`](libs/shared/src/domain/memory-ranking.test.ts#L232), [`memory-ranking.test.ts:176`](libs/shared/src/domain/memory-ranking.test.ts#L202), [`memory-ranking.test.ts:269`](libs/shared/src/domain/memory-ranking.test.ts#L295))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts@8dfff1cf`](libs/shared/src/domain/memory-ranking.test.ts#L257))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts@6fc4a5f0`](libs/shared/src/domain/memory-ranking.test.ts#L232), [`memory-ranking.test.ts@b8c08d9c`](libs/shared/src/domain/memory-ranking.test.ts#L202), [`memory-ranking.test.ts@6c3730cf`](libs/shared/src/domain/memory-ranking.test.ts#L295))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:275`](libs/shared/src/domain/memory-ranking.test.ts#L301))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:225`](libs/shared/src/domain/memory-ranking.test.ts#L251))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts@4c04531a`](libs/shared/src/domain/memory-ranking.test.ts#L301))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts@403ba463`](libs/shared/src/domain/memory-ranking.test.ts#L251))
 
 ## Non-Functional Requirements
 

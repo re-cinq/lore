@@ -80,11 +80,11 @@ A missing log object returns empty logs with `complete: true`.
 
 In stdio mode the request proxies to the API with the job name and run id:
 without `LORE_API_URL`/`LORE_INGEST_TOKEN` it returns the require-URL message
-without fetching, and on success it returns the proxied body. ([validated by reports the require-URL message without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L25), [validated by returns the error text when fetch throws](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L48), [`lore_get_job_logs
+without fetching, and on success it returns the proxied body. ([validated by reports the require-URL message without fetching when the env is unset @175b1c9e](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L25), [validated by returns the error text when fetch throws @4e3f3612](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L48), [`lore_get_job_logs
 returns the proxied body on
 success`](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L34))
 
-The `/api/job-run-logs` HTTP route (the stdio-proxy target) reads the run's GCS object and returns `{logs, complete}`: the full body with `complete: true` when the object exists, empty with `complete: false` when it does not, 400 when `job_name`/`run_id` are missing, and 500 on a storage error. ([validated by returns the file content when it exists](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L51), [`job-run-logs.test.ts:44`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L44), [`job-run-logs.test.ts:38`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L38), [`job-run-logs.test.ts:59`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L59))
+The `/api/job-run-logs` HTTP route (the stdio-proxy target) reads the run's GCS object and returns `{logs, complete}`: the full body with `complete: true` when the object exists, empty with `complete: false` when it does not, 400 when `job_name`/`run_id` are missing, and 500 on a storage error. ([validated by returns the file content when it exists @527a67cb](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L51), [`job-run-logs.test.ts@c85274d9`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L44), [`job-run-logs.test.ts@eea95f0c`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L38), [`job-run-logs.test.ts@4d7834a4`](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L59))
 
 ## Out of Scope
 

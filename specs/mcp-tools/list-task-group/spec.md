@@ -62,11 +62,11 @@ pretty-printed rows array, or `"Error: {message}"`. **Never throws.**
 
 ## Acceptance Criteria
 
-The rollup line precedes the pretty-printed task array. ([validated by renders 'Group g1: 1/2 completed' above the task JSON read from /api/task-groups/g1](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L26))
+The rollup line precedes the pretty-printed task array. ([validated by renders 'Group g1: 1/2 completed' above the task JSON read from /api/task-groups/g1 @b778e54e](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L26))
 
-A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by reports an empty group g1](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L42))
+A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by reports an empty group g1 @7f89aa6b](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L42))
 
-An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by reports a missing API configuration without fetching](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L66), [validated by reports the error when the API answers a null body](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L50))
+An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by reports a missing API configuration without fetching @20794667](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L66), [validated by reports the error when the API answers a null body @61f44174](apps/mcp-server/src/transport/tools/pipeline/list-task-group.test.ts#L50))
 
 An unreachable API (fetch throws) reports the subject-scoped "Could not fetch
 the task group" message rather than the generic unreachable copy. ([validated

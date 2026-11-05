@@ -54,9 +54,9 @@ returns the success message.)
 
 ## Acceptance Criteria
 
-The handler clears the polling interval and removes the pending cache file. ([validated by stops a running notifier and removes its pending cache](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L23))
+The handler clears the polling interval and removes the pending cache file. ([validated by stops a running notifier and removes its pending cache @e31ecfc0](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L23))
 
-Calling it when no notifier is running still answers that notifications stopped. ([validated by answers stopped when no notifier is running](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L43))
+Calling it when no notifier is running still answers that notifications stopped. ([validated by answers stopped when no notifier is running @557a9d10](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L43))
 
 ## Out of Scope
 

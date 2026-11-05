@@ -73,18 +73,18 @@ the three failure texts. **Never throws**.
 
 ## Acceptance Criteria
 
-The API's usage object is returned to the caller as pretty-printed JSON. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
+The API's usage object is returned to the caller as pretty-printed JSON. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON @74fbbf01](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
 
-The request goes to `/api/usage` for the resolved agent id. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
+The request goes to `/api/usage` for the resolved agent id. ([validated by returns the usage of the resolved agent read from /api/usage as pretty JSON @74fbbf01](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L23))
 
-An explicit agent id is url-encoded into the query string. ([validated by url-encodes the explicit agent id dev@example.com](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L37))
+An explicit agent id is url-encoded into the query string. ([validated by url-encodes the explicit agent id dev@example.com @4c02bb8b](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L37))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by reports a missing API configuration for reading usage](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L46))
+PostgreSQL message. ([validated by reports a missing API configuration for reading usage @18e679db](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L46))
 
-A denied token yields the denial message naming the tool. ([validated by reports a denied token on a 403](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L54))
+A denied token yields the denial message naming the tool. ([validated by reports a denied token on a 403 @2d4e4b1b](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L54))
 
-An unreachable API surfaces the underlying failure detail. ([validated by surfaces the usage failure detail when the API answers 500](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L66))
+An unreachable API surfaces the underlying failure detail. ([validated by surfaces the usage failure detail when the API answers 500 @70672116](apps/mcp-server/src/transport/tools/usage/my-usage.test.ts#L66))
 
 ## Out of Scope
 

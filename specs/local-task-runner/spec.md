@@ -118,10 +118,10 @@ RETURNING *;
 ```
 
 GKE's agent worker uses the same query but with `status = 'pending'`.
-The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
+The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts@5617af6b`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 
 **Grace period**: GKE worker waits 30s before claiming pending tasks.
-Local runners claim immediately. This gives local runners priority. ([`task-queue.test.ts:232`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L108))
+Local runners claim immediately. This gives local runners priority. ([`task-queue.test.ts@ea296ec4`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L108))
 
 ### Execution Flow
 
@@ -296,7 +296,7 @@ const task = await query(
 
 1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
-3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts:7`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
+3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts@5617af6b`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
 
 4. Tasks from GitHub Issues work through local runner when polling
 5. Background task commits, pushes, creates PR on completion

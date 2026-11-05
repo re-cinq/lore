@@ -48,7 +48,7 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
      on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
      ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L41)).
-2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/domain/pipeline-task-core.ts#L213)) — `SELECT * FROM
+2. **Shared CRUD** ([`getTask@56b9504b`](../../../libs/shared/src/domain/pipeline-task-core.ts#L213)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return
    the task row spread with an `events` array.
@@ -74,21 +74,21 @@ pretty-printed task JSON (`{...row, events: [...]}`), or
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L13))
+([validated by `returns null when no task row matches the id` @35001714](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L13))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L20))
+([validated by `returns the task with its ordered events when the id matches` @77d45861](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L20))
 
 The stdio-proxy branch selects the not-configured, denied, and unreachable errors
 by cause (missing env, 401/403, network failure).
-([validated by returns the not-configured message without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L24), [validated by returns the denied message on a 401](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L49), [validated by returns the unreachable message when fetch throws](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L71), [validated by returns task t1's record as pretty JSON read from /api/task/t1 with the bearer token](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L34), [validated by returns 'Remote error: Not Found' on a 404](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L61), [validated by returns the error text when the response body is not JSON](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L79))
+([validated by returns the not-configured message without fetching when the env is unset @c286656f](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L24), [validated by returns the denied message on a 401 @ee32d972](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L49), [validated by returns the unreachable message when fetch throws @e3a32032](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L71), [validated by returns task t1's record as pretty JSON read from /api/task/t1 with the bearer token @d2165872](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L34), [validated by returns 'Remote error: Not Found' on a 404 @7edf11be](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L61), [validated by returns the error text when the response body is not JSON @194f1339](apps/mcp-server/src/transport/tools/pipeline/get-pipeline-status.test.ts#L79))
 
 The not-found and success envelope framing on the stdio path are exercised only
 against a live API. *(untested: the transport switch is inline in the handler
 closure — the success/not-found proxy responses need a live API; the shared CRUD
 is covered above.)*
 
-The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by returns the task when found](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L46))
+The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by returns the task when found @ecd2dbbc](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts@28818cc2`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts@b63e5ec2`](apps/lore-api/src/transport/routes/tasks/get-task.test.ts#L46))
 
 ## Out of Scope
 

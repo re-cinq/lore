@@ -49,8 +49,8 @@ Lists pipeline tasks newest-first as JSON, optionally filtered by status. Genera
      `["pending","queued","running","pr-created","review","merged","failed","cancelled"]`;
      an invalid value returns `"invalid status: {status}. Valid values: {list}"`.
      Then call `listTasks(status, min(limit, 100))`
-     ([handler wrapper](../../../libs/server-core/src/work/pipeline/pipeline.ts#L45)).
-2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/domain/pipeline-tasks.ts#L40)) — `SELECT id,
+     ([handler wrapper @a613591f](../../../libs/server-core/src/work/pipeline/pipeline.ts#L45)).
+2. **Shared CRUD** ([`listTasks@78eefe44`](../../../libs/shared/src/domain/pipeline-tasks.ts#L40)) — `SELECT id,
    description, task_type, status, target_repo, agent_id, pr_url, created_by,
    created_at, updated_at FROM pipeline.tasks [WHERE status = $1] ORDER BY
    created_at DESC LIMIT $N`, plus `SELECT count(*)::int AS total FROM
@@ -74,15 +74,15 @@ remote-error message, the `"invalid status: …"` message, the pretty-printed
 ## Acceptance Criteria
 
 With no filter, all tasks are returned alongside a total count.
-([validated by `pipeline-crud.test.ts:40`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L40))
+([validated by `pipeline-crud.test.ts@7e5aa36b`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L40))
 
 With a status filter, only matching rows and their total are returned.
-([validated by `pipeline-crud.test.ts:52`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L52))
+([validated by `pipeline-crud.test.ts@2e227116`](apps/mcp-server/src/work/pipeline/pipeline-crud.test.ts#L52))
 
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*
 
-The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by lists with status and limit](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L32), [validated by asks for remote access without fetching when the env is unset](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L24), [validated by caps limit 500 at 100 and passes status failed and offset 40 to /api/tasks](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L33), [validated by leaves status out of the query when none is given](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L47), [validated by returns 'Remote error: Bad Gateway' on a 502](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L56), [validated by returns the error text when fetch throws](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L64), [`list-tasks.test.ts:41`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts:47`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts:55`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts:71`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts:84`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts:77`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L77))
+The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by lists with status and limit @bbb813b9](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L32), [validated by asks for remote access without fetching when the env is unset @f94c70c4](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L24), [validated by caps limit 500 at 100 and passes status failed and offset 40 to /api/tasks @fe0ad08c](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L33), [validated by leaves status out of the query when none is given @8f9f2593](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L47), [validated by returns 'Remote error: Bad Gateway' on a 502 @7202f49f](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L56), [validated by returns the error text when fetch throws @4e3f3612](apps/mcp-server/src/transport/tools/pipeline/list-pipeline-tasks.test.ts#L64), [`list-tasks.test.ts@0391cfed`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts@9c4ababb`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts@dfcea04a`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts@e10ea47b`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts@442940ae`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts@3dfd7c56`](apps/lore-api/src/transport/routes/tasks/list-tasks.test.ts#L77))
 
 ## Out of Scope
 

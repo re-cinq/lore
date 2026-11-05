@@ -237,13 +237,13 @@ ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 
 ## Call graph (cross-file symbol references)
 
-The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L199))
+The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph @fe892028](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L199))
 
-`lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
+`lore-query-trace` routes a `callers_of` query to a callers endpoint rather than the trace/document endpoint. ([validated by routes a callers_of query to a callers endpoint rather than the document endpoint @b18c8f2c](libs/server-core/src/work/spec-trace/query-trace.test.ts#L286))
 
-Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section](libs/shared/src/work/spec-trace/trace-impact.test.ts#L185), [validated by surfaces a caller statement as indirect when only the callee chunk is changed (one-hop reference expansion)](libs/shared/src/work/spec-trace/trace-impact.test.ts#L534))
+Statements reached via `~CodeChunk.references` are annotated `indirect` and rendered at `notice` annotation level rather than `warning` in the PR diff comment. ([validated by renders indirect statements as notice-level rather than warning so they appear in a quieter PR section @10291c0d](libs/shared/src/work/spec-trace/trace-impact.test.ts#L185), [validated by surfaces a caller statement as indirect when only the callee chunk is changed (one-hop reference expansion) @6295506d](libs/shared/src/work/spec-trace/trace-impact.test.ts#L534))
 
-The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L69), [validated by omits imported symbols that are never called in the file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92), [validated by returns an empty array for a file with no import declarations](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L108))
+The reference extractor identifies imported symbols that are actually called in a TypeScript/JavaScript source file and returns their names paired with the module path they were imported from. ([validated by returns imported symbol names and their source paths when those symbols are called in a TypeScript source file @6a71f3fe](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L69), [validated by omits imported symbols that are never called in the file @3e44f44b](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L92), [validated by returns an empty array for a file with no import declarations @6d0dc40a](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L108))
 
 ### Code projection (issue #1992)
 
@@ -251,31 +251,31 @@ The `code` ingest kind is what writes the call graph. lore-code-trace's `docs --
 sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_modules/`,
 `dist/`, `build/` and `vendor/` left out) to `POST /api/repos/{owner}/{repo}/ingest` with
 `kind: "code"`, in the same chunked delta as specs and ADRs, so it lands on `main` from CI
-like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L330))
+like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode @9968c878](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune @2b9eb7d5](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L330))
 
 lore-api parses each file with tree-sitter into its top-level functions,
-function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L136), [validated by maps the local name next to nextTransition imported from ./transition.js](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L153))
+function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls @55788c6d](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L136), [validated by maps the local name next to nextTransition imported from ./transition.js @68af8954](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L153))
 
-A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L166))
+A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file @f089b187](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L166))
 
 Each definition becomes one `CodeChunk` keyed `<repo>|code|<module path without extension>#<symbol>`,
 and a call to a sibling definition or to a named import from a relative path becomes a
 `CodeChunk.references` edge to the chunk with that key; calls into packages are dropped.
 A target whose file is not projected yet is a placeholder carrying only its identity, so
-the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L68), [validated by answers nextTransition in src/transition.ts as the callee of advance](libs/shared/src/work/spec-trace/project-code-file.test.ts#L76))
+the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](libs/shared/src/work/spec-trace/project-code-file.test.ts#L68), [validated by answers nextTransition in src/transition.ts as the callee of advance @8fa7e8a6](libs/shared/src/work/spec-trace/project-code-file.test.ts#L76))
 
 A chunk's content hash covers its text and the keys it references, so a file projected
-again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged](libs/shared/src/work/spec-trace/project-code-file.test.ts#L84))
+again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged @4d0e5019](libs/shared/src/work/spec-trace/project-code-file.test.ts#L84))
 
-A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters](libs/shared/src/work/spec-trace/project-code-file.test.ts#L119))
+A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters @23a52c6a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L119))
 
 Dgraph does not cascade, so removing a chunk removes its edges by hand: a reference
 the new content no longer makes is dropped, a definition that left its file loses its own
 edges and is deleted, or shrinks to a placeholder while callers still point at it so they
-rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition](libs/shared/src/work/spec-trace/project-code-file.test.ts#L92), [validated by removes the reference edges of src/runner.ts when the file is deleted](libs/shared/src/work/spec-trace/project-code-file.test.ts#L102), [validated by answers advance again when src/transition.ts is deleted and projected back](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109))
+rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition @1d24693a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L92), [validated by removes the reference edges of src/runner.ts when the file is deleted @a46f71a5](libs/shared/src/work/spec-trace/project-code-file.test.ts#L102), [validated by answers advance again when src/transition.ts is deleted and projected back @6ba0916b](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109))
 
 A full ingest prunes the files the graph holds definition chunks for and the posted tree
-no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files](libs/shared/src/work/spec-trace/project-code-file.test.ts#L128))
+no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files @8d39a079](libs/shared/src/work/spec-trace/project-code-file.test.ts#L128))
 
 ## Branch overlay
 
@@ -291,77 +291,77 @@ over `main` at read time; `main` itself is never written by a branch.
 
 A projection writes into a **scope**, which owns three things: the xid prefix,
 the `.repo` scalar its nodes carry, and the root node they hang off. On `main`
-the scope key is the bare repo and the root is the `Repo` node. ([validated by keys on the bare repo and roots at Repo](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L12), [validated by returns false from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L20))
+the scope key is the bare repo and the root is the `Repo` node. ([validated by keys on the bare repo and roots at Repo @8c8c4c27](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L12), [validated by returns false from isOverlay @e9d0140a](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L20))
 
 An overlay scope inserts a `branch:<name>` segment between the repo and the
-path, and roots at the branch's `Overlay` node. ([validated by inserts a branch segment between the repo and the path and roots at Overlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L26), [validated by returns true from isOverlay](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L35))
+path, and roots at the branch's `Overlay` node. ([validated by inserts a branch segment between the repo and the path and roots at Overlay @412e2ccd](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L26), [validated by returns true from isOverlay @3d50181e](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L35))
 
 Because the branch segment is part of the xid, a branch's node for a path
 upserts independently of `main`'s node for the same path instead of overwriting
-it. ([validated by joins parts onto the main key with a pipe](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L60), [validated by joins parts onto the overlay key so main and overlay never collide](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L66), [validated by joins several parts in order](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L72))
+it. ([validated by joins parts onto the main key with a pipe @58fbd7ee](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L60), [validated by joins parts onto the overlay key so main and overlay never collide @a389769e](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L66), [validated by joins several parts in order @94e157d2](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L72))
 
 The root-edge predicate a scope attaches its chunks to is named for its root
 type, so the same projection code hangs nodes off `Repo` on `main` and off
-`Overlay` on a branch. ([validated by names the Repo predicate for a main scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L80), [validated by names the Overlay predicate for an overlay scope](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L86))
+`Overlay` on a branch. ([validated by names the Repo predicate for a main scope @93d7190f](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L80), [validated by names the Overlay predicate for an overlay scope @3d7df7fb](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L86))
 
 `Overlay.xid` is a hash upsert index and `Overlay.branch` /
 `Overlay.head_commit` are indexed, so a branch's overlay is found by name and
-the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L237))
+the commit its ranges are expressed in is queryable. ([validated by declares Overlay.xid as a hash upsert index so a branch's overlay upserts independently of main @52dc18ed](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L237))
 
 The `Overlay` node carries the same chunk container edges the `Repo` root does —
-`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L251))
+`test_chunks`, `code_chunks`, `coverage`, `files` — as reversible uid lists. ([validated by declares the Overlay chunk edges as uid lists so a branch's nodes hang off it instead of the Repo root @ca6ca4ee](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L251))
 
 ### Which branch is an overlay
 
 A report names the branch it was built on, but only the ingress that receives it
 can learn the repo's default branch — so the ingress decides, with one shared
 rule, and hands the ingest an explicit overlay branch. A report for any branch
-other than the default one is an overlay. ([validated by returns feat/x when the report names feat/x and the default branch is main](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L41))
+other than the default one is an overlay. ([validated by returns feat/x when the report names feat/x and the default branch is main @4da55fb6](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L41))
 
-A report for the default branch is `main`'s, whatever the default is called. ([validated by returns undefined when the report names the default branch](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L45))
+A report for the default branch is `main`'s, whatever the default is called. ([validated by returns undefined when the report names the default branch @3da3313f](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L45))
 
 A detached `HEAD` names a commit rather than a branch, and a report naming no
-branch names nothing; both are `main`'s. ([validated by returns undefined for a detached HEAD](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L49), [validated by returns undefined when the report names no branch](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L53))
+branch names nothing; both are `main`'s. ([validated by returns undefined for a detached HEAD @0603673d](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L49), [validated by returns undefined when the report names no branch @b5911d6d](libs/shared/src/domain/spec-trace/trace-scope.test.ts#L53))
 
 ### Anchor and lifecycle
 
 The overlay anchor records the branch and the head commit its line numbers are
-expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with](libs/shared/src/work/spec-trace/overlay.test.ts#L40))
+expressed in — the overlay's answer to `Repo.trace_commit`. ([validated by reads back the branch and head commit an upserted overlay was stamped with @86b18f28](libs/shared/src/work/spec-trace/overlay.test.ts#L40))
 
-A branch that never wrote one reads back as absent rather than as an error. ([validated by returns null for a branch that never wrote an overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L57))
+A branch that never wrote one reads back as absent rather than as an error. ([validated by returns null for a branch that never wrote an overlay @73a69222](libs/shared/src/work/spec-trace/overlay.test.ts#L57))
 
 A second push to the same branch restamps the existing anchor rather than adding
-a second overlay — and every run on the branch pushes to that one anchor. ([validated by restamps head commit on a second push to the branch rather than creating a second overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L63))
+a second overlay — and every run on the branch pushes to that one anchor. ([validated by restamps head commit on a second push to the branch rather than creating a second overlay @24e207ec](libs/shared/src/work/spec-trace/overlay.test.ts#L63))
 
 Dropping an overlay deletes every node it anchors and the anchor itself, so a
-closed branch leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the branch](libs/shared/src/work/spec-trace/overlay.test.ts#L77))
+closed branch leaves nothing behind. ([validated by deletes the anchored chunks and the anchor, leaving no overlay for the branch @b8f3f55a](libs/shared/src/work/spec-trace/overlay.test.ts#L77))
 
 The drop is safe to repeat: a branch with no overlay drops nothing and reports
-zero. ([validated by drops nothing and reports zero for a branch with no overlay](libs/shared/src/work/spec-trace/overlay.test.ts#L104))
+zero. ([validated by drops nothing and reports zero for a branch with no overlay @89c61627](libs/shared/src/work/spec-trace/overlay.test.ts#L104))
 
 Listing overlays is scoped to one repo, so a sweep for one repo's abandoned
-branches never sees another's. ([validated by lists only the overlays of the repo it was asked about](libs/shared/src/work/spec-trace/overlay.test.ts#L110))
+branches never sees another's. ([validated by lists only the overlays of the repo it was asked about @b34b8d6b](libs/shared/src/work/spec-trace/overlay.test.ts#L110))
 
 ### What an overlay ingest writes
 
 A test report that names an overlay branch writes its chunks under the
-branch-scoped key, and a query filtered on the bare repo key does not see them. ([validated by writes the branch's test chunks under the branch-scoped key, not the repo key](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L86))
+branch-scoped key, and a query filtered on the bare repo key does not see them. ([validated by writes the branch's test chunks under the branch-scoped key, not the repo key @e07924f0](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L86))
 
 The ingest stamps the branch's overlay with the head commit the report was
-posted for. ([validated by stamps the overlay with the branch and head commit the report was posted for](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L97))
+posted for. ([validated by stamps the overlay with the branch and head commit the report was posted for @50533b98](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L97))
 
 A branch push leaves `Repo.trace_commit` alone, so it cannot move the coordinate
-system the pre-merge impact query is expressed in. ([validated by leaves Repo.trace_commit alone so a branch push cannot move main's coordinate system](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L110))
+system the pre-merge impact query is expressed in. ([validated by leaves Repo.trace_commit alone so a branch push cannot move main's coordinate system @d9c7ccce](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L110))
 
 Specs, acceptance criteria and ADRs are never overlaid: the spec is the thing
 the branch is measured against. An overlay ingest therefore writes no
 `validated_by` onto the `main` statement a branch test claims — an unmerged
-branch must not change what `main` claims to have proved. ([validated by writes no validated_by onto the main statement the branch test claims](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L126))
+branch must not change what `main` claims to have proved. ([validated by writes no validated_by onto the main statement the branch test claims @47c6b330](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L126))
 
 A report that names a branch but no overlay branch is unchanged: it writes
 `main`'s chunks and stamps `main`'s baseline exactly as before. That is what
 keeps the main-only incremental ingest, whose reports always name their branch,
-on `main`. ([validated by still writes main's test chunks and baseline when the report names a branch but no overlay branch](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L146))
+on `main`. ([validated by still writes main's test chunks and baseline when the report names a branch but no overlay branch @b6c1125a](libs/shared/src/work/spec-trace/ingest-overlay.test.ts#L146))
 
 ### Reading coverage as the branch sees it
 
@@ -371,46 +371,46 @@ can tell the test it just wrote from a regression it just caused.
 
 Coverage is aggregated per test FILE at ingest, so the answer names test files
 rather than individual `it()` blocks. A record is returned when its covered
-intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L91))
+intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range @d31d9baa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L91))
 
 A range no coverage record touches returns nothing rather than falling back to
-the whole file. ([validated by returns nothing for a range no test covers](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L104))
+the whole file. ([validated by returns nothing for a range no test covers @79314ed4](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L104))
 
 Asking about a file without narrowing to a range returns every test file that
-covers it. ([validated by returns every covering test when no range narrows the question](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L117))
+covers it. ([validated by returns every covering test when no range narrows the question @659f1402](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L117))
 
 Inside a branch's overlay the same question is answered from the branch's own
-coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the branch scope and marks it as overlay](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
+coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the branch scope and marks it as overlay @66db1601](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
 
 That branch coverage is invisible from the main scope, so a branch in flight cannot
-change what anyone else is told. ([validated by does not see the branch's coverage from the main scope](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L141))
+change what anyone else is told. ([validated by does not see the branch's coverage from the main scope @6b53fcd0](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L141))
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
-nothing. ([validated by replaces main's answer for the file when the overlay covers it](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L31), [validated by falls through to main for a file the branch never touched](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L35), [validated by returns nothing when neither scope covers the file](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39))
+nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L31), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L35), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39))
 
 ### Ending a branch's overlay
 
 The stations service answers a closing PR and holds no graph client, so it does
 not delete the branch's overlay itself: it asks lore-api, which does
 (`POST /api/repos/{owner}/{repo}/trace/overlay-drop`). Until 2026-10-02 the old
-Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes](apps/stations/src/events/repo-handlers.test.ts#L195), [validated by posts branch feat/x to /trace/overlay-drop of o/r](libs/shared/src/outbound/project/lib/station-http.test.ts#L227), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
+Floor sent the drop through the `ingest` assembly line as a pod per drop. ([validated by drops the graph overlay of branch feat/x when its pull request closes @56d675fb](apps/stations/src/events/repo-handlers.test.ts#L195), [validated by posts branch feat/x to /trace/overlay-drop of o/r @c3f22d5b](libs/shared/src/outbound/project/lib/station-http.test.ts#L227), [validated by drops the overlay of branch lore/implementation-loop/issue-7 for o/r and answers dropped @99eaeefc](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L40), [validated by answers dropped false and writes nothing when no graph is configured @c3ea466c](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L57), [validated by answers 400 when no branch is named @e23188aa](apps/lore-api/src/transport/routes/trace/trace-overlay-drop.test.ts#L50))
 
 The drop follows the PR, not a run: review, triage and reply runs all work on
 the PR's head branch, so the first of them to finish would otherwise wipe an
 overlay the implementation loop is still writing. A PR closed without merging
 drops its overlay the same way, and the stations service claims the close
-whether or not an external floor is configured. ([validated by claims only the pull-request events the blocked-reason station reads, the close among them for its overlay drop, and no comment event when no floor is configured](apps/stations/src/events/subscriptions.test.ts#L60))
+whether or not an external floor is configured. ([validated by claims only the pull-request events the blocked-reason station reads, the close among them for its overlay drop, and no comment event when no floor is configured @055c01c1](apps/stations/src/events/subscriptions.test.ts#L60))
 
-A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch](apps/stations/src/events/repo-handlers.test.ts#L207))
+A closed PR that names no head branch asks for nothing. ([validated by drops nothing for a closed pull request that names no head branch @15f9dcb8](apps/stations/src/events/repo-handlers.test.ts#L207))
 
 The drop can still be missed — a branch that never opened a PR, a lost event —
 so a retention sweep reaps every overlay a repo has not restamped since a
 cutoff. A branch still pushing restamps its own anchor on every push, so an old
-stamp means nobody is. ([validated by drops an overlay written before the cutoff](libs/shared/src/work/spec-trace/overlay.test.ts#L162))
+stamp means nobody is. ([validated by drops an overlay written before the cutoff @12fa3575](libs/shared/src/work/spec-trace/overlay.test.ts#L162))
 
 An overlay stamped after the cutoff is kept, because its branch may still be
-pushing. ([validated by keeps an overlay written after the cutoff, because its branch may still be pushing](libs/shared/src/work/spec-trace/overlay.test.ts#L176))
+pushing. ([validated by keeps an overlay written after the cutoff, because its branch may still be pushing @99c1869b](libs/shared/src/work/spec-trace/overlay.test.ts#L176))
 
 ## Failures
 
@@ -425,63 +425,63 @@ implicated, carrying the sha of the attempt that later went green.
 
 The parse is deterministic and covers the tools the validate step actually runs.
 A `tsc` diagnostic yields its file and line in both the parenthesized and the
-colon form. ([validated by returns src/foo.ts line 12 for a tsc parenthesized diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L5), [validated by returns src/foo.ts line 12 for the tsc colon diagnostic variant](libs/shared/src/work/spec-trace/failure-sites.test.ts#L13))
+colon form. ([validated by returns src/foo.ts line 12 for a tsc parenthesized diagnostic @b5923b28](libs/shared/src/work/spec-trace/failure-sites.test.ts#L5), [validated by returns src/foo.ts line 12 for the tsc colon diagnostic variant @b508d93f](libs/shared/src/work/spec-trace/failure-sites.test.ts#L13))
 
 An eslint stylish block attributes its indented rows to the bare path header
-above them, and switches file when the next header appears. ([validated by attributes eslint stylish rows to the bare path header above them](libs/shared/src/work/spec-trace/failure-sites.test.ts#L21), [validated by switches file when a second eslint stylish path header appears](libs/shared/src/work/spec-trace/failure-sites.test.ts#L35))
+above them, and switches file when the next header appears. ([validated by attributes eslint stylish rows to the bare path header above them @30623dba](libs/shared/src/work/spec-trace/failure-sites.test.ts#L21), [validated by switches file when a second eslint stylish path header appears @8bcb0e63](libs/shared/src/work/spec-trace/failure-sites.test.ts#L35))
 
 The eslint compact form, a go test failure block, a go build diagnostic, a
-vitest `FAIL` header and a stack frame inside parentheses each yield their file. ([validated by returns src/foo.ts line 12 for an eslint compact/unix row](libs/shared/src/work/spec-trace/failure-sites.test.ts#L49), [validated by returns foo_test.go line 42 for a go test failure block](libs/shared/src/work/spec-trace/failure-sites.test.ts#L55), [validated by returns ./pkg/foo.go line 12 for a go build diagnostic](libs/shared/src/work/spec-trace/failure-sites.test.ts#L66), [validated by returns the vitest FAIL header file with no line](libs/shared/src/work/spec-trace/failure-sites.test.ts#L72), [validated by returns src/foo.ts line 12 for a stack frame inside parentheses](libs/shared/src/work/spec-trace/failure-sites.test.ts#L78))
+vitest `FAIL` header and a stack frame inside parentheses each yield their file. ([validated by returns src/foo.ts line 12 for an eslint compact/unix row @9eb38913](libs/shared/src/work/spec-trace/failure-sites.test.ts#L49), [validated by returns foo_test.go line 42 for a go test failure block @cec03461](libs/shared/src/work/spec-trace/failure-sites.test.ts#L55), [validated by returns ./pkg/foo.go line 12 for a go build diagnostic @c58a5134](libs/shared/src/work/spec-trace/failure-sites.test.ts#L66), [validated by returns the vitest FAIL header file with no line @3850d244](libs/shared/src/work/spec-trace/failure-sites.test.ts#L72), [validated by returns src/foo.ts line 12 for a stack frame inside parentheses @70a8032b](libs/shared/src/work/spec-trace/failure-sites.test.ts#L78))
 
 Frames inside `node_modules` are dropped, and so is any path whose extension is
 not a supported source extension — the graph is intra-repo, and a dependency's
-internals implicate nothing anyone here can fix. ([validated by drops frames inside node_modules](libs/shared/src/work/spec-trace/failure-sites.test.ts#L84), [validated by drops a path whose extension is not a supported source extension](libs/shared/src/work/spec-trace/failure-sites.test.ts#L95))
+internals implicate nothing anyone here can fix. ([validated by drops frames inside node_modules @92e7e590](libs/shared/src/work/spec-trace/failure-sites.test.ts#L84), [validated by drops a path whose extension is not a supported source extension @0bee45a9](libs/shared/src/work/spec-trace/failure-sites.test.ts#L95))
 
 One path reported at two different lines is two sites; the same path and line
-reported twice is one. ([validated by returns two entries for one path reported at two different lines](libs/shared/src/work/spec-trace/failure-sites.test.ts#L99), [validated by returns one entry for the same path and line reported twice](libs/shared/src/work/spec-trace/failure-sites.test.ts#L108))
+reported twice is one. ([validated by returns two entries for one path reported at two different lines @02b22870](libs/shared/src/work/spec-trace/failure-sites.test.ts#L99), [validated by returns one entry for the same path and line reported twice @77624cda](libs/shared/src/work/spec-trace/failure-sites.test.ts#L108))
 
 Output naming no file yields nothing rather than throwing, whether it is empty,
-prose, or not a string at all. ([validated by returns an empty array for an empty string](libs/shared/src/work/spec-trace/failure-sites.test.ts#L116), [validated by returns an empty array for prose naming no file](libs/shared/src/work/spec-trace/failure-sites.test.ts#L120), [validated by returns an empty array for a non-string input](libs/shared/src/work/spec-trace/failure-sites.test.ts#L126))
+prose, or not a string at all. ([validated by returns an empty array for an empty string @d75a2eb5](libs/shared/src/work/spec-trace/failure-sites.test.ts#L116), [validated by returns an empty array for prose naming no file @f6fda6e1](libs/shared/src/work/spec-trace/failure-sites.test.ts#L120), [validated by returns an empty array for a non-string input @f32cc341](libs/shared/src/work/spec-trace/failure-sites.test.ts#L126))
 
 ### Which failures name code
 
 The failure taxonomy is infra-shaped and has no code class, so a validate, lint,
 typecheck or test failure arrives as `unknown`. Only `unknown` — and a failure
-predating the taxonomy — can implicate a file. ([validated by returns true for unknown](libs/shared/src/work/spec-trace/failure-sites.test.ts#L132), [validated by returns true for null and undefined](libs/shared/src/work/spec-trace/failure-sites.test.ts#L136))
+predating the taxonomy — can implicate a file. ([validated by returns true for unknown @b881bd61](libs/shared/src/work/spec-trace/failure-sites.test.ts#L132), [validated by returns true for null and undefined @81d6ceba](libs/shared/src/work/spec-trace/failure-sites.test.ts#L136))
 
 Every explicitly infra or account class implicates no file, and a class outside
-the taxonomy fails closed. ([validated by returns false for every infra or account failure class](libs/shared/src/work/spec-trace/failure-sites.test.ts#L141), [validated by returns false for a class outside the taxonomy](libs/shared/src/work/spec-trace/failure-sites.test.ts#L156))
+the taxonomy fails closed. ([validated by returns false for every infra or account failure class @267b038a](libs/shared/src/work/spec-trace/failure-sites.test.ts#L141), [validated by returns false for a class outside the taxonomy @8e034935](libs/shared/src/work/spec-trace/failure-sites.test.ts#L156))
 
 ### The node
 
-A typecheck failure projects one `Failure` edged to the file its output named, ([validated by projects a typecheck failure with an edge to the file its output named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L55))
+A typecheck failure projects one `Failure` edged to the file its output named, ([validated by projects a typecheck failure with an edge to the file its output named @0b7fabc8](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L55))
 
-A query for that file returns it. ([validated by returns the projected failure to a query for the file it named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L65))
+A query for that file returns it. ([validated by returns the projected failure to a query for the file it named @58f14184](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L65))
 
-An infra failure projects nothing. ([validated by projects nothing for an infra failure, which implicates no file](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L84))
+An infra failure projects nothing. ([validated by projects nothing for an infra failure, which implicates no file @298f636a](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L84))
 
 So does a code-class failure whose output names no file: a `Failure` joined to
-nothing would be noise in every later query. ([validated by projects nothing for a code-class failure whose output names no file](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L96))
+nothing would be noise in every later query. ([validated by projects nothing for a code-class failure whose output names no file @3a213d8b](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L96))
 
 Where a code chunk's line range contains the failing line, the failure is edged
-to the chunk as well as the file. ([validated by links the code chunk whose line range contains the failing line](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L108))
+to the chunk as well as the file. ([validated by links the code chunk whose line range contains the failing line @14e80b45](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L108))
 
 The node is keyed on the station-run attempt, so a redelivered terminal event
-updates one failure rather than creating a second. ([validated by re-projecting the same station run leaves one failure, not two](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L123))
+updates one failure rather than creating a second. ([validated by re-projecting the same station run leaves one failure, not two @ea17c7f2](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L123))
 
-A file no failure ever named returns nothing. ([validated by returns nothing for a file no failure ever named](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L135))
+A file no failure ever named returns nothing. ([validated by returns nothing for a file no failure ever named @7d553f9c](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L135))
 
 ### Resolution
 
 When a later attempt on the same node succeeds, its sha is stamped onto the
 failures the earlier attempts left. The pair — what failed, and the commit that
 ended it — is what a future `fix-ci` actually wants; the DIFF is never stored,
-because the agent can `git show` the sha. ([validated by stamps the sha of the attempt that went green onto the earlier failure](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L151))
+because the agent can `git show` the sha. ([validated by stamps the sha of the attempt that went green onto the earlier failure @bf6d120d](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L151))
 
-A run that left no failure on that node has nothing to stamp. ([validated by stamps nothing when the run had no failure on that node](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L169))
+A run that left no failure on that node has nothing to stamp. ([validated by stamps nothing when the run had no failure on that node @dc4d9624](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L169))
 
 Failures older than the retention cutoff are reaped; past that the retrospective
-episode carries the lesson in prose. ([validated by drops a failure older than the cutoff and keeps a newer one](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L186))
+episode carries the lesson in prose. ([validated by drops a failure older than the cutoff and keeps a newer one @a0473734](libs/shared/src/work/spec-trace/failure-nodes.test.ts#L186))
 
 ### How it reaches the graph
 
@@ -509,27 +509,27 @@ belong to nothing.
 An ingest run's own node outcomes are never recorded: recording one starts
 another ingest run, whose outcome would start the next, forever.
 
-The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
+The ingest lane records a failed node against the file its output named. ([validated by records a failed node against the file its output named @1557d17a](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L49))
 
 The instant a failure happened crosses that lane as an ISO string, not a Date,
-because the payload is JSON — so the projection accepts either and normalizes. ([validated by records a failure whose occurredAt crossed the ingest JSON as a string](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L83))
+because the payload is JSON — so the projection accepts either and normalizes. ([validated by records a failure whose occurredAt crossed the ingest JSON as a string @7905d5fc](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L83))
 
 It writes no overlay while doing so: a failure is a fact about the repo's
-history that outlives the run, not a branch snapshot. ([validated by writes no overlay for a failure, which is a fact about the repo and not a branch snapshot](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L59))
+history that outlives the run, not a branch snapshot. ([validated by writes no overlay for a failure, which is a fact about the repo and not a branch snapshot @25ac5894](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L59))
 
-A later success on the same node stamps the resolving sha. ([validated by stamps the resolving sha when a later attempt on the same node succeeds](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L67))
+A later success on the same node stamps the resolving sha. ([validated by stamps the resolving sha when a later attempt on the same node succeeds @1a200c0f](libs/shared/src/work/spec-trace/ingest-failure-kind.test.ts#L67))
 
 ### Retention
 
 Overlays and failures are both run-scoped, so they age out on the same window
-the run's telemetry keeps: fourteen days. ([validated by defaults to the same fourteen days the run telemetry keeps](libs/shared/src/work/spec-trace/graph-retention.test.ts#L34))
+the run's telemetry keeps: fourteen days. ([validated by defaults to the same fourteen days the run telemetry keeps @fc359cf0](libs/shared/src/work/spec-trace/graph-retention.test.ts#L34))
 
-The cutoff is that window before the instant the reap runs. ([validated by is the retention window before the given instant](libs/shared/src/work/spec-trace/graph-retention.test.ts#L28))
+The cutoff is that window before the instant the reap runs. ([validated by is the retention window before the given instant @06df93ac](libs/shared/src/work/spec-trace/graph-retention.test.ts#L28))
 
-One pass reaps both kinds for a repo. ([validated by reaps an expired overlay and an expired failure in one pass](libs/shared/src/work/spec-trace/graph-retention.test.ts#L51))
+One pass reaps both kinds for a repo. ([validated by reaps an expired overlay and an expired failure in one pass @f6fceae8](libs/shared/src/work/spec-trace/graph-retention.test.ts#L51))
 
 Anything inside the window is left alone — an overlay there may belong to a run
-still pushing. ([validated by leaves an overlay and a failure inside the window alone](libs/shared/src/work/spec-trace/graph-retention.test.ts#L76))
+still pushing. ([validated by leaves an overlay and a failure inside the window alone @b23c8134](libs/shared/src/work/spec-trace/graph-retention.test.ts#L76))
 
 The reap rides the ingest that already holds a graph client for the repo rather
 than a cron nobody wires. That is deliberate: `agent_run_events.pruneOld` shipped

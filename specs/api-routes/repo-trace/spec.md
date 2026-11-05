@@ -52,7 +52,7 @@ graph stays the single source of truth and the UI never couples to storage.
 
 1. Dispatcher gates: rate-limit (`default`), then bearer auth —
    `getRequiredScope(url)` returns `read`. Missing token → 401; insufficient
-   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L34))
+   scope → 403. ([validated by `trace.test.ts@9ebaf715`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L34))
 
 2. `(req.url).match(TRACE_RE)` — on no match (unknown kind, missing path
    segment), write `404 { error: "not found" }` and return.
@@ -62,7 +62,7 @@ graph stays the single source of truth and the UI never couples to storage.
    `Project` composition root. `projectFor` injects a real Dgraph client when
    `LORE_DGRAPH_HTTP` is set, else a `NoGraphTrace` port whose failure, caller
    and graph-context reads answer empty and whose document reads throw naming
-   the service. ([validated by returns no failures, no callers and an empty graph context when no graph is configured](libs/shared/src/outbound/project/trace/trace-none.test.ts#L7), [throws naming lore-api for a document read when no graph is configured](libs/shared/src/outbound/project/trace/trace-none.test.ts#L24))
+   the service. ([validated by returns no failures, no callers and an empty graph context when no graph is configured @dbbcec92](libs/shared/src/outbound/project/trace/trace-none.test.ts#L7), [throws naming lore-api for a document read when no graph is configured @3f16e379](libs/shared/src/outbound/project/trace/trace-none.test.ts#L24))
 5. Dispatch by kind:
    1. `specs` → `{ specs: await trace.specs() }`.
    2. `spec-summaries` → `{ summaries: await trace.specSummaries() }`.
@@ -104,16 +104,16 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 
 ## Acceptance Criteria
 
-An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L27))
+An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts@7e340205`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L27))
 
-A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L40))
+A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts@d10579e4`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L40))
 
-A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts:50`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L47))
+A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts@76c916f9`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L47))
 
 The `document`/`source`/`ring` `400 "path query param required"` gate is reached
 only after a successful `projectFor`; the unit harness reaches it by seeding
 the server-core pool singleton so `projectFor` resolves against the no-op
-Dgraph stub. ([validated by `dispatches specs and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L98), [`dispatches spec-summaries and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L105), [`dispatches adrs and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L112), [`dispatches adr-summaries and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L119), [`dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L126), [`returns 400 when document is requested without a path`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L133), [`dispatches document with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L140), [`returns 400 when ring is requested without a path`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L150), [`dispatches ring with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L157), [`returns 400 when source is requested without a path`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L164), [`dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L171))
+Dgraph stub. ([validated by `dispatches specs and surfaces the no-op Dgraph failure as 500` @8e172adf](apps/lore-api/src/transport/routes/trace/trace.test.ts#L98), [`dispatches spec-summaries and surfaces the no-op Dgraph failure as 500` @f5fe8303](apps/lore-api/src/transport/routes/trace/trace.test.ts#L105), [`dispatches adrs and surfaces the no-op Dgraph failure as 500` @046a7608](apps/lore-api/src/transport/routes/trace/trace.test.ts#L112), [`dispatches adr-summaries and surfaces the no-op Dgraph failure as 500` @47a368aa](apps/lore-api/src/transport/routes/trace/trace.test.ts#L119), [`dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500` @67b35def](apps/lore-api/src/transport/routes/trace/trace.test.ts#L126), [`returns 400 when document is requested without a path` @177fbdda](apps/lore-api/src/transport/routes/trace/trace.test.ts#L133), [`dispatches document with a path and surfaces the no-op Dgraph failure as 500` @bfb59eea](apps/lore-api/src/transport/routes/trace/trace.test.ts#L140), [`returns 400 when ring is requested without a path` @0fd77393](apps/lore-api/src/transport/routes/trace/trace.test.ts#L150), [`dispatches ring with a path and surfaces the no-op Dgraph failure as 500` @227d8c7f](apps/lore-api/src/transport/routes/trace/trace.test.ts#L157), [`returns 400 when source is requested without a path` @493e267b](apps/lore-api/src/transport/routes/trace/trace.test.ts#L164), [`dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500` @fa6fae17](apps/lore-api/src/transport/routes/trace/trace.test.ts#L171))
 
 *(Still untested: the `specs`/`adrs`/`graph`/`document`/`ring` success bodies need a populated graph via a live Dgraph.)*
 

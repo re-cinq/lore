@@ -153,7 +153,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   `dist/job-runner.js`, takes a job name argv, calls `initPool()`, dispatches to
   the matching batch-job function, logs its summary, and exits `0` on success or
   non-zero on error. Unknown job name → non-zero with a clear message.
-- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts:196`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L196))
+- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it @24a33ecc](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts@60279ead`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L196))
 - **FR1a — Run tracking parity.** The runner records each run in
   `pipeline.job_runs` exactly as the in-process scheduler's `runJob` does: insert
   a `running` row on start, update to `completed` with `result_summary` (the
@@ -237,11 +237,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `stations.test.ts:98`](apps/stations/src/transport/routes/stations.test.ts#L98))
+  `404` — a courier typo must not read as success. ([validated by `stations.test.ts@cad8d2ea`](apps/stations/src/transport/routes/stations.test.ts#L98))
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran](apps/stations/src/transport/routes/stations.test.ts#L101), [`stations.test.ts:110`](apps/stations/src/transport/routes/stations.test.ts#L110))
+  and never returned. ([validated by includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran @a9f34a58](apps/stations/src/transport/routes/stations.test.ts#L101), [`stations.test.ts@ecc7f5c3`](apps/stations/src/transport/routes/stations.test.ts#L110))
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
@@ -252,12 +252,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   facts to `stale` stays non-fatal — failing the run over it would leave a
   completed eviction unreported. Memories are scored against one clock read
   once for the whole batch, so two agents cannot rank the same memory
-  differently within a run. ([validated by `importance-decay.test.ts:28`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L37), [`importance-decay.test.ts:40`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L49), [`importance-decay.test.ts:50`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L59), [`importance-decay.test.ts:63`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L72), [`importance-decay.test.ts:75`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L84), [`importance-decay.test.ts:102`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L111), [`importance-decay.test.ts:123`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L132))
+  differently within a run. ([validated by `importance-decay.test.ts@03c0b955`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L37), [`importance-decay.test.ts@83ab60e8`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L49), [`importance-decay.test.ts@e7b81fee`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L59), [`importance-decay.test.ts@6ac50ca4`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L72), [`importance-decay.test.ts@4eff9618`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L84), [`importance-decay.test.ts@87e747a7`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L111), [`importance-decay.test.ts@a4e5d90c`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L132))
 - **FR9.5 — The Anthropic cost sync follows, credential and all.** Reading the
   Anthropic org billing reports and upserting daily rows is an import, not
   coordination, so it runs in lore-api; the `ANTHROPIC_ADMIN_KEY` secret
   reference moves to that deployment with it and stays optional, so an unset key
-  makes the job report a skip rather than fail. ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10))
+  makes the job report a skip rather than fail. ([validated by `anthropic-cost-sync.test.ts@71e31aa3`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10))
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
@@ -301,7 +301,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    its message to the run's failure and likewise leaves the job re-eligible; a
    successful run completes with the handler result. Since 2026-10-02 the
    scheduler is shared code run by the stations service (`specs/external-floor` FR16).
-   ([validated by runs the job again on the next tick after starting its run rejects](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
+   ([validated by runs the job again on the next tick after starting its run rejects @c5ed91a7](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail @92050202](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again @038eec62](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success @6c47b67f](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -324,7 +324,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
    `anthropic_cost_sync` returns a skip summary when `ANTHROPIC_ADMIN_KEY` is unset, and otherwise
    parses the Admin cost/usage report: cents-string amount → dollars, 1h + 5m ephemeral
-   cache-creation buckets summed, cost joined to tokens per date+model. ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:73`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts:92`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92))
+   cache-creation buckets summed, cost joined to tokens per date+model. ([validated by `anthropic-cost-sync.test.ts@71e31aa3`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts@eef9a9a5`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts@9b93008f`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts@075d8caf`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts@b5b96229`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92))
 
 10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
    `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the
@@ -344,7 +344,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (issue #979, FR-20.21 in `specs/1-lore-platform/spec.md`), now driven by the
    `internal.repo.team_changed` handler rather than a nightly pass: any rows a team-resolved repo
    still holds in `org_shared.chunks` move into its resolved schema, and a relocation targeting
-   `org_shared` itself is refused ([validated by `chunks.test.ts:572`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts:635`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L667), [`chunks.test.ts:646`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L678))
+   `org_shared` itself is refused ([validated by `chunks.test.ts@a5f32c65`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts@c13bc53d`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L667), [`chunks.test.ts@3a76936a`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L678))
 
 ## File Changes
 

@@ -87,27 +87,27 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L201), [validated by refuses outside a git checkout with a GitHub remote](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L45))
+([validated by `passes when cwd repo matches task repo` @e47fb6b1](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L201), [validated by refuses outside a git checkout with a GitHub remote @83957067](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L45))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
-([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
+([validated by `throws when cwd repo differs from task repo` @60d36400](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L207))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L213))
+([validated by `error message names both repos and suggests a cd` @af26f684](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L213))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224), [validated by warns when the description names acme/gadget but the checkout is acme/widget](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L55), [validated by starts a run on a lore/local branch in a worktree when the description names the checkout's own repo](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L67), [validated by starts a run when the description names no repo at all](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L85), [validated by reports the error when ~/.lore/worktrees is a file, not a directory](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L98))
+([validated by passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask @bbcf30ae](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L224), [validated by warns when the description names acme/gadget but the checkout is acme/widget @40508616](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L55), [validated by starts a run on a lore/local branch in a worktree when the description names the checkout's own repo @e7880332](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L67), [validated by starts a run when the description names no repo at all @faf20613](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L85), [validated by reports the error when ~/.lore/worktrees is a file, not a directory @085fbc67](apps/mcp-server/src/transport/tools/local-runner/run-task-locally.local.test.ts#L98))
 
 The `<slug>` segment normalizes the description: lowercased, every run of
 non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,
 with any trailing dash stripped; digits-only and empty inputs are preserved.
-([validated by `runner.local.test.ts:33`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L33), [validated by `runner.local.test.ts:37`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L37), [validated by `runner.local.test.ts:41`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L41), [validated by `runner.local.test.ts:48`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L48), [validated by `runner.local.test.ts:56`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L56), [validated by `runner.local.test.ts:63`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L63), [validated by `runner.local.test.ts:67`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L67), [validated by `runner.local.test.ts:71`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L71))
+([validated by `runner.local.test.ts@09a3a528`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L33), [validated by `runner.local.test.ts@6c2d0867`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L37), [validated by `runner.local.test.ts@34df0977`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L41), [validated by `runner.local.test.ts@e727c07c`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L48), [validated by `runner.local.test.ts@6f90f3a1`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L56), [validated by `runner.local.test.ts@94c72fe5`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L63), [validated by `runner.local.test.ts@ee83e7b6`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L67), [validated by `runner.local.test.ts@b2420fe8`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L71))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
-([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L178))
+([validated by `creates lore/<type>/<slug>-<shortId> format` @d7a0078b](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L178))
 
 A short prompt still produces a valid branch name.
-([validated by `handles very short prompts`](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L192))
+([validated by `handles very short prompts` @46b53892](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L192))
 
 The end-to-end spawn (worktree creation, `claude` process, `monitorTask` →
 commit/push/PR) is exercised only by manual / integration runs. *(untested:

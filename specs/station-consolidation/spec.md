@@ -49,7 +49,7 @@ subscribe" has no expressible meaning on the current substrate.
   `Record<StationName, StationModule>`, replacing the three hand-maintained
   registries. The folder name is the station name is the registry key is the URL
   segment — one string, not four.
-  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](apps/stations/src/work/registry.test.ts#L15), [`index.test.ts:29`](apps/stations/src/work/registry.test.ts#L19), [`index.test.ts:33`](apps/stations/src/work/registry.test.ts#L23))
+  ([validated by registers every station folder, so adding one and forgetting the barrel fails here @52f4daf8](apps/stations/src/work/registry.test.ts#L15), [`index.test.ts@e12afa87`](apps/stations/src/work/registry.test.ts#L19), [`index.test.ts@d27cbf6b`](apps/stations/src/work/registry.test.ts#L23))
 
 - **FR2 — a station declares its triggers.** Each station's manifest names how
   work reaches it, covering all five classes in one declaration: an
@@ -66,7 +66,7 @@ subscribe" has no expressible meaning on the current substrate.
   node in the blueprint and resolved from that run's args, and one station's
   nodes park in different places — so a station-level route would be a second
   declaration with no reader.
-  ([validated by declares at least one trigger per station, so none is unreachable](apps/stations/src/work/registry.test.ts#L31), [`index.test.ts:94`](apps/stations/src/work/registry.test.ts#L41), [`index.test.ts:105`](apps/stations/src/work/registry.test.ts#L52))
+  ([validated by declares at least one trigger per station, so none is unreachable @1777d63c](apps/stations/src/work/registry.test.ts#L31), [`index.test.ts@eaaf12b1`](apps/stations/src/work/registry.test.ts#L41), [`index.test.ts@f3be5513`](apps/stations/src/work/registry.test.ts#L52))
 
 - **FR3 — the contract discriminates rather than merges.** A node station keeps
   `(input, env) => Promise<NodeResult>` and a sweep station keeps
@@ -104,7 +104,7 @@ subscribe" has no expressible meaning on the current substrate.
   rather than missing what happened while it was down. An event is never collected while a
   subscriber is still owed a delivery of it. A name held back at claim time —
   a busy serial family — leaves its rows pending rather than parked in flight.
-  ([validated by delivers one event to every subscriber that asked for it](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L65), [`event-deliveries.contract.test.ts:77`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L77), [`event-deliveries.contract.test.ts:90`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L90), [`event-deliveries.contract.test.ts:116`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L116), [`event-deliveries.contract.test.ts:127`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L127), [`event-deliveries.contract.test.ts:137`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L137), [`event-deliveries.contract.test.ts:152`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L152), [`event-deliveries.contract.test.ts:166`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L166), [`event-deliveries.contract.test.ts:284`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L284), [`event-deliveries.contract.test.ts:49`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L49), [`event-deliveries.contract.test.ts:334`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L334))
+  ([validated by delivers one event to every subscriber that asked for it @b864aa85](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L65), [`event-deliveries.contract.test.ts@e609963d`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L77), [`event-deliveries.contract.test.ts@926c5d7b`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L90), [`event-deliveries.contract.test.ts@c6fc1cf9`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L116), [`event-deliveries.contract.test.ts@f68e6f66`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L127), [`event-deliveries.contract.test.ts@d5645efd`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L137), [`event-deliveries.contract.test.ts@e6250ab3`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L152), [`event-deliveries.contract.test.ts@ada3c009`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L166), [`event-deliveries.contract.test.ts@a4edce3b`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L284), [`event-deliveries.contract.test.ts@a80f8b2c`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L49), [`event-deliveries.contract.test.ts@a9a894b4`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L334))
 
 - **FR7 — fan-out is single-sourced and reaches every writer.** The clause that
   creates delivery rows is defined once in TypeScript and composed into the same
@@ -114,7 +114,7 @@ subscribe" has no expressible meaning on the current substrate.
   HTTP front door. A deduplicated event insert produces no deliveries, because it
   produces no event. A test fails the build when an event-insert site neither
   lives in the shared writer nor composes the shared clause.
-  ([validated by inserts one delivery per subscriber of the named event, reading the CTE it is given](libs/shared/src/outbound/project/events/fan-out.test.ts#L5), [`fan-out.test.ts:15`](libs/shared/src/outbound/project/events/fan-out.test.ts#L15), [`fan-out.test.ts:19`](libs/shared/src/outbound/project/events/fan-out.test.ts#L19), [`events-fan-out.test.ts:6`](libs/shared/src/outbound/events-fan-out.test.ts#L6), [`events-fan-out.test.ts:20`](libs/shared/src/outbound/events-fan-out.test.ts#L20), [`events-fan-out.test.ts:35`](libs/shared/src/outbound/events-fan-out.test.ts#L35), [`assembly-runs-fan-out.test.ts:6`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L6), [`assembly-runs-fan-out.test.ts:19`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L19), [`fan-out-writers.test.ts:34`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L34), [`fan-out-writers.test.ts:38`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L38))
+  ([validated by inserts one delivery per subscriber of the named event, reading the CTE it is given @47a6c3b0](libs/shared/src/outbound/project/events/fan-out.test.ts#L5), [`fan-out.test.ts@6afe0d82`](libs/shared/src/outbound/project/events/fan-out.test.ts#L15), [`fan-out.test.ts@96ab7101`](libs/shared/src/outbound/project/events/fan-out.test.ts#L19), [`events-fan-out.test.ts@d3e5af2f`](libs/shared/src/outbound/events-fan-out.test.ts#L6), [`events-fan-out.test.ts@e05e3ae9`](libs/shared/src/outbound/events-fan-out.test.ts#L20), [`events-fan-out.test.ts@f3b0f0af`](libs/shared/src/outbound/events-fan-out.test.ts#L35), [`assembly-runs-fan-out.test.ts@47cb5ab4`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L6), [`assembly-runs-fan-out.test.ts@e8c75415`](libs/shared/src/outbound/project/assembly-runs/assembly-runs-fan-out.test.ts#L19), [`fan-out-writers.test.ts@52655544`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L34), [`fan-out-writers.test.ts@abaeaa44`](libs/shared/src/outbound/project/events/fan-out-writers.test.ts#L38))
 
 - **FR8 — a subscriber registers before it drains.** Each process upserts its
   subscription set at startup and fails to start if that upsert fails. An event
@@ -125,7 +125,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery is reported the same way and for the same reason: dead-lettering
   wrote the row and said nothing, so work the bus had abandoned left no trace
   before the prune deleted it a week later.
-  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L106), [`event-deliveries.contract.test.ts:180`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L180), [`event-deliveries.contract.test.ts:350`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L350), [`cron.test.ts:128`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L124), [`cron.test.ts:142`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L138), [`cron.test.ts:150`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L182), [`drain-loop.test.ts:276`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L299), [`drain-loop.test.ts:293`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L316), [`drain-loop.test.ts:306`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L329))
+  ([validated by delivers nothing for an event nobody subscribed to @8d1112d7](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L106), [`event-deliveries.contract.test.ts@2170e399`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L180), [`event-deliveries.contract.test.ts@92940fc2`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L350), [`cron.test.ts@4e5e49b8`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L124), [`cron.test.ts@891ea061`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L138), [`cron.test.ts@2d72d25d`](libs/shared/src/work/housekeeping/bus-prune.test.ts#L182), [`drain-loop.test.ts@f7665b1f`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L299), [`drain-loop.test.ts@d09c05e8`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L316), [`drain-loop.test.ts@52ade62d`](libs/shared/src/outbound/project/events/drain-loop.test.ts#L329))
 
 - **FR9 — a delivery carries its own deadline.** The visibility timeout is
   stamped per delivery from the subscribing station's declared timeout rather
@@ -133,7 +133,7 @@ subscribe" has no expressible meaning on the current substrate.
   Under a single global ten-minute timeout, a longer handler is re-queued while
   still running and executes concurrently with itself until its attempts are
   exhausted.
-  ([validated by stamps the subscriber's declared timeout on the delivery, not the global default](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L191), [`event-deliveries.contract.test.ts:203`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L203))
+  ([validated by stamps the subscriber's declared timeout on the delivery, not the global default @19792b91](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L191), [`event-deliveries.contract.test.ts@9d208f96`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L203))
 
 - **FR10 — a pooled node reports through the path a person already uses.** A
   node dispatched to the pooled service reports its outcome over the same resume
@@ -181,7 +181,7 @@ subscribe" has no expressible meaning on the current substrate.
   recorded. The line is WALKED, not merely shaped: the replay reaches every step
   in order and terminates, a failing step in the middle still reaches the last
   one, and a failing settle stops after itself.
-  ([`merge-step.test.ts:30`](apps/stations/src/merge/merge-step/merge-step.test.ts#L30), [`merge-step.test.ts:42`](apps/stations/src/merge/merge-step/merge-step.test.ts#L42), [`merge-step.test.ts:61`](apps/stations/src/merge/merge-step/merge-step.test.ts#L61), [`merge-step.test.ts:77`](apps/stations/src/merge/merge-step/merge-step.test.ts#L77), [`merge-step.test.ts:91`](apps/stations/src/merge/merge-step/merge-step.test.ts#L91), [`merge-step.test.ts:97`](apps/stations/src/merge/merge-step/merge-step.test.ts#L97), [`start-merge-line.test.ts:17`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L17), [`start-merge-line.test.ts:38`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L38), [`start-merge-line.test.ts:55`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L55), [`start-merge-line.test.ts:74`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L74), [`start-merge-line.test.ts:93`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L93), [`assembly-runs.contract.test.ts:723`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L723), [validated by returns false for a null row](apps/stations/src/merge/merge-step/run.test.ts#L21), [validated by returns false when the row carries no pr_number](apps/stations/src/merge/merge-step/run.test.ts#L25), [validated by returns true when the row carries a pr_number](apps/stations/src/merge/merge-step/run.test.ts#L29), [validated by narrows a full row to the merge step's task shape](apps/stations/src/merge/merge-step/run.test.ts#L35), [validated by defaults a missing issue_number to null](apps/stations/src/merge/merge-step/run.test.ts#L50))
+  ([`merge-step.test.ts@5a67bfcc`](apps/stations/src/merge/merge-step/merge-step.test.ts#L30), [`merge-step.test.ts@6c832376`](apps/stations/src/merge/merge-step/merge-step.test.ts#L42), [`merge-step.test.ts@5afb0736`](apps/stations/src/merge/merge-step/merge-step.test.ts#L61), [`merge-step.test.ts@7159e87e`](apps/stations/src/merge/merge-step/merge-step.test.ts#L77), [`merge-step.test.ts@d59704c5`](apps/stations/src/merge/merge-step/merge-step.test.ts#L91), [`merge-step.test.ts@bb1b5539`](apps/stations/src/merge/merge-step/merge-step.test.ts#L97), [`start-merge-line.test.ts@a8ccfbde`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L17), [`start-merge-line.test.ts@2866134f`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L38), [`start-merge-line.test.ts@3176fcc6`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L55), [`start-merge-line.test.ts@abad6723`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L74), [`start-merge-line.test.ts@9a0b412f`](apps/stations/src/work/merge-check/start-merge-line.test.ts#L93), [`assembly-runs.contract.test.ts@5a375d3d`](libs/shared/src/outbound/project/assembly-runs/assembly-runs.contract.test.ts#L723), [validated by returns false for a null row @ba27055d](apps/stations/src/merge/merge-step/run.test.ts#L21), [validated by returns false when the row carries no pr_number @7a9a64bf](apps/stations/src/merge/merge-step/run.test.ts#L25), [validated by returns true when the row carries a pr_number @760d4e98](apps/stations/src/merge/merge-step/run.test.ts#L29), [validated by narrows a full row to the merge step's task shape @18a38fc6](apps/stations/src/merge/merge-step/run.test.ts#L35), [validated by defaults a missing issue_number to null @0e4d2c72](apps/stations/src/merge/merge-step/run.test.ts#L50))
 
 - **FR13 — a model call runs where a compromise is contained.** The original
   form of this requirement said every model call must be an agent node, then
@@ -203,14 +203,14 @@ subscribe" has no expressible meaning on the current substrate.
   consequence a curation that fails is a recorded step rather than a swallowed
   one. It is a node of the merge line; the two callers that still curate inline
   when an agent run finishes are not yet routed through it.
-  ([`merge-step.test.ts:30`](apps/stations/src/merge/merge-step/merge-step.test.ts#L30))
+  ([`merge-step.test.ts@5a67bfcc`](apps/stations/src/merge/merge-step/merge-step.test.ts#L30))
 
 - **FR16 — a delivery's identity is not its event's.** Acknowledging, failing and
   dead-lettering address the delivery, while a handler citing the event — one
   handing a large payload onward by reference — is given the event's own id. A
   consumer handed the delivery's id where the event's was meant would read the
   wrong row, or none.
-  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](libs/shared/src/outbound/project/events/drain-loop.test.ts#L134))
+  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves @93ee659e](libs/shared/src/outbound/project/events/drain-loop.test.ts#L134))
 
 - **FR17 — a station is given its data, never resolves it.** A station that needs
   a database or a code host receives those ports from whichever process hosts it,
@@ -223,7 +223,7 @@ subscribe" has no expressible meaning on the current substrate.
   for, and a host exposes only what it can actually serve — so a process without
   a code host does not advertise a repo sweep it could only fail, and a port a
   host does not serve fails by name rather than as an undefined call.
-  ([validated by `service-stations.test.ts:17`](apps/stations/src/events/runner/service-stations.test.ts#L16), [`service-stations.test.ts:27`](apps/stations/src/events/runner/service-stations.test.ts#L26), [`service-stations.test.ts:37`](apps/stations/src/events/runner/service-stations.test.ts#L36), [`service-stations.test.ts:43`](apps/stations/src/events/runner/service-stations.test.ts#L42), [`station.test.ts:5`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts:9`](apps/stations/src/work/lib/station.test.ts#L9))
+  ([validated by `service-stations.test.ts@4a2638e4`](apps/stations/src/events/runner/service-stations.test.ts#L16), [`service-stations.test.ts@eb1cc54b`](apps/stations/src/events/runner/service-stations.test.ts#L26), [`service-stations.test.ts@6da896f7`](apps/stations/src/events/runner/service-stations.test.ts#L36), [`service-stations.test.ts@6a782f80`](apps/stations/src/events/runner/service-stations.test.ts#L42), [`station.test.ts@fca13dff`](apps/stations/src/work/lib/station.test.ts#L5), [`station.test.ts@a19769b9`](apps/stations/src/work/lib/station.test.ts#L9))
 
 > **2026-10-02.** This describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10); it is kept as the record of what the old engine did.
 
@@ -266,7 +266,7 @@ subscribe" has no expressible meaning on the current substrate.
   legitimately send is accepted: a run may carry no branch — every detect-family
   run does — and refusing that would dead-letter the delivery after five silent
   retries rather than letting the station fail on its own terms, recorded.
-  ([`subscriptions.test.ts:14`](apps/stations/src/events/subscriptions.test.ts#L7), [`subscriptions.test.ts:26`](apps/stations/src/events/subscriptions.test.ts#L19), [`subscriptions.test.ts:47`](apps/stations/src/events/subscriptions.test.ts#L25), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:41`](apps/stations/src/events/loop-boot.test.ts#L41), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts:19`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts:56`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts:71`](apps/stations/src/events/loop-boot.test.ts#L71), [`loop-boot.test.ts:90`](apps/stations/src/events/loop-boot.test.ts#L90))
+  ([`subscriptions.test.ts@fc76fb42`](apps/stations/src/events/subscriptions.test.ts#L7), [`subscriptions.test.ts@622dd219`](apps/stations/src/events/subscriptions.test.ts#L19), [`subscriptions.test.ts@0e15c4f0`](apps/stations/src/events/subscriptions.test.ts#L25), [`loop-boot.test.ts@5ab58cb9`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts@e88a267c`](apps/stations/src/events/loop-boot.test.ts#L41), [`loop-boot.test.ts@b206f9e9`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts@5ab58cb9`](apps/stations/src/events/loop-boot.test.ts#L19), [`loop-boot.test.ts@b206f9e9`](apps/stations/src/events/loop-boot.test.ts#L56), [`loop-boot.test.ts@de8edc2c`](apps/stations/src/events/loop-boot.test.ts#L71), [`loop-boot.test.ts@3632a6f1`](apps/stations/src/events/loop-boot.test.ts#L90))
 
 - **FR22 — a node published to the service is never also given a pod.** A service
   dispatch records NO agent CR name, because none will exist, and the reaper reads
@@ -284,7 +284,7 @@ subscribe" has no expressible meaning on the current substrate.
   while a slower reconciler masks the gap. And the claim's serial-family exclusion
   survives the wire — a route that parsed the request without reading it handed
   back the very rows the caller asked to be spared.
-  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/events/subscriptions.test.ts#L31), [`subscriptions.test.ts:62`](apps/stations/src/events/subscriptions.test.ts#L40))
+  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival @3f9a76a1](apps/stations/src/events/subscriptions.test.ts#L31), [`subscriptions.test.ts@fd3f2eff`](apps/stations/src/events/subscriptions.test.ts#L40))
 
 - **FR24 — a subscription set is declared whole, and a pruned bus keeps only
   what is owed.** A subscriber's registration states everything it handles, so a
@@ -297,7 +297,7 @@ subscribe" has no expressible meaning on the current substrate.
   event; it collects an event in the SAME sweep that removes its last delivery;
   and it collects an old event nothing is owed a delivery of even on a sweep that
   removed none, since otherwise a quiet system keeps every event it ever saw.
-  ([validated by drops a name the subscriber no longer handles, so a removed handler stops being delivered](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L221), [`event-deliveries.contract.test.ts:235`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L235), [`event-deliveries.contract.test.ts:295`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L295), [`event-deliveries.contract.test.ts:309`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L309), [`event-deliveries.contract.test.ts:324`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L324))
+  ([validated by drops a name the subscriber no longer handles, so a removed handler stops being delivered @98465c0a](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L221), [`event-deliveries.contract.test.ts@8d5b0787`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L235), [`event-deliveries.contract.test.ts@4dc598fd`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L295), [`event-deliveries.contract.test.ts@3bfe84c7`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L309), [`event-deliveries.contract.test.ts@2a37fa56`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L324))
 
 - **FR25 — a node's timeout is the budget of whatever runs it.** A node the
   blueprint gives no explicit budget takes the declared budget of the station
@@ -321,7 +321,7 @@ subscribe" has no expressible meaning on the current substrate.
   prune window, because an event whose delivery was already pruned would
   otherwise have that delivery recreated and its handler run a second time. An
   event nothing subscribes to is left alone and stays visible as an orphan.
-  ([validated by reconciles an event captured BEFORE the subscription existed, which ordering alone loses](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L247), [`event-deliveries.contract.test.ts:261`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L261), [`event-deliveries.contract.test.ts:272`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L272), [`loop-boot.test.ts:105`](apps/stations/src/events/loop-boot.test.ts#L105), [`loop-boot.test.ts:126`](apps/stations/src/events/loop-boot.test.ts#L126))
+  ([validated by reconciles an event captured BEFORE the subscription existed, which ordering alone loses @06a7f329](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L247), [`event-deliveries.contract.test.ts@635b64e2`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L261), [`event-deliveries.contract.test.ts@461c56c1`](libs/shared/src/outbound/project/events/event-deliveries.contract.test.ts#L272), [`loop-boot.test.ts@96806d5e`](apps/stations/src/events/loop-boot.test.ts#L105), [`loop-boot.test.ts@021b14ea`](apps/stations/src/events/loop-boot.test.ts#L126))
 
 - **FR27 — an overlapping tick is a skip, not a failure.** A sweep station
   latches while it runs and refuses a tick that arrives before the last one
@@ -332,7 +332,7 @@ subscribe" has no expressible meaning on the current substrate.
   once per tick, for as long as the sweep runs longer than its interval, which
   is exactly when the system is busiest. A real failure and an unknown station
   still raise, so a broken station is never silently green.
-  ([validated by reports an overlapping tick as a skip, not a failure, so it doesn't burn the retry ladder into a dead letter](libs/shared/src/outbound/project/stations/station-client.test.ts#L21), [`station-client.test.ts:15`](libs/shared/src/outbound/project/stations/station-client.test.ts#L15), [`station-client.test.ts:27`](libs/shared/src/outbound/project/stations/station-client.test.ts#L27), [`station-client.test.ts:33`](libs/shared/src/outbound/project/stations/station-client.test.ts#L33))
+  ([validated by reports an overlapping tick as a skip, not a failure, so it doesn't burn the retry ladder into a dead letter @ef0912be](libs/shared/src/outbound/project/stations/station-client.test.ts#L21), [`station-client.test.ts@6bff3461`](libs/shared/src/outbound/project/stations/station-client.test.ts#L15), [`station-client.test.ts@24d93f85`](libs/shared/src/outbound/project/stations/station-client.test.ts#L27), [`station-client.test.ts@92401165`](libs/shared/src/outbound/project/stations/station-client.test.ts#L33))
 
 ## Non-goals
 
