@@ -12,10 +12,12 @@ import {
   deleteAdrSubtree,
   listTestFilePaths,
   pruneTestFiles,
+  getQueryEmbeddings,
   type SpecTraceOutcome,
   type DgraphClientPort,
 } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
+import { projectSpecMetered } from "./spec-projection-meter.js";
 import {
   mirrorDocFor,
   unmirrorDocFor,
@@ -125,7 +127,7 @@ function docDeps(must: () => DgraphClientPort): DocDeps {
   };
 }
 
-/** One spec projected with the files its links cite read from GitHub at the delta's commit. */
+/** One spec projected with the files its links cite read from GitHub at the delta's commit, logging where its time went. */
 async function projectSpecReadingLinks(
   dgraph: DgraphClientPort,
   document: { repo: string; filePath: string; content: string },
@@ -133,9 +135,12 @@ async function projectSpecReadingLinks(
 ): Promise<{ projected: boolean }> {
   const { repo: files } = await projectFor(document.repo);
 
-  return projectSpecFile(document, dgraph, {
-    force,
+  return projectSpecMetered(projectSpecFile, document, {
+    dgraph,
+    embed: getQueryEmbeddings,
     readLinked: (linked) => files.read(linked, commit),
+    commit,
+    force,
   });
 }
 
