@@ -49,4 +49,13 @@ describe("LORE_TESTS_INSTRUCTION", () => {
   it("checks out full history so the orchestrator can diff against the last ingested commit", () => {
     expect(LORE_TESTS_INSTRUCTION).toContain("fetch-depth: 0");
   });
+
+  it("gives each download 7 attempts 30 seconds apart, and skips the run when one still fails", () => {
+    expect(
+      [
+        "curl --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors",
+        "a download that still fails warns and skips the run",
+      ].filter((fragment) => !LORE_TESTS_INSTRUCTION.includes(fragment)),
+    ).toEqual([]);
+  });
 });
