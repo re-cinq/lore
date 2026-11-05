@@ -126,7 +126,11 @@ resource "kubectl_manifest" "utopia_db_cluster" {
         ]
       }
 
-      storage = { size = "40Gi" }
+      # 40Gi was 96% full on 2026-11-05 (36 GB, 82% of it the test-coverage
+      # source's chunks, entities and their vectors), the day test reports
+      # began to fit (#4156). Growing a CNPG volume is in place; shrinking it
+      # is not, so it only ever goes up.
+      storage = { size = "80Gi" }
 
       # Utopia's job worker runs up to 64 jobs at once against this database: a
       # backfill of one repo (thousands of pushed items) held it at its old 1-CPU
