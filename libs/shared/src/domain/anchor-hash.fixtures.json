@@ -1,0 +1,52 @@
+[
+  {
+    "line": "  it(\"Returns TRUE when positive\", async () => {",
+    "normalized": "itreturnstruewhenpositiveasync",
+    "hash": "1e7912b3"
+  },
+  {
+    "line": "it('returns true when positive', () => {",
+    "normalized": "itreturnstruewhenpositive",
+    "hash": "972262d8"
+  },
+  {
+    "line": "\tit(\"returns true when positive\", () => {",
+    "normalized": "itreturnstruewhenpositive",
+    "hash": "972262d8"
+  },
+  {
+    "line": "it(\"returns   true when positive\",()=>{",
+    "normalized": "itreturnstruewhenpositive",
+    "hash": "972262d8"
+  },
+  {
+    "line": "});",
+    "normalized": "",
+    "hash": null
+  },
+  {
+    "line": "",
+    "normalized": "",
+    "hash": null
+  },
+  {
+    "line": "func TestParsesHunks(t *testing.T) {",
+    "normalized": "functestparseshunksttestingt",
+    "hash": "a60598ea"
+  },
+  {
+    "line": "def test_parses_hunks(self):",
+    "normalized": "deftestparseshunksself",
+    "hash": "a7a95b21"
+  },
+  {
+    "line": "export function parseHunks(diff: string): Hunk[] {",
+    "normalized": "exportfunctionparsehunksdiffstringhunk",
+    "hash": "45a1fbe5"
+  },
+  {
+    "line": "    expect(result).toEqual({ moved: 1 });",
+    "normalized": "expectresulttoequalmoved1",
+    "hash": "612a105f"
+  }
+]

@@ -6,6 +6,8 @@ import {
   findMisplacedCoverageLinks,
   testLinksOfDoc,
   withoutTrailingLinkGroup,
+  splitHashedLabel,
+  withAnchorHash,
 } from "./spec-link-parser.js";
 
 describe("parseTestLinksInStatement", () => {
@@ -31,6 +33,7 @@ describe("parseTestLinksInStatement", () => {
         label: "validated by `runner.test.ts:88`",
         path: "mcp-server/src/local-runner.test.ts",
         line: 88,
+        hash: null,
       },
     ]);
   });
@@ -45,11 +48,13 @@ describe("parseTestLinksInStatement", () => {
         label: "primary",
         path: "agent/src/supervisor/lease.test.ts",
         line: 42,
+        hash: null,
       },
       {
         label: "takeover",
         path: "agent/src/supervisor/lease.test.ts",
         line: 74,
+        hash: null,
       },
     ]);
   });
@@ -60,7 +65,7 @@ describe("parseTestLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42 },
+      { label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42, hash: null },
     ]);
   });
 
@@ -78,7 +83,7 @@ describe("parseTestLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "test file", path: "src/x.test.ts", line: null },
+      { label: "test file", path: "src/x.test.ts", line: null, hash: null },
     ]);
   });
 
@@ -96,7 +101,7 @@ describe("parseTestLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "test", path: "pkg/store/store_test.go", line: 120 },
+      { label: "test", path: "pkg/store/store_test.go", line: 120, hash: null },
     ]);
   });
 
@@ -113,7 +118,7 @@ describe("parseTestLinksInStatement", () => {
       "Statement. ([test](src/x.test.ts#L42)).",
     );
 
-    expect(out).toEqual([{ label: "test", path: "src/x.test.ts", line: 42 }]);
+    expect(out).toEqual([{ label: "test", path: "src/x.test.ts", line: 42, hash: null }]);
   });
 
   it("collapses internal whitespace in the label", () => {
@@ -132,7 +137,7 @@ describe("parseCodeLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "impl", path: "mcp-server/src/runner.ts", line: 88 },
+      { label: "impl", path: "mcp-server/src/runner.ts", line: 88, hash: null },
     ]);
   });
 
@@ -149,7 +154,7 @@ describe("parseCodeLinksInStatement", () => {
       "Runs the task. ([from plan](https://lore.example/repos/o/r/plans/p1#b7), [impl](src/runner.ts#L88))",
     );
 
-    expect(out).toEqual([{ label: "impl", path: "src/runner.ts", line: 88 }]);
+    expect(out).toEqual([{ label: "impl", path: "src/runner.ts", line: 88, hash: null }]);
   });
 
   it("keeps a non-test source path in another language as a code link", () => {
@@ -158,7 +163,7 @@ describe("parseCodeLinksInStatement", () => {
     );
 
     expect(out).toEqual([
-      { label: "store", path: "pkg/store/store.go", line: 120 },
+      { label: "store", path: "pkg/store/store.go", line: 120, hash: null },
     ]);
   });
 });
@@ -180,7 +185,7 @@ describe("linksForStatements", () => {
           text: "Returns the value ([validated by run](src/x.test.ts#L42))",
         }),
         testLinks: [
-          { label: "validated by run", path: "src/x.test.ts", line: 42 },
+          { label: "validated by run", path: "src/x.test.ts", line: 42, hash: null },
         ],
       },
       {
@@ -198,7 +203,7 @@ describe("findMisplacedCoverageLinks", () => {
     );
 
     expect(out).toEqual([
-      { label: "validated by run", path: "src/x.test.ts", line: 42 },
+      { label: "validated by run", path: "src/x.test.ts", line: 42, hash: null },
     ]);
   });
 
@@ -280,6 +285,7 @@ describe("testLinksOfDoc", () => {
         label: "validated by claims",
         path: "apps/x/a.test.ts",
         line: 12,
+        hash: null,
         statementLine: 3,
         misplaced: false,
       },
@@ -337,7 +343,7 @@ describe("a statement whose test link sits in an earlier trailing group", () => 
 
   it("reads a.test.ts#L3 from the group before a from-plan group", () => {
     expect(parseTestLinksInStatement(statement)).toEqual([
-      { label: "validated by settles once", path: "a.test.ts", line: 3 },
+      { label: "validated by settles once", path: "a.test.ts", line: 3, hash: null },
     ]);
   });
 
@@ -354,5 +360,60 @@ describe("a statement whose test link sits in an earlier trailing group", () => 
         "The run settles (see [the test](a.test.ts#L3) for the case) ([from plan](https://lore.example/p#b-1))",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("splitHashedLabel", () => {
+  it("returns the backticked file name and hash a3f9c1d2", () => {
+    expect(splitHashedLabel("`commit-trailers.test.ts@a3f9c1d2`")).toEqual({
+      text: "`commit-trailers.test.ts`",
+      hash: "a3f9c1d2",
+    });
+  });
+
+  it("returns the validated-by title and hash a3f9c1d2", () => {
+    expect(splitHashedLabel("validated by returns true @a3f9c1d2")).toEqual({
+      text: "validated by returns true",
+      hash: "a3f9c1d2",
+    });
+  });
+
+  it("returns no hash for a file:line label, a bare prefix and a 7-character suffix", () => {
+    expect(
+      ["`x.test.ts:196`", "validated by", "foo@1234567"].map(
+        (label) => splitHashedLabel(label).hash,
+      ),
+    ).toEqual([null, null, null]);
+  });
+});
+
+describe("withAnchorHash", () => {
+  it("appends inside backticks, after a prefix, and replaces an old hash", () => {
+    expect([
+      withAnchorHash("`x.test.ts:196`", "a3f9c1d2"),
+      withAnchorHash("validated by", "a3f9c1d2"),
+      withAnchorHash("`x.test.ts@00000000`", "a3f9c1d2"),
+    ]).toEqual([
+      "`x.test.ts:196@a3f9c1d2`",
+      "validated by @a3f9c1d2",
+      "`x.test.ts@a3f9c1d2`",
+    ]);
+  });
+});
+
+describe("a hashed test link", () => {
+  it("parses to src/a.test.ts line 12 with hash a3f9c1d2", () => {
+    expect(
+      parseTestLinksInStatement(
+        "Does X. ([`a.test.ts@a3f9c1d2`](src/a.test.ts#L12))",
+      ),
+    ).toEqual([
+      {
+        label: "`a.test.ts@a3f9c1d2`",
+        path: "src/a.test.ts",
+        line: 12,
+        hash: "a3f9c1d2",
+      },
+    ]);
   });
 });

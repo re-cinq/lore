@@ -26,6 +26,39 @@ export interface SpecLinkRef {
   path: string;
   /** Line number from a `#L42` anchor, or null when absent. */
   line: number | null;
+  /** The content hash of the cited line the label ends with (`@a3f9c1d2`), or null when it carries none. */
+  hash: string | null;
+}
+
+const HASHED_LABEL_RE = /^([\s\S]*?)\s*@([0-9a-f]{8})$/;
+const IN_BACKTICKS_RE = /^`([\s\S]*)`$/;
+
+/** A label split into its text and the `@hash` it ends with; a label in backticks keeps them around its text. */
+export function splitHashedLabel(label: string): {
+  text: string;
+  hash: string | null;
+} {
+  const quoted = IN_BACKTICKS_RE.exec(label);
+  const inner = quoted ? quoted[1] : label;
+  const hashed = HASHED_LABEL_RE.exec(inner);
+
+  if (!hashed) {
+    return { text: label, hash: null };
+  }
+
+  return { text: quoted ? `\`${hashed[1]}\`` : hashed[1], hash: hashed[2] };
+}
+
+/** The label carrying `hash`: an existing hash replaced, otherwise appended, inside the backticks when the label has them. */
+export function withAnchorHash(label: string, hash: string): string {
+  const { text } = splitHashedLabel(label);
+  const quoted = IN_BACKTICKS_RE.exec(text);
+
+  if (quoted) {
+    return `\`${quoted[1]}@${hash}\``;
+  }
+
+  return text === "" ? `@${hash}` : `${text} @${hash}`;
 }
 
 /** A link to a test file (VALIDATED_BY edge source). */
@@ -202,7 +235,7 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
   const rawLabel = match[1];
   const label = rawLabel.replace(/\s+/g, " ").trim();
 
-  return { label, path, line };
+  return { label, path, line, hash: splitHashedLabel(label).hash };
 }
 
 // Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
