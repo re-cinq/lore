@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ChangelogChangeSchema } from "@re-cinq/lore-shared/models/changelog-week.js";
 
-const WeekKey = z.string().regex(/^\d{4}-W\d{2}$/);
+export const WeekKey = z.string().regex(/^\d{4}-W\d{2}$/);
 
 export const ChangelogQuerySchema = z.object({
   before: WeekKey.optional(),

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getChangelog } = await import("./changelog");
+const { getChangelog, writeChangelogIntro } = await import("./changelog");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -33,5 +33,19 @@ describe("getChangelog", () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe(
       "http://api:3000/api/repos/re-cinq/lore/changelog?before=2026-W42",
     );
+  });
+});
+
+describe("writeChangelogIntro", () => {
+  it("posts to re-cinq/lore's 2026-W44 intro", async () => {
+    await writeChangelogIntro("re-cinq/lore", "2026-W44");
+
+    expect({
+      url: String(fetchMock.mock.calls[0][0]),
+      method: fetchMock.mock.calls[0][1].method,
+    }).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/changelog/2026-W44/intro",
+      method: "POST",
+    });
   });
 });
