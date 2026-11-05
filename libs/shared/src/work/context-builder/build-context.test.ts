@@ -113,6 +113,45 @@ describe("buildContext", () => {
     expect(opened).toEqual(eight.slice(0, 6));
   });
 
+  it("opens specs/ingest-station/spec.md once for a blob link to its line 12 and hands the 15 lines around it to the write-up", async () => {
+    const forty = Array.from({ length: 40 }, (_, index) => `row ${index + 1}`);
+    const { llm, deps, opened } = scene(
+      {
+        questions: ["q"],
+        search_terms: [],
+        files: ["specs/ingest-station/spec.md"],
+      },
+      {
+        readFile: async (path) => {
+          opened.push(path);
+
+          return forty.join("\n");
+        },
+      },
+    );
+
+    await buildContext(
+      {
+        ...TASK,
+        query:
+          "Implements https://github.com/re-cinq/lore/blob/abc/specs/ingest-station/spec.md#L12",
+      },
+      deps,
+    );
+
+    expect({
+      opened,
+      linked: composeRequest(llm).prompt.includes('"line": 12'),
+      slice: composeRequest(llm).prompt.includes("27: row 27"),
+      beyond: composeRequest(llm).prompt.includes("28: row 28"),
+    }).toEqual({
+      opened: ["specs/ingest-station/spec.md"],
+      linked: true,
+      slice: true,
+      beyond: false,
+    });
+  });
+
   it("looks up issue 621 the query names and hands its text to the write-up", async () => {
     const { llm, deps, looked } = scene({
       questions: ["q"],

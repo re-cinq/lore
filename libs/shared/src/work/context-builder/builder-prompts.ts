@@ -79,6 +79,7 @@ export const COMPOSE_SYSTEM = [
   "Use only the evidence given. Cite every fact with its source: a file, spec, ADR, issue or pull request number, or memory key.",
   "Never invent a path, number, date or tool. Never state a relationship the evidence does not state",
   "(one ticket superseding another, a pull request being the base of a change): leave it out or mark it (inferred).",
+  'A "linked" entry is a line the task itself points at: answer from it before searching elsewhere.',
   "Evidence about a repository that is neither the task's nor one it depends on is left out.",
   "The reader has the task text: never restate the task, its acceptance criteria, its references or the issue it came from,",
   "and never copy a section of it (Implements, Acceptance criteria, How to test, References, Related, Context, Needs a person).",

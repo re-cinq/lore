@@ -15,6 +15,7 @@ describe("queryAnchors", () => {
       requirements: ["FR4"],
       numbers: [],
       literals: [],
+      links: [],
     });
   });
 
@@ -50,6 +51,21 @@ describe("queryAnchors", () => {
       requirements: [],
       numbers: [],
       literals: [],
+      links: [],
+    });
+  });
+
+  it("reads specs/x/spec.md at line 92 and apps/api/src/a.ts with no line from two GitHub blob links, once each", () => {
+    expect(
+      queryAnchors(
+        "See https://github.com/re-cinq/otto/blob/abc123/specs/x/spec.md#L92 and (https://github.com/re-cinq/otto/blob/abc123/apps/api/src/a.ts) and https://github.com/re-cinq/otto/blob/def456/specs/x/spec.md#L10",
+      ),
+    ).toMatchObject({
+      links: [
+        { path: "specs/x/spec.md", line: 92 },
+        { path: "apps/api/src/a.ts", line: null },
+      ],
+      paths: ["apps/api/src/a.ts", "specs/x/spec.md"],
     });
   });
 });

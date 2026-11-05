@@ -2,8 +2,12 @@
 
 import type { LlmProvider } from "../../outbound/llm/llm-provider.js";
 import { candidatePaths } from "./candidate-paths.js";
-import { relevantSlice } from "./file-slice.js";
-import { queryAnchors, type QueryAnchors } from "./query-anchors.js";
+import { linesAround, relevantSlice } from "./file-slice.js";
+import {
+  queryAnchors,
+  type LinkedLine,
+  type QueryAnchors,
+} from "./query-anchors.js";
 import {
   COMPOSE_SYSTEM,
   PICK_SYSTEM,
@@ -49,6 +53,7 @@ interface Evidence {
   primer: string;
   answers: { question: string; answer: string }[];
   files: Record<string, string>;
+  linked: { path: string; line: number | null; text: string }[];
   grep: CodeHit[];
   issues: string[];
   previous_work: string[];
@@ -56,6 +61,7 @@ interface Evidence {
 }
 
 const MAX_FILES = 6;
+const LINK_RADIUS = 15;
 const CANDIDATES = 300;
 const MAX_FILE_CHARS = 6_000;
 const MAX_EVIDENCE_CHARS = 150_000;
@@ -147,21 +153,22 @@ async function gathered(
   deps: ContextBuilderDeps,
 ): Promise<Evidence> {
   const words = [task.query, ...plan.questions].join(" ").split(/[^\w]+/);
-  const [primer, files, grep, searched] = await Promise.all([
+  const [primer, files, linked, grep, searched] = await Promise.all([
     deps.primer(),
     readAll(picks, words, deps),
+    linkedLines(anchors.links, words, deps),
     searchedCode([...anchors.literals, ...plan.search_terms], deps),
     searchedEvidence(task, { anchors, plan }, deps),
   ]);
 
-  return { primer, files, grep, ...searched };
+  return { primer, files, linked, grep, ...searched };
 }
 
 async function searchedEvidence(
   task: ContextTask,
   { anchors, plan }: { anchors: QueryAnchors; plan: ContextPlan },
   deps: ContextBuilderDeps,
-): Promise<Omit<Evidence, "primer" | "files" | "grep">> {
+): Promise<Omit<Evidence, "primer" | "files" | "linked" | "grep">> {
   const [answers, issues, previous_work, related_repos] = await Promise.all([
     Promise.all(plan.questions.map((q) => answered(q, task.repo, deps))),
     namedIssues(anchors.numbers, deps),
@@ -195,10 +202,11 @@ async function pickedPaths(
   const picks = await pickedFiles(task, candidates, deps.llm);
   const held = new Set(tree);
 
-  return [...new Set(picks.filter((path) => held.has(path)))].slice(
-    0,
-    MAX_FILES,
-  );
+  const linked = new Set(anchors.links.map((link) => link.path));
+
+  return [
+    ...new Set(picks.filter((path) => held.has(path) && !linked.has(path))),
+  ].slice(0, MAX_FILES);
 }
 
 async function pickedFiles(
@@ -233,6 +241,31 @@ async function readAll(
         : [[path, relevantSlice(content, words, MAX_FILE_CHARS)]];
     }),
   );
+}
+
+/** What each linked file holds around the line the task's link names, else the part matching the task's words; an unreadable file is dropped. */
+async function linkedLines(
+  links: LinkedLine[],
+  words: string[],
+  deps: ContextBuilderDeps,
+): Promise<Evidence["linked"]> {
+  const contents = await Promise.all(
+    links.map((link) => deps.readFile(link.path)),
+  );
+
+  return links.flatMap(({ path, line }, index) => {
+    const content = contents[index];
+
+    if (content === null) {
+      return [];
+    }
+    const text =
+      line === null
+        ? relevantSlice(content, words, MAX_FILE_CHARS)
+        : linesAround(content, line, LINK_RADIUS);
+
+    return [{ path, line, text }];
+  });
 }
 
 /** The code lines holding the query's literals and the plan's search terms, a few per term; a search that fails finds nothing. */

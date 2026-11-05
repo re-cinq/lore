@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relevantSlice } from "./file-slice.js";
+import { linesAround, relevantSlice } from "./file-slice.js";
 
 const LONG = Array.from({ length: 400 }, (_, index) =>
   index === 200
@@ -36,5 +36,18 @@ describe("relevantSlice", () => {
 
   it("ignores words shorter than 4 characters when matching", () => {
     expect(relevantSlice(LONG, ["is", "of"], 100)).toBe(LONG.slice(0, 100));
+  });
+});
+
+describe("linesAround", () => {
+  it("returns lines 77 to 107 numbered around line 92 of a 200-line file", () => {
+    const file = Array.from({ length: 200 }, (_, index) => `row ${index + 1}`);
+    const lines = linesAround(file.join("\n"), 92, 15).split("\n");
+
+    expect({ first: lines[0], last: lines[30], count: lines.length }).toEqual({
+      first: "77: row 77",
+      last: "107: row 107",
+      count: 31,
+    });
   });
 });
