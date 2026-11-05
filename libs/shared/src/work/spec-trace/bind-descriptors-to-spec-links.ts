@@ -66,7 +66,7 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
 function anchorsFor(
   index: LinkIndexEntry[],
   descriptor: TestDescriptor,
-  declarationHashes: ReadonlySet<string>,
+  declarationHashes: ReadonlySet<string | undefined>,
 ): string[] {
   const file = normalizePath(descriptor.file);
   const inFile = index.filter((entry) => entry.path === file);
