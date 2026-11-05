@@ -77,13 +77,17 @@ jobs:
           fi
           # Each download gets 7 attempts 30 seconds apart, retrying any error, so a
           # dropped connection or a lore-api rollout does not skip the test ingest.
-          # A binary that still can't be fetched warns and skips (the run step is
-          # gated on the file) rather than redden main; a later push posts the report.
+          # A download that still fails warns, removes the binary (the run step is
+          # gated on the file) and skips rather than redden main; a later push
+          # posts the report.
           if ! curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/linux-amd64" -o lore-code-trace; then
             echo "::warning::lore-code-trace could not be fetched from Lore - skipping test ingest"
             rm -f lore-code-trace; exit 0
           fi
-          curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt
+          if ! curl -fsSL --connect-timeout 20 --retry 6 --retry-delay 30 --retry-all-errors "${LORE_INGEST_URL}/dist/lore-code-trace/checksums.txt" -o checksums.txt; then
+            echo "::warning::lore-code-trace (checksums.txt) could not be fetched from Lore - skipping test ingest"
+            rm -f lore-code-trace checksums.txt; exit 0
+          fi
           echo "$(awk '/ linux-amd64$/{print $1}' checksums.txt)  lore-code-trace" | sha256sum -c -
           chmod +x lore-code-trace
 
