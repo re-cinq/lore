@@ -95,4 +95,52 @@ describe("reduceRunList", () => {
       after: "live",
     });
   });
+
+  it("keeps run-1's cost of 0.42 when a run_row of run-1 comes without one", () => {
+    const state = initialRunList({
+      runs: [run({ id: "run-1", costUsd: 0.42 })],
+      nextCursor: null,
+    });
+
+    const next = reduceRunList(state, {
+      type: "run_row",
+      run: run({ id: "run-1", status: "finished", costUsd: null }),
+    });
+
+    expect(
+      next.runs.map(({ status, costUsd }) => ({ status, costUsd })),
+    ).toEqual([{ status: "finished", costUsd: 0.42 }]);
+  });
+
+  it("takes run-1's new cost of 1.5 over its old 0.42", () => {
+    const state = initialRunList({
+      runs: [run({ id: "run-1", costUsd: 0.42 })],
+      nextCursor: null,
+    });
+
+    const next = reduceRunList(state, {
+      type: "run_row",
+      run: run({ id: "run-1", costUsd: 1.5 }),
+    });
+
+    expect(next.runs[0].costUsd).toBe(1.5);
+  });
+
+  it("keeps run-1's cost of 0.42 when a page read again lists run-1 without one", () => {
+    const state = initialRunList({
+      runs: [run({ id: "run-1", costUsd: 0.42 })],
+      nextCursor: null,
+    });
+
+    const next = reduceRunList(state, {
+      type: "page_loaded",
+      runs: [run({ id: "run-1", costUsd: null }), run({ id: "run-2" })],
+      nextCursor: null,
+    });
+
+    expect(next.runs.map(({ id, costUsd }) => ({ id, costUsd }))).toEqual([
+      { id: "run-1", costUsd: 0.42 },
+      { id: "run-2", costUsd: null },
+    ]);
+  });
 });
