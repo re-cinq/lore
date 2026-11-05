@@ -13,6 +13,9 @@ export interface GraphStatement {
   violated?: boolean;
 }
 
+// The content hash a label ends with, inside a closing code span or not: shared's spec-link-parser grammar.
+const HASHED_LABEL = /@([0-9a-f]{8})`?$/;
+
 /** Maps graph statements to SpecDetails StatementInfo (test-kind links only). */
 export function toStatementInfo(statements: GraphStatement[]): StatementInfo[] {
   return statements.map((statement) => statementInfo(statement));
@@ -32,6 +35,7 @@ function statementInfo(statement: GraphStatement): StatementInfo {
       label: link.label,
       path: link.path ?? "",
       line: link.line ?? null,
+      hash: HASHED_LABEL.exec(link.label)?.[1] ?? null,
     })),
   };
 }

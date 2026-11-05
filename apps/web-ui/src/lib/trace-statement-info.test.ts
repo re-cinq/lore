@@ -63,7 +63,12 @@ describe("toStatementInfo", () => {
     const result: StatementInfo[] = toStatementInfo(statements);
 
     expect(result[0].testLinks).toEqual([
-      { label: "rotate.test.ts", path: "auth/rotate.test.ts", line: 12 },
+      {
+        label: "rotate.test.ts",
+        path: "auth/rotate.test.ts",
+        line: 12,
+        hash: null,
+      },
     ]);
   });
 
@@ -75,5 +80,33 @@ describe("toStatementInfo", () => {
     const result: StatementInfo[] = toStatementInfo(statements);
 
     expect(result[0].drifted).toBe(true);
+  });
+
+  it("reads hash a3f9c1d2 from a hashed label and null from a plain one", () => {
+    const statements: GraphStatement[] = [
+      {
+        ordinal: 1,
+        text: "Token rotates hourly.",
+        state: "tested",
+        links: [
+          {
+            kind: "test",
+            label: "`rotate.test.ts@a3f9c1d2`",
+            path: "auth/rotate.test.ts",
+            line: 12,
+          },
+          {
+            kind: "test",
+            label: "rotate.test.ts:12",
+            path: "a.test.ts",
+            line: 3,
+          },
+        ],
+      },
+    ];
+
+    expect(
+      toStatementInfo(statements)[0].testLinks.map((link) => link.hash),
+    ).toEqual(["a3f9c1d2", null]);
   });
 });
