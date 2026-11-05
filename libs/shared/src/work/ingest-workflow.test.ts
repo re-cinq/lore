@@ -57,8 +57,8 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 7 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(7);
+  it("is version 8 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(8);
   });
 
   it("projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph", () => {

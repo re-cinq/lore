@@ -2,10 +2,10 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 7;
+export const LORE_INGEST_WORKFLOW_VERSION = 8;
 
-// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 7
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure. v8: the graph job runs one at a time, because uploads stacked beside each other could never finish a large delta.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 8
 name: Lore Context Ingest
 
 on:
@@ -113,6 +113,12 @@ jobs:
 
   graph:
     runs-on: ubuntu-latest
+    # One upload at a time: a delta is a diff from the last commit Lore ingested,
+    # so a second one beside it repeats the work and aborts its graph writes. A
+    # newer push replaces a queued run, and its diff covers the one it replaced.
+    concurrency:
+      group: lore-graph-projection
+      cancel-in-progress: false
     steps:
       # Full history: the delta is a diff against the last commit Lore
       # ingested, which a shallow clone cannot reach.
