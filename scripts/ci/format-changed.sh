@@ -12,7 +12,6 @@
 # LAST, after eslint --fix and prettier have reflowed the test files: it reads
 # the tree as it stands, so a pass before the reflow computes anchors the reflow
 # then moves by a line or two, and the next run keeps those as hand-written.
-# --quiet drops only warnings; an error it cannot repoint must fail the job.
 # A change to the lint or format setup reaches every file, so it formats all.
 #
 # Usage: format-changed.sh <base ref>   e.g. format-changed.sh origin/main
@@ -45,4 +44,4 @@ if ((${#PRETTIER[@]})); then
   npx prettier --write "${PRETTIER[@]}"
 fi
 
-npx eslint "specs/**/*.md" "adrs/**/*.md" ".specify/spec.md" --fix --quiet
+bash scripts/ci/fix-spec-links.sh
