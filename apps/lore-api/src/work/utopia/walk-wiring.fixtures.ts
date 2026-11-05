@@ -7,7 +7,7 @@ import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 export const SETTINGS_WITH_BASE = {
   utopia: {
     kb_id: "kb-1",
-    ontology_version: 9,
+    ontology_version: 10,
     sources_extract_off: true,
     history_sources_split: true,
   },

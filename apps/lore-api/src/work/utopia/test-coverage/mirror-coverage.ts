@@ -60,7 +60,9 @@ export async function unmirrorTestFilesFor(
   const deps = await coverageDepsFor(repo);
 
   if (deps) {
-    settled(await tombstoneTestFiles(deps, paths));
+    settled(
+      await tombstoneTestFiles({ ...deps, ...reportUpkeep(repo) }, paths),
+    );
   }
 }
 

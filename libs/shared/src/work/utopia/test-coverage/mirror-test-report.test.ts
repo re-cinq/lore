@@ -33,9 +33,11 @@ function pushClient(answer: (pushed: PushItem) => PushAction) {
 }
 
 describe("mirrorTestReport", () => {
-  it("pushes one item per test file and counts created and updated", async () => {
+  it("pushes one item per test and counts created and updated", async () => {
     const client = pushClient((candidate) =>
-      candidate.externalId === "test:src/a.test.ts" ? "created" : "updated",
+      candidate.externalId.startsWith("test:src/a.test.ts")
+        ? "created"
+        : "updated",
     );
     const outcome = await mirrorTestReport(withLedger(client), run);
 
@@ -43,17 +45,21 @@ describe("mirrorTestReport", () => {
       outcome,
       ids: client.pushed.map((candidate) => candidate.externalId),
     }).toEqual({
-      outcome: { items: 2, created: 1, updated: 1, unchanged: 0, failed: [] },
-      ids: ["test:src/a.test.ts", "test:src/b.test.ts"],
+      outcome: { items: 3, created: 2, updated: 1, unchanged: 0, failed: [] },
+      ids: [
+        "test:src/a.test.ts#l3",
+        "test:src/a.test.ts#f73f547f",
+        "test:src/b.test.ts#l4",
+      ],
     });
   });
 
-  it("names the test file whose push threw while the rest land", async () => {
+  it("names the test whose push threw while the rest land", async () => {
     const client = pushClient(() => "created");
     const failing = {
       push: async (candidate: PushItem) => {
         enforceTrue(
-          candidate.externalId !== "test:src/a.test.ts",
+          candidate.externalId !== "test:src/a.test.ts#l3",
           Error,
           "utopia answered 422: bad entity",
         );
@@ -68,31 +74,13 @@ describe("mirrorTestReport", () => {
       ids: client.pushed.map((candidate) => candidate.externalId),
     }).toEqual({
       outcome: {
-        items: 2,
-        created: 1,
+        items: 3,
+        created: 2,
         updated: 0,
         unchanged: 0,
-        failed: ["test:src/a.test.ts: utopia answered 422: bad entity"],
+        failed: ["test:src/a.test.ts#l3: utopia answered 422: bad entity"],
       },
-      ids: ["test:src/b.test.ts"],
-    });
-  });
-});
-
-describe("tombstoneTestFiles", () => {
-  it("pushes a test:<path> tombstone for each deleted test file", async () => {
-    const client = pushClient(() => "marked_missing");
-    const outcome = await tombstoneTestFiles(client, [
-      "src/gone.test.ts",
-      "src/old.test.ts",
-    ]);
-
-    expect({ outcome, pushed: client.pushed }).toEqual({
-      outcome: { items: 2, created: 0, updated: 0, unchanged: 0, failed: [] },
-      pushed: [
-        { externalId: "test:src/gone.test.ts", deleted: true },
-        { externalId: "test:src/old.test.ts", deleted: true },
-      ],
+      ids: ["test:src/a.test.ts#f73f547f", "test:src/b.test.ts#l4"],
     });
   });
 });
@@ -126,7 +114,7 @@ function upkeptClient(ledger: MemoryLedger) {
 }
 
 describe("mirrorTestReport with a ledger", () => {
-  it("tombstones test:src/a.test.ts.2 when the last push had it and this one does not", async () => {
+  it("tombstones the former test:src/a.test.ts and test:src/a.test.ts.2 ids on the first push of per-test items", async () => {
     const ledger = new MemoryLedger();
 
     ledger.byPath.set("test:src/a.test.ts", [
@@ -141,7 +129,25 @@ describe("mirrorTestReport with a ledger", () => {
       client.pushed
         .filter((candidate) => "deleted" in candidate)
         .map((candidate) => candidate.externalId),
-    ).toEqual(["test:src/a.test.ts.2"]);
+    ).toEqual(["test:src/a.test.ts", "test:src/a.test.ts.2"]);
+  });
+
+  it("tombstones test:src/a.test.ts#deadbeef when the file no longer declares that test", async () => {
+    const ledger = new MemoryLedger();
+
+    ledger.byPath.set("test:src/a.test.ts", [
+      "test:src/a.test.ts#deadbeef",
+      "test:src/a.test.ts#l3",
+    ]);
+    const { client, deps } = upkeptClient(ledger);
+
+    await mirrorTestReport(deps, run);
+
+    expect(
+      client.pushed
+        .filter((candidate) => "deleted" in candidate)
+        .map((candidate) => candidate.externalId),
+    ).toEqual(["test:src/a.test.ts#deadbeef"]);
   });
 
   it("records the item ids pushed for each test file", async () => {
@@ -151,8 +157,11 @@ describe("mirrorTestReport with a ledger", () => {
     await mirrorTestReport(deps, run);
 
     expect(Object.fromEntries(ledger.byPath)).toEqual({
-      "test:src/a.test.ts": ["test:src/a.test.ts"],
-      "test:src/b.test.ts": ["test:src/b.test.ts"],
+      "test:src/a.test.ts": [
+        "test:src/a.test.ts#l3",
+        "test:src/a.test.ts#f73f547f",
+      ],
+      "test:src/b.test.ts": ["test:src/b.test.ts#l4"],
     });
   });
 
@@ -175,6 +184,52 @@ describe("mirrorTestReport with a ledger", () => {
     await mirrorTestReport(deps, run);
 
     expect(ledger.sweeps).toBe(0);
+  });
+});
+
+describe("tombstoneTestFiles", () => {
+  it("tombstones every id the ledger holds for a deleted test file plus the legacy file id and clears its row", async () => {
+    const ledger = new MemoryLedger();
+
+    ledger.byPath.set("test:src/gone.test.ts", [
+      "test:src/gone.test.ts#deadbeef",
+      "test:src/gone.test.ts#l9",
+    ]);
+    const { client, deps } = upkeptClient(ledger);
+
+    const outcome = await tombstoneTestFiles(deps, [
+      "src/gone.test.ts",
+      "src/old.test.ts",
+    ]);
+
+    expect({
+      outcome,
+      pushed: client.pushed,
+      ledger: Object.fromEntries(ledger.byPath),
+      sweeps: ledger.sweeps,
+    }).toEqual({
+      outcome: { items: 4, created: 4, updated: 0, unchanged: 0, failed: [] },
+      pushed: [
+        { externalId: "test:src/gone.test.ts#deadbeef", deleted: true },
+        { externalId: "test:src/gone.test.ts#l9", deleted: true },
+        { externalId: "test:src/gone.test.ts", deleted: true },
+        { externalId: "test:src/old.test.ts", deleted: true },
+      ],
+      ledger: { "test:src/gone.test.ts": [], "test:src/old.test.ts": [] },
+      sweeps: 1,
+    });
+  });
+
+  it("sweeps nothing when no test file is deleted", async () => {
+    const ledger = new MemoryLedger();
+    const { client, deps } = upkeptClient(ledger);
+
+    await tombstoneTestFiles(deps, []);
+
+    expect({ pushed: client.pushed, sweeps: ledger.sweeps }).toEqual({
+      pushed: [],
+      sweeps: 0,
+    });
   });
 });
 
