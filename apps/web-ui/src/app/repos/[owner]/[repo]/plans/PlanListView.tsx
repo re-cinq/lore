@@ -54,7 +54,7 @@ function PlanCard({ base, plan }: { base: string; plan: PlanSummary }) {
       <div className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>{plan.title}</h3>
         <span className={styles.cardStatus}>
-          <LinkPending label="Opening plan" />
+          <LinkPending label="Opening plan" className={styles.pending} />
           <PlanStatusBadge status={plan.status} />
         </span>
       </div>

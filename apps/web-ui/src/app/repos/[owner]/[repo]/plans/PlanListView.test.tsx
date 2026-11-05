@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 import PlanListView from "./PlanListView";
 
 const linkStatus = vi.hoisted(() => ({ pending: false }));
@@ -9,6 +9,10 @@ vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
 
   return { ...actual, useLinkStatus: () => linkStatus };
+});
+
+afterEach(() => {
+  linkStatus.pending = false;
 });
 
 const BASE = "/repos/re-cinq/lore/plans";
@@ -45,7 +49,6 @@ describe("PlanListView", () => {
   it("marks Faster checkout as Opening plan while its page loads", () => {
     linkStatus.pending = true;
     render(<PlanListView base={BASE} plans={[PLAN]} />);
-    linkStatus.pending = false;
 
     expect(
       screen.getByRole("link", { name: /Faster checkout/ }),
@@ -56,5 +59,25 @@ describe("PlanListView", () => {
     render(<PlanListView base={BASE} plans={[PLAN]} />);
 
     expect(screen.queryByRole("status", { name: "Opening plan" })).toBeNull();
+  });
+
+  it("puts each card's Opening plan mark inside that card's own link", () => {
+    linkStatus.pending = true;
+    render(
+      <PlanListView
+        base={BASE}
+        plans={[PLAN, { ...PLAN, id: "p2", title: "Slower checkout" }]}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("link", { name: /checkout/ })
+        .map(
+          (link) =>
+            within(link).getAllByRole("status", { name: "Opening plan" })
+              .length,
+        ),
+    ).toEqual([1, 1]);
   });
 });

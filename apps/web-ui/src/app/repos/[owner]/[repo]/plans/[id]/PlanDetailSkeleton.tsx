@@ -38,18 +38,18 @@ export function PlanRunSkeleton() {
 const OUTLINE_WIDTHS = ["80%", "65%", "90%", "55%", "70%"];
 const BODY_WIDTHS = ["95%", "88%", "92%", "60%", "85%", "90%", "40%"];
 
-/** The editor: a narrow outline beside a body of uneven lines under a heading. */
+/** The editor: a body of uneven lines under a heading, with a narrow outline on its right. */
 export function PlanBodySkeleton() {
   return (
     <div className={styles.body} aria-hidden>
-      <div className={styles.outline}>
-        {OUTLINE_WIDTHS.map((width, i) => (
-          <Skeleton width={width} key={i} />
-        ))}
-      </div>
       <div className={styles.document}>
         <Skeleton width="35%" height={22} />
         {BODY_WIDTHS.map((width, i) => (
+          <Skeleton width={width} key={i} />
+        ))}
+      </div>
+      <div className={styles.outline}>
+        {OUTLINE_WIDTHS.map((width, i) => (
           <Skeleton width={width} key={i} />
         ))}
       </div>

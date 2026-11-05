@@ -17,14 +17,21 @@
   @include t.stack(var(--space-4));
 }
 
+/* Mirrors the planning editor's own grid: the document, then a 12–16rem
+   outline on the right; below 48rem one column with the outline on top. */
 .body {
   display: grid;
-  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+  align-items: start;
   gap: var(--space-6);
   margin-top: var(--space-5);
 
-  @media (max-width: 640px) {
+  @media (max-width: 47.99rem) {
     grid-template-columns: minmax(0, 1fr);
+
+    .outline {
+      order: -1;
+    }
   }
 }
 
