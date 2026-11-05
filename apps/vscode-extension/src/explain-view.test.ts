@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { explanationMarkdown } from "./explain-view.js";
+import { explanationMarkdown, lensTitle } from "./explain-view.js";
 import type { Explanation } from "./lore-client.js";
 
 const statement = (text: string) => ({ text, via: "covered" as const });
@@ -38,5 +38,17 @@ describe("explanationMarkdown", () => {
       listed: markdown.match(/^- /gm)?.length,
       more: markdown.trimEnd().split("\n").at(-1),
     }).toEqual({ listed: 3, more: "and 2 more" });
+  });
+});
+
+describe("lensTitle", () => {
+  it("names what the code does when statements ground the answer", () => {
+    expect(lensTitle(explained([statement("A.")]))).toBe(
+      "$(lightbulb) What this does",
+    );
+  });
+
+  it("says Lore doesn't know when no statement links the lines", () => {
+    expect(lensTitle(explained([]))).toBe("$(question) Lore doesn't know");
   });
 });

@@ -28,3 +28,10 @@ export function explanationMarkdown({
 
   return `${answer}\n\n**Spec statements**\n\n${listed.join("\n")}\n${more}`;
 }
+
+/** The CodeLens above an explained span; clicking it opens the hover. */
+export function lensTitle({ statements }: Explanation): string {
+  return statements.length > 0
+    ? "$(lightbulb) What this does"
+    : "$(question) Lore doesn't know";
+}

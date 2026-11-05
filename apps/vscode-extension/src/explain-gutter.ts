@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { explanationMarkdown } from "./explain-view.js";
+import { explanationMarkdown, lensTitle } from "./explain-view.js";
 import {
   isGrounded,
   placeEntries,
@@ -20,6 +20,8 @@ export class ExplainGutter implements vscode.Disposable {
   private readonly unknownType: vscode.TextEditorDecorationType;
   private readonly spanType = vscode.window.createTextEditorDecorationType({});
   private readonly loading = new Map<string, LineSpan[]>();
+  /** Fires on every redraw, so the CodeLenses follow the hints. */
+  readonly changed = new vscode.EventEmitter<void>();
 
   constructor(
     extensionUri: vscode.Uri,
@@ -60,9 +62,24 @@ export class ExplainGutter implements vscode.Disposable {
     for (const editor of vscode.window.visibleTextEditors) {
       this.apply(editor);
     }
+    this.changed.fire();
+  }
+
+  /** One CodeLens per explained span; the gutter icon itself can take no click, so this is the click target. */
+  lenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    return this.placedIn(document).map(
+      (placed) =>
+        new vscode.CodeLens(firstLine(placed), {
+          title: lensTitle(placed.entry.explanation),
+          command: "lore.showExplanation",
+          arguments: [document.uri, placed.startLine],
+        }),
+    );
   }
 
   dispose(): void {
+    this.changed.dispose();
+
     for (const type of [
       this.loadingType,
       this.hintType,
@@ -104,9 +121,14 @@ function firstLine({ startLine }: LineSpan): vscode.Range {
   return new vscode.Range(startLine - 1, 0, startLine - 1, 0);
 }
 
-/** The icon on the span's first line, carrying the hover. */
+/** The icon on the span's first line, its hover over that whole line's text. */
 function iconOn(placed: PlacedEntry): vscode.DecorationOptions {
-  return { range: firstLine(placed), hoverMessage: hoverOf(placed) };
+  const line = placed.startLine - 1;
+
+  return {
+    range: new vscode.Range(line, 0, line, Number.MAX_SAFE_INTEGER),
+    hoverMessage: hoverOf(placed),
+  };
 }
 
 /** The same hover on the span's other lines, without a second icon. */

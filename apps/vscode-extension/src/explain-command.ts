@@ -28,6 +28,7 @@ export function explainSubscriptions(
     vscode.commands.registerCommand("lore.explainSelection", () =>
       explainSelection(context, cache, gutter),
     ),
+    ...lensSubscriptions(gutter),
     vscode.window.onDidChangeVisibleTextEditors(() => gutter.applyVisible()),
     vscode.workspace.onDidChangeTextDocument(() => {
       clearTimeout(redraw);
@@ -45,6 +46,29 @@ function gutterFor(
 
     return root ? toRepoRelative(root, document.uri.fsPath) : null;
   });
+}
+
+/** The CodeLens above each explained span, and the command its click runs. */
+function lensSubscriptions(gutter: ExplainGutter): vscode.Disposable[] {
+  return [
+    vscode.languages.registerCodeLensProvider(
+      { scheme: "file" },
+      {
+        onDidChangeCodeLenses: gutter.changed.event,
+        provideCodeLenses: (document) => gutter.lenses(document),
+      },
+    ),
+    vscode.commands.registerCommand("lore.showExplanation", showExplanation),
+  ];
+}
+
+/** Puts the cursor on the span's first line and opens the hover the hint carries. */
+async function showExplanation(uri: vscode.Uri, line: number): Promise<void> {
+  const editor = await vscode.window.showTextDocument(uri);
+  const position = new vscode.Position(line - 1, 0);
+
+  editor.selection = new vscode.Selection(position, position);
+  await vscode.commands.executeCommand("editor.action.showHover");
 }
 
 async function explainSelection(
