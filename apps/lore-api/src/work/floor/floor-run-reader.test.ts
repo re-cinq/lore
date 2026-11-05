@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
 import type { RunView } from "@re-cinq/floor-client";
@@ -9,6 +9,10 @@ import {
   floorWithRunPage,
   PR_URL,
 } from "./floor-run.fixtures.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 const FINISHED_RUN: RunView = {
   ...FLOOR_RUN,
@@ -261,7 +265,7 @@ describe("FloorRunReader.listSummaries", () => {
     ]);
   });
 
-  it("reads the costs of run-1 and run-2 in one request", async () => {
+  it("reads the costs of run-1 and run-2 with one request each", async () => {
     const { reader: floorReader, recorded } = listingReader();
 
     const costs = await floorReader.costsByRun([
@@ -269,11 +273,37 @@ describe("FloorRunReader.listSummaries", () => {
       { id: "run-2", createdAt: new Date("2026-09-30T09:00:00.000Z") },
     ]);
 
-    expect([...costs]).toEqual([
-      ["run-1", 0.42],
-      ["run-2", 1.5],
+    expect([
+      [...costs],
+      recorded.requests.map((request) => request.path),
+    ]).toEqual([
+      [
+        ["run-1", 0.42],
+        ["run-2", 1.5],
+      ],
+      ["/costs?run=run-1&group=run", "/costs?run=run-2&group=run"],
     ]);
-    expect(recorded.requests).toHaveLength(1);
+  });
+
+  it("answers no costs, and does not fail, when the floor refuses the cost read", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const floorReader = new FloorRunReader(
+      recordedFloor((request) =>
+        request.path.startsWith("/costs")
+          ? new Response(JSON.stringify({ title: "Timeout", status: 504 }), {
+              status: 504,
+            })
+          : floorWithOneRun(request),
+      ).floor,
+    );
+
+    const costs = await floorReader.costsByRun([
+      { id: "run-1", createdAt: new Date("2026-09-30T10:00:00.000Z") },
+    ]);
+
+    expect(costs.size).toBe(0);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(String(warn.mock.calls[0][0])).toMatch(/504/);
   });
 
   it("asks for the cost of run-1 alone when it is the only run", async () => {

@@ -282,7 +282,7 @@ export class FloorRunReader {
     return costUsdOf(this.floor.costs, runId);
   }
 
-  /** The cost of each run, in ONE read: the list page asks once, not once per row. */
+  /** The cost of each run: one read per run for a short list, one for a long page; a failed read leaves its runs without a cost. */
   costsByRun(
     runs: readonly { id: string; createdAt: Date }[],
   ): Promise<Map<string, number>> {

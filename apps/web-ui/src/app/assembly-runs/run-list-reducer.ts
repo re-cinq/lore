@@ -28,15 +28,28 @@ type Handlers = {
   ) => RunListState;
 };
 
+/** A run's cost only goes from unknown to known, so a row that comes without one for a run that showed one is a cost read that failed: the row keeps the cost it had. */
+function keepingKnownCost(run: AssemblyRun, before: AssemblyRun | undefined) {
+  return run.costUsd === null && before?.costUsd != null
+    ? { ...run, costUsd: before.costUsd }
+    : run;
+}
+
 const handlers: Handlers = {
-  page_loaded: (state, { runs, nextCursor }) => ({
-    ...state,
-    runs,
-    nextCursor,
-  }),
+  page_loaded: (state, { runs, nextCursor }) => {
+    const before = new Map(state.runs.map((row) => [row.id, row]));
+
+    return {
+      ...state,
+      runs: runs.map((run) => keepingKnownCost(run, before.get(run.id))),
+      nextCursor,
+    };
+  },
   run_row: (state, { run }) => ({
     ...state,
-    runs: state.runs.map((row) => (row.id === run.id ? run : row)),
+    runs: state.runs.map((row) =>
+      row.id === run.id ? keepingKnownCost(run, row) : row,
+    ),
   }),
   connection: (state, { state: connection }) => ({ ...state, connection }),
 };
