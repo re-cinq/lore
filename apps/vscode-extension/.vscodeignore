@@ -6,3 +6,4 @@ esbuild.mjs
 **/*.test.ts
 **/__fixtures__/**
 **/*.map
+*.vsix

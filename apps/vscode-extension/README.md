@@ -10,6 +10,15 @@ Highlights source lines that fulfil a spec statement and links them to the
 - **In a `spec.md`** — each statement carrying inline links gets a CodeLens to
   jump to its tests/code.
 
+## Install
+
+`scripts/install.sh` builds the extension from the Lore checkout and installs
+it into every editor CLI on `PATH` (`code`, `code-insiders`, `cursor`,
+`codium`); the `lore_update` MCP tool (`scripts/lore-update.sh`) reinstalls it
+whenever its sources change. Both run `scripts/lore-vscode-install.sh`, which
+does nothing when no editor CLI is found. Set `LORE_SKIP_VSCODE=1` to opt out.
+Reload the VS Code window after an update.
+
 ## Configuration
 
 The extension reads `git config --global lore.api-url` and `lore.ingest-token`
@@ -28,6 +37,7 @@ specs — only the coverage layer needs the remote graph.
 npm install          # from the repo root (workspace member)
 npm run build -w lore-vscode
 npm test -w lore-vscode
+npm run package -w lore-vscode   # writes lore-vscode.vsix
 ```
 
 Press **F5** in VS Code to launch the Extension Development Host.

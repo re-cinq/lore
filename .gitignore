@@ -76,7 +76,7 @@ next-env.d.ts
 # Local dev GitHub App private key
 .lore-github-app.pem
 .claude/scheduled_tasks.lock
-vscode-extension/lore-vscode-0.1.0.vsix
+apps/vscode-extension/*.vsix
 output/
 .lore-archive/
 

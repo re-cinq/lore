@@ -2,7 +2,7 @@
   "name": "lore-vscode",
   "displayName": "Lore — spec ↔ code",
   "description": "Highlights source lines that fulfil a spec statement and links to the local spec, tests, and ADRs.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "publisher": "re-cinq",
   "type": "module",
@@ -16,7 +16,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/re-cinq/lore.git",
-    "directory": "vscode-extension"
+    "directory": "apps/vscode-extension"
   },
   "license": "UNLICENSED",
   "activationEvents": [
@@ -69,14 +69,16 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "vscode:prepublish": "node esbuild.mjs"
+    "vscode:prepublish": "node esbuild.mjs",
+    "package": "vsce package --no-dependencies --skip-license -o lore-vscode.vsix"
   },
   "dependencies": {
     "@re-cinq/lore-shared": "*"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
-    "@types/vscode": "^1.136.0",
+    "@types/vscode": "~1.85.0",
+    "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"

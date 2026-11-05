@@ -26,6 +26,11 @@ say() { echo "[lore] $*"; }
 LORE_DIR="${LORE_DIR:-$HOME/.re-cinq/lore}"
 MARKER="$HOME/.lore/mcp-build-head"
 
+# The VS Code extension rides along; its failure never fails the MCP update.
+install_vscode_extension() {
+  LORE_DIR="$LORE_DIR" bash "$LORE_DIR/scripts/lore-vscode-install.sh" || say "lore-update: VS Code extension not installed (see above)"
+}
+
 if [[ ! -d "$LORE_DIR/.git" ]]; then
   say "lore-update: no checkout at $LORE_DIR — run scripts/install.sh first"
   exit 1
@@ -68,6 +73,7 @@ done
 if [[ $needs_build -eq 0 ]]; then
   say "lore-update: already up to date ($NEW) — nothing to build"
   echo "$NEW" > "$MARKER" 2>/dev/null || true
+  install_vscode_extension
   exit 0
 fi
 
@@ -85,6 +91,7 @@ if npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cin
   mkdir -p "$(dirname "$MARKER")"
   echo "$NEW" > "$MARKER"
   say "lore-update: rebuilt to $NEW — restart Claude Code to load it"
+  install_vscode_extension
   exit 0
 else
   say "lore-update: build failed"

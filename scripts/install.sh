@@ -89,6 +89,12 @@ build_mcp_server() {
   cd - >/dev/null
 }
 
+# --- 2b. VS Code extension (skipped when no editor CLI is on PATH) ------------
+install_vscode_extension() {
+  CURRENT_STEP="install VS Code extension"
+  LORE_DIR="$LORE_DIR" bash "$LORE_DIR/scripts/lore-vscode-install.sh" || echo "[lore] Warning: VS Code extension not installed (see above)."
+}
+
 # --- 3. Detect team -----------------------------------------------------------
 select_team() {
   CURRENT_STEP="detect team"
@@ -228,6 +234,7 @@ install_agentdb() {
 # --- Run all steps ------------------------------------------------------------
 install_context
 build_mcp_server
+install_vscode_extension
 select_team
 merge_settings
 install_skills
