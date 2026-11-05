@@ -1,25 +1,37 @@
-import type { ExplainSpan, Explanation } from "./lore-client.js";
+import type { Explanation } from "./lore-client.js";
 
-const REACH_WORDING: Record<Explanation["statements"][number]["via"], string> =
-  {
-    validated: "a test in these lines validates it",
-    implemented: "the spec links these lines as its implementation",
-    covered: "a test validating it runs these lines",
-  };
+type Reach = Explanation["statements"][number]["via"];
 
-/** The markdown page "What does this do?" opens beside the code: the answer, then the statements it rests on. */
-export function explanationMarkdown(
-  span: Omit<ExplainSpan, "code">,
-  { answer, statements }: Explanation,
-): string {
-  const heading = `# ${span.path} lines ${span.start_line}-${span.end_line}\n\n${answer}\n`;
+const REACH_WORDING: Record<Reach, string> = {
+  validated: "a test in these lines validates it",
+  implemented: "the spec links these lines as its implementation",
+  covered: "a test validating it runs these lines",
+};
 
+const LISTED_STATEMENTS = 3;
+
+/** The hover on an explained span: the answer, then the first few statements it rests on. */
+export function explanationMarkdown({
+  answer,
+  statements,
+}: Explanation): string {
   if (statements.length === 0) {
-    return heading;
+    return `${answer}\n`;
   }
-  const statementLines = statements.map(
-    (statement) => `- ${statement.text} *(${REACH_WORDING[statement.via]})*`,
-  );
+  const listed = statements
+    .slice(0, LISTED_STATEMENTS)
+    .map(
+      (statement) => `- ${statement.text} *(${REACH_WORDING[statement.via]})*`,
+    );
+  const hidden = statements.length - listed.length;
+  const more = hidden > 0 ? `\nand ${hidden} more\n` : "";
 
-  return `${heading}\n## Spec statements\n\n${statementLines.join("\n")}\n`;
+  return `${answer}\n\n**Spec statements**\n\n${listed.join("\n")}\n${more}`;
+}
+
+/** The CodeLens above an explained span; clicking it opens the hover. */
+export function lensTitle({ statements }: Explanation): string {
+  return statements.length > 0
+    ? "$(lightbulb) What this does"
+    : "$(question) Lore doesn't know";
 }

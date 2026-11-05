@@ -1,23 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { explanationMarkdown } from "./explain-view.js";
+import { explanationMarkdown, lensTitle } from "./explain-view.js";
+import type { Explanation } from "./lore-client.js";
 
-const SPAN = { path: "src/widget.ts", start_line: 10, end_line: 12 };
+const statement = (text: string) => ({ text, via: "covered" as const });
+const explained = (statements: Explanation["statements"]): Explanation => ({
+  answer: "It spins the widget.",
+  statements,
+  model: "gemini-3-flash",
+});
 
 describe("explanationMarkdown", () => {
-  it("renders the answer under the file and lines, then the statements it rests on", () => {
+  it("renders the answer, then the statement it rests on with how it reaches the lines", () => {
     expect(
-      explanationMarkdown(SPAN, {
-        answer: "It spins the widget.",
-        statements: [{ text: "The widget spins.", via: "covered" }],
-        model: "gemini-3-flash",
-      }),
+      explanationMarkdown(explained([statement("The widget spins.")])),
     ).toBe(
       [
-        "# src/widget.ts lines 10-12",
-        "",
         "It spins the widget.",
         "",
-        "## Spec statements",
+        "**Spec statements**",
         "",
         "- The widget spins. *(a test validating it runs these lines)*",
         "",
@@ -26,12 +26,29 @@ describe("explanationMarkdown", () => {
   });
 
   it("renders the answer alone when no statement links the lines", () => {
-    expect(
-      explanationMarkdown(SPAN, {
-        answer: "I don't know.",
-        statements: [],
-        model: null,
-      }),
-    ).toBe("# src/widget.ts lines 10-12\n\nI don't know.\n");
+    expect(explanationMarkdown(explained([]))).toBe("It spins the widget.\n");
+  });
+
+  it("lists 3 of 5 statements and says 2 more", () => {
+    const markdown = explanationMarkdown(
+      explained(["A.", "B.", "C.", "D.", "E."].map(statement)),
+    );
+
+    expect({
+      listed: markdown.match(/^- /gm)?.length,
+      more: markdown.trimEnd().split("\n").at(-1),
+    }).toEqual({ listed: 3, more: "and 2 more" });
+  });
+});
+
+describe("lensTitle", () => {
+  it("names what the code does when statements ground the answer", () => {
+    expect(lensTitle(explained([statement("A.")]))).toBe(
+      "$(lightbulb) What this does",
+    );
+  });
+
+  it("says Lore doesn't know when no statement links the lines", () => {
+    expect(lensTitle(explained([]))).toBe("$(question) Lore doesn't know");
   });
 });
