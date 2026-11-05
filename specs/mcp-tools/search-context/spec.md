@@ -63,17 +63,20 @@ Use this when you want chunk-level evidence or the exact wording of a convention
 
 ## Output
 
-A single MCP text content block: the formatted result list (`**Score:**`), the
-no-results string, or why the API could not answer (not configured, denied, or
-the server's own reason). Never throws.
+A single MCP text content block, never a throw: the formatted result list
+(`**Score:**`), the no-results string, or why the API could not answer (not
+configured, denied, or the server's own reason). ([validated by forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages @2361ff99](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L66), [validated by says no results for deploys when the API matches nothing @e525c16a](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L111), [validated by says the corpus search needs LORE_API_URL instead of scanning local files @1d1519e3](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L28))
 
 ## Dependencies & side effects
 
 - `proxyGetApi()` (`GET /api/search-context`), `detectCurrentRepo()`,
   `traceRetrieval()` (OTEL span).
-- The request and the passages are typed from lore-api's OpenAPI document
-  (`apps/mcp-server/src/transport/api/schema.d.ts`), so a field the API renames
-  fails the MCP server's type check.
+
+### Rationale
+
+The request and the passages are typed from lore-api's OpenAPI document
+(`apps/mcp-server/src/transport/api/schema.d.ts`), so a field the API renames
+fails the MCP server's type check. ([implemented by @ba5418af](apps/mcp-server/src/transport/api/api-types.ts#L37))
 
 ## Acceptance Criteria
 
@@ -91,7 +94,7 @@ the server's own reason). Never throws.
 
 *(added 2026-10-16, ADR-052 amendment "reads choose a backend")* An optional `backend` param (`lore`, `utopia`, `both`) is forwarded to `GET /api/search-context`, and the API's notes are printed after the passages. ([validated by forwards backend=both to GET /api/search-context and prints the API's no-reader note after the passages @2361ff99](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L169))
 
-`GET /api/search-context` answers `utopia` with no mirror to read with the note `search_context: no Utopia reader yet`, without searching Lore; `both` with Lore's passages and that note; an unknown backend with 400. A Lore search answers as before, with no `notes`. A request naming no backend is answered as `utopia` (2026-10-28). ([validated by answers no passages and a no-reader note when the request names no repo, without searching Lore @603e4d52](apps/lore-api/src/transport/routes/context/search-context.test.ts#L143), [validated by answers the no-reader note for backend=utopia with repo=o/r when the repo has no mirror @7f888f0e](apps/lore-api/src/transport/routes/context/search-context.test.ts#L187), [validated by answers Lore's passages plus the no-reader note for backend=both without a repo @c2fba728](apps/lore-api/src/transport/routes/context/search-context.test.ts#L224), [validated by refuses a backend of dgraph with 400 @cb23d451](apps/lore-api/src/transport/routes/context/search-context.test.ts#L242), [validated by asks the agent gateway's caller for the repo when the call names none @26ce1fad](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L178), [validated by is true for utopia and both, false for lore and an omitted backend @6cd686d5](apps/mcp-server/src/transport/tools/shared/backend-param.test.ts#L15))
+`GET /api/search-context` answers `utopia` with no mirror to read with the note `search_context: no Utopia reader yet`, without searching Lore; `both` with Lore's passages and that note; an unknown backend with 400. ([validated by answers the no-reader note for backend=utopia with repo=o/r when the repo has no mirror @7f888f0e](apps/lore-api/src/transport/routes/context/search-context.test.ts#L187), [validated by answers Lore's passages plus the no-reader note for backend=both without a repo @c2fba728](apps/lore-api/src/transport/routes/context/search-context.test.ts#L224), [validated by refuses a backend of dgraph with 400 @cb23d451](apps/lore-api/src/transport/routes/context/search-context.test.ts#L242)) A Lore search answers as before, with no `notes`. ([validated by answers a natural-language query with scored passages carrying their source path @4a7c1614](apps/lore-api/src/transport/routes/context/search-context.test.ts#L69)) A request naming no backend is answered as `utopia` (2026-10-28). ([validated by answers no passages and a no-reader note when the request names no repo, without searching Lore @603e4d52](apps/lore-api/src/transport/routes/context/search-context.test.ts#L143), [validated by asks the agent gateway's caller for the repo when the call names none @26ce1fad](apps/mcp-server/src/transport/tools/context/search-context.test.ts#L178), [validated by is true for utopia and both, false for lore and an omitted backend @6cd686d5](apps/mcp-server/src/transport/tools/shared/backend-param.test.ts#L15))
 
 *(2026-10-31)* With `repo` (`owner/name`) and a Utopia reader, `GET /api/search-context` reads the repo's `docs` source (`settings.utopia`): one passage per document, in the order of its best hit, scored so the best is 1, each carrying `backend: "utopia"`. ([validated by answers the repo's docs-source documents scored so the best is 1 for repo=o/r with no backend @5e3eaed9](apps/lore-api/src/transport/routes/context/search-context.test.ts#L155))
 
