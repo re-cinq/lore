@@ -158,6 +158,10 @@ A test builds the document from `routeList(() => null)` and asserts:
   schema for agents; freeform `object` for features/tokens), and the
   shared error responses referenced from `components.responses`; the document
   defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts@106fe8a0`](apps/lore-api/src/transport/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts@86503cbe`](apps/lore-api/src/transport/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts@79e7df80`](apps/lore-api/src/transport/openapi/build-document.test.ts#L189))
+- **FR3b** *(2026-11-02)* A route that validates its query with `zodValidate`
+  lists each field of that schema as an `in: query` parameter, `required` as the
+  schema says, so the generated client types (web-ui's and the MCP server's
+  `schema.d.ts`) carry what a GET route reads as well as what it answers. ([validated by lists the search-context query fields as query parameters, query required and limit optional @f2478c13](apps/lore-api/src/transport/openapi/build-document.test.ts#L121))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
   `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts@bc26bc66`](apps/lore-api/src/transport/openapi/build-document.test.ts#L13), [`build-document.test.ts@04a1488c`](apps/lore-api/src/transport/openapi/build-document.test.ts#L133))
 - **FR4b** A `parse:false` route that declares `options.app.rawBody` is a real raw-body

@@ -16,6 +16,7 @@ import {
   type JsonSchema,
   type Coverage,
 } from "./operation-responses.js";
+import { queryParameters } from "./query-parameters.js";
 import { CATEGORY_ORDER, tagFor } from "./route-categories.js";
 import {
   STANDALONE_SCHEMAS,
@@ -233,7 +234,8 @@ function operationId(method: string, normPath: string): string {
 
 /** The fields an operation carries only sometimes. They are set rather than always-present-and-empty because the generated client reads the DOCUMENT: an empty `parameters` array and an absent one produce different types. */
 function applyOptionalFields(op: Operation, route: ServerRoute): void {
-  const { params, hasOptional } = pathParameters(route.path);
+  const { params: pathParams, hasOptional } = pathParameters(route.path);
+  const params = [...pathParams, ...queryParameters(route)];
   const scope = scopeOf(route);
 
   if (scope) {

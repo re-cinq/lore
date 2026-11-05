@@ -18,6 +18,11 @@ import {
   ContextBackendSchema,
   type ContextBackend,
 } from "@re-cinq/lore-shared/knowledge-backend.js";
+import {
+  ContextTemplateSchema,
+  type ContextTemplate,
+} from "@re-cinq/lore-shared/context-template.js";
+import { apiAnswer, apiGetUrl, type ApiQuery } from "../../api/api-types.js";
 
 // MCP tool input args (lore_assemble_context's own snake_case schema), not a DB row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -30,7 +35,7 @@ interface AssembleContextExtraArgs {
 
 interface AssembleContextArgs extends AssembleContextExtraArgs {
   query: string;
-  template: string;
+  template: ContextTemplate;
   repo: string;
 }
 
@@ -40,12 +45,9 @@ export const ASSEMBLE_CONTEXT_INPUT = {
     .describe(
       "Natural-language description of the context needed. Drives retrieval and ranking across all sources.",
     ),
-  template: z
-    .string()
-    .default("default")
-    .describe(
-      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under backend lore-v2.",
-    ),
+  template: ContextTemplateSchema.default("default").describe(
+    "Section-ordering profile: 'default' | 'review' | 'implementation' | 'research'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under backend lore-v2.",
+  ),
   max_tokens: z
     .number()
     .min(2000)
@@ -109,28 +111,18 @@ async function assembleContext(args: AssembleContextArgs) {
   return interpretProxiedContext(proxied);
 }
 
-function buildAssembleExtras(
-  args: AssembleContextExtraArgs,
-): Record<string, string> {
-  const extras: Record<string, string> = {};
+type AssembleExtras = Pick<
+  ApiQuery<"/api/context">,
+  "max_tokens" | "cross_repo" | "agent_id" | "backend"
+>;
 
-  if (args.max_tokens) {
-    extras.max_tokens = String(args.max_tokens);
-  }
-
-  if (args.cross_repo) {
-    extras.cross_repo = "true";
-  }
-
-  if (args.agent_id) {
-    extras.agent_id = args.agent_id;
-  }
-
-  if (args.backend) {
-    extras.backend = args.backend;
-  }
-
-  return extras;
+function buildAssembleExtras(args: AssembleContextExtraArgs): AssembleExtras {
+  return {
+    max_tokens: args.max_tokens || undefined,
+    cross_repo: args.cross_repo || undefined,
+    agent_id: args.agent_id || undefined,
+    backend: args.backend || undefined,
+  };
 }
 
 /** The builder (lore-v2) writes for up to two minutes, and a retry would start a second build, so it gets one long attempt. */
@@ -138,8 +130,8 @@ const BUILDER_PROXY_LIMITS = { timeoutMs: 120_000, maxAttempts: 1 };
 
 /** Cached for 10 minutes on the query itself: a session re-orienting asks the same question repeatedly, and each miss is a full assembly across every source. */
 async function cachedAssemble(
-  key: { query: string; template: string; repo: string },
-  extras: Record<string, string>,
+  key: { query: string; template: ContextTemplate; repo: string },
+  extras: AssembleExtras,
 ): Promise<ProxyResult> {
   return withReadCache(
     {
@@ -150,7 +142,7 @@ async function cachedAssemble(
     },
     () =>
       proxyGetApi(
-        `/api/context?${new URLSearchParams({ ...key, ...extras }).toString()}`,
+        apiGetUrl("/api/context", { ...key, ...extras }),
         limitsFor(extras.backend),
       ),
     { label: false },
@@ -171,12 +163,13 @@ function parseAssembleBody(body: string): {
   text: string;
   sections?: AssembleSection[];
 } {
-  const parsed = JSON.parse(body) as {
-    text?: string;
-    sections?: AssembleSection[];
-  };
+  const { text, sections } = apiAnswer("/api/context", body);
 
-  return { text: parsed.text ?? "", sections: parsed.sections };
+  // lore-api declares sections as unknown; the shape is assembleContext's own.
+  return {
+    text: text ?? "",
+    sections: sections as AssembleSection[] | undefined,
+  };
 }
 
 function logAssembleAudit(

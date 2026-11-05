@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { proxyGetApi } from "../shared/deps.js";
-import { renderProxied } from "./shared/render-proxied.js";
+import { renderProxied } from "../shared/render-proxied.js";
 
 const ANALYTICS_INPUT = {
   period: z

@@ -6096,7 +6096,9 @@ export type $defs = Record<string, never>;
 export interface operations {
   "get_api_agent-activity": {
     parameters: {
-      query?: never;
+      query?: {
+        repo?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -6269,7 +6271,9 @@ export interface operations {
   };
   "get_api_agent-stats": {
     parameters: {
-      query?: never;
+      query: {
+        agent_id: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -6293,7 +6297,9 @@ export interface operations {
   };
   get_api_analytics: {
     parameters: {
-      query?: never;
+      query?: {
+        period?: "today" | "week" | "month" | "all";
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -6366,7 +6372,15 @@ export interface operations {
   };
   "get_api_assembly-lines": {
     parameters: {
-      query?: never;
+      query?: {
+        status?: string;
+        repo?: string;
+        blueprint?: string;
+        task_id?: string;
+        subject_key?: string;
+        limit?: number;
+        engine?: "lore";
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -6469,7 +6483,15 @@ export interface operations {
   };
   "get_api_assembly-runs": {
     parameters: {
-      query?: never;
+      query?: {
+        status?: string;
+        repo?: string;
+        blueprint?: string;
+        task_id?: string;
+        subject_key?: string;
+        limit?: number;
+        engine?: "lore";
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -6987,7 +7009,11 @@ export interface operations {
   };
   "get_api_audit-log": {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+        event_types: string;
+        limit?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7011,7 +7037,9 @@ export interface operations {
   };
   get_api_auth_access: {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7036,7 +7064,11 @@ export interface operations {
   };
   get_api_auth_callback: {
     parameters: {
-      query?: never;
+      query: {
+        code?: string;
+        error?: string;
+        state: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7058,7 +7090,9 @@ export interface operations {
   };
   get_api_auth_login: {
     parameters: {
-      query?: never;
+      query: {
+        return: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7160,7 +7194,9 @@ export interface operations {
   };
   "get_api_chunk-types": {
     parameters: {
-      query?: never;
+      query?: {
+        repo?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7184,7 +7220,13 @@ export interface operations {
   };
   get_api_chunks: {
     parameters: {
-      query?: never;
+      query?: {
+        repo?: string;
+        type?: string;
+        q?: string;
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7208,7 +7250,10 @@ export interface operations {
   };
   "get_api_chunks_by-path": {
     parameters: {
-      query?: never;
+      query: {
+        path: string;
+        repo?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7232,7 +7277,16 @@ export interface operations {
   };
   get_api_context: {
     parameters: {
-      query?: never;
+      query?: {
+        repo?: string;
+        query?: string;
+        template?: "default" | "review" | "implementation" | "research";
+        debug?: string | boolean;
+        max_tokens?: number;
+        agent_id?: string;
+        cross_repo?: string | boolean;
+        backend?: "lore" | "utopia" | "both" | "lore-v2";
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7338,7 +7392,9 @@ export interface operations {
   };
   "get_api_context-evals_documents": {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7491,7 +7547,12 @@ export interface operations {
   };
   get_api_episodes: {
     parameters: {
-      query?: never;
+      query?: {
+        source?: string;
+        agent?: string;
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7515,7 +7576,11 @@ export interface operations {
   };
   get_api_events: {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7539,7 +7604,13 @@ export interface operations {
   };
   "get_api_floor-runs": {
     parameters: {
-      query?: never;
+      query?: {
+        status?: "queued" | "running" | "finished" | "failed";
+        repo?: string;
+        line?: string;
+        cursor?: string;
+        limit?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7688,7 +7759,12 @@ export interface operations {
   };
   get_api_graph: {
     parameters: {
-      query?: never;
+      query?: {
+        entity?: string;
+        relation_type?: string;
+        repo?: string;
+        include_invalidated?: string | boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7712,7 +7788,11 @@ export interface operations {
   };
   "get_api_graph-browse": {
     parameters: {
-      query?: never;
+      query?: {
+        entity?: string;
+        type?: string;
+        show_invalid?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7815,7 +7895,10 @@ export interface operations {
   };
   "get_api_job-run-logs": {
     parameters: {
-      query?: never;
+      query: {
+        job_name: string;
+        run_id: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7866,7 +7949,10 @@ export interface operations {
   };
   get_api_memories: {
     parameters: {
-      query?: never;
+      query: {
+        agent: string;
+        limit?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7970,7 +8056,13 @@ export interface operations {
   };
   "get_api_memory-audit": {
     parameters: {
-      query?: never;
+      query?: {
+        agent?: string;
+        operation?: string;
+        zero_results?: boolean;
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -7994,7 +8086,9 @@ export interface operations {
   };
   "get_api_memory-search": {
     parameters: {
-      query?: never;
+      query: {
+        q: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -8150,7 +8244,10 @@ export interface operations {
   };
   "get_api_pr-status": {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+        pr_number: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -8176,7 +8273,9 @@ export interface operations {
   };
   "get_api_repo-status": {
     parameters: {
-      query?: never;
+      query?: {
+        repo?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -8200,7 +8299,10 @@ export interface operations {
   };
   "get_api_repo-tasks": {
     parameters: {
-      query?: never;
+      query: {
+        repo: string;
+        limit?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -8224,7 +8326,10 @@ export interface operations {
   };
   get_api_repos: {
     parameters: {
-      query?: never;
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -8469,7 +8574,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_auto-merge": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -8586,7 +8696,10 @@ export interface operations {
   };
   get_api_repos_owner_repo_changelog: {
     parameters: {
-      query?: never;
+      query?: {
+        before?: string;
+        limit?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -8763,7 +8876,10 @@ export interface operations {
   };
   "get_api_repos_owner_repo_ci-failures": {
     parameters: {
-      query?: never;
+      query?: {
+        branch?: string;
+        pr_number?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -8792,7 +8908,10 @@ export interface operations {
   };
   "get_api_repos_owner_repo_ci-jobs_job_id_log": {
     parameters: {
-      query?: never;
+      query?: {
+        tail?: number;
+        grep?: string;
+      };
       header?: never;
       path: {
         owner: string;
@@ -8822,7 +8941,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_code-review": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -8889,7 +9013,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_daily-digest": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -9052,7 +9181,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_implementation-loop": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -9852,7 +9986,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_spec-tickets": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -9881,7 +10020,12 @@ export interface operations {
   };
   "get_api_repos_owner_repo_spec-upkeep": {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -10042,7 +10186,13 @@ export interface operations {
   };
   get_api_repos_owner_repo_trace_kind: {
     parameters: {
-      query?: never;
+      query?: {
+        path?: string;
+        ranges?: string;
+        branch?: string;
+        symbol?: string;
+        direction?: "callers" | "callees";
+      };
       header?: never;
       path: {
         owner: string;
@@ -10072,7 +10222,12 @@ export interface operations {
   };
   get_api_repos_owner_repo_triage: {
     parameters: {
-      query?: never;
+      query?: {
+        backlog?: number;
+        parked?: number;
+        awaiting_merge?: number;
+        recent?: number;
+      };
       header?: never;
       path: {
         owner: string;
@@ -10445,7 +10600,13 @@ export interface operations {
   };
   "get_api_search-context": {
     parameters: {
-      query?: never;
+      query: {
+        query: string;
+        team?: string;
+        limit?: number;
+        backend?: "lore" | "utopia" | "both";
+        repo?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -10801,7 +10962,12 @@ export interface operations {
   };
   "get_api_task-logs": {
     parameters: {
-      query?: never;
+      query: {
+        task_id: string;
+        repo?: string;
+        offset?: number;
+        cursor?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -10943,7 +11109,11 @@ export interface operations {
   };
   get_api_tasks: {
     parameters: {
-      query?: never;
+      query?: {
+        status?: string;
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -11049,7 +11219,10 @@ export interface operations {
   };
   get_api_tokens: {
     parameters: {
-      query?: never;
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -11153,7 +11326,9 @@ export interface operations {
   };
   get_api_usage: {
     parameters: {
-      query?: never;
+      query: {
+        agent_id: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;

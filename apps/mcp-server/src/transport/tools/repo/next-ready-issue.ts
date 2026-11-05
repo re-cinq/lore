@@ -2,6 +2,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { proxyGetApi, textResult } from "../shared/deps.js";
 import { repoParam, withRepo, type ServerMode } from "../shared/repo-scope.js";
 import type { ToolTextResult } from "./shared/proxy-failure.js";
+import { apiAnswer, type ApiAnswer } from "../../api/api-types.js";
+
+type LoopState = ApiAnswer<"/api/repos/{owner}/{repo}/implementation-loop">;
+type LoopIssue = LoopState["next"][number];
 
 export function registerNextReadyIssueTool(
   server: McpServer,
@@ -16,12 +20,11 @@ export function registerNextReadyIssueTool(
 }
 
 interface NextReadyResult {
-  issue: Record<string, unknown> | null;
+  issue: LoopIssue | null;
   because?: string;
   reason?: string;
 }
 
-type LoopState = { next?: Array<Record<string, unknown>>; criteria?: string[] };
 async function fetchNextReadyIssue(args: {
   repo: string;
 }): Promise<ToolTextResult> {
@@ -35,17 +38,16 @@ async function fetchNextReadyIssue(args: {
     );
   }
 
-  return textResult(
-    JSON.stringify(nextReadyResult(JSON.parse(proxied.body) as LoopState)),
+  const loopState = apiAnswer(
+    "/api/repos/{owner}/{repo}/implementation-loop",
+    proxied.body,
   );
+
+  return textResult(JSON.stringify(nextReadyResult(loopState)));
 }
 
-function nextReadyResult(loopState: {
-  next?: Array<Record<string, unknown>>;
-  criteria?: string[];
-}): NextReadyResult {
-  const issues = loopState.next || [];
-  const readyIssues = issues.filter((i) => !i.hold);
+function nextReadyResult(loopState: LoopState): NextReadyResult {
+  const readyIssues = loopState.next.filter((i) => !i.hold);
 
   if (readyIssues.length === 0) {
     return { issue: null, reason: "No issues ready in the backlog." };

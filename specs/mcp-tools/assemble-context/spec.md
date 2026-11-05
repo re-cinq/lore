@@ -40,7 +40,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `query` | string | yes | — | Natural-language description of the context needed. Drives retrieval and ranking across all sources. |
-| `template` | string | no | `default` | Section-ordering profile. Recognized values: 'default' \| 'review' \| 'implementation' \| 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under `lore-v2`. |
+| `template` | enum | no | `default` | Section-ordering profile: 'default' \| 'review' \| 'implementation' \| 'research' (`ContextTemplateSchema`, shared with `GET /api/context`; any other value is refused). Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries. Ignored under `lore-v2`. |
 | `max_tokens` | number | no | `8000` | Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000. |
 | `repo` | string | no | — | 'owner/repo'. Auto-detected from the git remote when omitted; in the agent gateway the description says it is required. |
 | `agent_id` | string | no | — | Overrides the ambient agent id used to scope memories/facts. |

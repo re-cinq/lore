@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gen:openapi": "node dist/transport/openapi/gen-openapi.js",
-    "gen:api-types": "npx --yes openapi-typescript@7.13.0 openapi.json -o ../web-ui/src/lib/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts"
+    "gen:api-types": "npx --yes openapi-typescript@7.13.0 openapi.json -o ../web-ui/src/lib/api/schema.d.ts && cp ../web-ui/src/lib/api/schema.d.ts ../mcp-server/src/transport/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts ../mcp-server/src/transport/api/schema.d.ts"
   },
   "dependencies": {
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^3.1.0",

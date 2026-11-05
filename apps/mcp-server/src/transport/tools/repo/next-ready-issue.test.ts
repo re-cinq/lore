@@ -38,17 +38,6 @@ describe("lore_next_ready_issue", () => {
     });
   });
 
-  it("reports no issue when the loop state has no next list", async () => {
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({ ok: true, body: "{}" });
-
-    const result = await nextReadyIssue({ repo: "acme/widgets" });
-
-    expect(JSON.parse(result.content[0].text)).toEqual({
-      issue: null,
-      reason: "No issues ready in the backlog.",
-    });
-  });
-
   it("reports no issue and an unreachable API when the read fails", async () => {
     vi.mocked(proxyGetApi).mockResolvedValueOnce({
       ok: false,

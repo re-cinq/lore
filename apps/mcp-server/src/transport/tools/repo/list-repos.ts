@@ -5,6 +5,9 @@ import {
   proxyFailure,
   type ToolTextResult,
 } from "./shared/proxy-failure.js";
+import { apiAnswer, apiGetUrl, type ApiAnswer } from "../../api/api-types.js";
+
+type Repo = ApiAnswer<"/api/repos">["repos"][number];
 
 export function registerListReposTool(server: McpServer) {
   server.tool(
@@ -31,13 +34,13 @@ export function registerListReposTool(server: McpServer) {
 }
 
 async function walkRepoPages(): Promise<
-  { repos: unknown[]; total: number } | { failure: ToolTextResult }
+  { repos: Repo[]; total: number } | { failure: ToolTextResult }
 > {
   const pageSize = 100;
-  const repos: unknown[] = [];
+  const repos: Repo[] = [];
 
   for (let offset = 0; ; offset += pageSize) {
-    const page = await fetchRepoPage(pageSize, offset, repos.length);
+    const page = await fetchRepoPage(pageSize, offset);
 
     if ("failure" in page) {
       return page;
@@ -52,16 +55,13 @@ async function walkRepoPages(): Promise<
 }
 
 type RepoPageResult =
-  { pageRepos: unknown[]; total: number } | { failure: ToolTextResult };
+  { pageRepos: Repo[]; total: number } | { failure: ToolTextResult };
 
 async function fetchRepoPage(
   limit: number,
   offset: number,
-  curr: number,
 ): Promise<RepoPageResult> {
-  const proxied = await proxyGetApi(
-    `/api/repos?limit=${limit}&offset=${offset}`,
-  );
+  const proxied = await proxyGetApi(apiGetUrl("/api/repos", { limit, offset }));
 
   if (!proxied.ok) {
     return {
@@ -69,10 +69,7 @@ async function fetchRepoPage(
     };
   }
 
-  const parsed = JSON.parse(proxied.body) as Record<string, unknown>;
-  const pageRepos = Array.isArray(parsed.repos) ? parsed.repos : [];
-  const total =
-    typeof parsed.total === "number" ? parsed.total : curr + pageRepos.length;
+  const { repos, total } = apiAnswer("/api/repos", proxied.body);
 
-  return { pageRepos, total };
+  return { pageRepos: repos, total };
 }

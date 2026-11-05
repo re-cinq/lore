@@ -98,28 +98,4 @@ describe("lore_list_repos", () => {
 
     expect(result.content[0].text).toContain("invalid token");
   });
-
-  it("counts 2 repos as the total when a page carries no total", async () => {
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({
-      ok: true,
-      body: JSON.stringify({ repos: [{ id: 1 }, { id: 2 }] }),
-    });
-
-    const result = await handlerFor("lore_list_repos")({});
-
-    expect(JSON.parse(result.content[0].text)).toEqual({
-      repos: [{ id: 1 }, { id: 2 }],
-      total: 2,
-    });
-  });
-
-  it("reports no repos when a page carries no repos list", async () => {
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({ ok: true, body: "{}" });
-
-    const result = await handlerFor("lore_list_repos")({});
-
-    expect(result.content[0].text).toBe(
-      "No repos onboarded yet. Use lore_onboard_repo to add one.",
-    );
-  });
 });

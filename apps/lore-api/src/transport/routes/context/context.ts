@@ -21,6 +21,7 @@ import { builtOrAssembled } from "../../../work/context/built-or-assembled.js";
 import { contextBuilderFor } from "../../../work/context/context-builder-deps.js";
 import { reportBuilt, reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
+import { ContextTemplateSchema } from "@re-cinq/lore-shared/context-template.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
@@ -29,9 +30,7 @@ import { repoFullName, boolFlag } from "../common-schemas.js";
 const ContextQuery = z.object({
   repo: repoFullName.optional(),
   query: z.string().optional(),
-  template: z
-    .enum(["default", "review", "implementation", "research"])
-    .default("default"),
+  template: ContextTemplateSchema.default("default"),
   debug: boolFlag,
   // .max(128000) keeps unbounded chunks from re-opening on agent CR size limit.
   max_tokens: z.coerce // eslint-disable-line re-lint/max-member-chain -- pipeline over a value already in hand
