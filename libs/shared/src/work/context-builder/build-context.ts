@@ -59,7 +59,8 @@ const MAX_FILES = 6;
 const CANDIDATES = 300;
 const MAX_FILE_CHARS = 6_000;
 const MAX_EVIDENCE_CHARS = 150_000;
-const COMPOSE_MAX_TOKENS = 4_000;
+/** Room for a 900-word block and little more: a write-up that runs on past it is cut, not waited for (8 of 16 builds on 2026-11-05 ran out the 90 s call timeout in the write-up). */
+const COMPOSE_MAX_TOKENS = 2_000;
 const MAX_GREP_TERMS = 4;
 const MAX_HITS_PER_TERM = 5;
 
