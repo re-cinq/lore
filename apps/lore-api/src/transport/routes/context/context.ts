@@ -5,6 +5,7 @@ import type {
   Request,
   ResponseObject,
   ResponseToolkit,
+  RouteOptionsValidate,
   ServerRoute,
 } from "@hapi/hapi";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
@@ -59,15 +60,24 @@ const AssembledContextSchema = z.object({
   trace: z.unknown().optional(),
 });
 
-export function contextRoute(getPool: () => Pool | null): ServerRoute {
+/** `GET /api/context` with the query in the URL, and `POST /api/context` with the same fields as a JSON body, for a query too long for a URL: a station briefing a loop run sends the whole ticket. */
+export function contextRoutes(getPool: () => Pool | null): ServerRoute[] {
+  return [
+    contextRoute(getPool, "GET", { query: zodValidate(ContextQuery) }),
+    contextRoute(getPool, "POST", { payload: zodValidate(ContextQuery) }),
+  ];
+}
+
+function contextRoute(
+  getPool: () => Pool | null,
+  method: "GET" | "POST",
+  validate: RouteOptionsValidate,
+): ServerRoute {
   return {
-    method: "GET",
+    method,
     path: "/api/context",
     options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ContextQuery) },
-      },
+      { ...bearerScope("read"), validate },
       AssembledContextSchema,
       { name: "AssembledContext", description: "The assembled context block" },
     ),
@@ -81,7 +91,9 @@ async function serveContext(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const pool = getPool();
-  const q = request.query as unknown as ContextQuery;
+  const q = (request.method === "post"
+    ? request.payload
+    : request.query) as unknown as ContextQuery;
 
   try {
     // Without a query there is nothing to assemble AGAINST — the repo's stored context is returned as-is.

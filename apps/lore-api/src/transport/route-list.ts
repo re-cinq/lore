@@ -19,7 +19,7 @@ import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
 import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
 import { triageRoute } from "./routes/triage/triage.js";
-import { contextRoute } from "./routes/context/context.js";
+import { contextRoutes } from "./routes/context/context.js";
 import { contextEvalRoute } from "./routes/context-evals/context-evals.js";
 import { contextEvalTicketRoute } from "./routes/context-evals/context-eval-ticket.js";
 import { contextEvalDocumentsRoute } from "./routes/context-evals/context-eval-documents.js";
@@ -191,7 +191,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
 /** The context, evaluation, and graph read off a repo. */
 function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    contextRoute(getPool),
+    ...contextRoutes(getPool),
     contextEvalRoute(getPool),
     contextEvalTicketRoute(getPool),
     contextEvalDocumentsRoute(getPool),

@@ -101,7 +101,7 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001_loop_agents_assemble_context, whose every file is a shipped prompt", async () => {
+  it("names floor/0001_loop_agents_assemble_context and floor/0002_loop_agents_read_brief, whose every file is a shipped prompt", async () => {
     const prompts = shippedAgentPrompts();
     const files: string[] = [];
     const migrations = await readFloorMigrations();
@@ -122,7 +122,10 @@ describe("readFloorMigrations", () => {
         (file) => !prompts.get(file.replace(/\.md$/, "")),
       ),
     }).toEqual({
-      versions: ["floor/0001_loop_agents_assemble_context"],
+      versions: [
+        "floor/0001_loop_agents_assemble_context",
+        "floor/0002_loop_agents_read_brief",
+      ],
       unshipped: [],
     });
   });

@@ -74,6 +74,26 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("has dod, tdd-round and fix-ci read the brief file the loop built first, and ask lore_assemble_context only when it is absent", () => {
+    expect(
+      Object.fromEntries(
+        ["loop-dod", "loop-tdd-round", "loop-fix-ci"].map((name) => [
+          name,
+          {
+            reads: promptOf(name).includes("`{brief_path}` is the briefing"),
+            fallback: promptOnOneLine(name).includes(
+              "Only when the briefing is absent, query `lore_assemble_context`",
+            ),
+          },
+        ]),
+      ),
+    ).toEqual({
+      "loop-dod": { reads: true, fallback: true },
+      "loop-tdd-round": { reads: true, fallback: true },
+      "loop-fix-ci": { reads: true, fallback: true },
+    });
+  });
+
   it("tells fix-ci to run only the checks the CI report named", () => {
     expect(promptOf("loop-fix-ci")).toContain("run ONLY that");
   });

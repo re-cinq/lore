@@ -39,11 +39,14 @@ is at `{ticket_path}`: read it before anything else. Pass `repo` (the
 owner/name your task names above) on every `lore_*` call: the gateway has
 no checkout to detect it from.
 
-Context: once the ticket is read, query `lore_assemble_context` with what
-the ticket is ABOUT (its title, the spec sections and the surfaces it
-touches), not the words of this prompt, which return the platform
-overview; then `lore_search_memory` for past learnings on the same
-surfaces. Nothing is pre-loaded for this run.
+Context: `{brief_path}` is the briefing Lore built for this ticket, when
+it exists: the files and lines, spec sections and past decisions the
+ticket touches. Read it right after the ticket and start from the files
+it names instead of searching for them; then `lore_search_memory` for
+past learnings on the surfaces you change. Only when the briefing is
+absent, query `lore_assemble_context` with what the ticket is ABOUT (its
+title, the spec sections and the surfaces it touches), not the words of
+this prompt, which return the platform overview.
 
 START by reading `.lore/dod.md` on this branch. Its "Done when these pass"
 list is the bar; its Facets checklist is where the last round got to. It

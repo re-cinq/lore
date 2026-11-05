@@ -201,7 +201,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ).toBe(true);
   });
 
-  it("walks implementation-loop from sync-start through done-check, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
+  it("walks implementation-loop from sync-start through done-check, brief, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
@@ -211,7 +211,8 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(forward).toEqual([
       "sync-start>done-check",
       "sync-start-rebase>done-check",
-      "done-check>dod",
+      "done-check>brief",
+      "brief>dod",
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
@@ -1875,7 +1876,48 @@ describe("the implementation loop's already-done check", () => {
       to("done-check", "success"),
       to("done-check", "changes_requested"),
       to("done-check", "failed"),
-    ]).toEqual(["done-check", "done-check", "dod", "done", "dod"]);
+    ]).toEqual(["done-check", "done-check", "brief", "done", "brief"]);
+  });
+});
+
+describe("the implementation loop is briefed once", () => {
+  const line = pipelineOf("implementation-loop");
+  const station = (id: string) => line.stations[id];
+  const need = (id: string, name: string) =>
+    station(id)?.needs.find((declared) => declared.name === name);
+
+  it("puts brief between done-check and dod, goes on to dod whether or not it built one, and declares the brief.md file it produces from the ticket", () => {
+    const to = (from: string, on: string) =>
+      line.line.edges.find((edge) => edge.from === from && edge.on === on)?.to;
+
+    expect({
+      from: [to("done-check", "success"), to("done-check", "failed")],
+      on: [to("brief", "success"), to("brief", "failed")],
+      kind: station("loop-brief")?.kind,
+      needs: station("loop-brief")?.needs.map((declared) => declared.name),
+      produces: station("loop-brief")?.produces,
+    }).toEqual({
+      from: ["brief", "brief"],
+      on: ["dod", "dod"],
+      kind: "service",
+      needs: ["target", "ticket"],
+      produces: [{ name: "brief", kind: "file", path: "brief.md" }],
+    });
+  });
+
+  it("hands brief.md to dod, tdd-round, repair-build and fix-ci as an optional file, since an upkeep run starts past the brief", () => {
+    expect(
+      ["loop-dod", "loop-tdd-round", "loop-repair-build", "loop-fix-ci"].map(
+        (id) => need(id, "brief"),
+      ),
+    ).toEqual(
+      Array(4).fill({
+        name: "brief",
+        kind: "file",
+        path: "brief.md",
+        optional: true,
+      }),
+    );
   });
 });
 

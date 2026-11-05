@@ -25,6 +25,13 @@ import { assembleContext } from "@re-cinq/lore-server-core/features/context/cont
 const originalEnv = { ...process.env };
 const get = (pool: unknown, url: string) =>
   buildServer(() => pool as any).inject({ method: "GET", url, headers: AUTH });
+const post = (pool: unknown, payload: Record<string, unknown>) =>
+  buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/context",
+    payload,
+    headers: AUTH,
+  });
 
 describe("GET /api/context", () => {
   useRateLimitSafeClock();
@@ -34,6 +41,26 @@ describe("GET /api/context", () => {
   afterEach(() => {
     process.env = { ...originalEnv };
     vi.clearAllMocks();
+  });
+
+  it("answers POST /api/context with a 20,000-character query the way the GET does, since a ticket's text does not fit a URL", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({
+      text: "ctx",
+      sections: [],
+    } as any);
+    const pool = makePool();
+    const query = "x".repeat(20_000);
+    const res = await post(pool, {
+      query,
+      repo: "o/r",
+      template: "implementation",
+    });
+
+    expect(res.result).toEqual({ text: "ctx", sections: [] });
+    expect(vi.mocked(assembleContext).mock.calls[0]?.slice(0, 2)).toEqual([
+      pool,
+      query,
+    ]);
   });
 
   it("returns assembled context when query + pool present", async () => {
