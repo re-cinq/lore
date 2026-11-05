@@ -5615,6 +5615,102 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/explain": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_explain",
+        "summary": "POST /api/repos/{owner}/{repo}/explain",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "What a span of code does, in at most two paragraphs grounded in the spec statements linked to it; I don't know when none are",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Explanation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "start_line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "end_line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000
+                  }
+                },
+                "required": ["path", "start_line", "end_line", "code"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/impact": {
       "post": {
         "operationId": "post_api_repos_owner_repo_impact",
@@ -13777,6 +13873,36 @@
           "type": "string"
         },
         "additionalProperties": {}
+      },
+      "Explanation": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "via": {
+                  "type": "string",
+                  "enum": ["validated", "implemented", "covered"]
+                }
+              },
+              "required": ["text", "via"],
+              "additionalProperties": false
+            }
+          },
+          "model": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["answer", "statements", "model"],
+        "additionalProperties": false
       },
       "FloorGitCredential": {
         "type": "object",

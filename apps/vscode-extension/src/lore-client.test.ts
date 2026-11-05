@@ -112,4 +112,36 @@ describe("LoreClient", () => {
     );
     expect(requestCount).toBe(4);
   }, 10_000);
+
+  it("posts the span and code to the explain route and returns the explanation", async () => {
+    let received: { method?: string; url?: string; body: string } = {
+      body: "",
+    };
+    const baseUrl = await startServer((req, res) => {
+      let body = "";
+
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        received = { method: req.method, url: req.url, body };
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify({ answer: "It spins.", statements: [], model: null }),
+        );
+      });
+    });
+    const client = new LoreClient(baseUrl, "tok-1", NO_WAIT);
+    const span = { path: "src/w.ts", start_line: 1, end_line: 2, code: "x" };
+
+    expect({
+      explanation: await client.explain("owner/repo", span),
+      received,
+    }).toEqual({
+      explanation: { answer: "It spins.", statements: [], model: null },
+      received: {
+        method: "POST",
+        url: "/api/repos/owner/repo/explain",
+        body: JSON.stringify(span),
+      },
+    });
+  });
 });

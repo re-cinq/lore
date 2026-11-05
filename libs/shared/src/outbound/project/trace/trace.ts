@@ -1,4 +1,8 @@
 import type {
+  LinkedStatement,
+  LineSpan,
+} from "../../spec-trace/statements-at.js";
+import type {
   TracePort,
   TraceDocument,
   SpecSummary,
@@ -66,6 +70,11 @@ export class TraceView {
     branch?: string,
   ): Promise<CoveringTest[]> {
     return this.port.testsCovering(this.fullName, target, branch);
+  }
+
+  /** The spec statements that reach a span of one file on main: validated by a test there, implemented by code there, or covered by a test that runs it. */
+  statementsAt(span: LineSpan): Promise<LinkedStatement[]> {
+    return this.port.statementsAt(this.fullName, span);
   }
 
   /** Failures recorded against a source file, newest first. */

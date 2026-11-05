@@ -22,6 +22,11 @@ import {
   type CoverageTarget,
 } from "../../spec-trace/tests-covering.js";
 import {
+  statementsAt,
+  type LinkedStatement,
+  type LineSpan,
+} from "../../spec-trace/statements-at.js";
+import {
   failuresTouching,
   type FailureHit,
 } from "../../spec-trace/failure-reads.js";
@@ -78,6 +83,10 @@ export class DgraphTrace implements TracePort {
     branch?: string,
   ): Promise<CoveringTest[]> {
     return testsCovering(this.dgraph, { repo, branch }, target);
+  }
+
+  statementsAt(repo: string, span: LineSpan): Promise<LinkedStatement[]> {
+    return statementsAt(this.dgraph, repo, span);
   }
 
   failuresTouching(repo: string, path: string): Promise<FailureHit[]> {

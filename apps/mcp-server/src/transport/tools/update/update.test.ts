@@ -46,7 +46,7 @@ describe("lore_update", () => {
     const result = await update({});
 
     expect(result.content[0].text).toBe(
-      "Updating — 1 commit(s) behind origin/main.\nrebuilt\n\nRestart Claude Code to load the rebuilt MCP.",
+      "Updating — 1 commit(s) behind origin/main.\nrebuilt\n\nRestart Claude Code to load the rebuilt MCP, and reload the VS Code window if the extension was installed.",
     );
   });
 
@@ -56,7 +56,7 @@ describe("lore_update", () => {
     const result = await update({});
 
     expect(result.content[0].text).toBe(
-      "rebuilt\n\nRestart Claude Code to load the rebuilt MCP.",
+      "rebuilt\n\nRestart Claude Code to load the rebuilt MCP, and reload the VS Code window if the extension was installed.",
     );
   });
 });

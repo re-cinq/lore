@@ -8,7 +8,21 @@ Highlights source lines that fulfil a spec statement and links them to the
   and green *covered* (a spec-linked test exercises them, from the remote
   trace graph). Hover for the statement text + links to open the spec/tests.
 - **In a `spec.md`** — each statement carrying inline links gets a CodeLens to
-  jump to its tests/code.
+  jump to its tests/code. A spec opened from a hover or lens link opens in VS
+  Code's editable markdown preview.
+- **Right-click → Lore: What does this do?** — explains the selected lines (or
+  the cursor's line) in at most two paragraphs, grounded in the spec
+  statements linked to them, in a preview beside the code. With no linked
+  statement it says it does not know (`specs/explain-code/spec.md`).
+
+## Install
+
+`scripts/install.sh` builds the extension from the Lore checkout and installs
+it into every editor CLI on `PATH` (`code`, `code-insiders`, `cursor`,
+`codium`); the `lore_update` MCP tool (`scripts/lore-update.sh`) reinstalls it
+whenever its sources change. Both run `scripts/lore-vscode-install.sh`, which
+does nothing when no editor CLI is found. Set `LORE_SKIP_VSCODE=1` to opt out.
+Reload the VS Code window after an update.
 
 ## Configuration
 
@@ -21,6 +35,7 @@ specs — only the coverage layer needs the remote graph.
 |---|---|
 | `Lore: Refresh spec ↔ code links` | Rebuild the index now |
 | `Lore: Toggle spec highlights` | Show/hide the decorations |
+| `Lore: What does this do?` | Explain the selected code from its specs |
 
 ## Develop
 
@@ -28,6 +43,7 @@ specs — only the coverage layer needs the remote graph.
 npm install          # from the repo root (workspace member)
 npm run build -w lore-vscode
 npm test -w lore-vscode
+npm run package -w lore-vscode   # writes lore-vscode.vsix
 ```
 
 Press **F5** in VS Code to launch the Extension Development Host.
