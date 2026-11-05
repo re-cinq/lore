@@ -3,7 +3,7 @@
 | Field     | Value                                                            |
 |-----------|------------------------------------------------------------------|
 | Feature   | A plan opens at once                                             |
-| Status    | Draft                                                            |
+| Status    | In Progress                                                      |
 | Created   | 2026-11-04                                                       |
 | Owner     | Platform Engineering                                             |
 | Builds on | [specs/7-feature-planning](../7-feature-planning/spec.md)        |
@@ -35,15 +35,15 @@ The page already gets the plan document (the `plan` channel) and its run's statu
 
 ## FR1: The plan page has its own loading skeleton
 
-- `apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/loading.tsx` renders a labeled status region (`role="status"`, `aria-label="Loading plan"`) of skeleton blocks shaped like the plan page: the header (a facts line, then the status badge and Delete button on the right), the run card, and the editor's outline beside its body.
-- The skeleton is built from one shared component, `PlanDetailSkeleton`, whose parts (`header`, `run`, `body`) FR5 reuses. The route skeleton and the in-page fallbacks therefore draw the same shapes, and the page doesn't jump when content replaces them.
-- The route is added to `apps/web-ui/src/app/route-loading-skeletons.test.tsx`, beside the routes [specs/4-ux-repo-onboarding FR-7.8](../4-ux-repo-onboarding/spec.md) already covers.
+- `apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/loading.tsx` renders a labeled status region (`role="status"`, `aria-label="Loading plan"`) of skeleton blocks shaped like the plan page: the header (a facts line, then the status badge and Delete button on the right), the run card, and the editor's outline beside its body. ([validated by draws the route skeleton from the header, run and body parts, each hidden from assistive technology](apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailSkeleton.test.tsx#L16), [validated by renders a labeled status region of skeleton blocks for the %s route](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L19))
+- The skeleton is built from one shared component, `PlanDetailSkeleton`, whose parts (`header`, `run`, `body`) FR5 reuses. The route skeleton and the in-page fallbacks therefore draw the same shapes, and the page doesn't jump when content replaces them. ([validated by draws the route skeleton from the header, run and body parts, each hidden from assistive technology](apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailSkeleton.test.tsx#L16))
+- The route is added to `apps/web-ui/src/app/route-loading-skeletons.test.tsx`, beside the routes [specs/4-ux-repo-onboarding FR-7.8](../4-ux-repo-onboarding/spec.md) already covers. ([validated by renders a labeled status region of skeleton blocks for the %s route](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L19))
 
 ## FR2: A clicked plan card says it is opening
 
-- A plan card on the Plans tab shows a pending state from the click until the plan page (or its loading skeleton) replaces the list: the card shows a small spinner beside the status badge (`role="status"`, `aria-label="Opening plan"`), and the card dims.
-- The pending state comes from Next's `useLinkStatus()`, read by a small client component rendered inside the card's `<Link>` in `PlanListView.tsx`, in the same way as the Loops tab's `LinkPending` and with the same global `chip-spinner` class. The list itself stays a server component. A child cannot set attributes on its `<Link>`, so the card dims through CSS (`.card:has([data-pending])`).
-- Only the clicked card is pending. Clicking a second card moves the pending state to it.
+- A plan card on the Plans tab shows a pending state from the click until the plan page (or its loading skeleton) replaces the list: the card shows a small spinner beside the status badge (`role="status"`, `aria-label="Opening plan"`), and the card dims. ([validated by marks Faster checkout as Opening plan while its page loads](apps/web-ui/src/app/repos/[owner]/[repo]/plans/PlanListView.test.tsx#L45), [validated by shows no Opening plan mark on a card nobody clicked](apps/web-ui/src/app/repos/[owner]/[repo]/plans/PlanListView.test.tsx#L55))
+- The pending state comes from Next's `useLinkStatus()`, read by the shared `LinkPending` client component (`apps/web-ui/src/components/LinkPending.tsx`, which the Loops tab's pills also use) rendered inside the card's `<Link>` in `PlanListView.tsx`, with the global `chip-spinner` class. The list itself stays a server component. A child cannot set attributes on its `<Link>`, so the card dims through CSS (`.card:has([data-pending])`). ([validated by marks Faster checkout as Opening plan while its page loads](apps/web-ui/src/app/repos/[owner]/[repo]/plans/PlanListView.test.tsx#L45))
+- The mark is rendered inside each card's own `<Link>`, and `useLinkStatus()` reads the Link it sits in, so only the clicked card is pending; clicking a second card moves the pending state to it. ([validated by marks Faster checkout as Opening plan while its page loads](apps/web-ui/src/app/repos/[owner]/[repo]/plans/PlanListView.test.tsx#L45))
 
 ## FR3: The server render reads the plan, the session and two tokens, nothing else
 

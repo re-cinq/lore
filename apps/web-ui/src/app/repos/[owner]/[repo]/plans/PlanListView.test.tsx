@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PlanListView from "./PlanListView";
+
+const linkStatus = vi.hoisted(() => ({ pending: false }));
+
+vi.mock("next/link", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/link")>();
+
+  return { ...actual, useLinkStatus: () => linkStatus };
+});
 
 const BASE = "/repos/re-cinq/lore/plans";
 const PLAN = {
@@ -32,5 +40,21 @@ describe("PlanListView", () => {
         textContent: expect.stringContaining("Approved"),
       },
     );
+  });
+
+  it("marks Faster checkout as Opening plan while its page loads", () => {
+    linkStatus.pending = true;
+    render(<PlanListView base={BASE} plans={[PLAN]} />);
+    linkStatus.pending = false;
+
+    expect(
+      screen.getByRole("link", { name: /Faster checkout/ }),
+    ).toContainElement(screen.getByRole("status", { name: "Opening plan" }));
+  });
+
+  it("shows no Opening plan mark on a card nobody clicked", () => {
+    render(<PlanListView base={BASE} plans={[PLAN]} />);
+
+    expect(screen.queryByRole("status", { name: "Opening plan" })).toBeNull();
   });
 });

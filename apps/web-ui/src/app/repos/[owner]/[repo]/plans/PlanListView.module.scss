@@ -27,12 +27,18 @@
   text-decoration: none;
   transition:
     border-color var(--transition),
-    box-shadow var(--transition);
+    box-shadow var(--transition),
+    opacity var(--transition);
 
   &:hover {
     border-color: var(--border-hover);
     box-shadow: var(--shadow);
   }
+}
+
+/* Opening: LinkPending marks the card while its page loads. */
+.card:has([data-pending]) {
+  opacity: 0.6;
 }
 
 .cardHeader {
@@ -48,4 +54,10 @@
 
 .detail {
   margin-top: var(--space-3);
+}
+
+.cardStatus {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
