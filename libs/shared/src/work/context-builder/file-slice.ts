@@ -21,6 +21,21 @@ export function relevantSlice(
   return sliced.slice(0, maxChars);
 }
 
+/** The numbered lines `radius` either side of a 1-based line. */
+export function linesAround(
+  content: string,
+  line: number,
+  radius: number,
+): string {
+  const first = Math.max(0, line - 1 - radius);
+
+  return content
+    .split("\n")
+    .slice(first, line + radius)
+    .map((text, offset) => `${first + offset + 1}: ${text}`)
+    .join("\n");
+}
+
 function matchingWords(words: string[]): string[] {
   return [
     ...new Set(

@@ -82,6 +82,7 @@ describe("COMPOSE_SYSTEM", () => {
       "mark it (inferred)",
       "neither the task's nor one it depends on is left out",
       "never restate the task",
+      'A "linked" entry is a line the task itself points at: answer from it before searching elsewhere.',
     ];
 
     expect(rules.filter((rule) => COMPOSE_SYSTEM.includes(rule))).toEqual(
