@@ -54,12 +54,13 @@ type Statement  { Statement.xid Statement.spec Statement.section Statement.ordin
 type CodeChunk  { CodeChunk.xid CodeChunk.repo CodeChunk.file_path
                   CodeChunk.symbol_name CodeChunk.symbol_type
                   CodeChunk.start_line CodeChunk.end_line
-                  CodeChunk.content_hash CodeChunk.chunk_id CodeChunk.embedding }
+                  CodeChunk.content_hash CodeChunk.chunk_id CodeChunk.embedding
+                  CodeChunk.anchor_hash }
 type TestChunk  { TestChunk.xid TestChunk.repo TestChunk.file_path
                   TestChunk.test_name TestChunk.symbol_name TestChunk.link_label
                   TestChunk.start_line TestChunk.end_line
                   TestChunk.content_hash TestChunk.chunk_id TestChunk.embedding
-                  TestChunk.coverage TestChunk.suite }
+                  TestChunk.coverage TestChunk.suite TestChunk.anchor_hash }
 type TestSuite  { TestSuite.xid TestSuite.repo TestSuite.name TestSuite.file_path
                   TestSuite.parent TestSuite.spec }
 type Coverage   { Coverage.xid Coverage.test Coverage.repo Coverage.tool
@@ -195,6 +196,7 @@ CodeChunk.start_line:   int .
 CodeChunk.end_line:     int .
 CodeChunk.content_hash: string @index(hash) .        # drift substrate
 CodeChunk.embedding:    float32vector @index(hnsw(metric:"cosine")) .
+CodeChunk.anchor_hash:  string @index(exact) .       # content hash of a spec-linked line
 
 TestChunk.repo:         string @index(hash) .
 TestChunk.file_path:    string @index(hash) .
@@ -205,6 +207,7 @@ TestChunk.start_line:   int .
 TestChunk.end_line:     int .
 TestChunk.content_hash: string @index(hash) .
 TestChunk.embedding:    float32vector @index(hnsw(metric:"cosine")) .
+TestChunk.anchor_hash:  string @index(exact) .       # content hash of a spec-linked line
 TestChunk.coverage:     uid @reverse .
 TestChunk.suite:        uid @reverse .                # innermost enclosing suite
 
@@ -551,7 +554,7 @@ a future commit is a prune that does not exist.
 | `Statement` | `repo\|file_path\|ordinal` |
 | `AcceptanceCriterion` | `repo\|file_path\|ac\|ordinal` |
 | `ADR` | `repo\|adr_number` |
-| `CodeChunk` / `TestChunk` | Postgres chunk UUID (fallback `repo\|file_path\|symbol_name`) |
+| `CodeChunk` / `TestChunk` | Postgres chunk UUID (fallback `repo\|file_path\|symbol_name`); a spec-linked `CodeChunk` is `repo\|path\|anchor hash`, a spec-linked `TestChunk` `repo\|path` |
 | `TestSuite` | `repo\|file_path\|suite_chain` (`>`-joined describe names, outermost→innermost) |
 | `Coverage` | `repo\|test_file\|test_name` |
 
