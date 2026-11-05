@@ -5,6 +5,7 @@ import {
 } from "@/lib/api/changelog";
 import type { ApiResult } from "@/lib/api/result";
 import ChangelogView from "./ChangelogView";
+import { writeIntroAction } from "./actions";
 
 interface ChangelogPageProps {
   params: Promise<{ owner: string; repo: string }>;
@@ -30,6 +31,7 @@ export default async function ChangelogPage(props: ChangelogPageProps) {
       page={result.data}
       grouping={by === "person" ? "person" : "list"}
       before={before}
+      writeIntro={writeIntroAction.bind(null, fullName)}
     />
   );
 }

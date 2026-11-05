@@ -7,6 +7,7 @@ import type {
 import Markdown from "@/components/Markdown";
 import { groupByPerson, weekTitle } from "./group-changes";
 import styles from "./ChangelogView.module.scss";
+import WriteIntroButton, { type WriteIntro } from "./WriteIntroButton";
 
 /** One list per week, or one list per person inside each week. */
 export type Grouping = "list" | "person";
@@ -17,17 +18,19 @@ interface ChangelogViewProps {
   grouping: Grouping;
   /** The page's own `before`, kept when the grouping is switched. */
   before?: string;
+  /** Starts a finished week's introduction again, for a week left without one. */
+  writeIntro: WriteIntro;
 }
 
 /** The repository's weeks newest first, each opening with what it delivered (specs/repo-changelog FR6). */
 export default function ChangelogView(props: ChangelogViewProps) {
-  const { base, page, grouping, before } = props;
+  const { base, page, grouping, before, writeIntro } = props;
 
   return (
     <div>
       <GroupingSwitch base={base} grouping={grouping} before={before} />
       {page.weeks.map((week) => (
-        <WeekSection key={week.weekKey} week={week} grouping={grouping} />
+        <WeekSection key={week.weekKey} {...{ week, grouping, writeIntro }} />
       ))}
       {page.next && (
         <div className={styles.older}>
@@ -90,9 +93,11 @@ function hrefOf(
 function WeekSection({
   week,
   grouping,
+  writeIntro,
 }: {
   week: ChangelogWeek;
   grouping: Grouping;
+  writeIntro: WriteIntro;
 }) {
   return (
     <section className={styles.week} aria-label={weekTitle(week)}>
@@ -100,7 +105,7 @@ function WeekSection({
         {weekTitle(week)}
         {week.current && <span className={styles.current}>this week</span>}
       </h3>
-      <WeekIntro week={week} />
+      <WeekIntro week={week} writeIntro={writeIntro} />
       <WeekChanges changes={week.changes} grouping={grouping} />
     </section>
   );
@@ -120,12 +125,25 @@ function WeekChanges({
   );
 }
 
-function WeekIntro({ week }: { week: ChangelogWeek }) {
+function WeekIntro({
+  week,
+  writeIntro,
+}: {
+  week: ChangelogWeek;
+  writeIntro: WriteIntro;
+}) {
   if (week.intro) {
     return <Markdown markdown={week.intro} className={styles.intro} />;
   }
 
-  return <p className={styles.note}>{missingIntro(week)}</p>;
+  return (
+    <div className={styles.note}>
+      <p>{missingIntro(week)}</p>
+      {!week.current && week.changes.length > 0 && (
+        <WriteIntroButton week={week.weekKey} writeIntro={writeIntro} />
+      )}
+    </div>
+  );
 }
 
 function missingIntro(week: ChangelogWeek): string {

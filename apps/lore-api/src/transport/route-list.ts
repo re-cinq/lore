@@ -90,6 +90,7 @@ import { plansRoutes } from "./routes/plans/plans.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
+import { changelogIntroRoute } from "./routes/changelog/changelog-intro.js";
 import { changelogRoute } from "./routes/changelog/changelog.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
@@ -238,6 +239,7 @@ function backlogRoutes(
     ...implementationLoopRoutes(getPool),
     ...loopsRoutes(getPool),
     changelogRoute(getPool),
+    changelogIntroRoute(),
   ];
 }
 

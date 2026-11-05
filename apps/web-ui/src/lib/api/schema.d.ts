@@ -1406,6 +1406,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/changelog/{week}/intro": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/changelog/{week}/intro */
+    post: operations["post_api_repos_owner_repo_changelog_week_intro"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/chunk-summary": {
     parameters: {
       query?: never;
@@ -3243,6 +3260,9 @@ export interface components {
     BranchCreated: {
       /** @constant */
       ok: true;
+    };
+    ChangelogIntroStarted: {
+      runId: string;
     };
     ChangelogPage: {
       weeks: {
@@ -8588,6 +8608,36 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_changelog_week_intro: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        week: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Starts the finished week's weekly-changelog run again, or joins the open one, so its introduction is written and the week stored anew */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangelogIntroStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

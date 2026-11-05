@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import ChangelogView, { type Grouping } from "./ChangelogView";
+import type { WriteIntro } from "./WriteIntroButton";
 
 const W43 = {
   weekKey: "2026-W43",
@@ -36,6 +37,23 @@ function view(grouping: Grouping = "list", next: string | null = "2026-W42") {
       base="/repos/re-cinq/lore/changelog"
       page={{ weeks: [W43, W42], next }}
       grouping={grouping}
+      writeIntro={() => Promise.resolve("")}
+    />,
+  );
+}
+
+const W44_NO_INTRO = { ...W42, weekKey: "2026-W44", intro: null };
+
+function weeks(
+  page: Array<typeof W42 | typeof W43>,
+  writeIntro: WriteIntro = () => Promise.resolve(""),
+) {
+  return render(
+    <ChangelogView
+      base="/repos/re-cinq/lore/changelog"
+      page={{ weeks: page, next: null }}
+      grouping="list"
+      writeIntro={writeIntro}
     />,
   );
 }
@@ -125,6 +143,7 @@ describe("ChangelogView", () => {
           next: null,
         }}
         grouping="list"
+        writeIntro={() => Promise.resolve("")}
       />,
     );
     const lastWeek = screen.getByRole("region", {
@@ -152,6 +171,43 @@ describe("ChangelogView", () => {
       checked: "true",
       text: "On",
       href: "/repos/re-cinq/lore/changelog",
+    });
+  });
+
+  it("offers Write the introduction on finished week 44 with changes and no introduction", () => {
+    weeks([W44_NO_INTRO]);
+
+    expect(
+      screen.getByRole("button", { name: "Write the introduction" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no Write the introduction on the current week, a week with one, or an empty week", () => {
+    weeks([W43, W42, { ...W44_NO_INTRO, changes: [] }]);
+
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("starts 2026-W44 and shows what the start answered", async () => {
+    const asked: string[] = [];
+
+    weeks([W44_NO_INTRO], (week: string) => {
+      asked.push(week);
+
+      return Promise.resolve(
+        "Writing the introduction: reload in a minute or two.",
+      );
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Write the introduction" }),
+    );
+
+    expect({
+      said: (await screen.findByText(/Writing the introduction/)).textContent,
+      asked,
+    }).toEqual({
+      said: "Writing the introduction: reload in a minute or two.",
+      asked: ["2026-W44"],
     });
   });
 });

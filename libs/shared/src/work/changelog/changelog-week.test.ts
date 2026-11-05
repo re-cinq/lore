@@ -18,6 +18,13 @@ describe("isoWeekBounds", () => {
       to: "2027-01-04T00:00:00.000Z",
     });
   });
+
+  it("returns Monday 0099-01-05 to Monday 0099-01-12 for 99-W02, not a week of 1999", () => {
+    expect(isoWeekBounds("99-W02")).toEqual({
+      from: "0099-01-05T00:00:00.000Z",
+      to: "0099-01-12T00:00:00.000Z",
+    });
+  });
 });
 
 describe("finishedWeeks", () => {

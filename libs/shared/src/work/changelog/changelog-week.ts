@@ -18,7 +18,7 @@ export interface WeekBounds {
 
 export function isoWeekBounds(weekKey: string): WeekBounds {
   const [year, week] = weekKey.split("-W").map(Number);
-  const monday = mondayOf(new Date(Date.UTC(year, 0, 4)));
+  const monday = mondayOf(januaryFourth(year));
   const from = monday.getTime() + (week - 1) * WEEK_MS;
 
   return {
@@ -36,13 +36,19 @@ export function finishedWeeks(now: Date, count: number): string[] {
   );
 }
 
+/** Every ISO week 1 holds 4 January. Set through setUTCFullYear because Date.UTC reads years 0 to 99 as 1900 to 1999. */
+function januaryFourth(year: number): Date {
+  const day = new Date(0);
+
+  day.setUTCFullYear(year, 0, 4);
+
+  return day;
+}
+
 /** Midnight UTC of the Monday of the ISO week `day` falls in. */
 function mondayOf(day: Date): Date {
-  const midnight = Date.UTC(
-    day.getUTCFullYear(),
-    day.getUTCMonth(),
-    day.getUTCDate(),
-  );
+  const midnight =
+    day.getTime() - (((day.getTime() % DAY_MS) + DAY_MS) % DAY_MS);
 
   return new Date(midnight - ((day.getUTCDay() + 6) % 7) * DAY_MS);
 }
