@@ -33,9 +33,10 @@ import {
 export type { MirroredDoc };
 export type { MirroredCode, MirroredReport };
 
-/** How one doc file is projected: `force` re-projects a file whose content hash has not changed. */
+/** How one doc file is projected: `force` re-projects a file whose content hash has not changed; `commit` is where the files its links cite are read. */
 export interface DocProjection {
   force: boolean;
+  commit: string;
 }
 
 type ProjectDoc = (
@@ -106,7 +107,11 @@ type DocDeps = Pick<
 function docDeps(must: () => DgraphClientPort): DocDeps {
   return {
     projectSpec: (repo, path, content, projection) =>
-      projectSpecFile({ repo, filePath: path, content }, must(), projection),
+      projectSpecReadingLinks(
+        must(),
+        { repo, filePath: path, content },
+        projection,
+      ),
     projectAdr: (repo, path, content, projection) =>
       projectAdrFile({ repo, filePath: path, content }, must(), projection),
     projectCode: (repo, path, content, projection) =>
@@ -118,6 +123,20 @@ function docDeps(must: () => DgraphClientPort): DocDeps {
     listCode: (repo) => listCodeFilePaths(must(), repo),
     deleteCode: (repo, path) => deleteCodeFile(must(), repo, path),
   };
+}
+
+/** One spec projected with the files its links cite read from GitHub at the delta's commit. */
+async function projectSpecReadingLinks(
+  dgraph: DgraphClientPort,
+  document: { repo: string; filePath: string; content: string },
+  { force, commit }: DocProjection,
+): Promise<{ projected: boolean }> {
+  const { repo: files } = await projectFor(document.repo);
+
+  return projectSpecFile(document, dgraph, {
+    force,
+    readLinked: (linked) => files.read(linked, commit),
+  });
 }
 
 /** The Utopia writes that follow each graph write. */

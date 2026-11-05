@@ -108,17 +108,18 @@ describe("the delivering recipes", () => {
     }
   });
 
-  it("tells every recipe that writes tests to run the spec-link re-anchor script after the formatter, when the repository has one", () => {
+  it("tells every recipe that writes tests to let the formatter hash and repoint its links and to leave the links it did not write", () => {
     for (const name of ["loop-dod", "loop-tdd-round"]) {
-      const prompt = promptOf(name);
+      const prompt = promptOnOneLine(name);
 
-      expect(prompt, name).toContain("node scripts/spec-links/reanchor.mjs");
-      expect(prompt, name).toMatch(
-        /from the repository root\s+after\s+the formatter/,
-      );
-      expect(prompt, name).not.toMatch(
-        /re-verify\s+every existing #Lnn link on the statements you touch,/,
-      );
+      expect(
+        {
+          neverByHand: prompt.includes("never type or compute a hash yourself"),
+          formatter: prompt.includes("npx --no-install eslint --fix <spec>"),
+          leaveOthers: prompt.includes("so leave them alone"),
+        },
+        name,
+      ).toEqual({ neverByHand: true, formatter: true, leaveOthers: true });
     }
   });
 

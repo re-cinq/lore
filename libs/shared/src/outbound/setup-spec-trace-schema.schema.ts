@@ -116,6 +116,7 @@ CodeChunk.repo: string @index(hash) .
 CodeChunk.file_path: string @index(hash) .
 CodeChunk.symbol_name: string @index(term) .
 CodeChunk.start_line: int .
+CodeChunk.anchor_hash: string @index(exact) .
 CodeChunk.end_line: int .
 CodeChunk.content_hash: string @index(hash) .
 CodeChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .
@@ -129,6 +130,7 @@ TestChunk.test_name: string @index(term) .
 TestChunk.symbol_name: string @index(term) .
 TestChunk.link_label: string .
 TestChunk.start_line: int .
+TestChunk.anchor_hash: string @index(exact) .
 TestChunk.end_line: int .
 TestChunk.content_hash: string @index(hash) .
 TestChunk.embedding: float32vector @index(hnsw(metric:"cosine")) .

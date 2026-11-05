@@ -91,6 +91,16 @@ describe("testReportItems", () => {
     ]);
   });
 
+  it("returns anchor_hash a3f9c1d2 for a test whose descriptor carries it, and none for one that does not", () => {
+    const hashed = build([{ ...ROUNDS_TEST, anchorHash: "a3f9c1d2" }]);
+    const plain = build([ROUNDS_TEST]);
+
+    expect([
+      relationsOf(hashed, "anchor_hash"),
+      relationsOf(plain, "anchor_hash"),
+    ]).toEqual([[attribute(ROUNDS, "anchor_hash", "a3f9c1d2")], []]);
+  });
+
   it("returns validated_by for the anchored statement when the anchored test passed", () => {
     const pushed = build([ROUNDS_TEST], passing());
 

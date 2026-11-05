@@ -2,7 +2,7 @@
 
 import {
   statementItems,
-  untitledTestPaths,
+  testPathsToRead,
   type DocStatementsInput,
 } from "../../../domain/utopia/docs/doc-statements.js";
 import {
@@ -86,7 +86,7 @@ async function readTestSources(
   if (!readTest) {
     return new Map();
   }
-  const paths = untitledTestPaths(input);
+  const paths = testPathsToRead(input);
   const sources = await mapWithLimit(paths, CONCURRENCY, (path) =>
     readTest(path, input.commit),
   );

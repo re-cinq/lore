@@ -19,6 +19,8 @@ export interface ProjectionContext {
   specUid: string;
   /** The vector the file's single embed call returned for this text. */
   embeddingOf: (text: string) => number[] | null;
+  /** A file a link cites, read at the ingested commit, so a hashed link is stored at the line its hash now sits on; absent, a link keeps the line it was written with. */
+  readLinked?: (path: string) => Promise<string | null>;
 }
 
 /** Hex sha256 — the content-hash idiom shared by Spec, Statement, and AcceptanceCriterion nodes. */

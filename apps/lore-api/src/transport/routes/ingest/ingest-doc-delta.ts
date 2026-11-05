@@ -131,6 +131,7 @@ async function projectFiles(
   for (const file of delta.files ?? []) {
     const outcome = await project(repo, file.path, file.content, {
       force: delta.force ?? false,
+      commit: delta.commit,
     });
 
     if (outcome.projected) {

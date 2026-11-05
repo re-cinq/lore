@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { statementItems, untitledTestPaths } from "./doc-statements.js";
+import { statementItems, testPathsToRead } from "./doc-statements.js";
+import { anchorHashOf } from "../../anchor-hash.js";
 import {
   attribute,
   fitsOneItem,
@@ -289,11 +290,41 @@ describe("statementItems test titles", () => {
   });
 });
 
-describe("untitledTestPaths", () => {
+describe("testPathsToRead", () => {
   it("returns the context-freshness, other and gone test paths, whose labels name no title, once each", () => {
     expect(
-      untitledTestPaths({ path: "specs/mirror/spec.md", content: LEGACY_SPEC }),
+      testPathsToRead({ path: "specs/mirror/spec.md", content: LEGACY_SPEC }),
     ).toEqual([FRESHNESS, "src/other.test.ts", "src/gone.test.ts"]);
+  });
+
+  it("returns a titled link's path when the link carries a hash", () => {
+    expect(
+      testPathsToRead({
+        path: "specs/mirror/spec.md",
+        content: `- FR1 — Warns. ([validated by warns @abcdef12](src/a.test.ts#L3))\n`,
+      }),
+    ).toEqual(["src/a.test.ts"]);
+  });
+});
+
+describe("statementItems with a hashed link", () => {
+  const declaration = '  it("names a 403 after 3 failures", () => {';
+  const content = `## Freshness\n\n- FR1 — Warns. ([\`context-freshness.test.ts@${anchorHashOf(declaration)}\`](${FRESHNESS}#L40))\n`;
+
+  it("names the test at the line its hash sits on, line 2, though the link says 40", () => {
+    const [fr1] = statementItems({
+      repo: "re-cinq/lore",
+      path: "specs/mirror/spec.md",
+      content,
+      commit: COMMIT,
+      kind: "spec",
+      testSources: new Map([[FRESHNESS, FRESHNESS_SOURCE]]),
+    });
+    const test = `re-cinq/lore:${FRESHNESS}::names a 403 after 3 failures`;
+
+    expect(fr1.s).toEqual(
+      expect.arrayContaining([attribute(test, "line_start", "2")]),
+    );
   });
 });
 

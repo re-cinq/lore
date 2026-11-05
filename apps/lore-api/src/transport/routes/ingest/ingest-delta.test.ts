@@ -830,6 +830,22 @@ describe("POST /api/repos/{owner}/{repo}/ingest with a forced or full doc delta"
     ]);
   });
 
+  it("hands the projector the delta's commit, where the files a spec's links cite are read", async () => {
+    const commits: string[] = [];
+    const deps = fakeDeps();
+
+    deps.projectSpec = async (_repo, _path, _content, projection) => {
+      commits.push(projection.commit);
+
+      return { projected: true };
+    };
+    const server = await serverWith(deps, casFirstIngest);
+
+    await post(server, fullSpecs({}));
+
+    expect(commits).toEqual([SHA_B]);
+  });
+
   it("prunes specs/gone/spec.md when the graph holds it and present does not", async () => {
     const deps = fakeDeps({
       specs: ["specs/a/spec.md", "specs/b/spec.md", "specs/gone/spec.md"],

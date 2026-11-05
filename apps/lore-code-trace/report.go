@@ -18,16 +18,18 @@ import (
 // Contract types mirror libs/shared/src/test-report.ts. The binary forwards
 // descriptors verbatim, so Spec stays an opaque string|[]string.
 type TestDescriptor struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	File      string          `json:"file"`
-	StartLine *int            `json:"startLine,omitempty"`
-	EndLine   *int            `json:"endLine,omitempty"`
-	Suite     []string        `json:"suite,omitempty"`
-	Spec      json.RawMessage `json:"spec,omitempty"`
-	Passed    *bool           `json:"passed,omitempty"`
-	RunnerID  string          `json:"runnerId,omitempty"`
-	Execution *TestExecution  `json:"execution,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	File      string `json:"file"`
+	StartLine *int   `json:"startLine,omitempty"`
+	EndLine   *int   `json:"endLine,omitempty"`
+	// AnchorHash is the content hash of the declaration line (anchor_hash.go).
+	AnchorHash string          `json:"anchorHash,omitempty"`
+	Suite      []string        `json:"suite,omitempty"`
+	Spec       json.RawMessage `json:"spec,omitempty"`
+	Passed     *bool           `json:"passed,omitempty"`
+	RunnerID   string          `json:"runnerId,omitempty"`
+	Execution  *TestExecution  `json:"execution,omitempty"`
 }
 
 type TestLocation struct {
@@ -104,6 +106,7 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, s
 		}
 	}
 	tests = inScope
+	stampAnchorHashes(tests, cwd)
 
 	files, testsByFile := groupByFile(tests)
 

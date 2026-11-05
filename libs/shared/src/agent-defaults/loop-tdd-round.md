@@ -104,14 +104,16 @@ prose must agree with a value, make the prose compute the value instead.
 TRACEABILITY:
 - Each test validates a statement in a spec or ADR. Add the inline
   parenthetical on that statement in the repository's established form —
-  `Statement. ([validated by name](path/to/test.ts#L42))`. Inserting a
-  test shifts every #Lnn link below it: when the repository has
-  `scripts/spec-links/reanchor.mjs`, run
-  `node scripts/spec-links/reanchor.mjs` from the repository root after
-  the formatter — it moves each link to its test's current line, by test
-  title, and prints the links it could not map, which you fix by hand.
-  Without it, re-verify every existing #Lnn link on the statements you
-  touch yourself.
+  `Statement. ([validated by name](path/to/test.ts#L42))`. A link may
+  also end in the content hash of the line it cites, as in
+  `[validated by name @a3f9c1d2](path/to/test.ts#L42)`; never type or
+  compute a hash yourself. After writing links, run the repository's
+  formatter (`npm run format`, or `npx --no-install eslint --fix <spec>`): where its
+  spec lint is re-lint 1.12 or later, that adds the hash to every link on
+  a line you wrote and moves it to its test's current line, and the links
+  you did not write are repointed after the merge by a job of their own,
+  so leave them alone. Where it is not, re-verify every #Lnn link on the
+  statements you touch yourself.
 - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
   validates) so the repo's tests.list surfaces it as the descriptor's
   `spec` field and the VALIDATED_BY link is established automatically —

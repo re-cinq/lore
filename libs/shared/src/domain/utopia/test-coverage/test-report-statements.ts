@@ -120,6 +120,9 @@ function titleOf(descriptor: TestDescriptor): string {
 
 function lineAttributes(test: string, descriptor: TestDescriptor): Statement[] {
   return [
+    ...(descriptor.anchorHash === undefined
+      ? []
+      : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
     ...(descriptor.startLine === undefined
       ? []
       : [attribute(test, "line_start", String(descriptor.startLine))]),

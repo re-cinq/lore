@@ -141,7 +141,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       saved: savedBases(pool),
     }).toEqual({
       status: 200,
-      body: { kb_id: "kb-new", ontology_version: 8 },
+      body: { kb_id: "kb-new", ontology_version: 9 },
       calls: [
         "GET /api/v1/workspaces/ws-1/kbs",
         "POST /api/v1/workspaces/ws-1/kbs",
@@ -149,7 +149,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       ],
       bound: 18,
       statementBound: true,
-      written: [{ utopia: { kb_id: "kb-new", ontology_version: 8 } }],
+      written: [{ utopia: { kb_id: "kb-new", ontology_version: 9 } }],
       saved: [["re-cinq/lore", "kb-new"]],
     });
   });
@@ -163,7 +163,7 @@ describe("POST /api/repos/{owner}/{repo}/utopia/setup", () => {
       calls: seen.filter((call) => !call.startsWith("bind ")),
       saved: savedBases(pool),
     }).toEqual({
-      body: { kb_id: "kb-1", ontology_version: 8 },
+      body: { kb_id: "kb-1", ontology_version: 9 },
       calls: [
         "GET /api/v1/workspaces/ws-2/kbs",
         "POST /api/v1/kbs/kb-1/ontology/imports",

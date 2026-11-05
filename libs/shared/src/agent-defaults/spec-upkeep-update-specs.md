@@ -80,7 +80,10 @@ For each statement:
    repository root):
    `([validated by <the test's title>](<path to the test file>#L<line of the it/test call>))`
    The label is the test's exact title. The line is where the `it(` or
-   `test(` call starts.
+   `test(` call starts. When the repository's formatter lints specs (it
+   does if `npm run format` exists), run it once after linking: it adds the
+   content hash of each cited line to the label (`@a3f9c1d2`). Never type a
+   hash yourself.
 4. No test validates it: leave the statement unlinked. Never write a test,
    never link a test that does not exist, never invent a line number.
 

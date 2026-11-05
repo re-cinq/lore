@@ -131,6 +131,7 @@ type CodeChunk {
   CodeChunk.file_path
   CodeChunk.symbol_name
   CodeChunk.start_line
+  CodeChunk.anchor_hash
   CodeChunk.end_line
   CodeChunk.content_hash
   CodeChunk.embedding
@@ -145,6 +146,7 @@ type TestChunk {
   TestChunk.symbol_name
   TestChunk.link_label
   TestChunk.start_line
+  TestChunk.anchor_hash
   TestChunk.end_line
   TestChunk.content_hash
   TestChunk.embedding

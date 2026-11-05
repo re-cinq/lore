@@ -18,6 +18,7 @@ import { projectAdrFile } from "./project-adr-file.js";
 import { recomputeFile } from "../../outbound/spec-trace/recompute-spec-file.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
+import { anchorHashOf } from "../../domain/anchor-hash.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -415,6 +416,66 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "CodeChunk.file_path": link.path,
       "CodeChunk.start_line": link.line,
     });
+  });
+
+  it("stores a hashed test link at line 3, where its hash now sits, with the hash", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const cited = '  it("returns the value", () => {';
+    const hash = anchorHashOf(cited);
+    const content = `## Overview\n\n- Returns the value ([validated by @${hash}](src/x.test.ts#L1))\n`;
+
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      readLinked: async () => ["// one", "// two", cited].join("\n"),
+    });
+
+    const graph = (await readGraph(
+      `query q($sx: string) {
+        stmt(func: eq(Statement.xid, $sx)) {
+          Statement.validated_by { TestChunk.start_line TestChunk.anchor_hash }
+        }
+      }`,
+      { $sx: `${repo}|${filePath}|0` },
+    )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
+
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      { "TestChunk.start_line": 3, "TestChunk.anchor_hash": hash },
+    ]);
+  });
+
+  it("keys a hashed code link by repo|path|hash, so the chunk keeps its xid when the line moves", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+    const cited = "export function renderWidget(): void {";
+    const hash = anchorHashOf(cited);
+    const content = `## Overview\n\n- The widget renders on mount ([impl @${hash}](src/widget.ts#L10))\n`;
+
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      readLinked: async () => ["// moved", cited].join("\n"),
+    });
+
+    const graph = (await readGraph(
+      `query q($sx: string) {
+        stmt(func: eq(Statement.xid, $sx)) {
+          Statement.implemented_by { CodeChunk.xid CodeChunk.start_line CodeChunk.anchor_hash }
+        }
+      }`,
+      { $sx: `${repo}|${filePath}|0` },
+    )) as {
+      stmt?: { "Statement.implemented_by"?: Record<string, unknown>[] }[];
+    };
+
+    expect(graph.stmt?.[0]?.["Statement.implemented_by"]).toEqual([
+      {
+        "CodeChunk.xid": `${repo}|src/widget.ts|${hash}`,
+        "CodeChunk.start_line": 2,
+        "CodeChunk.anchor_hash": hash,
+      },
+    ]);
   });
 
   it("returns projected true on first call and projected false on an unchanged second call", async () => {

@@ -126,4 +126,66 @@ describe("bindDescriptorsToSpecLinks", () => {
 
     expect(bound.spec).toBeUndefined();
   });
+
+  describe("with content hashes", () => {
+    const HASHED_SPEC = `# X
+
+## Acceptance Criteria
+
+The system greets the user.
+([validated by @aaaaaaaa](src/greet.test.ts#L10))
+
+The system farewells the user.
+([validated by @bbbbbbbb](src/greet.test.ts#L9))
+`;
+    const hashedSpecs = [{ path: SPEC_PATH, content: HASHED_SPEC }];
+
+    it("binds a link whose stale line 99 lies outside every test by its hash aaaaaaaa", () => {
+      const [bound] = bindDescriptorsToSpecLinks(
+        [descriptor({ anchorHash: "aaaaaaaa" })],
+        [
+          {
+            path: SPEC_PATH,
+            content:
+              "# X\n\nThe system greets the user.\n([validated by @aaaaaaaa](src/greet.test.ts#L99))\n",
+          },
+        ],
+      );
+
+      expect(bound.spec).toBe(`${SPEC_PATH}#0`);
+    });
+
+    it("binds the farewell statement, not the greeting one, to a second descriptor whose declaration hash is bbbbbbbb", () => {
+      const bound = bindDescriptorsToSpecLinks(
+        [
+          descriptor({ anchorHash: "aaaaaaaa" }),
+          descriptor({
+            id: "src/greet.test.ts::farewells",
+            anchorHash: "bbbbbbbb",
+          }),
+        ],
+        hashedSpecs,
+      );
+
+      expect(bound.map((each) => each.spec)).toEqual([
+        `${SPEC_PATH}#${greetOrdinal}`,
+        `${SPEC_PATH}#${farewellOrdinal}`,
+      ]);
+    });
+
+    it("binds a hashed link citing a line in a test's body by that line's range", () => {
+      const [bound] = bindDescriptorsToSpecLinks(
+        [descriptor({ startLine: 25, endLine: 35, anchorHash: "dddddddd" })],
+        [
+          {
+            path: SPEC_PATH,
+            content:
+              "# X\n\nThe system farewells the user.\n([validated by @eeeeeeee](src/greet.test.ts#L30))\n",
+          },
+        ],
+      );
+
+      expect(bound.spec).toBe(`${SPEC_PATH}#0`);
+    });
+  });
 });
