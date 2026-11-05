@@ -187,4 +187,21 @@ describe("evaluateTicket", () => {
       systemPrompt: expect.stringContaining("copied word for word"),
     });
   });
+
+  it("hands the judge the ticket and the block in separate delimited parts and tells it noise names only what is inside the block", async () => {
+    const { deps, llm } = scenario();
+
+    await evaluateTicket(deps, {
+      repo: "re-cinq/lore",
+      ticket: TICKET,
+      backend: "utopia",
+    });
+
+    expect(llm.calls[0]).toMatchObject({
+      prompt: expect.stringMatching(
+        /<ticket number="4024">[\s\S]*<\/ticket>\s*<block>[\s\S]*<\/block>/,
+      ),
+      systemPrompt: expect.stringContaining("only what is inside <block>"),
+    });
+  });
 });

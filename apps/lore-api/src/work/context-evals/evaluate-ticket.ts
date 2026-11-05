@@ -61,7 +61,7 @@ export interface TicketTarget {
 }
 
 const JUDGE_SYSTEM =
-  "You read the context block an implementer is handed before starting a ticket. In useful, list at most 5 facts in the block that are specific to THIS ticket (a file, a convention, a decision, a prior attempt) and that an implementer would act on; for each, quote is a span of the block copied word for word that states the fact. Leave useful empty when the block holds nothing specific to the ticket. background is true when the block holds generic background on the repository. In noise, say in one line what in the block is irrelevant or filler.";
+  "You read the context block an implementer is handed before starting a ticket. In useful, list at most 5 facts in the block that are specific to THIS ticket (a file, a convention, a decision, a prior attempt) and that an implementer would act on; for each, quote is a span of the block copied word for word that states the fact. Leave useful empty when the block holds nothing specific to the ticket. background is true when the block holds generic background on the repository. In noise, say in one line what in the block is irrelevant or filler. The ticket is given only so you know what is relevant: a section of the ticket (Implements, References, How to test, Acceptance criteria) is not in the block; in noise name only what is inside <block>.";
 
 const GRADE_SCHEMA = {
   type: "object",
@@ -159,7 +159,7 @@ async function judge(
   return llm.completeWithTool<Judged>({
     ...(judgeModel ? { model: judgeModel } : {}),
     systemPrompt: JUDGE_SYSTEM,
-    prompt: `Ticket #${ticket.number}: ${ticket.title}\n\n${ticket.body}\n\nContext block:\n\n${block}`,
+    prompt: `<ticket number="${ticket.number}">\n${ticket.title}\n\n${ticket.body}\n</ticket>\n<block>\n${block}\n</block>`,
     toolName: "grade",
     toolDescription:
       "What in the block is specific to this ticket, each with its quote",
