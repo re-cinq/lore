@@ -130,6 +130,10 @@
       "types": "./dist/domain/feature-planning/grounding.d.ts",
       "default": "./dist/domain/feature-planning/grounding.js"
     },
+    "./spec-trace/statements-at.js": {
+      "types": "./dist/outbound/spec-trace/statements-at.d.ts",
+      "default": "./dist/outbound/spec-trace/statements-at.js"
+    },
     "./spec-trace/reference-extractor.js": {
       "types": "./dist/work/spec-trace/reference-extractor.d.ts",
       "default": "./dist/work/spec-trace/reference-extractor.js"

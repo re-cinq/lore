@@ -78,6 +78,7 @@ import { analyticsRoutes } from "./routes/analytics/analytics-routes.js";
 import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
 import { traceRoute } from "./routes/trace/trace.js";
+import { explainCodeRoute } from "./routes/explain/explain-code.js";
 import { chunksRoute } from "./routes/repos/chunks.js";
 import { searchContextRoute } from "./routes/context/search-context.js";
 import { chunksPruneRoute } from "./routes/repos/chunks-prune.js";
@@ -299,6 +300,7 @@ function traceRoutes(getPool: PoolGetter): ServerRoute[] {
     impactRoute(),
     impactBaseRoute(),
     traceRoute(),
+    explainCodeRoute(),
     chunksRoute(),
     // The corpus search the MCP adapter proxies; without it lore_search_context can only grep the caller's checkout.
     searchContextRoute(getPool),

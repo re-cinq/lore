@@ -8,6 +8,10 @@ import type {
   CoveringTest,
   CoverageTarget,
 } from "../../spec-trace/tests-covering.js";
+import type {
+  LinkedStatement,
+  LineSpan,
+} from "../../spec-trace/statements-at.js";
 import type { FailureHit } from "../../spec-trace/failure-reads.js";
 import type {
   CallDirection,
@@ -47,6 +51,8 @@ export interface TracePort {
   graph(repo: string): Promise<SpecGraph>;
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
   ring(repo: string, filePath: string): Promise<SpecRing>;
+  /** The spec statements that reach a span of one file on main. */
+  statementsAt(repo: string, span: LineSpan): Promise<LinkedStatement[]>;
   /** Test files exercising a source span — that branch's overlay when `branch` is given, else main. */
   testsCovering(
     repo: string,

@@ -1,3 +1,4 @@
+import type { LinkedStatement } from "../../spec-trace/statements-at.js";
 import type {
   TracePort,
   TraceDocument,
@@ -52,6 +53,10 @@ export class NoGraphTrace implements TracePort {
   }
 
   async testsCovering(): Promise<CoveringTest[]> {
+    throw this.refusal();
+  }
+
+  async statementsAt(): Promise<LinkedStatement[]> {
     throw this.refusal();
   }
 
