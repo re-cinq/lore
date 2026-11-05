@@ -146,7 +146,7 @@ With Dgraph unconfigured, the route fails soft to `200` with
 `status:"unavailable"` and empty statements/orphaned/annotations — never a 500.
 ([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured` @f67c99b7](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L31))
 
-A request without a `write`-scoped token is rejected with 403. ([validated by `returns 401 when the token is unknown` @dd6a040c](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L46))
+A request with an unknown token is rejected with 401. ([validated by `returns 401 when the token is unknown` @dd6a040c](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L46))
 
 An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts@d41c84e1`](apps/lore-api/src/transport/routes/impact/impact-route.test.ts#L70))
 
