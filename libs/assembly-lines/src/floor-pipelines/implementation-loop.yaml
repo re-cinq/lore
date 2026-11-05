@@ -47,6 +47,12 @@ line:
       station: loop-done-check
       bind:
         target: repo
+    # The ticket's briefing, built once by Lore's context builder and kept
+    # as a file every later agent reads, so no pod assembles it cold.
+    - id: brief
+      station: loop-brief
+      bind:
+        target: repo
     - id: dod
       station: loop-dod
       bind:
@@ -122,7 +128,7 @@ line:
       on: failed
       iteration_max: 1
     - from: done-check
-      to: dod
+      to: brief
       on: success
     # Already done by a merged pull request: the run ends and Lore closes the
     # ticket with the pull request and the reason, as for dod's own verdict.
@@ -130,6 +136,14 @@ line:
       to: done
       on: changes_requested
     - from: done-check
+      to: brief
+      on: failed
+    # A briefing that could not be built holds nothing: the agents ask for
+    # context themselves, as they did before it.
+    - from: brief
+      to: dod
+      on: success
+    - from: brief
       to: dod
       on: failed
     - from: dod
@@ -343,6 +357,12 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      # Lore's briefing for the ticket, built once by `brief`; absent when it
+      # could not be built, and on an upkeep run started at sync-pr.
+      - name: brief
+        kind: file
+        path: brief.md
+        optional: true
     produces:
       - name: dod_strategy
         kind: value
@@ -350,6 +370,24 @@ stations:
         kind: value
       - name: dod_resolved
         kind: value
+  loop-brief:
+    description: Asks Lore's context builder once for the ticket's briefing and keeps it as a file every later agent of the run reads; a briefing that could not be built holds nothing.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: ticket
+        kind: file
+        path: ticket.md
+    produces:
+      - name: brief
+        kind: file
+        path: brief.md
   loop-done-check:
     description: Asks a small model whether a merged pull request that names the ticket already does it. Done ends the run with the ticket closed; anything else goes on to the definition of done.
     kind: service
@@ -412,6 +450,12 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      # Lore's briefing for the ticket, built once by `brief`; absent when it
+      # could not be built, and on an upkeep run started at sync-pr.
+      - name: brief
+        kind: file
+        path: brief.md
+        optional: true
       # Absent on the first round: only a red build produces it.
       - name: round_brief
         kind: file
@@ -461,6 +505,12 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      # Lore's briefing for the ticket, built once by `brief`; absent when it
+      # could not be built, and on an upkeep run started at sync-pr.
+      - name: brief
+        kind: file
+        path: brief.md
+        optional: true
       # Absent on the first round: only a red build produces it.
       - name: round_brief
         kind: file
@@ -558,6 +608,12 @@ stations:
       - name: ticket
         kind: file
         path: ticket.md
+      # Lore's briefing for the ticket, built once by `brief`; absent when it
+      # could not be built, and on an upkeep run started at sync-pr.
+      - name: brief
+        kind: file
+        path: brief.md
+        optional: true
       # Absent on the first round: only a red build produces it.
       - name: round_brief
         kind: file
