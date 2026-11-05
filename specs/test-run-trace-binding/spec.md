@@ -42,10 +42,14 @@ but nothing joins them.
 A pure inverter, `bindDescriptorsToSpecLinks`, over a repo's spec markdown plus
 its parsed `TestDescriptor`s. It reuses
 [`linksForStatements`](../../libs/shared/src/domain/spec-link-parser.ts) to read every
-statement's inline test links, indexes them by `(test path, line)`, and stamps
-`descriptor.spec = `${specPath}#${ordinal}`` on each descriptor whose file
-matches a link's path and whose `[startLine, endLine]` span contains the link's
-line. The producer (`list-tests.mjs`) calls it after segmentation, so anchored
+statement's inline test links, indexes them by `(test path, line, hash)`, and stamps
+`descriptor.spec = `${specPath}#${ordinal}`` on each descriptor a link names.
+Since 2026-11-05 a descriptor carries `anchorHash`, the content hash of its
+declaration line stamped by `lore-code-trace`, and a link whose hash equals it
+binds that descriptor wherever the link's `#Lnn` points. A link whose hash is no
+descriptor's declaration, one citing a line in a test's body, or a link with no
+hash binds a descriptor whose file matches the link's path and whose
+`[startLine, endLine]` span contains the link's line. The producer (`list-tests.mjs`) calls it after segmentation, so anchored
 descriptors arrive at `/test-report` and `ingestTestReport`'s existing anchor
 path fires deterministically — `validated_by` on every run, `violated` whenever
 that exact linked test fails. Zero LLM, zero new graph code.
