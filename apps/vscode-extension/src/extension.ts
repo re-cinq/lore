@@ -13,7 +13,7 @@ import {
 import { specLenses } from "./spec-lenses.js";
 import { renderHoverMarkdown } from "./hover.js";
 import { LoreClient } from "./lore-client.js";
-import { detectRepo, gitConfigGlobal } from "./repo.js";
+import { detectRepo, gitConfigGlobal, toRepoRelative } from "./repo.js";
 import type { OpenLocalArgs } from "./command-links.js";
 import { explainSubscriptions } from "./explain-command.js";
 import {
@@ -72,7 +72,12 @@ function registerSubscriptions(context: vscode.ExtensionContext): void {
     lensesChanged,
     ...commandSubscriptions(),
     ...editorSubscriptions(),
-    ...explainSubscriptions({ workspaceRoot, credentials: resolveCredentials }),
+    ...explainSubscriptions({
+      workspaceRoot,
+      credentials: resolveCredentials,
+      state: context.globalState,
+      extensionUri: context.extensionUri,
+    }),
   );
 }
 
@@ -299,17 +304,6 @@ function resolveCredentials(): { apiUrl: string; token: string } | null {
   );
 
   return apiUrl && token ? { apiUrl, token } : null;
-}
-
-/** Repo-relative, forward-slashed path for an absolute file, or null if outside the root. */
-function toRepoRelative(root: string, fsPath: string): string | null {
-  const rel = path.relative(root, fsPath);
-
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    return null;
-  }
-
-  return rel.split(path.sep).join("/");
 }
 
 function workspaceRoot(): string | null {

@@ -1,39 +1,57 @@
-import * as path from "node:path";
 import * as vscode from "vscode";
 import { LoreClient, type ExplainSpan } from "./lore-client.js";
-import { explanationMarkdown } from "./explain-view.js";
-import { detectRepo } from "./repo.js";
-
-/** Serves each explanation as a read-only markdown document, so its preview closes without a save prompt. */
-const EXPLAIN_SCHEME = "lore-explain";
-const pages = new Map<string, string>();
-const pageChanged = new vscode.EventEmitter<vscode.Uri>();
-const pageProvider: vscode.TextDocumentContentProvider = {
-  onDidChange: pageChanged.event,
-  provideTextDocumentContent: (uri) => pages.get(uri.toString()) ?? "",
-};
+import { ExplainCache, type EntryStore } from "./explain-store.js";
+import { ExplainGutter, type LineSpan } from "./explain-gutter.js";
+import { detectRepo, toRepoRelative } from "./repo.js";
 
 export interface ExplainContext {
   workspaceRoot(): string | null;
   credentials(): { apiUrl: string; token: string } | null;
+  /** Survives a restart, so unchanged code keeps its hint. */
+  state: EntryStore;
+  extensionUri: vscode.Uri;
 }
+
+const REDRAW_AFTER_EDIT_MS = 300;
 
 export function explainSubscriptions(
   context: ExplainContext,
 ): vscode.Disposable[] {
+  const cache = new ExplainCache(context.state);
+  const gutter = gutterFor(context, cache);
+  let redraw: ReturnType<typeof setTimeout> | undefined;
+
+  gutter.applyVisible();
+
   return [
-    pageChanged,
-    vscode.workspace.registerTextDocumentContentProvider(
-      EXPLAIN_SCHEME,
-      pageProvider,
-    ),
+    gutter,
     vscode.commands.registerCommand("lore.explainSelection", () =>
-      explainSelection(context),
+      explainSelection(context, cache, gutter),
     ),
+    vscode.window.onDidChangeVisibleTextEditors(() => gutter.applyVisible()),
+    vscode.workspace.onDidChangeTextDocument(() => {
+      clearTimeout(redraw);
+      redraw = setTimeout(() => gutter.applyVisible(), REDRAW_AFTER_EDIT_MS);
+    }),
   ];
 }
 
-async function explainSelection(context: ExplainContext): Promise<void> {
+function gutterFor(
+  context: ExplainContext,
+  cache: ExplainCache,
+): ExplainGutter {
+  return new ExplainGutter(context.extensionUri, cache, (document) => {
+    const root = context.workspaceRoot();
+
+    return root ? toRepoRelative(root, document.uri.fsPath) : null;
+  });
+}
+
+async function explainSelection(
+  context: ExplainContext,
+  cache: ExplainCache,
+  gutter: ExplainGutter,
+): Promise<void> {
   const target = explainTarget(context);
 
   if (!target) {
@@ -43,17 +61,47 @@ async function explainSelection(context: ExplainContext): Promise<void> {
 
     return;
   }
-  const { editor, root, repo, creds } = target;
-  const span = selectedSpan(editor, root);
-  const explanation = await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: "Lore: reading the specs for this code ...",
-    },
-    () => new LoreClient(creds.apiUrl, creds.token).explain(repo, span),
-  );
+  const span = selectedSpan(target.editor, target.root);
 
-  await showPage(span, explanationMarkdown(span, explanation));
+  if (!cache.find(span.path, span.code)) {
+    await askLore(target, span, { cache, gutter });
+  }
+  gutter.applyVisible();
+}
+
+/** Asks lore-api with a spinner beside the lines, caching the answer; a failure is shown, never swallowed. */
+async function askLore(
+  { editor, repo, creds }: ExplainTarget,
+  span: ExplainSpan,
+  { cache, gutter }: { cache: ExplainCache; gutter: ExplainGutter },
+): Promise<void> {
+  const lines = linesOf(span);
+
+  gutter.startLoading(editor.document, lines);
+
+  try {
+    await cache.save(
+      span.path,
+      span.code,
+      await new LoreClient(creds.apiUrl, creds.token).explain(repo, span),
+    );
+  } catch (err) {
+    showFailure(span, err);
+  } finally {
+    gutter.stopLoading(editor.document, lines);
+  }
+}
+
+function linesOf({ start_line, end_line }: ExplainSpan): LineSpan {
+  return { startLine: start_line, endLine: end_line };
+}
+
+function showFailure(span: ExplainSpan, err: unknown): void {
+  const reason = err instanceof Error ? err.message : String(err);
+
+  void vscode.window.showErrorMessage(
+    `Lore: could not explain ${span.path} lines ${span.start_line}-${span.end_line}: ${reason}`,
+  );
 }
 
 interface ExplainTarget {
@@ -93,20 +141,9 @@ function selectedSpan(editor: vscode.TextEditor, root: string): ExplainSpan {
   );
 
   return {
-    path: path.relative(root, document.uri.fsPath).split(path.sep).join("/"),
+    path: toRepoRelative(root, document.uri.fsPath) ?? document.uri.fsPath,
     start_line: startLine + 1,
     end_line: endLine + 1,
     code: document.getText(range),
   };
-}
-
-async function showPage(span: ExplainSpan, markdown: string): Promise<void> {
-  const uri = vscode.Uri.from({
-    scheme: EXPLAIN_SCHEME,
-    path: `/${span.path} lines ${span.start_line}-${span.end_line}.md`,
-  });
-
-  pages.set(uri.toString(), markdown);
-  pageChanged.fire(uri);
-  await vscode.commands.executeCommand("markdown.showPreviewToSide", uri);
 }

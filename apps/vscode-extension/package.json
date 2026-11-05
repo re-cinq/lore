@@ -2,7 +2,7 @@
   "name": "lore-vscode",
   "displayName": "Lore — spec ↔ code",
   "description": "Highlights source lines that fulfil a spec statement and links to the local spec, tests, and ADRs.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "publisher": "re-cinq",
   "type": "module",

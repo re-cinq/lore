@@ -12,7 +12,9 @@ Highlights source lines that fulfil a spec statement and links them to the
   Code's editable markdown preview.
 - **Right-click → Lore: What does this do?** — explains the selected lines (or
   the cursor's line) in at most two paragraphs, grounded in the spec
-  statements linked to them, in a preview beside the code. With no linked
+  statements linked to them. A spinner shows in the gutter while it works,
+  then a hint icon whose hover shows the answer; the answer is cached, so
+  unchanged code keeps its hint after a restart. With no linked
   statement it says it does not know (`specs/explain-code/spec.md`).
 
 ## Install
