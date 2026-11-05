@@ -5,10 +5,8 @@ import type {
   SearchPage,
 } from "../../../domain/utopia/read-shapes.js";
 import type { SearchWindow, UtopiaReads } from "../../utopia/utopia-reads.js";
-import {
-  utopiaDocuments,
-  utopiaSectionReader,
-} from "./context-assembly-utopia.js";
+import { utopiaSectionReader } from "./context-assembly-utopia.js";
+import { utopiaDocuments } from "./context-assembly-utopia-documents.js";
 import type { UtopiaMemoryRead } from "./context-assembly-utopia-memory.js";
 
 const DOCS = "9e8d7c6b-5a49-4382-b1a0-f9e8d7c6b533";
