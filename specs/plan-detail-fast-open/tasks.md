@@ -18,7 +18,7 @@ Every task that adds a behaviour adds its test and links the statement it proves
 
 ## Phase 0: Baseline (before any code)
 
-- [x] T001 **Record the slow reads (SC-003, before).** Done on 2026-11-04 against `re-cinq/Otto` plan `64e50ec3-…`. The numbers are in the spec's opening table. The run list fails with a 500 after 30.5 s, every time. The cause is the `{ since }` cost read (1 run: 1.0 s, 2 runs: 28.4 s). Visits take 0.3–0.5 s. This plan's runs carry no spec PR, so PR status was not timed. T022 repeats the same reads.
+- [x] T001 **Record the slow reads (SC-003, before).** Done on 2026-11-04 against a production plan with seven planning runs. The numbers are in the spec's opening table. The run list fails with a 500 after 30.5 s, every time. The cause is the `{ since }` cost read (1 run: 1.0 s, 2 runs: 28.4 s). Visits take 0.3–0.5 s. This plan's runs carry no spec PR, so PR status was not timed. T022 repeats the same reads.
 
 ## Phase 1: Instant feedback (PR 1)
 
@@ -67,7 +67,7 @@ Phase 2 ships as **two PRs**. PR 2a adds the channel to lore-api and changes not
 - [ ] T019 [P] **Read a run's visits once (FR8).** In `floor-run-reader.ts`, `listStationRuns` calls `this.floor.stationRuns.list({ run })` once and hands the list to `recordOf` (add an optional `visits` parameter) and to the place that uses it directly. Assert in `floor-run-reader-visits.test.ts` that `stationRuns.list` is called once per `listStationRuns`. (Same file as T018, so chain them if one person does both.)
 - [ ] T020 [P] **One GitHub App auth per process (FR7).** In `apps/lore-api/src/outbound/github-client.ts`, hold one lazily built `createAppAuth` in module scope, and have `getGitHubToken` call that instance's `auth({ type: "installation" })`. On a thrown error, keep falling through to `GITHUB_TOKEN` without caching the failure. Extend `github-client.test.ts`: two calls build one auth and request one installation token (mock `@octokit/auth-app`), and a failing auth falls back to `GITHUB_TOKEN`.
 - [ ] T021 **Spec links for Phase 3.** Link FR6, FR7 and FR8's statements, then run `npm run format` and `re-lint-reanchor --check --all origin/main`. (depends on T017–T020)
-- [ ] T022 **Record the reads again (SC-003, after).** Once PR 2b and PR 3 are deployed, open the measured plan (`re-cinq/Otto` `64e50ec3-…`) and time the header and the run card (DevTools Performance panel, or `performance.mark` from the console). The run card must be drawn within 3 s of the header. Then run T001's script again for `GET /api/assembly-runs?subject_key=plan:…` and `GET /api/pr-status`, and put the after numbers beside the before ones in the PR or a follow-up comment. If the run list is not faster, open an issue that names the slowest floor call, before closing this feature. (depends on T021, T048, deploy)
+- [ ] T022 **Record the reads again (SC-003, after).** Once PR 2b and PR 3 are deployed, open the plan T001 measured and time the header and the run card (DevTools Performance panel, or `performance.mark` from the console). The run card must be drawn within 3 s of the header. Then run T001's script again for `GET /api/assembly-runs?subject_key=plan:…` and `GET /api/pr-status`, and put the after numbers beside the before ones in the PR or a follow-up comment. If the run list is not faster, open an issue that names the slowest floor call, before closing this feature. (depends on T021, T048, deploy)
 
 ## Phase 4: Close out
 
