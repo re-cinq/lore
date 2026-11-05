@@ -53,7 +53,6 @@ const REGISTRY_TIMEOUT_MS = 5_000;
 const MAX_MANIFESTS = 20;
 const MEMORY_LIMIT = 6;
 const MAX_ISSUE_CHARS = 3_000;
-const STORE = "lore";
 
 const primerAt = primerCache();
 
@@ -81,6 +80,11 @@ export async function contextBuilderFor(
   };
 }
 
+/** The scope every question is answered in: the repository's own store, Utopia when its settings name none. */
+export function answerScope(pool: Pool, repo: string): Promise<AssemblyScope> {
+  return assemblyScope(pool, repo, undefined);
+}
+
 function stageLine(stages: Record<string, number>): string {
   return Object.entries(stages)
     .map(([stage, ms]) => `${stage}=${ms}ms`)
@@ -102,7 +106,7 @@ async function builderDeps(
 ): Promise<ContextBuilderDeps> {
   const [project, scope] = await Promise.all([
     projectFor(request.repo),
-    assemblyScope(pool, request.repo, STORE),
+    answerScope(pool, request.repo),
   ]);
   const tree = once(() => project.repo.tree());
 
@@ -165,7 +169,7 @@ async function answerText(
   question: string,
   { repo, request }: { repo: string; request: BuilderRequest },
 ): Promise<string> {
-  const scope = await assemblyScope(pool, repo, STORE);
+  const scope = await answerScope(pool, repo);
   const assembled = await templateAssembly(pool, question, {
     ...scope,
     repo,
