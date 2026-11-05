@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { Request, ResponseObject, ResponseToolkit, ServerRoute } from "@hapi/hapi";
+import type {
+  Request,
+  ResponseObject,
+  ResponseToolkit,
+  ServerRoute,
+} from "@hapi/hapi";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -10,6 +15,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import {
   explainCode,
   type ExplainDeps,
+  type ExplainRequest,
 } from "../../../work/explain/explain-code.js";
 
 const ExplainBody = z.object({
@@ -72,16 +78,18 @@ async function serveExplain(
   const repo = `${request.params.owner}/${request.params.repo}`;
   const deps = depsOverride ?? (await explainDeps(repo));
 
-  return h.response(
-    await explainCode(deps, {
-      span: {
-        file: body.path,
-        startLine: body.start_line,
-        endLine: body.end_line,
-      },
-      code: body.code,
-    }),
-  );
+  return h.response(await explainCode(deps, explainRequestOf(body)));
+}
+
+function explainRequestOf(body: z.infer<typeof ExplainBody>): ExplainRequest {
+  return {
+    span: {
+      file: body.path,
+      startLine: body.start_line,
+      endLine: body.end_line,
+    },
+    code: body.code,
+  };
 }
 
 async function explainDeps(repo: string): Promise<ExplainDeps> {

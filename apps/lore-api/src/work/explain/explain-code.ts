@@ -39,7 +39,7 @@ export async function explainCode(
   if (statements.length === 0) {
     return { answer: NO_LINKS_ANSWER, statements, model: null };
   }
-  const completion = await deps.llm.complete({
+  const { text, model } = await deps.llm.complete({
     systemPrompt: SYSTEM_PROMPT,
     prompt: explainPrompt(request, statements),
     maxTokens: 600,
@@ -47,7 +47,7 @@ export async function explainCode(
     jobName: "explain-code",
   });
 
-  return { answer: completion.text.trim(), statements, model: completion.model };
+  return { answer: text.trim(), statements, model };
 }
 
 const REACH_WORDING: Record<LinkedStatement["via"], string> = {

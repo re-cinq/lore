@@ -15,6 +15,7 @@ import { renderHoverMarkdown } from "./hover.js";
 import { LoreClient } from "./lore-client.js";
 import { detectRepo, gitConfigGlobal } from "./repo.js";
 import type { OpenLocalArgs } from "./command-links.js";
+import { explainSubscriptions } from "./explain-command.js";
 import {
   resolveCredentialField,
   decorationRange,
@@ -71,6 +72,7 @@ function registerSubscriptions(context: vscode.ExtensionContext): void {
     lensesChanged,
     ...commandSubscriptions(),
     ...editorSubscriptions(),
+    ...explainSubscriptions({ workspaceRoot, credentials: resolveCredentials }),
   );
 }
 
@@ -95,6 +97,10 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
     return;
   }
   const uri = vscode.Uri.file(path.join(root, args.path));
+
+  if (args.path.endsWith(".md") && (await openEditablePreview(uri))) {
+    return;
+  }
   const editor = await vscode.window.showTextDocument(
     await vscode.workspace.openTextDocument(uri),
   );
@@ -106,6 +112,21 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
 
   editor.selection = new vscode.Selection(target.start, target.start);
   editor.revealRange(target, vscode.TextEditorRevealType.InCenter);
+}
+
+/** Opens a markdown file in VS Code's editable preview; false when this VS Code has none, so the caller falls back to the text editor. */
+async function openEditablePreview(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.commands.executeCommand(
+      "vscode.openWith",
+      uri,
+      "vscode.markdown.editor",
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const lensesChanged = new vscode.EventEmitter<void>();

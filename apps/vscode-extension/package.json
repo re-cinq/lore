@@ -35,6 +35,10 @@
       {
         "command": "lore.openLocal",
         "title": "Lore: Open local file at line"
+      },
+      {
+        "command": "lore.explainSelection",
+        "title": "Lore: What does this do?"
       }
     ],
     "configuration": {
@@ -61,6 +65,15 @@
           "description": "Highlight lines a spec-linked test exercises (coverage layer, from the remote graph)."
         }
       }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "lore.explainSelection",
+          "when": "editorTextFocus && resourceScheme == file",
+          "group": "lore@1"
+        }
+      ]
     }
   },
   "scripts": {

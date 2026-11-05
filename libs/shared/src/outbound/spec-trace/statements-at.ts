@@ -111,13 +111,20 @@ function coveredStatements(
 ): LinkedStatement[] {
   return (records ?? [])
     .filter((record) =>
-      parseRanges(record.file?.[0]?.["file|ranges"] ?? "").some(
-        ([start, end]) => overlaps(start, end, span),
+      parseRanges(coveredFacet(record)).some(([start, end]) =>
+        overlaps(start, end, span),
       ),
     )
     .flatMap((record) =>
       (record.tc ?? []).flatMap((test) => toStatements(test.stmts, "covered")),
     );
+}
+
+/** The `ranges` facet on the record's edge to the asked-about file. */
+function coveredFacet(record: CoverageRecord): string {
+  const file = (record.file ?? []).at(0);
+
+  return file?.["file|ranges"] ?? "";
 }
 
 function overlaps(

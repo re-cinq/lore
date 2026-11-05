@@ -8,7 +8,12 @@ Highlights source lines that fulfil a spec statement and links them to the
   and green *covered* (a spec-linked test exercises them, from the remote
   trace graph). Hover for the statement text + links to open the spec/tests.
 - **In a `spec.md`** — each statement carrying inline links gets a CodeLens to
-  jump to its tests/code.
+  jump to its tests/code. A spec opened from a hover or lens link opens in VS
+  Code's editable markdown preview.
+- **Right-click → Lore: What does this do?** — explains the selected lines (or
+  the cursor's line) in at most two paragraphs, grounded in the spec
+  statements linked to them, in a preview beside the code. With no linked
+  statement it says it does not know (`specs/explain-code/spec.md`).
 
 ## Install
 
@@ -30,6 +35,7 @@ specs — only the coverage layer needs the remote graph.
 |---|---|
 | `Lore: Refresh spec ↔ code links` | Rebuild the index now |
 | `Lore: Toggle spec highlights` | Show/hide the decorations |
+| `Lore: What does this do?` | Explain the selected code from its specs |
 
 ## Develop
 
