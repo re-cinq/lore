@@ -6,7 +6,7 @@
 
 Utopia is ahead of Lore on the evidence so far, with two caveats, and since 2026-10-31 its assembly reads six sections instead of two.
 
-- **Ticket grade after the 11-01 to 11-04 tuning:** Utopia 2.75 against Lore 2.25 on lore, 2.13 against 2.25 on Otto, in 4 to 13k characters against Lore's 30 to 33k. The context builder (`lore-v2`) scored 2.50 on lore and 1.88 on Otto, in 4 to 6k characters and 30 to 36 s. Details below.
+- **Ticket grade after the 11-01 to 11-04 tuning:** Utopia 2.75 against Lore 2.25 on lore, 2.13 against 2.25 on Otto, in 4 to 13k characters against Lore's 30 to 33k. The context builder (`lore-v2`) scored 2.50 on lore and 1.88 on Otto on 11-04, in 4 to 6k characters and 30 to 36 s; after #4112 and #4116 on 11-05 it scores 2.75 on lore and 2.50 on Otto, in 4 to 4.6k characters and 17 to 20 s, level with Utopia on lore and ahead of both on Otto. Details below.
 
 - **Document questions, same 20 documents before and after the readers (2026-10-31):** Utopia answered 15 then 19 of 20 on lore, 16 then 18 of 20 on Otto, level with Lore; it found 20 of 20 and 19 of 20. Its assembly took 24 to 26 s median against Lore's 1.3 to 1.7 s, with Utopia's database saturated by its own extraction queue, and the useful share did not move. Details below.
 
@@ -122,10 +122,16 @@ Four changes to the Utopia arm went live in this window:
 
 The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 once #4106 let the ticket eval name it. It plans questions about the ticket, answers them from Lore's stores and the repository's files, and writes the block on Gemini 3 Flash.
 
-| Repo | `lore-v2` mean | Block | p50 latency | Lore mean | Utopia mean |
-|---|---|---|---|---|---|
-| lore | 2.50 | 4,182 chars | 36.0 s | 2.25 | **2.75** |
-| Otto | 1.88 | 5,641 chars | 29.9 s | **2.25** | 2.13 |
+| Run | Repo | `lore-v2` mean | Built | Block | p50 latency | Lore mean | Utopia mean |
+|---|---|---|---|---|---|---|---|
+| 11-04, #4093 as shipped | lore | 2.50 | 8 / 8 (one empty) | 4,182 chars | 36.0 s | 2.25 | **2.75** |
+| 11-04, #4093 as shipped | Otto | 1.88 | 8 / 8 | 5,641 chars | 29.9 s | **2.25** | 2.13 |
+| 11-05, after #4112 | lore | 2.50 | 5 / 8 | 4,651 chars built | 33.8 s built | 2.25 | **2.75** |
+| 11-05, after #4112 | Otto | 2.12 | 3 / 8 | 4,187 chars built | 24.6 s built | **2.25** | 2.13 |
+| 11-05, after #4116 | lore | **2.75** | 8 / 8 | 4,568 chars | 19.5 s | 2.25 | **2.75** |
+| 11-05, after #4116 | Otto | **2.50** | 8 / 8 | 3,965 chars | 17.4 s | 2.25 | 2.13 |
+
+"Built" counts the blocks the builder wrote; the rest fell back to the template assembly over Lore's stores and were graded as that (the eval reports the fallback since #4112; on 11-04 the one empty block was graded as the builder's). #4112 cut the block's scaffolding (`Unanswered:`, tool instructions, examples on tasks that write nothing), moved the primer to the end at 120 words, ran the file pick beside the plan, sliced opened files to the lines around the task's words, added a GitHub code search for the ticket's quoted strings, and gave every Gemini call a 90 s timeout, which the write-up then ran out on 8 of 16 builds. #4116 found why: the provider never sent `maxOutputTokens` and left Gemini 3's thinking at its dynamic default, so the write-up ran unbounded; with the cap sent, the low thinking level and a 2,000-token write-up, every build finished in 14 to 24 s.
 
 ### Document evals, useful share
 
@@ -145,7 +151,8 @@ The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 on
 - **Recent Changes helped where a ticket's history mattered** (lore #4057, where the judge used "the logic … was introduced in commit #4039") and was named as noise on two Otto tickets: once for a commit of another task, once for the long file list of a commit touching 40 files. The next change shows only the files the ticket names, with a count of the rest.
 - **Otto's dip on 11-04 is one ticket,** #689, scored 1, where no section of either store held what the ticket asked.
 - **Utopia's assembly on Otto took 28.9 s at p50 on 11-04,** against 2.9 s on lore, while its extraction queue drained the 2,276 updated commits.
-- **`lore-v2` sits between the two on lore and last on Otto.** It writes the smallest block, 4 to 6k characters, and takes 30 to 36 s at p50. Where it reads code it is the most precise of the three: on lore #4012 it named `isOutOfBudget`, its argument and the existing `ranOutOfCredit` check, and on #4056 the two functions behind the bug. Where it fails, it is on tickets whose answer is not in a file it opened (lore #4057, scored 1; Otto #673 and #689, scored 1), and the judge named its own scaffolding (`Unanswered:`, `Example of …`, the read-tool instructions) as noise on most blocks.
+- **`lore-v2` as shipped sat between the two on lore and last on Otto; after #4112 and #4116 it is level with Utopia on lore (2.75) and ahead of both on Otto (2.50),** in the smallest block (4 to 4.6k characters) and 17 to 20 s at p50, down from 30 to 36 s. Where it reads code it is the most precise of the three: on lore #4012 it named `isOutOfBudget`, its argument and the existing `ranOutOfCredit` check, and on #4056 the two functions behind the bug. On 11-04 it failed on tickets whose answer was in no file it opened (lore #4057; Otto #673 and #689), and the judge named its scaffolding as noise on most blocks; on 11-05 lore #4057 scores 3 and only Otto #689 keeps its 1, the ticket no store answers. The noise the judge still names is the ticket's own sections (`Implements`, `References`, `How to test`), which the compose rule now forbids copying; whether the judge reads them in the block or in the ticket text it is also handed is the next thing to check.
+- **The 11-05 reruns measured the whole path.** Half the builds after #4112 fell back on a 90 s write-up timeout and were graded as the template assembly, so the mean hid a builder that finished three times in eight; the eval's `Sections` column now says `builder` or `fallback: <reason>` per ticket, and a mean is read beside its built count.
 
 ## Re-run on 2026-10-19: the gap was missing data
 
