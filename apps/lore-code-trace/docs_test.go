@@ -368,3 +368,35 @@ func TestDocsFlowGivesUpLoudlyAfterASecondStaleBase(t *testing.T) {
 		t.Fatalf("err = %v, want the stale-state error", err)
 	}
 }
+
+func TestDocsFlowPacksFilesIntoOnePostUpTo150000Bytes(t *testing.T) {
+	for _, tc := range []struct {
+		bodyBytes int
+		posts     int
+	}{
+		{bodyBytes: 150_000, posts: 1},
+		{bodyBytes: 150_001, posts: 2},
+	} {
+		deps, posts := docsFixture{
+			states:  []*string{nil},
+			tracked: []string{"specs/a/spec.md", "specs/b/spec.md"},
+		}.deps()
+		deps.read = twoSpecsTotalling(tc.bodyBytes)
+
+		if err := runDocsFlow(context.Background(), deps, specsRun); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(*posts) != tc.posts {
+			t.Errorf("two specs totalling %d bytes went as %d posts, want %d", tc.bodyBytes, len(*posts), tc.posts)
+		}
+	}
+}
+
+// twoSpecsTotalling reads specs/a and specs/b with contents that make the JSON
+// of both, as one chunk carries them, exactly bodyBytes long.
+func twoSpecsTotalling(bodyBytes int) func(string) (string, error) {
+	empty := jsonLen([]docFile{{Path: "specs/a/spec.md"}, {Path: "specs/b/spec.md"}})
+	half := (bodyBytes - empty) / 2
+	sizes := map[string]int{"specs/a/spec.md": half, "specs/b/spec.md": bodyBytes - empty - half}
+	return func(path string) (string, error) { return strings.Repeat("x", sizes[path]), nil }
+}

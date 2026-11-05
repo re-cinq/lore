@@ -17,8 +17,10 @@ const (
 	ingestManifestPath = ".lore/ingest.yml"
 	// Each chunk is projected before lore-api answers, so a chunk is sized for
 	// the projection time of the specs it carries rather than for the 1 MiB body
-	// cap: a quarter megabyte is about fifteen specs.
-	docChunkBytes = 250_000
+	// cap. A statement costs about five graph round trips and a link two, and
+	// 150,000 bytes keeps the biggest chunk of Lore's own specs to about 4,000,
+	// under twenty of the thirty minutes a post waits (issue #4146).
+	docChunkBytes = 150_000
 )
 
 var docKinds = []string{"specs", "adrs", "code"}
