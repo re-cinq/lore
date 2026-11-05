@@ -374,23 +374,23 @@ can tell the test it just wrote from a regression it just caused.
 
 Coverage is aggregated per test FILE at ingest, so the answer names test files
 rather than individual `it()` blocks. A record is returned when its covered
-intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range @d31d9baa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L91))
+intervals overlap the asked-about range. ([validated by returns the test whose coverage overlaps the asked-about line range @d31d9baa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L99))
 
 A range no coverage record touches returns nothing rather than falling back to
-the whole file. ([validated by returns nothing for a range no test covers @79314ed4](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L104))
+the whole file. ([validated by returns nothing for a range no test covers @79314ed4](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L114))
 
 Asking about a file without narrowing to a range returns every test file that
-covers it. ([validated by returns every covering test when no range narrows the question @659f1402](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L117))
+covers it. ([validated by returns every covering test when no range narrows the question @659f1402](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
 
 Inside a branch's overlay the same question is answered from the branch's own
-coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the branch scope and marks it as overlay @66db1601](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L127))
+coverage, tagged as coming from the overlay. ([validated by reads the branch's own coverage from the branch scope and marks it as overlay @66db1601](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L137))
 
 That branch coverage is invisible from the main scope, so a branch in flight cannot
-change what anyone else is told. ([validated by does not see the branch's coverage from the main scope @6b53fcd0](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L141))
+change what anyone else is told. ([validated by does not see the branch's coverage from the main scope @6b53fcd0](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L153))
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
-nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L31), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L35), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39))
+nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L43), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L47))
 
 ### Ending a branch's overlay
 

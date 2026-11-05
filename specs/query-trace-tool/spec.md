@@ -108,11 +108,11 @@ repo. ([validated by returns 400 when no path names the covered file @a778015a](
 
 The route returns the port's covering tests under a `tests` key. ([validated by returns the port's covering tests under a tests key @7ecdad81](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L52))
 
-It parses `ranges` and passes them with the branch to the port, ([validated by passes parsed ranges and the branch to the port @5a56a105](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L65))
+It parses `ranges` and passes them with the branch to the port, ([validated by passes parsed ranges and the branch to the port @5a56a105](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L75))
 
-It omits ranges entirely when the query names none, so an unnarrowed question stays unnarrowed. ([validated by omits ranges from the target when the query names none @e1155b6d](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L82))
+It omits ranges entirely when the query names none, so an unnarrowed question stays unnarrowed. ([validated by omits ranges from the target when the query names none @e1155b6d](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L92))
 
-A `ranges` query past the length bound is refused. ([validated by returns 400 when the ranges query exceeds the length bound @4f0a9f17](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L90))
+A `ranges` query past the length bound is refused. ([validated by returns 400 when the ranges query exceeds the length bound @4f0a9f17](apps/lore-api/src/transport/routes/trace/trace-tests-covering.test.ts#L100))
 
 The repo-bound view binds its own repo and forwards the target and branch to the
 port, ([validated by binds the view's repo and forwards target plus branch to the port @5b0a700d](libs/shared/src/outbound/project/trace/trace.test.ts#L29))
