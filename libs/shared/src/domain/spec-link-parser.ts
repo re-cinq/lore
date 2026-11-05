@@ -47,11 +47,7 @@ export function splitHashedLabel(label: string): {
     : { text: label, hash: null };
 }
 
-/**
- * The label carrying `hash` in place of any it had. The hash goes inside a closing code span
- * (`` `name.test.ts@hash` ``), against a one-word label (`L5@hash`), or after the text with a
- * space. A `name.test.ts:196` next to it trades its line for the hash: that line goes stale.
- */
+/** The label carrying `hash` in place of any: inside a closing code span, against a one-word label, else after a space; a `name.test.ts:196` drops its stale line. */
 export function withAnchorHash(label: string, hash: string): string {
   const { text } = splitHashedLabel(label);
   const span = LAST_CODE_SPAN_RE.exec(text);

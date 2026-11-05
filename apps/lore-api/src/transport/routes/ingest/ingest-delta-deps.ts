@@ -106,14 +106,12 @@ type DocDeps = Pick<
 /** The doc-kind writes: project one file, list what the graph holds, delete one subtree. */
 function docDeps(must: () => DgraphClientPort): DocDeps {
   return {
-    projectSpec: async (repo, path, content, { force, commit }) => {
-      const { repo: files } = await projectFor(repo);
-
-      return projectSpecFile({ repo, filePath: path, content }, must(), {
-        force,
-        readLinked: (linked) => files.read(linked, commit),
-      });
-    },
+    projectSpec: (repo, path, content, projection) =>
+      projectSpecReadingLinks(
+        must(),
+        { repo, filePath: path, content },
+        projection,
+      ),
     projectAdr: (repo, path, content, projection) =>
       projectAdrFile({ repo, filePath: path, content }, must(), projection),
     projectCode: (repo, path, content, projection) =>
@@ -125,6 +123,20 @@ function docDeps(must: () => DgraphClientPort): DocDeps {
     listCode: (repo) => listCodeFilePaths(must(), repo),
     deleteCode: (repo, path) => deleteCodeFile(must(), repo, path),
   };
+}
+
+/** One spec projected with the files its links cite read from GitHub at the delta's commit. */
+async function projectSpecReadingLinks(
+  dgraph: DgraphClientPort,
+  document: { repo: string; filePath: string; content: string },
+  { force, commit }: DocProjection,
+): Promise<{ projected: boolean }> {
+  const { repo: files } = await projectFor(document.repo);
+
+  return projectSpecFile(document, dgraph, {
+    force,
+    readLinked: (linked) => files.read(linked, commit),
+  });
 }
 
 /** The Utopia writes that follow each graph write. */

@@ -204,8 +204,9 @@ const FILE_LINE_LABEL = /^[^\s:]+(?::\d+|\.[A-Za-z0-9]+)$/;
 
 /** The label after "validated by", its `@hash` and backticks dropped; null when that leaves nothing, a `file:line` or a file name. */
 function labelTitle(label: string): string | null {
-  const title = splitHashedLabel(label)
-    .text.replace(/^validated by\b\s*/i, "")
+  const { text } = splitHashedLabel(label);
+  const title = text
+    .replace(/^validated by\b\s*/i, "")
     .replace(/^`(.*)`$/, "$1")
     .trim();
 

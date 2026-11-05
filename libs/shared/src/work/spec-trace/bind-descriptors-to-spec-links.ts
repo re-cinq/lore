@@ -25,11 +25,7 @@ export function bindDescriptorsToSpecLinks(
   specs: SpecSource[],
 ): TestDescriptor[] {
   const index = buildLinkIndex(specs);
-  const declarationHashes = new Set(
-    descriptors.flatMap((descriptor) =>
-      descriptor.anchorHash === undefined ? [] : [descriptor.anchorHash],
-    ),
-  );
+  const declarationHashes = new Set(descriptors.map((d) => d.anchorHash));
 
   return descriptors.map((descriptor) => {
     // A descriptor that already names its spec keeps it: the author's own anchor outranks anything inferred from line ranges.

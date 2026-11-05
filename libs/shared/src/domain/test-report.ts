@@ -61,10 +61,6 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
     descriptor.endLine = entry.endLine;
   }
 
-  if (typeof entry.anchorHash === "string") {
-    descriptor.anchorHash = entry.anchorHash;
-  }
-
   descriptor.suite = stringArrayOrUndefined(entry.suite);
   descriptor.spec = normalizeSpecField(entry.spec);
   Object.assign(descriptor, executionFields(entry));
@@ -82,6 +78,9 @@ function executionFields(entry: Record<string, unknown>) {
   return {
     ...(typeof entry.runnerId === "string" &&
       entry.runnerId !== "" && { runnerId: entry.runnerId }),
+    ...(typeof entry.anchorHash === "string" && {
+      anchorHash: entry.anchorHash,
+    }),
     ...(execution.success && { execution: execution.data }),
   };
 }

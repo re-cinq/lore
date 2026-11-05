@@ -104,9 +104,6 @@ function testAttributes(
       knownAs(test, title),
       attribute(test, "path", descriptor.file),
       ...lineAttributes(test, descriptor),
-      ...(descriptor.anchorHash === undefined
-        ? []
-        : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
       attribute(test, "permalink", permalinkOf(input, descriptor)),
     ],
   };
@@ -123,6 +120,9 @@ function titleOf(descriptor: TestDescriptor): string {
 
 function lineAttributes(test: string, descriptor: TestDescriptor): Statement[] {
   return [
+    ...(descriptor.anchorHash === undefined
+      ? []
+      : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
     ...(descriptor.startLine === undefined
       ? []
       : [attribute(test, "line_start", String(descriptor.startLine))]),
