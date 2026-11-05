@@ -33,7 +33,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -52,7 +52,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
         drifted: true,
       }),
     ];
@@ -70,7 +70,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
         drifted: true,
       }),
     ];
@@ -128,6 +128,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
             label: "validated by redact.test.ts:7",
             path: "agent/src/lib/redact.test.ts",
             line: 7,
+            hash: null,
           },
         ],
       }),
@@ -153,7 +154,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         ordinal: 0,
         text: "Per [ADR-015](adrs/ADR-015.md). ([t](src/x.test.ts#L1))",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -176,7 +177,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements, "unknown");
@@ -197,7 +198,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -219,7 +220,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -240,7 +241,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "Claims a pending task. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
         drifted: true,
       }),
     ];
@@ -270,7 +271,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         ordinal: 0,
         text: "It claims a **pending** task. ([t](src/x.test.ts#L1))",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -291,7 +292,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "A statement carrying a test link counts as `covered` in the `CoverageBar`. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -311,7 +312,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "A statement carrying a test link counts as `covered`. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container, rerender } = render(
@@ -332,7 +333,7 @@ describe("SpecDetails v3 (markdown-driven)", () => {
         text: "The cron emits a `([validated by ...](path#Lline))` parenthetical. ([t](src/x.test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1 }],
+        testLinks: [{ label: "t", path: "src/x.test.ts", line: 1, hash: null }],
       }),
     ];
     const { container } = renderSpec(md, statements);
@@ -451,7 +452,9 @@ describe("SpecDetails sanitization", () => {
         text: "Claims the task. ([t](src/util(spec).test.ts#L1))",
         kind: "list-item",
         state: "tested",
-        testLinks: [{ label: "t", path: "src/util(spec).test.ts", line: 1 }],
+        testLinks: [
+          { label: "t", path: "src/util(spec).test.ts", line: 1, hash: null },
+        ],
       }),
     ];
     const { container } = renderSpec(md, statements);

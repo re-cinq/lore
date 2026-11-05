@@ -9,6 +9,8 @@ export interface TestLinkRef {
   path: string;
   /** Line number from a `#L42` anchor, or null when absent. */
   line: number | null;
+  /** The content hash of the cited line the label ends with (`@a3f9c1d2`), or null when it carries none. */
+  hash: string | null;
 }
 
 export interface TraceLinkRef {
