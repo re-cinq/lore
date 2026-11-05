@@ -13,6 +13,10 @@ import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { specFilingKey } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
+import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
+import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
+import { specHeading } from "@re-cinq/lore-shared";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
   runIssuesStation,
@@ -38,8 +42,7 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       const verified = Boolean(brief.needs.verified_decomposition);
       const artifact = verified ? "verified_decomposition" : "decomposition";
       const decomposition = (await tools.read(artifact)).toString("utf8");
-      const input = await stationInputOf(deps, brief, decomposition);
-      const project = await deps.project(input.repo);
+      const { input, project } = await filingOf(deps, brief, decomposition);
 
       return reportOf(
         await (verified
@@ -53,6 +56,33 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
 
       return { outcome: "failed", error: message };
     }
+  };
+}
+
+async function filingOf(
+  deps: SpecTicketsIssuesDeps,
+  brief: Brief,
+  decomposition: string,
+) {
+  const unnamed = await stationInputOf(deps, brief, decomposition);
+  const project = await deps.project(unnamed.repo);
+
+  return { project, input: await titledAfterSpec(unnamed, project) };
+}
+
+/** A spec's story takes the spec's name, not its first slice's: a slice's name can change from run to run, and many specs share "Setup and foundation". */
+async function titledAfterSpec(
+  input: StationInput,
+  project: NonNullable<IssuesStationDeps["project"]>,
+): Promise<StationInput> {
+  const { feature_decomposition: raw, spec_path: specPath } = input.params;
+  const [file] = specFilesOfRun(specPath, undefined);
+  const commit = parseDecomposition(parseModelJson(raw)).spec_commit;
+  const spec = await project.repo.read(file, commit ?? input.branch);
+
+  return {
+    ...input,
+    params: { ...input.params, plan_title: specHeading(spec ?? "") ?? file },
   };
 }
 

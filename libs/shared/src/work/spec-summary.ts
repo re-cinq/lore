@@ -8,13 +8,15 @@ const TITLE_PREFIX_RE =
 
 /** First H1 with a leading "Feature Specification:" prefix stripped; falls back to the feature directory, then the raw file path. */
 export function parseSpecTitle(content: string, filePath: string): string {
+  return specHeading(content) ?? specFeatureSlug(filePath) ?? filePath;
+}
+
+/** First H1 with a leading "Feature Specification:" prefix stripped; undefined when the spec has no H1, or one that holds only that prefix. */
+export function specHeading(content: string): string | undefined {
   const h1 = content.split("\n").find((line) => /^#\s+\S/.test(line));
+  const heading = h1?.replace(/^#\s+/, "").replace(TITLE_PREFIX_RE, "").trim();
 
-  if (h1) {
-    return h1.replace(/^#\s+/, "").replace(TITLE_PREFIX_RE, "").trim();
-  }
-
-  return specFeatureSlug(filePath) ?? filePath;
+  return heading || undefined;
 }
 
 /** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists), whitespace-collapsed and truncated to `maxLength` with an ellipsis. */

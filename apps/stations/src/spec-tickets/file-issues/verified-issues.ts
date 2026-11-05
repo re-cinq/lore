@@ -27,11 +27,13 @@ export async function runVerifiedIssuesStation(
   input: StationInput,
   project: StationProject,
 ): Promise<NodeResult> {
-  const prepared = await prepareFiling(input, project);
-  const { actionable, context, original } = prepared;
+  const { actionable, context } = await prepareFiling(input, project);
+  const planTitle = input.params.plan_title;
   const work = context.nothingRemaining
-    ? emptyWork(original, input.params.spec_path)
-    : decideIssueWork(actionable, await project.issues.listLabels());
+    ? emptyWork(planTitle)
+    : decideIssueWork(actionable, await project.issues.listLabels(), {
+        planTitle,
+      });
 
   if (work.outcome === "changes_requested") {
     return {
@@ -53,7 +55,6 @@ async function prepareFiling(input: StationInput, project: StationProject) {
   const context = filingContext(input, actionable, { uiUrl: undefined, spec });
 
   return {
-    original,
     actionable,
     context: {
       ...context,
@@ -111,15 +112,10 @@ function filingResult(
   return { outcome: "success", extras };
 }
 
-function emptyWork(
-  decomposition: DecompositionResult,
-  specPath: string,
-): ProceedWork {
-  const story = decomposition.stories.at(0);
-
+function emptyWork(planTitle: string): ProceedWork {
   return {
     outcome: "proceed",
-    story: { title: `User story: ${story?.title ?? specPath}`, labels: [] },
+    story: { title: `User story: ${planTitle}`, labels: [] },
     tasks: [],
   };
 }

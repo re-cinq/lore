@@ -180,7 +180,7 @@ describe("verified spec ticket flow", () => {
       { outcome: "success" },
     ]);
     expect(run.filed.map(({ title }) => title)).toEqual([
-      "User story: Messages",
+      "User story: Widget",
       "T001: Build the message list",
     ]);
   });
@@ -288,7 +288,7 @@ describe("verified spec ticket flow", () => {
       { outcome: "success" },
     ]);
     expect(run.filed.map(({ title }) => title)).toEqual([
-      "User story: Messages",
+      "User story: Widget",
       "T001: Build the message list",
     ]);
   });
@@ -429,7 +429,7 @@ describe("verified spec ticket flow", () => {
       { outcome: "success" },
     ]);
     expect(run.filed.map(({ title }) => title)).toEqual([
-      "User story: Messages",
+      "User story: Widget",
       "T002: Add colour",
     ]);
     expect(run.filed[1].body).not.toContain("Depends on");
