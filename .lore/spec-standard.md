@@ -30,6 +30,15 @@ link:
 
 ## Statements
 
+- A link names its line by content too: its label ends in the content hash of
+  the cited line, as in `([validated by adds numbers @1e7912b3](path/to/test.ts#L42))`
+  or `` ([`maths.test.ts@1e7912b3`](path/to/maths.test.ts#L42)) ``. Never write a
+  hash by hand: write the `#Lnn` link and run `npm run format` (or
+  `npx eslint --fix <spec>`), which adds it. The hash follows the line when
+  code moves, so the `#Lnn` is only where GitHub opens the file. A pull request
+  fixes only the links on lines it wrote; the `spec-link-upkeep` workflow
+  repoints the rest after the merge, in a pull request of its own.
+
 - Every testable statement either carries a trailing `([validated by](…#Lnn))`
   link — on the statement's own line, at its end — to
   the test that validates it, or lives under a narrative heading (Background /

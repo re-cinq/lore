@@ -652,16 +652,24 @@ export default tseslint.config(
       "re-lint/no-ungrounded-spec-name": "warn",
     },
   },
-  // A `([validated by](test.ts#Lnn))` anchor drifts when a branch moves the test it
-  // cites. `eslint --fix` — so `npm run format`, and the CI `format` job that
-  // commits its result — repoints the links the branch's diff against the merge
-  // base with main moved; a plain `eslint` fails a branch that left one stale.
+  // A `([validated by @hash](test.ts#Lnn))` link names its line by content: the
+  // hash follows the line when the file moves around it. `eslint --fix` (so
+  // `npm run format` and the CI `format` job) adds a missing hash and repoints a
+  // link, but only on spec lines the branch wrote: the rest is repointed after the
+  // merge by the `spec-link-upkeep` workflow, in a pull request of its own. So a
+  // stale anchor is a warning; only a link nothing can repoint fails the branch.
   // Wider than the block above: tasks.md and plan siblings carry links too.
   {
     files: ["specs/**/*.md", "adrs/**/*.md", ".specify/spec.md"],
     language: "markdown/gfm",
     plugins: { markdown, "re-lint": reLint },
-    rules: { "re-lint/no-stale-spec-links": "error" },
+    rules: {
+      "re-lint/no-stale-spec-links": [
+        "warn",
+        { scope: "authored", reportUnhealable: false },
+      ],
+      "re-lint/no-rotten-spec-links": "error",
+    },
   },
   // Every markdown link to a repo file, wherever docs live. `require-spec-link`
   // resolves the validated-by form from the TEST's side — whether each test is

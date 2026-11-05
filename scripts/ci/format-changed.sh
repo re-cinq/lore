@@ -4,8 +4,11 @@
 # `eslint . --fix`, and every test job waits on the format job. The `lint` job
 # still lints the whole repo, so nothing goes unchecked.
 #
-# The spec and ADR pass stays whole: `re-lint/no-stale-spec-links` moves anchors
-# in specs the branch never touched when a test it touched moved (8 s). It runs
+# The spec and ADR pass stays whole, but `re-lint/no-stale-spec-links` fixes only
+# the links on spec lines the branch wrote (`scope: "authored"`): it adds their
+# content hash and repoints them. Every other link is left for the
+# `spec-link-upkeep` workflow, which repoints it after the merge in a pull
+# request of its own, so a branch carries no link churn it did not write. It runs
 # LAST, after eslint --fix and prettier have reflowed the test files: it reads
 # the tree as it stands, so a pass before the reflow computes anchors the reflow
 # then moves by a line or two, and the next run keeps those as hand-written.
