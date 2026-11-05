@@ -1,6 +1,7 @@
 // Barrel for spec-content parsing/status/coverage/link-judging: re-exported from index.ts to keep the top-level barrel under the file-size limit.
 export {
   parseSpecTitle,
+  specHeading,
   extractSummary,
   reassembleSpec,
 } from "./spec-summary.js";
