@@ -9,6 +9,8 @@ export interface TestDescriptor {
   file: string;
   startLine?: number;
   endLine?: number;
+  /** The content hash of the test's declaration line, when the producer could read it: how a hashed spec link names this test. */
+  anchorHash?: string;
   suite?: string[];
   /** One `path#ordinal` spec anchor, or several when one test validates several statements. */
   spec?: string | string[];
@@ -57,6 +59,10 @@ function buildTestDescriptor(entry: Record<string, unknown>): TestDescriptor {
 
   if (typeof entry.endLine === "number") {
     descriptor.endLine = entry.endLine;
+  }
+
+  if (typeof entry.anchorHash === "string") {
+    descriptor.anchorHash = entry.anchorHash;
   }
 
   descriptor.suite = stringArrayOrUndefined(entry.suite);

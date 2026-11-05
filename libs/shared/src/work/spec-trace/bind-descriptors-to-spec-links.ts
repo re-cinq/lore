@@ -15,7 +15,8 @@ export interface SpecSource {
 
 interface LinkIndexEntry {
   path: string;
-  line: number;
+  line: number | null;
+  hash: string | null;
   anchor: string;
 }
 
@@ -40,17 +41,18 @@ export function bindDescriptorsToSpecLinks(
   });
 }
 
-/** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
+/** Flatten every spec's statements into `(test path, line, hash) → statement anchor` entries; a link with neither a line nor a hash names no test. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   return specs.flatMap((spec) =>
     linksForStatements(spec.content).flatMap(({ statement, testLinks }) =>
       testLinks.flatMap((link) =>
-        link.line === null
+        link.line === null && link.hash === null
           ? []
           : [
               {
                 path: resolveLinkPath(link.path, spec.path),
                 line: link.line,
+                hash: link.hash,
                 anchor: `${spec.path}#${statement.ordinal}`,
               },
             ],
@@ -59,19 +61,33 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   );
 }
 
-/** The spec anchors whose `([validated by](file#Lline))` link falls INSIDE this test's own line range. A descriptor with no line bounds gets none — the runner could not say where the test is, so nothing can be said about which links point at it. */
+/** The spec anchors whose links name this test: by the content hash of its declaration line when it has one, else a hashless link whose line falls INSIDE the test's own line range. A hashed link never binds by line, so a stale anchor cannot pin a statement on the wrong test. */
 function anchorsFor(
-  index: ReturnType<typeof buildLinkIndex>,
+  index: LinkIndexEntry[],
   descriptor: TestDescriptor,
 ): string[] {
+  const file = normalizePath(descriptor.file);
+  const inFile = index.filter((entry) => entry.path === file);
+  const byHash = inFile.filter(
+    (entry) => entry.hash !== null && entry.hash === descriptor.anchorHash,
+  );
+  const matched =
+    byHash.length > 0 ? byHash : inFile.filter(lineInside(descriptor));
+
+  return [...new Set(matched.map((entry) => entry.anchor))];
+}
+
+/** A hashless link whose line lies in the test's span. A descriptor with no line bounds gets none: the runner could not say where the test is. */
+function lineInside(
+  descriptor: TestDescriptor,
+): (entry: LinkIndexEntry) => boolean {
   const { startLine, endLine } = descriptor;
 
-  if (startLine === undefined || endLine === undefined) {
-    return [];
-  }
-  const file = normalizePath(descriptor.file);
-  const inRange = (entry: LinkIndexEntry): boolean =>
-    entry.path === file && entry.line >= startLine && entry.line <= endLine;
-
-  return [...new Set(index.filter(inRange).map((entry) => entry.anchor))];
+  return (entry) =>
+    entry.hash === null &&
+    entry.line !== null &&
+    startLine !== undefined &&
+    endLine !== undefined &&
+    entry.line >= startLine &&
+    entry.line <= endLine;
 }

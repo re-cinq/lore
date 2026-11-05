@@ -126,4 +126,36 @@ describe("bindDescriptorsToSpecLinks", () => {
 
     expect(bound.spec).toBeUndefined();
   });
+
+  describe("with content hashes", () => {
+    const HASHED_SPEC = `# X
+
+## Acceptance Criteria
+
+The system greets the user.
+([validated by @aaaaaaaa](src/greet.test.ts#L10))
+
+The system farewells the user.
+([validated by @bbbbbbbb](src/greet.test.ts#L9))
+`;
+    const hashedSpecs = [{ path: SPEC_PATH, content: HASHED_SPEC }];
+
+    it("binds the descriptor whose declaration hash is aaaaaaaa to the greeting statement, though both lines fall in its span", () => {
+      const [bound] = bindDescriptorsToSpecLinks(
+        [descriptor({ anchorHash: "aaaaaaaa" })],
+        hashedSpecs,
+      );
+
+      expect(bound.spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
+    });
+
+    it("binds no statement to a descriptor whose hash no link carries, though both hashed links fall in its span", () => {
+      const [bound] = bindDescriptorsToSpecLinks(
+        [descriptor({ anchorHash: "cccccccc" })],
+        hashedSpecs,
+      );
+
+      expect(bound.spec).toBeUndefined();
+    });
+  });
 });
