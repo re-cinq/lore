@@ -646,7 +646,7 @@ The app is built from a shared set of presentational components. ([validated by 
   routes shows an immediate route-level loading skeleton — a labeled
   status region of pulsing placeholder blocks mirroring each page's
   layout — instead of freezing on the previous page while the server
-  component fetches. ([validated by `renders a labeled status region of skeleton blocks for the %s route` @6c76f1b9](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L17))
+  component fetches. ([validated by `renders a labeled status region of skeleton blocks for the %s route` @6c76f1b9](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L19))
 - FR-7.9: *(Retired 2026-10-28.)* GitHub sign-in and its org check moved from this UI to lore-api; see FR-9.2.
 - FR-7.10: *(Retired 2026-10-28.)* A session lasts as long as the eight hour lore-api token it carries and ends in a fresh sign-in; there is no refresh grant to keep (FR-9.4, FR-9.8).
 
