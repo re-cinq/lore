@@ -171,9 +171,46 @@ async function projectLinkedChunks(
   return uids;
 }
 
+/** The chunks a text's links would point at, and whether each hashed link still sits on the line the text gives it. */
+export interface PlannedLinks {
+  validated: string[];
+  implemented: string[];
+  linksInSync: boolean;
+}
+
+/** What {@link projectLinkEdges} would write for `text`, without writing it: a cited line that moved changes the chunk though the text did not, so it counts as out of sync. */
+export async function plannedLinks(
+  context: Pick<ProjectionContext, "repo" | "filePath" | "readLinked">,
+  text: string,
+): Promise<PlannedLinks> {
+  const tests = await anchoredLinks(context, text, parseTestLinksInStatement);
+  const code = await anchoredLinks(context, text, parseCodeLinksInStatement);
+
+  return {
+    validated: tests.map(({ link }) => fileScopedXid(context.repo, link)),
+    implemented: code.map(({ link }) => anchorScopedXid(context.repo, link)),
+    linksInSync: [...tests, ...code].every(
+      ({ link, written }) => link.line === written.line,
+    ),
+  };
+}
+
+async function anchoredLinks(
+  context: Pick<ProjectionContext, "filePath" | "readLinked">,
+  text: string,
+  parse: LinkParser,
+): Promise<Array<{ written: SpecLinkRef; link: SpecLinkRef }>> {
+  return Promise.all(
+    resolvedLinks(context.filePath, text, parse).map(async (written) => ({
+      written,
+      link: await anchoredLink(context, written),
+    })),
+  );
+}
+
 /** The link at the line its content hash now sits on in the cited file, when the projection can read it. */
 async function anchoredLink(
-  { readLinked }: ProjectionContext,
+  { readLinked }: Pick<ProjectionContext, "readLinked">,
   link: SpecLinkRef,
 ): Promise<SpecLinkRef> {
   if (!readLinked || link.hash === null) {
