@@ -3,15 +3,15 @@ import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan } from "@/lib/api/plans";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
-import { planRunFor } from "./plan-run-facts";
-import PlanDetailStory from "./PlanDetailStory";
+import PlanDetailLive from "./PlanDetailLive";
+import { planPageTokens } from "./plan-page-tokens";
 import {
   approvePlanAction,
   deletePlanAction,
   draftAgainAction,
+  mintPlanRunTokenAction,
   openPlanSocketAction,
   refinePlanAction,
-  refreshPlanRunFactsAction,
   reopenPlanAction,
   retrySpecWorkAction,
   reworkSpecsAction,
@@ -25,13 +25,14 @@ export default async function PlanDetailPage({
 }) {
   const { owner, repo, id } = await params;
   const fullName = `${owner}/${repo}`;
-  const { meta, run, user } = await planPage(fullName, id);
+  const { meta, user, tokens } = await planPage(fullName, id);
 
   return (
-    <PlanDetailStory
+    <PlanDetailLive
       meta={meta}
-      run={run}
       user={user}
+      collabSocket={tokens?.collab ?? null}
+      planRunToken={tokens?.planRun ?? null}
       {...boundActions(fullName, id)}
     />
   );
@@ -41,6 +42,7 @@ export default async function PlanDetailPage({
 function boundActions(fullName: string, id: string) {
   return {
     openSocket: openPlanSocketAction.bind(null, fullName, id),
+    mintPlanRunToken: mintPlanRunTokenAction.bind(null, fullName, id),
     approve: approvePlanAction.bind(null, fullName, id),
     refine: refinePlanAction.bind(null, fullName, id),
     draftAgain: draftAgainAction.bind(null, fullName, id),
@@ -49,19 +51,18 @@ function boundActions(fullName: string, id: string) {
     reworkSpecs: reworkSpecsAction.bind(null, fullName, id),
     validate: validatePlanAction.bind(null, fullName, id),
     deletePlan: deletePlanAction.bind(null, fullName, id),
-    refreshRunFacts: refreshPlanRunFactsAction.bind(null, fullName, id),
   };
 }
 
-// The plan, its run and who is looking — the plan first, so a plan under another repo is not found before anything else is read.
+// The plan, who is looking, and the tokens their channels open with. The plan comes first, so a plan under another repo is not found before a token is minted; no run, visit or PR is read here (specs/plan-detail-fast-open FR3).
 async function planPage(fullName: string, planId: string) {
-  const meta = await repoPlanMeta(fullName, planId);
-  const [run, session] = await Promise.all([
-    planRunFor(fullName, planId),
+  const [meta, session] = await Promise.all([
+    repoPlanMeta(fullName, planId),
     getSession(),
   ]);
+  const user = planUserOf(session as PlanSession | null);
 
-  return { meta, run, user: planUserOf(session as PlanSession | null) };
+  return { meta, user, tokens: await planPageTokens(fullName, planId, user) };
 }
 
 // A plan is only shown under the repo it belongs to.

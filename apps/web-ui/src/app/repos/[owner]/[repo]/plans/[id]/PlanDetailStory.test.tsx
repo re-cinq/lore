@@ -7,7 +7,10 @@ import PlanDetailStory from "./PlanDetailStory";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
-vi.mock("./PlanWorkspace", () => ({ default: () => null }));
+vi.mock("./PlanWorkspace", () => ({
+  default: () => null,
+  preloadPlanEditor: () => {},
+}));
 
 const META: PlanMeta = {
   schemaVersion: 1,
@@ -46,6 +49,8 @@ describe("PlanDetailStory", () => {
       <PlanDetailStory
         meta={META}
         run={FAILED_RUN}
+        runState="known"
+        retryRun={() => {}}
         user={null}
         draftAgain={draftAgain}
         refine={async () => ({})}
@@ -56,7 +61,6 @@ describe("PlanDetailStory", () => {
         reworkSpecs={async () => ({})}
         validate={async () => ({})}
         deletePlan={async () => ({})}
-        refreshRunFacts={async () => ({ run: null })}
       />,
     );
     fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {

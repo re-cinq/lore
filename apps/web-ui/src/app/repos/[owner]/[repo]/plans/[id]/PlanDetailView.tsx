@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import { Alert } from "@/components/Alert";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
@@ -10,14 +11,20 @@ import type { PlanUser } from "@/lib/plan-user";
 import DraftingPlan from "./DraftingPlan";
 import PlanStatusBadge from "../PlanStatusBadge";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
-import { usePlanRunLive } from "./usePlanRunLive";
-import PlanWorkspace from "./PlanWorkspace";
+import { PlanRunLoading } from "./PlanDetailSkeleton";
+import PlanRunError from "./PlanRunError";
+import type { PlanRunState } from "./usePlanRunChannel";
+import PlanWorkspace, { preloadPlanEditor } from "./PlanWorkspace";
 import type { PlanActions } from "./plan-actions";
 import styles from "./PlanDetailView.module.scss";
 
 interface PlanDetailViewProps extends PlanActions {
   meta: PlanMeta;
+  /** The plan's run as its channel last described it; read only once `runState` is `known`. */
   run: PlanRun | null;
+  runState: PlanRunState;
+  /** Opens the run's channel again after it failed. */
+  retryRun: () => void;
   user: PlanUser | null;
   draftAgain: () => Promise<{ error?: string }>;
   deletePlan: () => Promise<{ error?: string }>;
@@ -30,33 +37,72 @@ export interface StoryInput {
   onChange: (text: string) => void;
 }
 
-// Everything below reads the live `run`, folded from the socket, never the seed the server rendered once — no router.refresh().
-export default function PlanDetailView({
-  meta,
-  run: seed,
-  user,
-  draftAgain,
-  deletePlan,
-  story,
-  ...actions
-}: PlanDetailViewProps) {
-  const run = usePlanRunLive(seed, actions.refreshRunFacts);
-  const state = planPageState(meta.status, run);
-  const card = { run, state, draftAgain, reopen: actions.reopen };
+// The header is drawn from the plan alone, at once; the run card and the editor wait for the run's channel, and the editor never opens before the page knows no draft is being written (SC-004).
+export default function PlanDetailView(props: PlanDetailViewProps) {
+  const { meta, run, runState, deletePlan, story, ...rest } = props;
+  const known = useKnownRun(run, runState);
 
   return (
     <div>
-      <PlanHeader meta={meta} run={run} deletePlan={deletePlan} story={story} />
-      <PlanRunCard {...card} />
-      <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
+      <PlanHeader
+        meta={meta}
+        run={known}
+        deletePlan={deletePlan}
+        story={story}
+      />
+      <RunSection meta={meta} known={known} runState={runState} {...rest} />
     </div>
   );
 }
 
-type PlanBodyProps = Omit<
+/** The run once its channel has said what it is, undefined before; the editor's code starts loading meanwhile. */
+function useKnownRun(
+  run: PlanRun | null,
+  runState: PlanRunState,
+): PlanRun | null | undefined {
+  useEffect(preloadPlanEditor, []);
+
+  return runState === "known" ? run : undefined;
+}
+
+type RunSectionProps = Omit<
   PlanDetailViewProps,
-  "draftAgain" | "deletePlan" | "story"
+  "run" | "deletePlan" | "story"
 > & {
+  known: PlanRun | null | undefined;
+};
+
+/** The run card and the editor: skeletons while the run is unknown, an error when it could not be read, the run once it is known. */
+function RunSection({ known, runState, retryRun, ...props }: RunSectionProps) {
+  if (runState === "unknown") {
+    return <PlanRunLoading />;
+  }
+
+  if (runState === "failed" || known === undefined) {
+    return <PlanRunError retry={retryRun} />;
+  }
+
+  return <KnownRun run={known} {...props} />;
+}
+
+type KnownRunProps = Omit<
+  PlanDetailViewProps,
+  "deletePlan" | "story" | "runState" | "retryRun"
+>;
+
+function KnownRun({ meta, run, user, draftAgain, ...actions }: KnownRunProps) {
+  const state = planPageState(meta.status, run);
+  const card = { run, state, draftAgain, reopen: actions.reopen };
+
+  return (
+    <>
+      <PlanRunCard {...card} />
+      <PlanBody meta={meta} run={run} user={user} state={state} {...actions} />
+    </>
+  );
+}
+
+type PlanBodyProps = Omit<KnownRunProps, "draftAgain"> & {
   state: PlanPageState;
 };
 
@@ -99,15 +145,20 @@ function specPrOf(run: PlanRun | null): typeof NO_PR {
 
 type PlanHeaderProps = Pick<
   PlanDetailViewProps,
-  "meta" | "run" | "deletePlan" | "story"
->;
+  "meta" | "deletePlan" | "story"
+> & {
+  /** Undefined until the run is known: the user story, or the field for one, comes with the run. */
+  run: PlanRun | null | undefined;
+};
 
 function PlanHeader({ meta, run, deletePlan, story }: PlanHeaderProps) {
   return (
     <div className={styles.header}>
       <div>
         <PlanFacts meta={meta} run={run} />
-        {!run?.issueUrl && story && <StoryField repo={meta.repo} {...story} />}
+        {run !== undefined && !run?.issueUrl && story && (
+          <StoryField repo={meta.repo} {...story} />
+        )}
       </div>
       <div className={styles.headerActions}>
         <PlanStatusBadge status={meta.status} />

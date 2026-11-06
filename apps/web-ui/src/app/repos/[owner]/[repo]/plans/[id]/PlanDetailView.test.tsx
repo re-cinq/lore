@@ -8,10 +8,13 @@ import type { PlanRun } from "./PlanRunCard";
 vi.mock("@/components/Icon", () => ({
   default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
 }));
+const preloadPlanEditor = vi.hoisted(() => vi.fn());
+
 vi.mock("./PlanWorkspace", () => ({
   default: ({ user }: { user: { name: string } }) => (
     <p>editor for {user.name}</p>
   ),
+  preloadPlanEditor,
 }));
 
 const META: PlanMeta = {
@@ -38,7 +41,8 @@ const actions = {
   reworkSpecs: async () => ({}),
   validate: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
-  refreshRunFacts: async () => ({ run: null }),
+  runState: "known" as const,
+  retryRun: () => {},
 };
 
 const QUEUED_RUN: PlanRun = {
@@ -253,5 +257,70 @@ describe("the user story field in the plan's header", () => {
     storyField("", { ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 });
 
     expect(screen.queryByRole("textbox", { name: "User story" })).toBeNull();
+  });
+});
+
+describe("the plan page before its run is known", () => {
+  const BOGDAN = { id: "gedaiu", name: "Bogdan" };
+
+  function page(runState: "unknown" | "failed", retryRun = () => {}) {
+    render(
+      <PlanDetailView
+        meta={META}
+        {...actions}
+        run={null}
+        runState={runState}
+        retryRun={retryRun}
+        user={BOGDAN}
+        story={{ value: "", onChange: () => {} }}
+      />,
+    );
+  }
+
+  it("draws Faster checkout's header and Delete at once, and a loading run card and body instead of the editor", () => {
+    page("unknown");
+
+    expect({
+      facts: screen.getByText(/feature plan · version 2 · by gedaiu/) !== null,
+      deletable: screen.queryByRole("button", { name: "Delete plan" }) !== null,
+      loading:
+        screen.queryByRole("status", { name: "Loading the planning run" }) !==
+        null,
+      editor: screen.queryByText("editor for Bogdan"),
+      noRunYet: screen.queryByText(/No planning run yet/),
+      storyField: screen.queryByRole("textbox", { name: "User story" }),
+    }).toEqual({
+      facts: true,
+      deletable: true,
+      loading: true,
+      editor: null,
+      noRunYet: null,
+      storyField: null,
+    });
+  });
+
+  it("says the planning run could not be loaded and opens no editor when the channel failed", () => {
+    page("failed");
+
+    expect({
+      error: screen.getByRole("alert").textContent,
+      editor: screen.queryByText("editor for Bogdan"),
+    }).toEqual({ error: "Couldn't load the planning run.", editor: null });
+  });
+
+  it("opens the run's channel again on Retry", () => {
+    const retryRun = vi.fn();
+
+    page("failed", retryRun);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(retryRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts loading the editor's code on mount while the run is still unknown", () => {
+    preloadPlanEditor.mockClear();
+    page("unknown");
+
+    expect(preloadPlanEditor).toHaveBeenCalledTimes(1);
   });
 });
