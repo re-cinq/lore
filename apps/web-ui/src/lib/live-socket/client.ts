@@ -16,6 +16,7 @@ import {
   type ChannelKind,
   type LiveClientMessage,
   type LiveServerMessage,
+  type PlanRunFacts,
   type RunListFrame,
 } from "./protocol";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
@@ -43,6 +44,7 @@ export interface ChannelSpec {
   after?: () => string;
   onFrame?: (frame: RunStreamFrame) => void;
   onRunsFrame?: (frame: RunListFrame) => void;
+  onPlanRun?: (run: PlanRunFacts) => void;
   onData?: (bytes: Uint8Array) => void;
   onState?: (state: ChannelState) => void;
 }
@@ -240,6 +242,10 @@ export class LiveSocketClient {
     this.specs.get(channel)?.onRunsFrame?.(frame);
   }
 
+  deliverPlanRun(channel: string, run: PlanRunFacts): void {
+    this.specs.get(channel)?.onPlanRun?.(run);
+  }
+
   deliverData(channel: string, encoded: string): void {
     this.specs.get(channel)?.onData?.(base64ToBytes(encoded));
   }
@@ -266,6 +272,7 @@ interface ClientInternals {
   dispatch(event: MachineEvent): void;
   deliverFrame(channel: string, frame: RunStreamFrame): void;
   deliverRunsFrame(channel: string, frame: RunListFrame): void;
+  deliverPlanRun(channel: string, run: PlanRunFacts): void;
   deliverData(channel: string, encoded: string): void;
   sendWatch(id: string): void;
   onError(message: Extract<LiveServerMessage, { type: "error" }>): void;
@@ -297,6 +304,8 @@ const INBOUND: {
     client.deliverFrame(message.channel, message.frame),
   runs: (client, message) =>
     client.deliverRunsFrame(message.channel, message.frame),
+  plan_run: (client, message) =>
+    client.deliverPlanRun(message.channel, message.run),
   data: (client, message) => client.deliverData(message.channel, message.data),
   closed: (client, message) =>
     client.dispatch({
@@ -332,6 +341,13 @@ const OPEN_MESSAGES: {
     type: "open",
     channel: id,
     kind: "runs",
+    subject: spec.subject,
+    token,
+  }),
+  "plan-run": (id, spec, token) => ({
+    type: "open",
+    channel: id,
+    kind: "plan-run",
     subject: spec.subject,
     token,
   }),

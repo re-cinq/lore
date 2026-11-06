@@ -87,6 +87,7 @@ import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
+import { planRunStreamTokenRoute } from "./routes/plans/plan-run-stream-token.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
@@ -219,6 +220,7 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     runDodRoute(getPool),
     runStreamTokenRoute(getPool),
     floorRunsStreamTokenRoute(getPool),
+    planRunStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),

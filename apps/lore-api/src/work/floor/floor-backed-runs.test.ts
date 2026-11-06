@@ -6,6 +6,7 @@ import type {
 import {
   floorBackedRuns,
   runsOnFloor,
+  summariesOfBoth,
   type FloorRunReads,
 } from "./floor-backed-runs.js";
 import {
@@ -118,5 +119,31 @@ describe("runsOnFloor", () => {
 
   it("is false for a run Postgres answered", () => {
     expect(runsOnFloor(LOCAL_RUN)).toBe(false);
+  });
+});
+
+describe("summariesOfBoth", () => {
+  const OLDER = { ...LOCAL_RUN, createdAt: new Date("2026-01-01T00:00:00Z") };
+  const NEWER = { ...FLOOR_RUN, createdAt: new Date("2026-02-01T00:00:00Z") };
+
+  it("lists the floor's newer run before Postgres's older one", async () => {
+    const runs = await summariesOfBoth(
+      reads(OLDER, LOCAL_VISIT),
+      reads(NEWER, FLOOR_VISIT),
+      {},
+    );
+
+    expect(runs.map((run) => run.id)).toEqual(["floor-1", "local-1"]);
+  });
+
+  it("throws when the floor can't be read, rather than listing Postgres's runs alone", async () => {
+    const unreachable: FloorRunReads = {
+      ...reads(NEWER, FLOOR_VISIT),
+      listSummaries: () => Promise.reject(new Error("floor unreachable")),
+    };
+
+    await expect(
+      summariesOfBoth(reads(OLDER, LOCAL_VISIT), unreachable, {}),
+    ).rejects.toThrow("floor unreachable");
   });
 });

@@ -28,6 +28,7 @@ import {
   type LiveSocketLimits,
 } from "../work/assembly-line-station/live-socket.js";
 import {
+  planRunChannelDepsFromPool,
   runChannelDepsFromPool,
   runsChannelDepsFromPool,
 } from "../work/assembly-line-station/station-wiring.js";
@@ -101,9 +102,11 @@ function registerLiveSocket(
   getPool: () => Pool | null,
   collab: RegisteredPlanning["collab"],
 ): void {
+  const run = runChannelDepsFromPool(getPool);
   const liveSocket = mountLiveSocket(server.listener, {
-    run: runChannelDepsFromPool(getPool),
+    run,
     runs: runsChannelDepsFromPool(getPool),
+    planRun: planRunChannelDepsFromPool(getPool, run),
     collab,
     limits: LIVE_SOCKET_LIMITS,
   });

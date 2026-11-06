@@ -70,3 +70,14 @@ describe("client messages and bytes", () => {
     });
   });
 });
+
+describe("the plan-run channel", () => {
+  it("reads a plan_run message, and refuses one without its channel", () => {
+    expect(
+      [
+        '{"type":"plan_run","channel":"c2","run":null}',
+        '{"type":"plan_run","run":null}',
+      ].map(decodeServerMessage),
+    ).toEqual([{ type: "plan_run", channel: "c2", run: null }, null]);
+  });
+});
