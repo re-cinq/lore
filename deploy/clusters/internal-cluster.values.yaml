@@ -189,15 +189,23 @@ platform:
         data: { .dockerconfigjson: "{{ .dockerconfigjson }}" }
       keys: { dockerconfigjson: lore-ghcr-pull-secret }
     # The floor's agent pods, in the ai-agent-subsystem's namespace: merged into
-    # the agent-secrets Secret the floor's cluster agent writes to.
+    # the agent-secrets Secret the floor's cluster agent writes to. Each model
+    # family's credential sits under the key the agent reads by default; on
+    # n8n-cluster the two model keys were added by hand.
     - name: floor-agent-secrets-lore-mcp
       namespace: ai-agents
       target: agent-secrets
       creationPolicy: Merge
       template:
         engineVersion: v2
-        data: { lore-mcp-auth: "Bearer {{ .LORE_INGEST_TOKEN }}" }
-      keys: { LORE_INGEST_TOKEN: lore-ingest-token }
+        data:
+          lore-mcp-auth: "Bearer {{ .LORE_INGEST_TOKEN }}"
+          ANTHROPIC_API_KEY: "{{ .ANTHROPIC_API_KEY }}"
+          GEMINI_API_KEY: "{{ .GEMINI_API_KEY }}"
+      keys:
+        LORE_INGEST_TOKEN: lore-ingest-token
+        ANTHROPIC_API_KEY: lore-anthropic-api-key
+        GEMINI_API_KEY: lore-gemini-api-key
 
 # ---- Lore API (lore-api namespace)
   monitoring: { enabled: true }
