@@ -136,7 +136,7 @@ decided by what the step waits on, never by a run being open.
   `lore.inbox_item_state` (`person`, `item_id`, `handled_at`,
   `snoozed_until`, `updated_at`; primary key `(person, item_id)`), added by
   migration `0111_inbox_item_state.sql` (idempotent, `GRANT` to `lore`) in
-  `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`,
+  `deploy/chart/charts/ui-helm/migrations/`,
   with its domain model (schema, type and `ColumnMap`, per the models
   convention) in a new file this change adds,
   `libs/shared/src/domain/models/inbox-item-state.ts`.

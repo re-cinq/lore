@@ -48,7 +48,7 @@ Two constraints shape the decision:
 
 **The Floor is pinned to one replica, and that pin is an admitted limitation
 rather than a chosen architecture.**
-`infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/values.yaml`
+`deploy/chart/charts/floor-helm/values.yaml`
 sets `replicaCount: 1` and comments, in full: "Agent is a singleton (job
 processors don't tolerate two writers claiming the same task). Use a PDB to block
 Autopilot from evicting without warning, but keep replicas at 1 — HA at the agent

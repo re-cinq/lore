@@ -29,7 +29,7 @@ NS="${4:?namespace of that deployment}"
 IMAGE_REPO="${5:-}" # optional: pin image.repository too
 VALUES_OVERLAY="${6:-}" # optional: -f overlay that outranks stored release values
 
-CHART="infra/terraform/modules/gke-mcp/lore-platform"
+CHART="deploy/chart"
 
 # Pin the repository we just built, not only the tag. --reset-then-reuse-values
 # reuses the prior release's values on top of the new chart default, so after a

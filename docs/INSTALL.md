@@ -6,7 +6,7 @@ Lore is three installs on one Kubernetes cluster, in this order:
 | ----- | ---- | ------------------- | --------- | ------------------------------- |
 | A | Cluster add-ons: ingress controller, cert-manager, DNS, Postgres (operator or managed), secret store | the client's own tooling | theirs | the infra team |
 | B | The **floor**, the engine that runs agent pods. Its Helm chart carries the **ai-agent-subsystem** (CRDs + controller) that turns a run into a pod | [re-cinq/floor](https://github.com/re-cinq/floor), chart `oci://ghcr.io/re-cinq/charts/floor` | `floor` | the Lore team, with Helm |
-| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `infra/terraform/modules/gke-mcp/lore-platform` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db`, release record in `lore-floor` | the Lore team, with Helm (on our own GKE: terraform) |
+| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `deploy/chart` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db`, release record in `lore-floor` | the Lore team, with Helm (on our own GKE: terraform) |
 
 Section 1 is the checklist for the team that provisions the cluster. Sections 2 to 4 are the installs. The developer-laptop install, onboarding and verification follow. The ai-agent-subsystem is not installed on its own: the floor chart vendors it (`subsystem.enabled=true`). Install it separately, from [its own docs](https://re-cinq.github.io/ai-agent-subsystem/), only when another floor on the same cluster already runs it; the floor is then installed with `--skip-crds`.
 
@@ -42,7 +42,7 @@ Everything below must exist before the Lore team runs a single `helm install`. E
 | agent pods | N | per agent definition | 2Gi to 4Gi each | ephemeral storage per definition |
 | optional: Prometheus + Grafana | | 250m+100m / 2Gi+1Gi | | 10Gi |
 
-Where this comes from: `infra/terraform/modules/gke-mcp/lore-platform/charts/*/values.yaml`, `infra/terraform/lore-db.tf`, `infra/terraform/lore-dgraph.tf`, the floor chart's `values.yaml`.
+Where this comes from: `deploy/chart/charts/*/values.yaml`, `infra/terraform/lore-db.tf`, `infra/terraform/lore-dgraph.tf`, the floor chart's `values.yaml`.
 
 ### 1.2 Cluster add-ons (infra team)
 
@@ -61,7 +61,7 @@ These are **assumed, not installed**, by Lore's own terraform; our GKE cluster a
 
 | Need | Spec | Notes |
 | ---- | ---- | ----- |
-| **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`) |
+| **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`deploy/chart/charts/ui-helm/migrations/`) |
 | **floor Postgres** | a **second database and role**, never shared with Lore: floor owns its schema (tables `events`, `blobs`, `definitions`) and migrates it on every install. Any Postgres; the role may create tables | the same server is fine. The floor chart never deploys one ([floor install doc](https://github.com/re-cinq/floor/blob/main/docs/install.md)) |
 | **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. Only a manifest, no chart: see 4.1 |
 | Backups | in-cluster Postgres: an object-storage bucket for barman (GCS, S3 or Azure Blob) with write access from the `lore-db` namespace; managed Postgres: its own backups | ours: GCS bucket, 30-day lifecycle, daily `ScheduledBackup` at 02:00 |
@@ -303,7 +303,7 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 6. **Install.**
 
    ```bash
-   helm upgrade --install lore-platform infra/terraform/modules/gke-mcp/lore-platform \
+   helm upgrade --install lore-platform deploy/chart \
      -n lore-floor -f lore-values.yaml \
      --set-string lore-api.image.tag=<tag> --set-string lore-ui.image.tag=<tag> \
      --set-string lore-stations.image.tag=<tag> --set-string lore-mcp-gateway.image.tag=<tag>

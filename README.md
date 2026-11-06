@@ -52,7 +52,7 @@ Five workloads ship as one umbrella Helm chart, `lore-platform`, which spans a n
 | **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Also the scheduler: it emits the `cron.*.tick` events and answers them, drains the PR-lifecycle events, and hosts Lore's stations for the external floor. |
 | **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
 | **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
-| **lore-db** ([`charts/lore-db-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
+| **lore-db** ([`charts/lore-db-helm`](deploy/chart/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
 
 The assembly-line engine is not one of them: every line runs on the external floor ([re-cinq/floor](https://github.com/re-cinq/floor), [ADR-049](adrs/ADR-049-external-floor.md)), deployed beside the umbrella and reached only through its client. Lore's own Floor (`apps/floor`) was deleted on 2026-10-02.
 

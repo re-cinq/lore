@@ -1,0 +1,84 @@
+{{- if .Values.platform.database }}
+{{- $db := .Values.platform.database }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: lore-db-backup
+  namespace: lore-db
+spec:
+  configuration:
+    destinationPath: gs://{{ $db.backupBucket }}/lore-db
+    googleCredentials:
+      gkeEnvironment: true
+  retentionPolicy: {{ $db.backupRetention }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: lore-db
+  namespace: lore-db
+spec:
+  instances: 1
+  imageName: {{ $db.image }}
+  bootstrap:
+    {{- if and $db.restore $db.restore.host }}
+    pg_basebackup:
+      source: legacy
+    {{- else }}
+    initdb:
+      database: lore
+      owner: lore
+      secret: { name: lore-db-credentials }
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+    {{- end }}
+  {{- if and $db.restore $db.restore.host }}
+  externalClusters:
+    - name: legacy
+      connectionParameters:
+        host: {{ $db.restore.host | quote }}
+        port: "5432"
+        user: streaming_replica
+        dbname: postgres
+        sslmode: verify-ca
+      sslKey: { name: legacy-db-replication, key: tls.key }
+      sslCert: { name: legacy-db-replication, key: tls.crt }
+      sslRootCert: { name: legacy-db-ca, key: ca.crt }
+  replica:
+    enabled: {{ $db.restore.replica }}
+    source: legacy
+  {{- end }}
+  # The pod's identity writes WAL and backups to the bucket (Workload Identity).
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        iam.gke.io/gcp-service-account: {{ $db.backupServiceAccount }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: lore-db-backup
+        {{- with $db.backupServerName }}
+        serverName: {{ . }}
+        {{- end }}
+  storage:
+    size: {{ $db.size }}
+  resources:
+    {{- toYaml $db.resources | nindent 4 }}
+  postgresql:
+    shared_preload_libraries: [vector]
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: lore-db-daily
+  namespace: lore-db
+spec:
+  schedule: {{ $db.backupSchedule | quote }}
+  backupOwnerReference: self
+  cluster: { name: lore-db }
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}

@@ -1,0 +1,15 @@
+{{- if .Values.platform.legacyWebhookHost }}
+---
+# The legacy webhook hostname some repositories' hooks still carry. An
+# ExternalName alias so the lore-floor ingress reaches lore-api.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-api-webhook
+  namespace: lore-floor
+spec:
+  type: ExternalName
+  externalName: lore-api.lore-api.svc.cluster.local
+  ports:
+    - port: 3000
+{{- end }}

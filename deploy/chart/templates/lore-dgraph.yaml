@@ -1,0 +1,121 @@
+{{- if .Values.platform.dgraph }}
+{{- $g := .Values.platform.dgraph }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-dgraph-alpha
+  namespace: lore-dgraph
+  labels: { app: lore-dgraph }
+spec:
+  clusterIP: None
+  selector: { app: lore-dgraph }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+    - { name: grpc, port: 9080, targetPort: 9080 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: lore-dgraph-alpha
+  namespace: lore-dgraph
+  labels: { app: lore-dgraph }
+spec:
+  serviceName: lore-dgraph-alpha
+  replicas: 1
+  selector:
+    matchLabels: { app: lore-dgraph }
+  template:
+    metadata:
+      labels: { app: lore-dgraph }
+      annotations:
+        # One replica on one disk: the node autoscaler must not move it.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: dgraph
+          image: {{ $g.image }}
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: grpc, containerPort: 9080 }
+          volumeMounts:
+            - { name: data, mountPath: /dgraph }
+          resources:
+            {{- toYaml $g.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ $g.storageClass }}
+        resources:
+          requests:
+            storage: {{ $g.storageSize }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lore-dgraph-alpha
+  namespace: lore-dgraph
+  labels: { app: lore-dgraph }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: lore-dgraph }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lore-dgraph-schema
+  namespace: lore-dgraph
+data:
+  setup-memory-dgraph-schema.sh: |
+{{ .Files.Get "files/setup-memory-dgraph-schema.sh" | indent 4 }}
+  setup-spec-trace-schema.sh: |
+{{ .Files.Get "files/setup-spec-trace-schema.sh" | indent 4 }}
+---
+# Applies both schemas after every sync; idempotent. An Argo CD PostSync hook,
+# and a Helm post-install/upgrade hook for a plain helm install.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: lore-dgraph-schema-apply
+  namespace: lore-dgraph
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: apply-schema
+          image: alpine:3.20
+          command: ["/bin/sh", "-c"]
+          args:
+            - apk add --no-cache bash curl >/dev/null && bash /schema/setup-memory-dgraph-schema.sh && bash /schema/setup-spec-trace-schema.sh
+          env:
+            - name: DGRAPH_HTTP
+              value: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+          volumeMounts:
+            - { name: schema, mountPath: /schema }
+      volumes:
+        - name: schema
+          configMap: { name: lore-dgraph-schema }
+{{- end }}

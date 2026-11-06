@@ -12,7 +12,7 @@ on:
     # No `branches` filter (#1146): stacked PRs touching migrations must run
     # this guard too; base-retarget emits only `edited`, which never triggers.
     paths:
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/**'
+      - 'deploy/chart/charts/ui-helm/migrations/**'
       - 'scripts/infra/setup-*.sh'
       - 'scripts/check-bootstrap-columns.mjs'
       - 'scripts/check-bootstrap-columns.test.mjs'
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       LORE_PG_CONTAINER: lore-postgres
-      MIGRATIONS_DIR: infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations
+      MIGRATIONS_DIR: deploy/chart/charts/ui-helm/migrations
     steps:
       - uses: actions/checkout@v5
         with:

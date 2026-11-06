@@ -10,7 +10,7 @@ Implementing this checklist delivers dynamic, database-backed organisation skill
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `NNNN_skill_definitions.sql` migration (next free slot after `0110_utopia_memory_mirror.sql`) under `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` for `lore.skill_definitions` (FR-001).
+- [ ] T001 Add `NNNN_skill_definitions.sql` migration (next free slot after `0110_utopia_memory_mirror.sql`) under `deploy/chart/charts/ui-helm/migrations/` for `lore.skill_definitions` (FR-001).
 - [ ] T002 Add `libs/shared/src/domain/models/skill-definition.ts` domain model (Zod schema + `ColumnMap`/`fromRow`/`selectList`) (FR-005).
 
 ## Phase 2: Foundational

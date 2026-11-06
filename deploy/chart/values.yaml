@@ -19,3 +19,22 @@ lore-ui:
 
 lore-db-helm:
   namespace: lore-db
+
+# Platform objects the applications need on a cluster: namespaces, secrets,
+# ingresses, the database and the graph store. Empty by default; a cluster's
+# file under ../clusters/ fills them. database and dgraph render only when set.
+platform:
+  gcpProject: ""
+  secretStore: gcp-secret-manager
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx-ingress
+  namespaces: []
+  legacyWebhookHost: ""
+  externalSecrets: []
+  ingresses: []
+  # database.restore.host: another CNPG primary to be born from, as its
+  # streaming_replica user with the TLS client certificate in secrets
+  # legacy-db-replication (tls.crt, tls.key) and legacy-db-ca (ca.crt) in
+  # the lore-db namespace. replica keeps streaming until set to false.
+  database: null
+  dgraph: null

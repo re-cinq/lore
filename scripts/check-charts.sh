@@ -13,8 +13,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-charts_dir="$root/infra/terraform/modules/gke-mcp/lore-platform/charts"
-umbrella="$root/infra/terraform/modules/gke-mcp/lore-platform"
+charts_dir="$root/deploy/chart/charts"
+umbrella="$root/deploy/chart"
 fixtures="$root/infra/chart-ci-values"
 failed=0
 

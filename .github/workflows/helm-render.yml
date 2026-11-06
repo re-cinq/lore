@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - 'infra/**'
+      - 'deploy/**'
       - 'scripts/check-lore-platform-render.sh'
       - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/ci/helm-lock-contention.sh'

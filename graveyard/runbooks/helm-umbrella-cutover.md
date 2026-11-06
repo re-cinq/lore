@@ -47,7 +47,7 @@ Prereqs: `helm` ≥ 3.17 (for `--take-ownership`; the runner/your machine has 3.
 
 ```bash
 git checkout refactor/helm-umbrella-chart
-CHART=infra/terraform/modules/gke-mcp/lore-platform
+CHART=deploy/chart
 ```
 
 ## 1. Snapshot live values (incl. the running image tags)
