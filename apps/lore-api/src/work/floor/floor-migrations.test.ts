@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { shippedAgentPrompts } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { InMemoryAgentDefinitions } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.fixture.js";
+import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import {
+  floorApiFor,
   readFloorMigrations,
   runFloorMigrations,
   type FloorMigrationDeps,
@@ -34,6 +37,7 @@ function deps(
 
         return Promise.resolve();
       },
+      updateTimeout: () => Promise.resolve(),
     },
     markApplied: (version) => {
       marked.push(version);
@@ -101,25 +105,14 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001_loop_agents_assemble_context, floor/0002_loop_agents_read_brief, floor/0003_spec_links_carry_content_hash and floor/0004_spec_tickets_tested_missing_reason, whose every file is a shipped prompt", async () => {
-    const prompts = shippedAgentPrompts();
-    const files: string[] = [];
-    const migrations = await readFloorMigrations();
-
-    for (const { migrate } of migrations) {
-      await migrate({
-        updatePrompt: (_agent, file) => {
-          files.push(file);
-
-          return Promise.resolve();
-        },
-      });
-    }
+  it("names floor/0001 to floor/0005, whose every prompt and timeout comes from a shipped agent file", async () => {
+    const shipped = shippedFloorAgents();
+    const written = await everyWrite();
 
     expect({
-      versions: migrations.map((named) => named.version),
-      unshipped: files.filter(
-        (file) => !prompts.get(file.replace(/\.md$/, "")),
+      versions: written.versions,
+      unshipped: written.writes.filter(
+        ({ field, file }) => !shipped.get(file.replace(/\.md$/, ""))?.[field],
       ),
     }).toEqual({
       versions: [
@@ -127,8 +120,80 @@ describe("readFloorMigrations", () => {
         "floor/0002_loop_agents_read_brief",
         "floor/0003_spec_links_carry_content_hash",
         "floor/0004_spec_tickets_tested_missing_reason",
+        "floor/0005_spec_write_timeout",
       ],
       unshipped: [],
     });
   });
 });
+
+describe("floor/0005_spec_write_timeout", () => {
+  it("writes spec-write's shipped 30-minute timeout to the floor, and no prompt", async () => {
+    const shipped = shippedFloorAgents().get("spec-write");
+    const { writes } = await everyWrite("floor/0005_spec_write_timeout");
+
+    expect({ shipped: shipped?.timeout_minutes, writes }).toEqual({
+      shipped: 30,
+      writes: [
+        {
+          field: "timeout_minutes",
+          agent: "spec-write",
+          file: "spec-write.md",
+        },
+      ],
+    });
+  });
+
+  it("raises spec-write's timeout on the floor to 30 minutes and keeps its model, prompt, image, config and every repo's variant", async () => {
+    const floor = new InMemoryAgentDefinitions();
+    const saved = {
+      settings: {
+        model: "claude-opus-4-7",
+        prompt: "Write the section.",
+        image: "ghcr.io/re-cinq/agent:1",
+        timeoutMinutes: 15,
+        config: { skills: ["lore-context"] },
+      },
+      variants: { "github.com/re-cinq/lore": { model: "gemini-3.1-pro" } },
+    };
+
+    await floor.put("spec-write", saved);
+    const [timeout] = (await readFloorMigrations()).filter(
+      (named) => named.version === "floor/0005_spec_write_timeout",
+    );
+
+    await timeout!.migrate(floorApiFor(new FloorAgentDefs(floor)));
+
+    expect((await floor.get("spec-write"))?.body).toEqual({
+      ...saved,
+      settings: { ...saved.settings, timeoutMinutes: 30 },
+    });
+  });
+});
+
+interface Write {
+  field: "prompt" | "timeout_minutes";
+  agent: string;
+  file: string;
+}
+
+async function everyWrite(only?: string) {
+  const writes: Write[] = [];
+  const migrations = (await readFloorMigrations()).filter(
+    (named) => only === undefined || named.version === only,
+  );
+  const record = (field: Write["field"]) => (agent: string, file: string) => {
+    writes.push({ field, agent, file });
+
+    return Promise.resolve();
+  };
+
+  for (const { migrate } of migrations) {
+    await migrate({
+      updatePrompt: record("prompt"),
+      updateTimeout: record("timeout_minutes"),
+    });
+  }
+
+  return { versions: migrations.map((named) => named.version), writes };
+}
