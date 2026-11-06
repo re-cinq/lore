@@ -29,7 +29,7 @@ platform:
     # pg_basebackup, streaming as a replica until the cutover flips replica
     # to false (deploy/README.md). Leave host set afterwards.
     restore:
-      host: LEGACY_DB_IP
+      host: 104.155.23.201
       replica: true
 
   dgraph:
