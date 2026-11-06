@@ -187,7 +187,7 @@ async function projectSpecChildren(
 
   await projectStatementLayer(context, plan, written, split.statementSegments);
   await projectAcceptanceCriteriaLayer(context, written.acSegments, split);
-  await projectBlocks(context, content);
+  await projectBlocks(context, content, plan.stored.blocks);
 }
 
 /** How a projection learns what the graph holds for a spec's children. */

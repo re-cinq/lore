@@ -8,6 +8,7 @@ import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 import { anchorHashOf } from "../../domain/anchor-hash.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import type { DgraphClientPort } from "../../outbound/memory-store.js";
+import { recomputeFile } from "../../outbound/spec-trace/recompute-spec-file.js";
 import { projectSpecFile } from "./project-spec-file.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -66,8 +67,8 @@ describe.skipIf(!reachable)(
       repo: string,
       content: string,
       options: { force?: boolean; testFile?: string } = {},
-    ): Promise<string[]> {
-      const counting = countingStatementUpserts(dgraphClient);
+    ): Promise<{ statements: string[]; blocks: number }> {
+      const counting = countingUpserts(dgraphClient);
 
       await projectSpecFile(
         { repo, filePath: FILE_PATH, content },
@@ -78,7 +79,10 @@ describe.skipIf(!reachable)(
         },
       );
 
-      return counting.upserted;
+      return {
+        statements: counting.upserted("Statement"),
+        blocks: counting.upserted("Block").length,
+      };
     }
 
     async function statements(repo: string): Promise<StoredStatement[]> {
@@ -103,7 +107,7 @@ describe.skipIf(!reachable)(
 
       await project(repo, SPEC);
       const before = await statements(repo);
-      const upserted = await project(
+      const { statements: upserted } = await project(
         repo,
         SPEC.replace("log every click", "log every tap"),
       );
@@ -119,7 +123,7 @@ describe.skipIf(!reachable)(
       const repo = newRepo();
 
       await project(repo, SPEC);
-      const upserted = await project(
+      const { statements: upserted } = await project(
         repo,
         SPEC.replace("log every click", "log every tap"),
         { testFile: ["// one", "// two", CITED].join("\n") },
@@ -142,7 +146,22 @@ describe.skipIf(!reachable)(
 
       await project(repo, SPEC);
 
-      expect(await project(repo, SPEC, { force: true })).toHaveLength(3);
+      expect(
+        (await project(repo, SPEC, { force: true })).statements,
+      ).toHaveLength(3);
+    });
+
+    it("writes only the reworded statement's block, and the blocks still rebuild the edited spec exactly", async () => {
+      const repo = newRepo();
+      const edited = SPEC.replace("log every click", "log every tap");
+
+      await project(repo, SPEC);
+      const { blocks } = await project(repo, edited);
+
+      expect({
+        blocks,
+        source: await recomputeFile(repo, FILE_PATH, dgraphClient),
+      }).toEqual({ blocks: 1, source: edited });
     });
   },
 );
@@ -163,19 +182,21 @@ interface StoredStatement {
   "Statement.validated_by"?: Array<Record<string, unknown>>;
 }
 
-function countingStatementUpserts(client: DgraphClientPort): {
+function countingUpserts(client: DgraphClientPort): {
   port: DgraphClientPort;
-  upserted: string[];
+  upserted: (type: string) => string[];
 } {
-  const upserted: string[] = [];
+  const lookups: Array<{ type: string; xid: string }> = [];
   const port: DgraphClientPort = {
     newTxn: () => {
       const txn = client.newTxn();
 
       return {
         queryWithVars: (query, vars) => {
-          if (query.includes("eq(Statement.xid")) {
-            upserted.push(String(vars["$xid"]));
+          const type = /found\(func: eq\((\w+)\.xid/.exec(query)?.[1];
+
+          if (type !== undefined) {
+            lookups.push({ type, xid: String(vars["$xid"]) });
           }
 
           return txn.queryWithVars(query, vars);
@@ -186,5 +207,9 @@ function countingStatementUpserts(client: DgraphClientPort): {
     },
   };
 
-  return { port, upserted };
+  return {
+    port,
+    upserted: (type) =>
+      lookups.filter((lookup) => lookup.type === type).map(({ xid }) => xid),
+  };
 }

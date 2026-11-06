@@ -15,6 +15,7 @@ import { parseAdrRefs } from "./adr-refs.js";
 import {
   projectDocumentBlocks,
   pruneOrphanBlocksByFile,
+  type StoredBlock,
 } from "./project-blocks.js";
 import { featureDirOf } from "./feature-dir.js";
 import { projectLinkEdges } from "./project-spec-file-links.js";
@@ -160,12 +161,14 @@ function criterionFacts(
 export async function projectBlocks(
   context: ProjectionContext,
   content: string,
+  stored?: ReadonlyMap<string, StoredBlock>,
 ): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
   const validBlockXids = await projectDocumentBlocks(
     dgraph,
     { repo, filePath, content },
     specUid,
+    stored,
   );
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);

@@ -4,6 +4,7 @@ import type {
   DgraphTxn,
 } from "../../outbound/memory-store.js";
 import { anchorHashOf } from "../../domain/anchor-hash.js";
+import { projectDocumentBlocks } from "./project-blocks.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import {
   isUnchanged,
@@ -158,7 +159,7 @@ describe("projectSpecFile skipping unchanged children (fake port)", () => {
       reword(SPEC, "log every click", "log every tap"),
     );
 
-    expect(run).toEqual({
+    expect(run).toMatchObject({
       statementWrites: 1,
       criterionWrites: 0,
       embedded: [["The widget MUST log every tap."]],
@@ -222,6 +223,67 @@ describe("projectSpecFile skipping unchanged children (fake port)", () => {
   });
 });
 
+describe("projectSpecFile skipping unchanged blocks (fake port)", () => {
+  it("writes only the reworded statement's block when one statement of three changes", async () => {
+    const graph = fakeGraph();
+
+    await project(graph, SPEC);
+    const run = await project(
+      graph,
+      reword(SPEC, "log every click", "log every tap"),
+    );
+
+    expect(run.blockWrites).toBe(1);
+  });
+
+  it("writes all 13 blocks again when forced, though nothing changed", async () => {
+    const graph = fakeGraph();
+
+    await project(graph, SPEC);
+
+    expect((await project(graph, SPEC, { force: true })).blockWrites).toBe(13);
+  });
+
+  it("writes a blank block again when its empty text never reached the graph, as a projection that died between a block's two writes leaves it", async () => {
+    const graph = fakeGraph();
+
+    await project(graph, SPEC);
+    graph.dropEdge("Block", `${REPO}|${PATH}|block|1`, "Block.text");
+    const run = await project(
+      graph,
+      reword(SPEC, "log every click", "log every tap"),
+    );
+
+    expect(run.blockWrites).toBe(2);
+  });
+
+  it("writes a heading block again only when the graph holds another kind or level for its text", async () => {
+    const writes = async (stored: Partial<{ kind: string; level: number }>) => {
+      const graph = fakeGraph();
+      const heading = { kind: "heading", text: "## Requirements", level: 2 };
+
+      await projectDocumentBlocks(
+        graph.port,
+        { repo: REPO, filePath: PATH, content: "## Requirements\n" },
+        undefined,
+        new Map([
+          [`${REPO}|${PATH}|block|0`, { ...heading, ...stored }],
+          [`${REPO}|${PATH}|block|1`, { kind: "blank", text: "" }],
+        ]),
+      );
+
+      return graph.queries.filter((query) => query.includes("eq(Block.xid"))
+        .length;
+    };
+
+    expect([
+      await writes({ level: 3 }),
+      await writes({ kind: "paragraph" }),
+      await writes({}),
+    ]).toEqual([1, 1, 0]);
+  });
+});
+
 function reword(spec: string, from: string, to: string): string {
   return spec.replace(from, to);
 }
@@ -254,6 +316,8 @@ async function project(
       query.includes("eq(AcceptanceCriterion.xid"),
     ).length,
     embedded: embedded.filter((texts) => texts.length > 0),
+    blockWrites: queries.filter((query) => query.includes("eq(Block.xid"))
+      .length,
   };
 }
 
@@ -369,18 +433,42 @@ function storedRows(store: Store, specUid: string): Row {
         "CodeChunk",
       ),
     })),
+    blocks: children("Block").map((node) => ({
+      xid: node["Block.xid"],
+      kind: node["Block.kind"],
+      text: node["Block.text"],
+      level: node["Block.level"],
+    })),
   };
 }
 
 function applyMutation(
   store: Store,
-  { setJson, deleteNquads }: { setJson?: unknown; deleteNquads?: string },
+  {
+    setJson,
+    setNquads,
+    deleteNquads,
+  }: { setJson?: unknown; setNquads?: string; deleteNquads?: string },
 ): Record<string, string> {
   for (const line of (deleteNquads ?? "").split("\n").filter(Boolean)) {
     applyDelete(store, line);
   }
 
+  for (const line of (setNquads ?? "").split("\n").filter(Boolean)) {
+    applyEmptyString(store, line);
+  }
+
   return setJson === undefined ? {} : applySet(store, setJson as Row);
+}
+
+function applyEmptyString(store: Store, line: string): void {
+  const [, subject = "", predicate = ""] =
+    /^<([^>]+)> <([^>]+)> "" \.$/.exec(line) ?? [];
+  const node = store.nodes.get(subject);
+
+  if (node !== undefined) {
+    node[predicate] = "";
+  }
 }
 
 function applyDelete(store: Store, line: string): void {

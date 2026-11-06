@@ -12,6 +12,7 @@ import {
   type SpecSegment,
 } from "./project-spec-file-nodes.js";
 import { sha256, type ProjectionContext } from "./project-spec-file-context.js";
+import type { StoredBlock } from "./project-blocks.js";
 
 /** What projecting a statement or criterion writes, as far as deciding to skip it needs; criteria carry no kind, classification, section or ADRs. */
 export interface ChildState {
@@ -28,10 +29,11 @@ export interface ChildState {
 /** What this run would write for one child, and whether its hashed links still sit where its text says. */
 export type PlannedChild = ChildState & Pick<PlannedLinks, "linksInSync">;
 
-/** The spec's stored statements and criteria, keyed by xid. */
+/** The spec's stored statements, criteria and blocks, keyed by xid. */
 export interface StoredChildren {
   statements: ReadonlyMap<string, ChildState>;
   criteria: ReadonlyMap<string, ChildState>;
+  blocks: ReadonlyMap<string, StoredBlock>;
 }
 
 /** Everything deciding which children to write reads besides the segments themselves. */
@@ -190,6 +192,7 @@ async function citedAdrUids(
 export const NO_STORED_CHILDREN: StoredChildren = {
   statements: new Map(),
   criteria: new Map(),
+  blocks: new Map(),
 };
 
 const STORED_CHILDREN_QUERY = `query q($xid: string) {
@@ -210,6 +213,12 @@ const STORED_CHILDREN_QUERY = `query q($xid: string) {
       textHash: AcceptanceCriterion.text_hash
       validated: AcceptanceCriterion.validated_by { xid: TestChunk.xid }
       implemented: AcceptanceCriterion.implemented_by { xid: CodeChunk.xid }
+    }
+    blocks: ~Block.spec {
+      xid: Block.xid
+      kind: Block.kind
+      text: Block.text
+      level: Block.level
     }
   }
 }`;
@@ -235,19 +244,31 @@ export function storedChildrenOf(
   spec: Record<string, unknown> | undefined,
 ): StoredChildren {
   return {
-    statements: statesByXid(spec?.["statements"]),
-    criteria: statesByXid(spec?.["criteria"]),
+    statements: byXid(spec?.["statements"], stateOf),
+    criteria: byXid(spec?.["criteria"], stateOf),
+    blocks: byXid(spec?.["blocks"], blockOf),
   };
 }
 
-function statesByXid(rows: unknown): ReadonlyMap<string, ChildState> {
+function byXid<T>(
+  rows: unknown,
+  parse: (row: Record<string, unknown>) => T,
+): ReadonlyMap<string, T> {
   const list = Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
 
   return new Map(
     list.flatMap((row) =>
-      typeof row["xid"] === "string" ? [[row["xid"], stateOf(row)]] : [],
+      typeof row["xid"] === "string" ? [[row["xid"], parse(row)]] : [],
     ),
   );
+}
+
+function blockOf(row: Record<string, unknown>): StoredBlock {
+  return {
+    ...(typeof row["kind"] === "string" ? { kind: row["kind"] } : {}),
+    ...(typeof row["text"] === "string" ? { text: row["text"] } : {}),
+    ...(typeof row["level"] === "number" ? { level: row["level"] } : {}),
+  };
 }
 
 function stateOf(row: Record<string, unknown>): ChildState {
