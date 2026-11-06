@@ -400,7 +400,7 @@ silently pushed the OLD value back up and 401'd the fleet. Rotation is
 `scripts/infra/seed-secrets.sh`, and guard against a rotation the pods
 never read with `scripts/infra/check-secrets.sh` (compares each secret's
 newest version against every consuming pod's start time; the secret→consumer
-map is read from the live ExternalSecrets, not hardcoded). **Adding a new
+map is read from the live ExternalSecrets, not hardcoded). **Since 2026-11-06 the internal cluster's secrets live in `re-cinq-internal`**: their containers are declared in re-cinq/infrastructure (`projects/internal/secrets.tf`), values are added with `gcloud secrets versions add --project re-cinq-internal`, and the chart reads them through `ClusterSecretStore/gcp-secret-manager`; the copies in `re5-n8n-platform` that `secrets.tf` here still declares are the rollback until that project is deleted. On the old setup, **Adding a new
 secret** touches four places — `local.secret_names` in `secrets.tf`, an
 ExternalSecret per consuming namespace in `external-secrets.tf` (five strings
 to update: resource name, `metadata.name`/`target.name`, `namespace`, `secretKey`,

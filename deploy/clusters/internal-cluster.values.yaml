@@ -4,9 +4,9 @@
 
 platform:
   gcpProject: re5-n8n-platform
-  # Secrets still live in re5-n8n-platform's Secret Manager; the internal
-  # cluster reads it as the legacy store until they are copied over.
-  secretStore: gcp-secret-manager-legacy
+  # Secrets live in re-cinq-internal's Secret Manager (re-cinq/infrastructure,
+  # projects/internal/secrets.tf), read through the default store.
+  secretStore: gcp-secret-manager
   clusterIssuer: letsencrypt-prod
   ingressClassName: nginx-ingress
   namespaces: [lore-api, lore-floor, lore-ui, lore-db, lore-stations, lore-dgraph]
