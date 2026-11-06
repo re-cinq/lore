@@ -9,7 +9,7 @@ set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-api}"
 TAG="${2:?image tag}"
-VALUES="${3:-deploy/clusters/n8n-cluster.values.yaml}"
+VALUES="${3:-deploy/clusters/internal-cluster.values.yaml}"
 
 # Tags are quoted on purpose: an all-digit short SHA would otherwise be read as
 # a number (deploy-lore-platform.sh learned that with --set).
