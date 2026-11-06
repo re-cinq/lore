@@ -132,12 +132,17 @@ function collectedOf(
   brief: Brief,
   state: SectionState,
 ): { patches: SectionPatch[]; fingerprint: string } {
-  const fingerprint = createHash("sha256")
-    .update(brief.needs.section_patches)
-    .digest("hex");
+  const fingerprint = fingerprintOf(brief.needs.section_patches);
   const stale = fingerprint === state.consumed;
 
   return { patches: stale ? [] : patchesOf(brief), fingerprint };
+}
+
+/** A join handed no patches at all fingerprints as one handed an empty list. */
+function fingerprintOf(text: string | undefined): string {
+  return createHash("sha256")
+    .update(text ?? "[]")
+    .digest("hex");
 }
 
 /** What each pod returned, as the collected texts the join was handed; a text that is not a patch is no patch. */

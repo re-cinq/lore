@@ -49,15 +49,22 @@ async function sectionMemory(
     followsNewDraft(deps, brief),
   ]);
   const state = afterDraft
-    ? stateForNewDraft(redo)
+    ? stateForNewDraft(remembered, redo)
     : (remembered ?? emptySectionState());
 
   return { state, redo };
 }
 
-/** Every section pending again, and the gate's last redo request taken as handled: both named sections of the spec the draft replaced. */
-function stateForNewDraft(lastRedo: RedoRequest | null): SectionState {
-  return { ...emptySectionState(), redoRound: lastRedo?.round ?? 0 };
+/** Every section pending again, and the gate's last redo request taken as handled: both named sections of the spec the draft replaced. The fingerprint of the patches last applied is kept, since the floor hands a round whose every pod failed the newest patches of the run, written for the replaced spec. */
+function stateForNewDraft(
+  remembered: SectionState | null,
+  lastRedo: RedoRequest | null,
+): SectionState {
+  return {
+    ...emptySectionState(),
+    redoRound: lastRedo?.round ?? 0,
+    consumed: remembered?.consumed,
+  };
 }
 
 /** The draft wrote a new spec, so what the run remembers of its sections, and the gate's last redo request, belong to a spec that is gone. */

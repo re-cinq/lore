@@ -190,6 +190,26 @@ describe("splitSectionsHandle", () => {
     }).toEqual({ slots: ["scope", "risk"], round: 3 });
   });
 
+  it("keeps the fingerprint of the patches last applied after a new draft, so the join takes the old spec's patches as none", async () => {
+    const { tools, produced, brief, handle } = withBlocks(
+      {
+        section_state: {
+          ...EMPTY_STATE,
+          done: ["scope", "risk"],
+          consumed: "f1ng3rpr1nt",
+        },
+      },
+      AFTER_DRAFT,
+    );
+
+    await handle(brief, tools);
+
+    expect(stateOf(produced)).toMatchObject({
+      done: [],
+      consumed: "f1ng3rpr1nt",
+    });
+  });
+
   it("hands the sections of the gate's first redo after a restart, numbered by its visit, though a redo from before the restart was round 1", async () => {
     const { tools, brief, handle } = withBlocks({
       section_state: { ...EMPTY_STATE, done: ["scope", "risk"], redoRound: 1 },
