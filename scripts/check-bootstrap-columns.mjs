@@ -27,7 +27,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const BOOTSTRAP_DIR = "scripts/infra";
 export const MIGRATIONS_DIR =
-  "infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations";
+  "deploy/chart/charts/ui-helm/migrations";
 
 /** SQL with comments dropped and whitespace flattened, so a statement split
  *  across lines reads the same as one written on a single line — the ALTER that

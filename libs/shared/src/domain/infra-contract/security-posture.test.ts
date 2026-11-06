@@ -57,7 +57,7 @@ function walkFiles(dir: string): string[] {
 const repoRoot = findRepoRoot(import.meta.url);
 const chartsDir = path.join(
   repoRoot,
-  "infra/terraform/modules/gke-mcp/lore-platform/charts",
+  "deploy/chart/charts",
 );
 const workflowsDir = path.join(repoRoot, ".github/workflows");
 

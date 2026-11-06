@@ -10,7 +10,7 @@
 # Regenerate/inspect locally with:
 #
 #   helm template lore-platform \
-#     infra/terraform/modules/gke-mcp/lore-platform \
+#     deploy/chart \
 #     --namespace lore-floor --include-crds
 set -euo pipefail
 

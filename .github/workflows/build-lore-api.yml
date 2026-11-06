@@ -30,9 +30,9 @@ on:
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
+      - 'deploy/chart/charts/lore-api-helm/**'
+      - 'deploy/chart/Chart.yaml'
+      - 'deploy/chart/values.yaml'
       - '.github/workflows/build-lore-api.yml'
       - 'scripts/ci/bump-image-tag.sh'
       - 'scripts/ci/helm-lock-contention.sh'
@@ -49,9 +49,9 @@ on:
       # CI green while the fix never ships.
       - 'apps/stations/**'
       - 'apps/lore-code-trace/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
+      - 'deploy/chart/charts/lore-api-helm/**'
+      - 'deploy/chart/Chart.yaml'
+      - 'deploy/chart/values.yaml'
       - '.github/workflows/build-lore-api.yml'
   workflow_dispatch:
 

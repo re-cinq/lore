@@ -12,10 +12,10 @@ on:
       - 'libs/shared/**'
       # Compiled into this image: the review stations read its verdict parser.
       - 'libs/assembly-lines/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/stations-helm/**'
+      - 'deploy/chart/charts/stations-helm/**'
       # Parent umbrella chart — a Chart.yaml/values.yaml change redeploys.
-      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
+      - 'deploy/chart/Chart.yaml'
+      - 'deploy/chart/values.yaml'
       - '.github/workflows/build-stations.yml'
       - 'scripts/ci/bump-image-tag.sh'
       - 'scripts/ci/helm-lock-contention.sh'

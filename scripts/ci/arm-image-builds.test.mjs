@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
 
 const SHARED_BUILD = ".github/workflows/_build-image.yml";
-const CHARTS = "infra/terraform/modules/gke-mcp/lore-platform";
+const CHARTS = "deploy/chart";
 
 const SERVICE_WORKFLOWS = [
   ".github/workflows/build-lore-api.yml",

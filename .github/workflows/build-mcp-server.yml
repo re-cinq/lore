@@ -10,9 +10,9 @@ on:
       # a lib-only change must rebuild + redeploy or the gateway runs stale code.
       - "libs/shared/**"
       - "libs/server-core/**"
-      - "infra/terraform/modules/gke-mcp/lore-platform/charts/lore-mcp-helm/**"
-      - "infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml"
-      - "infra/terraform/modules/gke-mcp/lore-platform/values.yaml"
+      - "deploy/chart/charts/lore-mcp-helm/**"
+      - "deploy/chart/Chart.yaml"
+      - "deploy/chart/values.yaml"
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/ci/bump-image-tag.sh"
       - 'scripts/ci/helm-lock-contention.sh'
@@ -22,9 +22,9 @@ on:
       - "apps/mcp-server/**"
       - "libs/shared/**"
       - "libs/server-core/**"
-      - "infra/terraform/modules/gke-mcp/lore-platform/charts/lore-mcp-helm/**"
-      - "infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml"
-      - "infra/terraform/modules/gke-mcp/lore-platform/values.yaml"
+      - "deploy/chart/charts/lore-mcp-helm/**"
+      - "deploy/chart/Chart.yaml"
+      - "deploy/chart/values.yaml"
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/ci/bump-image-tag.sh"
       - 'scripts/ci/helm-lock-contention.sh'

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const sql = readFileSync(
   new URL(
-    "../../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0035_migrate_legacy_org_shared_chunks.sql",
+    "../../../../../deploy/chart/charts/ui-helm/migrations/0035_migrate_legacy_org_shared_chunks.sql",
     import.meta.url,
   ),
   "utf-8",

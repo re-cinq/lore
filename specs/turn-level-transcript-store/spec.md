@@ -60,7 +60,7 @@ fed at the same tee, not a new database.
 ## FR1 — The `pipeline.agent_run_turns` table
 
 Migration `0037_agent_run_turns.sql` under
-`infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`
+`deploy/chart/charts/ui-helm/migrations/`
 adds the table, applied by the same `pre-install,pre-upgrade` Helm hook as
 every other migration.
 
