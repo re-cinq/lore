@@ -15,6 +15,7 @@ import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
 import PlanBlockAnchor from "./PlanBlockAnchor";
+import { PlanBodyLoading } from "./PlanDetailSkeleton";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
 import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
@@ -39,7 +40,7 @@ export default function PlanEditorPanel(props: PlanEditorPanelProps) {
   const connection = usePlanConnection(props.meta, props.openSocket);
 
   if (!connection) {
-    return <p className="meta">Connecting…</p>;
+    return <PlanBodyLoading label="Connecting…" />;
   }
 
   return "error" in connection ? (

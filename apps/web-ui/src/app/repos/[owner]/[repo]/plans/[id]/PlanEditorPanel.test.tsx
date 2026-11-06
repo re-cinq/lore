@@ -64,4 +64,15 @@ describe("PlanEditorPanel", () => {
       destroyed: destroy.mock.calls.length,
     }).toEqual({ opened: 1, destroyed: 0 });
   });
+
+  it("draws the editor's shape, named Connecting…, while plan p1's socket opens", () => {
+    const view = render(
+      <PlanEditorPanel {...props(() => new Promise(() => {}))} />,
+    );
+
+    expect({
+      status: view.queryByRole("status", { name: "Connecting…" }) !== null,
+      text: view.queryByText("Connecting…"),
+    }).toEqual({ status: true, text: null });
+  });
 });
