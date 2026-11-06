@@ -188,9 +188,10 @@ platform:
         type: kubernetes.io/dockerconfigjson
         data: { .dockerconfigjson: "{{ .dockerconfigjson }}" }
       keys: { dockerconfigjson: lore-ghcr-pull-secret }
-    # The floor's agent pods: merged into the floor chart's own agent-secrets.
+    # The floor's agent pods, in the ai-agent-subsystem's namespace: merged into
+    # the agent-secrets Secret the floor's cluster agent writes to.
     - name: floor-agent-secrets-lore-mcp
-      namespace: floor
+      namespace: ai-agents
       target: agent-secrets
       creationPolicy: Merge
       template:
