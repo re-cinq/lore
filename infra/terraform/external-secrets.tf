@@ -33,54 +33,6 @@
 # `client-id` / `client-secret` / `cookie-secret` are the literal keys the
 # oauth2-proxy chart reads (its `config.requiredSecretKeys` default), so renaming
 # any of them leaves the proxy starting with no credential at all.
-resource "kubectl_manifest" "es_headlamp_oauth" {
-  count = var.enable_headlamp ? 1 : 0
-
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "headlamp-oauth"
-      namespace = "headlamp"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "headlamp-oauth"
-      }
-      data = [
-        {
-          secretKey = "client-id"
-          remoteRef = {
-            key = "lore-headlamp-oauth-client-id"
-          }
-        },
-        {
-          secretKey = "client-secret"
-          remoteRef = {
-            key = "lore-headlamp-oauth-client-secret"
-          }
-        },
-        {
-          secretKey = "cookie-secret"
-          remoteRef = {
-            key = "lore-headlamp-cookie-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [
-    kubectl_manifest.cluster_secret_store,
-    kubernetes_namespace.headlamp,
-  ]
-}
-
 # ===== external floor =======================================================
 # Gated by var.enable_external_floor: the floor engine runs in its own
 # namespace and Helm release; these carry the credentials between it and Lore.
@@ -90,52 +42,7 @@ resource "kubectl_manifest" "es_headlamp_oauth" {
 # MCP gateway needs (the bare `Bearer <token>` credential).
 # Grafana's sign-in proxy: its own Google OAuth web client and cookie key
 # (secrets.tf, behind enable_monitoring), mirrored into the monitoring namespace
-# under the key names the oauth2-proxy chart reads (monitoring.tf, ADR-050).
-resource "kubectl_manifest" "es_grafana_oauth" {
-  count = var.enable_monitoring ? 1 : 0
-
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "grafana-oauth"
-      namespace = local.monitoring_namespace
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "grafana-oauth"
-      }
-      data = [
-        {
-          secretKey = "client-id"
-          remoteRef = {
-            key = "lore-grafana-oauth-client-id"
-          }
-        },
-        {
-          secretKey = "client-secret"
-          remoteRef = {
-            key = "lore-grafana-oauth-client-secret"
-          }
-        },
-        {
-          secretKey = "cookie-secret"
-          remoteRef = {
-            key = "lore-grafana-cookie-secret"
-          }
-        },
-      ]
-    }
-  })
-
-  depends_on = [kubernetes_namespace.monitoring]
-}
-
+# under the key names the oauth2-proxy chart reads (ADR-050; the stack is re-cinq/infrastructure's now).
 # ===== utopia namespace =====================================================
 
 # Utopia's sign-in proxy: its own Google OAuth web client and cookie key

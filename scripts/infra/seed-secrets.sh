@@ -56,7 +56,7 @@ OPTIONAL=(
   lore-headlamp-oauth-client-secret
   lore-headlamp-cookie-secret
   # Behind enable_monitoring: Grafana's own Google OAuth web client and cookie key
-  # (monitoring.tf), same shape and the same 16/24/32-byte cookie rule.
+  # (the metrics stack, now re-cinq/infrastructure), same shape and the same 16/24/32-byte cookie rule.
   lore-grafana-oauth-client-id
   lore-grafana-oauth-client-secret
   lore-grafana-cookie-secret

@@ -39,13 +39,6 @@ lore_webhook_hostname = "lore-webhook.example.com"
 # The event-router front door: the canonical GitHub webhook URL (ADR-044).
 lore_event_router_hostname = "lore-events.example.com"
 
-# The Headlamp cluster dashboard. Also the OAuth redirect host, so it must match
-# the Authorized redirect URI on the Google OAuth client
-# (https://<this host>/oauth2/callback). Required whenever enable_headlamp is
-# true; Terraform rejects the pair rather than deploying an oauth2-proxy that
-# cannot build its redirect URL.
-headlamp_hostname = "headlamp.example.com"
-
 # --- Feature gates ---
 #
 # These decide whether a resource EXISTS. They are deployment topology, not
@@ -66,25 +59,11 @@ enable_gemini = false
 # Seed lore-floor-service-token and lore-floor-git-credential-token first.
 enable_external_floor = false
 
-# Headlamp, the read-only cluster dashboard, behind Google sign-in restricted to
-# the re-cinq email domain (headlamp.tf). Rancher is not an option on this
-# cluster: it is GKE Autopilot, which blocks both a Rancher install and the
-# registration of an Autopilot cluster into a Rancher elsewhere. Seed
-# lore-headlamp-oauth-client-id / -secret and lore-headlamp-cookie-secret before
-# the apply, or oauth2-proxy crash-loops on its missing secret.
-enable_headlamp = false
-
-# The metrics stack: Prometheus scraping every service, the floor and the agent
-# controller, and Grafana with the Lore dashboards behind a Google sign-in of its
-# own (monitoring.tf, ADR-050). Seed lore-grafana-oauth-client-id / -secret and
-# lore-grafana-cookie-secret from a `grafana` OAuth web client whose redirect URI
-# is https://<grafana_hostname>/oauth2/callback (docs/managing-secrets.md).
+# Headlamp and the metrics stack run on the internal cluster from
+# re-cinq/infrastructure; these keep their lore-* Secret Manager entries and
+# Grafana's GCP identity.
+enable_headlamp   = false
 enable_monitoring = false
-grafana_hostname  = "grafana.example.com"
-# The nginx ingress controller's namespace: the only namespace Grafana's
-# NetworkPolicy admits besides its own. A wrong value locks Grafana behind a
-# policy nothing can pass; check with `kubectl get ns | grep -i ingress`.
-ingress_controller_namespace = "ingress-nginx"
 
 # Utopia runs on the internal cluster from re-cinq/utopia; this keeps only its
 # lore-utopia-* Secret Manager entries.

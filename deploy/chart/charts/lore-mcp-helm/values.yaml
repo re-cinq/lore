@@ -13,7 +13,7 @@ image:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
-# Prometheus text on /metrics, scraped by the ServiceMonitor terraform owns (infra/terraform/monitoring.tf).
+# Prometheus text on /metrics, scraped by the ServiceMonitor in deploy/chart/templates/monitoring.yaml.
 metricsPort: 9464
 
 service:
