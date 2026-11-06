@@ -66,6 +66,8 @@ export interface SectionState {
   /** Sections the gate sent back, not yet redone. */
   redo: string[];
   redoRound: number;
+  /** The fingerprint of the patches the last join applied; absent before the first join. */
+  consumed?: string;
 }
 
 export interface RedoRequest {

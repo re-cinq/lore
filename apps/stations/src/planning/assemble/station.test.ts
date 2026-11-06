@@ -231,4 +231,27 @@ describe("assembleHandle", () => {
       done: ["scope", "risk"],
     });
   });
+
+  it("applies nothing again when the join is handed the patches it last applied, as when every pod of a round failed", async () => {
+    const first = scene([scope, risk]);
+
+    await first.handle(first.brief, first.tools);
+    const again = scene([scope, risk], {
+      ...stateOf(first.produced),
+      handed: ["scope"],
+      done: ["risk"],
+    });
+
+    const report = await again.handle(again.brief, again.tools);
+
+    expect({
+      report,
+      commits: again.committed.length,
+      state: stateOf(again.produced),
+    }).toMatchObject({
+      report: { outcome: "retry" },
+      commits: 0,
+      state: { done: ["risk"], attempts: { scope: 1 } },
+    });
+  });
 });

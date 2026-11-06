@@ -1,5 +1,6 @@
 // Joins the pods of a round: each wrote a patch for its own section, and this applies them in the order the sections were handed, commits the spec once, and settles what the pods returned. A section whose patch is missing, or one of whose operations did not apply, asks for another round (see specs/7-feature-planning/spec.md FR-24).
 
+import { createHash } from "node:crypto";
 import {
   defineStation,
   type Brief,
@@ -55,7 +56,8 @@ async function assembled(
   tools: Tools,
 ): Promise<Report> {
   const round = await readRound(deps, brief, tools);
-  const patches = alignPatches(round.state.handed, patchesOf(brief));
+  const collected = collectedOf(brief, round.state);
+  const patches = alignPatches(round.state.handed, collected.patches);
   const applied = applyPatches(
     round.before,
     present(patches),
@@ -63,9 +65,10 @@ async function assembled(
   );
   const settled = settleRound(round.state, patches, applied.failedOps);
   const changes = { before: round.before, after: applied.files };
+  const state = { ...settled.state, consumed: collected.fingerprint };
 
   await commitChanged(deps, round.location, changes, patches);
-  await tools.produce("section_state", JSON.stringify(settled.state));
+  await tools.produce("section_state", JSON.stringify(state));
 
   return { outcome: settled.retry ? "retry" : "success" };
 }
@@ -122,6 +125,19 @@ async function specFiles(
   return Object.fromEntries(
     read.filter((entry): entry is [string, string] => entry[1] !== null),
   );
+}
+
+/** The round's patches, and the fingerprint of what the join was handed. The floor collects from the newest round that produced a patch, so when every pod of this round failed it hands back the patches the last join already applied: those are no patches, or an append would be applied twice. */
+function collectedOf(
+  brief: Brief,
+  state: SectionState,
+): { patches: SectionPatch[]; fingerprint: string } {
+  const fingerprint = createHash("sha256")
+    .update(brief.needs.section_patches)
+    .digest("hex");
+  const stale = fingerprint === state.consumed;
+
+  return { patches: stale ? [] : patchesOf(brief), fingerprint };
 }
 
 /** What each pod returned, as the collected texts the join was handed; a text that is not a patch is no patch. */

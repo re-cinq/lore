@@ -114,7 +114,11 @@ function ledgerOf(
 function floorApiOf(
   env: Record<string, string | undefined>,
 ): FloorMigrationApi {
-  const agentDefs = new FloorAgentDefs(floorClientFrom(env).agentDefinitions);
+  return floorApiFor(new FloorAgentDefs(floorClientFrom(env).agentDefinitions));
+}
+
+/** What a migration may do to the floor's agents, each value read from the agent's shipped md file. */
+export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
   const shipped = shippedFloorAgents();
 
   return {

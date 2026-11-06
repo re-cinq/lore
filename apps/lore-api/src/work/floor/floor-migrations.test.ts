@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { InMemoryAgentDefinitions } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.fixture.js";
+import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import {
+  floorApiFor,
   readFloorMigrations,
   runFloorMigrations,
   type FloorMigrationDeps,
@@ -138,6 +141,32 @@ describe("floor/0005_spec_write_timeout", () => {
           file: "spec-write.md",
         },
       ],
+    });
+  });
+
+  it("raises spec-write's timeout on the floor to 30 minutes and keeps its model, prompt, image, config and every repo's variant", async () => {
+    const floor = new InMemoryAgentDefinitions();
+    const saved = {
+      settings: {
+        model: "claude-opus-4-7",
+        prompt: "Write the section.",
+        image: "ghcr.io/re-cinq/agent:1",
+        timeoutMinutes: 15,
+        config: { skills: ["lore-context"] },
+      },
+      variants: { "github.com/re-cinq/lore": { model: "gemini-3.1-pro" } },
+    };
+
+    await floor.put("spec-write", saved);
+    const [timeout] = (await readFloorMigrations()).filter(
+      (named) => named.version === "floor/0005_spec_write_timeout",
+    );
+
+    await timeout!.migrate(floorApiFor(new FloorAgentDefs(floor)));
+
+    expect((await floor.get("spec-write"))?.body).toEqual({
+      ...saved,
+      settings: { ...saved.settings, timeoutMinutes: 30 },
     });
   });
 });
