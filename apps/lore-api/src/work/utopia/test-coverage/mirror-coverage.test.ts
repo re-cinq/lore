@@ -237,12 +237,15 @@ describe("mirrorCodeFor", () => {
 });
 
 describe("unmirrorCodeFor", () => {
-  it("posts the code:src/x/b.ts tombstone to src-cov", async () => {
+  it("posts the code:src/x/b.ts tombstone to src-cov, then sweeps the source with the deployment token", async () => {
     await unmirrorCodeFor("re-cinq/lore", ["src/x/b.ts"]);
 
     expect({ seen, bodies }).toEqual({
-      seen: ["POST /api/v1/sources/src-cov/statements Bearer utp_cov"],
-      bodies: [{ external_id: "code:src/x/b.ts", deleted: true }],
+      seen: [
+        "POST /api/v1/sources/src-cov/statements Bearer utp_cov",
+        "POST /api/v1/kbs/kb-1/sources/src-cov/missing/cleanup Bearer utp_pat_lore",
+      ],
+      bodies: [{ external_id: "code:src/x/b.ts", deleted: true }, {}],
     });
   });
 });

@@ -5,24 +5,16 @@ import {
   type TestFileItems,
   type TestReportInput,
 } from "../../../domain/utopia/test-coverage/test-report-statements.js";
-import {
-  staleItemTombstones,
-  tombstone,
-} from "../../../domain/utopia/statements.js";
+import { tombstone } from "../../../domain/utopia/statements.js";
 import {
   combineOutcomes,
+  mirrorKeyedItems,
   pushItems,
-  type MirrorDeps,
+  type LedgeredMirrorDeps,
   type MirrorOutcome,
 } from "../push-items.js";
-import type { PushedItemLedger } from "../docs/mirror-document.js";
 
-export interface TestReportMirrorDeps extends MirrorDeps {
-  /** The item ids last pushed for each test file, keyed by `test:<path>`. */
-  ledger: PushedItemLedger;
-  /** Utopia only marks a tombstoned item missing; its facts stand until the source is swept. */
-  sweepMissing(): Promise<void>;
-}
+export type TestReportMirrorDeps = LedgeredMirrorDeps;
 
 const NOTHING: MirrorOutcome = {
   items: 0,
@@ -53,26 +45,12 @@ export async function mirrorTestReport(
   return outcome;
 }
 
-/** One file's items and the tombstones of its parts gone since the last push; the ledger moves on only when every item landed. */
-async function mirrorTestFile(
+/** One file's items and the tombstones of its parts gone since the last push. */
+function mirrorTestFile(
   deps: TestReportMirrorDeps,
   file: TestFileItems,
 ): Promise<{ outcome: MirrorOutcome; dropped: boolean }> {
-  const current = file.items();
-  const removed = staleItemTombstones(
-    await deps.ledger.pushedFor(file.key),
-    current,
-  );
-  const outcome = await pushItems(deps, [...current, ...removed]);
-
-  if (outcome.failed.length === 0) {
-    await deps.ledger.record(
-      file.key,
-      current.map((pushed) => pushed.externalId),
-    );
-  }
-
-  return { outcome, dropped: removed.length > 0 };
+  return mirrorKeyedItems(deps, file.key, file.items());
 }
 
 /** Every id the ledger holds for each deleted file, plus the bare `test:<path>` a file pushed before the per-test shape carried, then the file's row cleared and the source swept once. */

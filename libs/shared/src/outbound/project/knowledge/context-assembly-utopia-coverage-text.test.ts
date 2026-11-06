@@ -79,6 +79,8 @@ const codeTuple = JSON.stringify({
     }),
     row("re-cinq/lore:f1", "defines", { object: "re-cinq/lore:f1#prFooter" }),
     row("re-cinq/lore:f1#prFooter", "symbol", { value: "prFooter" }),
+    row("re-cinq/lore:f1#prFooter", "kind", { value: "function" }),
+    row("re-cinq/lore:f1#prFooter", "exported", { value: "false" }),
     row("re-cinq/lore:f1#prFooter", "line_start", { value: "20" }),
     row("re-cinq/lore:f1#prFooter", "line_end", { value: "31" }),
   ],
@@ -112,7 +114,7 @@ describe("coverageText", () => {
     ).toEqual(
       [
         "libs/shared/src/domain/pr-body.ts",
-        "  defines prFooter (L20-L31)",
+        "  function prFooter (L20-L31)",
       ].join("\n"),
     );
   });
@@ -121,6 +123,117 @@ describe("coverageText", () => {
     expect(coverageText("code:a.ts", " tail of a split item ")).toEqual(
       "code:a.ts\ntail of a split item",
     );
+  });
+});
+
+const RUNNER = "re-cinq/lore:src/runner.ts";
+const hashedTestTuple = JSON.stringify({
+  e: [
+    ["re-cinq/lore", "Repository", true],
+    ["re-cinq/lore:t1", "Test", true],
+    [RUNNER, "SourceFile", true],
+  ],
+  s: [
+    row("re-cinq/lore:t1", "title", { value: "prints Lore-Task" }),
+    row("re-cinq/lore:t1", "path", { value: TEST_FILE }),
+    row("re-cinq/lore:t1", "line_start", { value: "12" }),
+    row("re-cinq/lore:t1", "anchor_hash", { value: "1e7912b3" }),
+    row("re-cinq/lore:t1", "outcome", { value: "passed" }),
+    row("re-cinq/lore:t1", "covers", {
+      object: RUNNER,
+      qualifiers: { lines: "7-7,9-14" },
+    }),
+  ],
+});
+
+const classTuple = JSON.stringify({
+  e: [
+    [RUNNER, "SourceFile", true],
+    [`${RUNNER}#Runner`, "CodeDefinition", true],
+    [`${RUNNER}#Runner.step`, "CodeDefinition", true],
+    ["re-cinq/lore:src/base.ts#Base", "CodeDefinition", true],
+    [`${RUNNER}#advance`, "CodeDefinition", true],
+  ],
+  s: [
+    row(RUNNER, "path", { value: "src/runner.ts" }),
+    row(RUNNER, "defines", { object: `${RUNNER}#Runner` }),
+    row(`${RUNNER}#Runner`, "symbol", { value: "Runner" }),
+    row(`${RUNNER}#Runner`, "kind", { value: "class" }),
+    row(`${RUNNER}#Runner`, "exported", { value: "true" }),
+    row(`${RUNNER}#Runner`, "line_start", { value: "1" }),
+    row(`${RUNNER}#Runner`, "line_end", { value: "7" }),
+    row(`${RUNNER}#Runner`, "extends", {
+      object: "re-cinq/lore:src/base.ts#Base",
+    }),
+    row(RUNNER, "defines", { object: `${RUNNER}#Runner.step` }),
+    row(`${RUNNER}#Runner.step`, "symbol", { value: "Runner.step" }),
+    row(`${RUNNER}#Runner.step`, "kind", { value: "method" }),
+    row(`${RUNNER}#Runner.step`, "exported", { value: "true" }),
+    row(`${RUNNER}#Runner.step`, "line_start", { value: "3" }),
+    row(`${RUNNER}#Runner.step`, "line_end", { value: "3" }),
+    row(`${RUNNER}#Runner`, "contains", { object: `${RUNNER}#Runner.step` }),
+    row(`${RUNNER}#Runner.step`, "references", {
+      object: `${RUNNER}#advance`,
+    }),
+    row(RUNNER, "defines", { object: `${RUNNER}#advance` }),
+    row(`${RUNNER}#advance`, "symbol", { value: "advance" }),
+    row(`${RUNNER}#advance`, "kind", { value: "function" }),
+    row(`${RUNNER}#advance`, "exported", { value: "false" }),
+    row(`${RUNNER}#advance`, "line_start", { value: "9" }),
+    row(`${RUNNER}#advance`, "line_end", { value: "11" }),
+  ],
+});
+
+const definitionStatementTuple = JSON.stringify({
+  e: [
+    [`${SPEC}#0146`, "Statement", true],
+    [RUNNER, "SourceFile", true],
+    [`${RUNNER}#advance`, "CodeDefinition", true],
+  ],
+  s: [
+    row(`${SPEC}#0146`, "text", { value: "A runner advances." }),
+    row(`${SPEC}#0146`, "implemented_by", { object: `${RUNNER}#advance` }),
+    row(RUNNER, "defines", { object: `${RUNNER}#advance` }),
+    row(`${RUNNER}#advance`, "symbol", { value: "advance" }),
+    row(RUNNER, "path", { value: "src/runner.ts" }),
+  ],
+});
+
+describe("coverageText in the one-item-per-test shape", () => {
+  it("renders covers lines from the entity name when the covered file has no path row", () => {
+    expect(coverageText(`test:${TEST_FILE}#1e7912b3`, hashedTestTuple)).toEqual(
+      [
+        `prints Lore-Task (${TEST_FILE}:12) @1e7912b3 outcome=passed`,
+        "  covers src/runner.ts lines 7-7,9-14",
+      ].join("\n"),
+    );
+  });
+
+  it("nests Runner.step under class Runner with kind and exported", () => {
+    expect(coverageText("code:src/runner.ts", classTuple)).toEqual(
+      [
+        "src/runner.ts",
+        "  class Runner (L1-L7, exported) extends Base",
+        "    method Runner.step (L3-L3, exported) references advance",
+        "  function advance (L9-L11)",
+      ].join("\n"),
+    );
+  });
+
+  it("prints implemented by advance for a definition object", () => {
+    expect(coverageText(`stmt:${SPEC}#0146`, definitionStatementTuple)).toEqual(
+      [`${SPEC}#0146: A runner advances.`, "  implemented by advance"].join(
+        "\n",
+      ),
+    );
+  });
+
+  it("cites the covered range of src/runner.ts by the entity name when the file has no path row", () => {
+    expect(citedSpans(`test:${TEST_FILE}#1e7912b3`, hashedTestTuple)).toEqual([
+      { path: TEST_FILE, start: 12, end: null },
+      { path: "src/runner.ts", start: 7, end: 7 },
+      { path: "src/runner.ts", start: 9, end: 14 },
+    ]);
   });
 });
 

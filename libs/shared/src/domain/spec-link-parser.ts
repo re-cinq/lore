@@ -47,6 +47,58 @@ export function splitHashedLabel(label: string): {
     : { text: label, hash: null };
 }
 
+const CODE_SPAN_LABEL_RE = /^`([^`]*)`$/;
+const IMPLEMENTED_BY_LABEL_RE = /^implemented by\s+(.+)$/i;
+const SYMBOL_RE = /^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)?$/;
+const FILE_NAME_RE = /\.[A-Za-z0-9]+$/;
+
+/** The definition a code link names: the symbol (`advance`, `Runner.step`) in its code span or after "implemented by", its `@hash` dropped; null for a file name, or a plain word, which describes the link rather than naming a definition. */
+export function symbolOfLabel(label: string): string | null {
+  const { text } = splitHashedLabel(label.trim());
+  const symbol = namedSymbol(text).trim();
+
+  return SYMBOL_RE.test(symbol) && !isFileName(symbol) ? symbol : null;
+}
+
+/** The text of the label's code span or after "implemented by"; empty for a plain label. */
+function namedSymbol(text: string): string {
+  const span = CODE_SPAN_LABEL_RE.exec(text);
+  const prefixed = IMPLEMENTED_BY_LABEL_RE.exec(text);
+
+  return span?.[1] ?? prefixed?.[1] ?? "";
+}
+
+/** `x.ts` names a file: its tail is a source extension; `Runner.step` has none. */
+function isFileName(symbol: string): boolean {
+  const tail = FILE_NAME_RE.exec(symbol)?.[0] ?? "";
+
+  return SOURCE_EXTENSIONS.has(tail.toLowerCase());
+}
+
+const SOURCE_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
+  ".go",
+  ".py",
+  ".rs",
+  ".sh",
+  ".rb",
+  ".java",
+  ".kt",
+  ".cs",
+  ".md",
+  ".yml",
+  ".yaml",
+  ".json",
+  ".sql",
+]);
+
 /** The label carrying `hash` in place of any: inside a closing code span, against a one-word label, else after a space; a `name.test.ts:196` drops its stale line. */
 export function withAnchorHash(label: string, hash: string): string {
   const { text } = splitHashedLabel(label);
