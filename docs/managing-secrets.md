@@ -149,7 +149,7 @@ makes the sync loop re-render and apply it.
 
 ## The Headlamp sign-in credentials (`lore-headlamp-*`)
 
-The Headlamp dashboard (`infra/terraform/headlamp.tf`) is public at
+The Headlamp dashboard (re-cinq/infrastructure, modules/gke-autopilot/observability.tf) is public at
 `headlamp_hostname` and is gated by oauth2-proxy using Google as the identity
 provider, restricted to `@re-cinq.com` addresses. Three secrets, all gated on
 `enable_headlamp`, which Terraform refuses to accept without a non-empty
@@ -181,7 +181,7 @@ openssl rand -base64 32 | head -c 32 \
 
 ## The Grafana sign-in credentials (`lore-grafana-*`)
 
-The metrics stack (`infra/terraform/monitoring.tf`, `enable_monitoring`) puts its own
+The metrics stack (re-cinq/infrastructure, modules/gke-autopilot/observability.tf) puts its own
 oauth2-proxy in front of Grafana at `grafana_hostname`, with its OWN Google OAuth web
 client: a redirect URI or a rotation on one dashboard then never touches the other.
 Same recipe as Headlamp's, three containers behind `enable_monitoring`:
