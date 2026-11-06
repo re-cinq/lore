@@ -32,7 +32,7 @@ Registered in `routeList`
 - **Method + path**: `POST /api/task-turns/{taskId}`; `taskId` must be a UUID.
 - **Auth scope**: `write`. Rate-limit bucket `turns` (300/min) — a run-end
   relay is a burst of batches, which must neither starve nor be starved by
-  `default`. ([validated by `rate-limit.test.ts@a2055738`](../../../apps/lore-api/src/transport/http/rate-limit.test.ts#L41))
+  `default`. ([validated by `rate-limit.test.ts@a2055738`](../../../apps/lore-api/src/transport/http/rate-limit.test.ts#L55))
 - **Body**: raw NDJSON (`payload.parse: false`) — one claude stream-json line
   per row, already redacted on the laptop before anything left the machine.
 - **Header** (optional): `x-turn-offset` — the position of this POST's first
