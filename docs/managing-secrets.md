@@ -1,5 +1,7 @@
 # Managing secrets
 
+> **2026-11-06:** Lore now runs on the internal cluster and reads its secrets from `re-cinq-internal` (containers in re-cinq/infrastructure, `projects/internal/secrets.tf`). Run the commands below with `--project re-cinq-internal`. The `re5-n8n-platform` copies are the rollback until that project is deleted.
+
 Three different operations, and only one of them touches Terraform:
 
 | I want to... | Where | Terraform? |
