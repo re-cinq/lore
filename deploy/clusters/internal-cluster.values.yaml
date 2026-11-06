@@ -280,7 +280,10 @@ lore-ui:
 # cluster admin, so the hook that CI could not run now runs on every sync.
 lore-db-helm:
   cluster: { name: lore-db }
-  ownershipReconciler: { enabled: true }
+  # Off while lore-db is a streaming replica of the legacy primary: the
+  # reconciler is a pre-install hook that waits for a writable primary this
+  # release has not created yet. Back on once the database is promoted.
+  ownershipReconciler: { enabled: false }
 
 # ---- Stations (lore-stations namespace)
 lore-stations:
