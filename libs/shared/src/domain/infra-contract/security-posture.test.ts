@@ -55,10 +55,7 @@ function walkFiles(dir: string): string[] {
 }
 
 const repoRoot = findRepoRoot(import.meta.url);
-const chartsDir = path.join(
-  repoRoot,
-  "deploy/chart/charts",
-);
+const chartsDir = path.join(repoRoot, "deploy/chart/charts");
 const workflowsDir = path.join(repoRoot, ".github/workflows");
 
 describe("Workload Identity binding, no long-lived key material (infra charts)", () => {
