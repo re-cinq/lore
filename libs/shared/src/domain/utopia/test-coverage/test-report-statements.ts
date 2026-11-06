@@ -1,5 +1,6 @@
-// One test run as Utopia statement items: one item per test file (Repository contains SourceFile contains Test), each test with its attributes, the statements it validates or violates, and the lines it covers, each under Utopia's push limits.
+// One test run as Utopia statement items: one item per test, keyed on the test's anchor hash (Repository contains SourceFile contains Test), each with the test's attributes, the statements it validates or violates, and the lines it covers, split across `#hash.2`, `#hash.3` when its covered files overflow Utopia's push limits.
 
+import { anchorHashOf } from "../../anchor-hash.js";
 import { parseSpecAnchors } from "../../spec-trace/spec-anchor.js";
 import type {
   CoveredChunk,
@@ -13,10 +14,8 @@ import {
   knownAs,
   relation,
   sourceFileStatements,
-  tombstone,
   type Statement,
   type StatementItem,
-  type Tombstone,
 } from "../statements.js";
 
 export interface TestReportInput {
@@ -49,18 +48,10 @@ export function testReportFiles(input: TestReportInput): TestFileItems[] {
   return [...testsByFile(input.tests)].map(([path, tests]) => ({
     key: `test:${path}`,
     items: () =>
-      splitToFit(
-        `test:${path}`,
-        tests.flatMap((test) =>
-          testPieces(input, test, resultById.get(test.id)),
-        ),
-        (part) => joinFragments(fileHead(input.repo, path), part),
+      [...testsByHash(tests)].flatMap((group) =>
+        testItems(input, path, group, resultById),
       ),
   }));
-}
-
-export function testFileTombstones(paths: string[]): Tombstone[] {
-  return paths.map((path) => tombstone(`test:${path}`));
 }
 
 function testsByFile(tests: TestDescriptor[]): Map<string, TestDescriptor[]> {
@@ -73,6 +64,79 @@ function testsByFile(tests: TestDescriptor[]): Map<string, TestDescriptor[]> {
   return byFile;
 }
 
+/** The descriptors of one file by anchor hash: several share one when it.each rows declare on one line. */
+function testsByHash(tests: TestDescriptor[]): TestDescriptor[][] {
+  const byHash = new Map<string, TestDescriptor[]>();
+
+  for (const test of tests) {
+    const hash = hashOf(test);
+
+    byHash.set(hash, [...(byHash.get(hash) ?? []), test]);
+  }
+
+  return [...byHash.values()];
+}
+
+/** The descriptor's own anchor hash, else the hash of its title, else its first line: what names the item when the producer read no line. */
+function hashOf(descriptor: TestDescriptor): string {
+  return (
+    descriptor.anchorHash ??
+    anchorHashOf(titleOf(descriptor)) ??
+    `l${descriptor.startLine ?? 0}`
+  );
+}
+
+/** One test's items: its head and attributes in every item, the files it covers packed after them; a test that covers hundreds of files spans `#hash`, `#hash.2`, … instead of overflowing one. */
+function testItems(
+  input: TestReportInput,
+  path: string,
+  group: TestDescriptor[],
+  resultById: Map<string, TaggedRunResult>,
+): StatementItem[] {
+  const test = testName(input.repo, path, titleOf(group[0]));
+  const results = group.flatMap((descriptor) => {
+    const result = resultById.get(descriptor.id);
+
+    return result ? [result] : [];
+  });
+  const head = testHead(input, path, group, results);
+  const covered = results.flatMap((result) => result.covered ?? []);
+
+  return splitToFit(
+    `test:${path}#${hashOf(group[0])}`,
+    coverParts(input, test, covered),
+    (part) => joinFragments(head, part),
+  );
+}
+
+/** The file's head, the first descriptor's attributes, the other descriptors' titles as known_as, and the group's outcome when any member ran. */
+function testHead(
+  input: TestReportInput,
+  path: string,
+  [first, ...rest]: TestDescriptor[],
+  results: TaggedRunResult[],
+): Fragment {
+  const title = titleOf(first);
+  const test = testName(input.repo, path, title);
+
+  return joinFragments(fileHead(input.repo, path), [
+    testAttributes(input, first, test, title),
+    { e: [], s: rest.map((descriptor) => knownAs(test, titleOf(descriptor))) },
+    ...(results.length === 0
+      ? []
+      : [outcomeFragment(input.repo, test, first, groupOutcome(results))]),
+  ]);
+}
+
+/** Failed when any member failed, passed when every member with a result passed. */
+function groupOutcome(results: TaggedRunResult[]): TaggedRunResult {
+  return {
+    id: results[0].id,
+    passed: results.every((result) => result.passed),
+    covered: null,
+  };
+}
+
 function fileHead(repo: string, path: string): Fragment {
   const file = fileName(repo, path);
 
@@ -83,28 +147,6 @@ function fileHead(repo: string, path: string): Fragment {
     ],
     s: [relation(repo, "contains", file), ...sourceFileStatements(file, path)],
   };
-}
-
-/** A test as pieces the splitter may put in different items: its attributes and outcome, then one piece per file it covers, each naming the test so the relation's subject is listed wherever it lands. A test that covers hundreds of files therefore spans several items instead of overflowing one. */
-function testPieces(
-  input: TestReportInput,
-  descriptor: TestDescriptor,
-  result: TaggedRunResult | undefined,
-): Fragment[] {
-  const title = titleOf(descriptor);
-  const test = testName(input.repo, descriptor.file, title);
-  const attributes = testAttributes(input, descriptor, test, title);
-
-  if (!result) {
-    return [attributes];
-  }
-
-  return [
-    joinFragments(attributes, [
-      outcomeFragment(input.repo, test, descriptor, result),
-    ]),
-    ...coverageFragments(input, test, result.covered ?? []),
-  ];
 }
 
 function testAttributes(
@@ -180,7 +222,8 @@ function outcomeFragment(
   };
 }
 
-function coverageFragments(
+/** One part per covered file: the relation qualified by the merged lines, naming the file only, since the `code:` item owns its path and names. */
+function coverParts(
   input: TestReportInput,
   test: string,
   covered: CoveredChunk[],
@@ -190,14 +233,8 @@ function coverageFragments(
     const lines = ranges.map(({ start, end }) => `${start}-${end}`).join(",");
 
     return {
-      e: [
-        [test, "Test", true],
-        [file, "SourceFile", true],
-      ],
-      s: [
-        relation(test, "covers", file, { lines }),
-        ...sourceFileStatements(file, path),
-      ],
+      e: [[file, "SourceFile", true]],
+      s: [relation(test, "covers", file, { lines })],
     };
   });
 }
