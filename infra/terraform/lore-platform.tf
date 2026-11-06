@@ -39,7 +39,7 @@ locals {
 
 resource "helm_release" "lore_platform" {
   name             = "lore-platform"
-  chart            = "${path.module}/modules/gke-mcp/lore-platform"
+  chart            = "${path.module}/../../deploy/chart"
   namespace        = "lore-floor"
   create_namespace = false
 

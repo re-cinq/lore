@@ -15,7 +15,7 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-chart="$repo/infra/terraform/modules/gke-mcp/lore-platform"
+chart="$repo/deploy/chart"
 
 echo "[lore] helm lint (umbrella + subcharts)"
 helm lint --with-subcharts "$chart"

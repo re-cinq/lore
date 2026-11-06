@@ -19,3 +19,18 @@ lore-ui:
 
 lore-db-helm:
   namespace: lore-db
+
+# Platform objects the applications need on a cluster: namespaces, secrets,
+# ingresses, the database and the graph store. Empty by default; a cluster's
+# file under ../clusters/ fills them. database and dgraph render only when set.
+platform:
+  gcpProject: ""
+  secretStore: gcp-secret-manager
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx-ingress
+  namespaces: []
+  legacyWebhookHost: ""
+  externalSecrets: []
+  ingresses: []
+  database: null
+  dgraph: null
