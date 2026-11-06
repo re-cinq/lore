@@ -8,6 +8,8 @@ const statementAssessmentSchema = z.object({
   line: z.number().int().positive(),
   status: z.enum(["missing", "partial", "present"]).catch("missing"),
   evidence: z.array(implementationEvidenceSchema).catch([]),
+  // Why a statement whose linked test exists is still missing (specs/spec-tickets FR23).
+  reason: z.string().trim().min(1).optional().catch(undefined),
 });
 
 const inPlaceSchema = implementationEvidenceSchema.extend({

@@ -61,6 +61,13 @@ at exactly `{decomposition_path}`; the file is the deliverable:
       "line": 42,
       "status": "partial",
       "evidence": [{ "path": "src/component.ts", "start": 10, "end": 20, "text": "Component" }]
+    },
+    {
+      "file": "specs/<slug>/spec.md",
+      "line": 57,
+      "status": "missing",
+      "evidence": [],
+      "reason": "<only when a test linked to this statement exists: why that test does not show the behaviour>"
     }
   ],
   "stories": [
@@ -109,6 +116,14 @@ text within that range. Inspect the behaviour requested by the statement,
 not just a similarly named file. Tests linked by validated_by are useful
 corroboration, not a requirement and not proof on their own.
 
+A statement whose validated_by test exists at `{merge_sha}` is not
+missing until you have read the code that test exercises. Claim it
+`present` or `partial` with evidence from that code, or keep it `missing`
+and set `reason` to why the test does not show the behaviour, such as a
+test that asserts something else. Verification hands back a statement with
+an existing linked test that is missing, or has no entry, and gives no
+reason.
+
 Read existing ticket bodies before marking their work complete. Check every
 acceptance criterion against production callers, runtime wiring and error
 paths, not just an exported helper or a mocked test. Preserve independently
@@ -133,8 +148,11 @@ When `/workspace/implementation-report.md` exists, act on its objections
 first. Rejected evidence makes the statement missing: restore its FULL
 task scope and full changes, acceptance criteria and test plan, or supply
 correct evidence from the merge commit. Merely deleting rejected evidence
-while retaining a narrowed task silently loses work. Keep unrelated IDs
-and tasks stable. A correction may change assessments and task scope.
+while retaining a narrowed task silently loses work. A statement handed
+back because its linked test exists needs the code read again: claim it
+present or partial with evidence, or keep it missing with a `reason`. Keep
+unrelated IDs and tasks stable. A correction may change assessments and
+task scope.
 
 ## Preserve ticket identity
 
@@ -156,12 +174,17 @@ you wrote on an earlier visit of this run. Start from it.
 When `/workspace/issue-coverage.md` lists statements under "Not covered
 yet", this round is for exactly those: each is named by its line at the
 `spec_commit` in `/workspace/decomposition.json`. Keep that
-`spec_commit` and every task as it is, and either add the line to the
-`spec_lines` of the task that already implements the statement, or add
-a task for it with the next free id. When it also lists task ids under
-"Not on main", that task names a path, function or component the code
-does not have: read the file named, or search the clone, and rewrite
-that task from the code on the branch, keeping its id.
+`spec_commit` and every task as it is. Assess each listed statement as
+the first visit does, after searching the repository, and give it a
+`statements` entry: one you show present with evidence needs no task.
+Otherwise add the line to the `spec_lines` of the task that already
+implements the statement, or add a task for it with the next free id.
+Never mark a listed statement missing without looking.
+
+When that file also lists task ids under "Not on main", that task names
+a path, function or component the code does not have: read the file
+named, or search the clone, and rewrite that task from the code on the
+branch, keeping its id.
 
 Change nothing else.
 
