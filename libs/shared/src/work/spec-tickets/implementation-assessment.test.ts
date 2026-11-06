@@ -155,4 +155,107 @@ describe("assessImplementation", () => {
       result,
     );
   });
+
+  it("hands back the missing colour prop on line 6 while its linked test exists, naming the test", async () => {
+    expect(await assessTested(decomposition())).toMatchObject({
+      objections: [
+        expect.stringContaining(
+          "specs/widget/spec.md line 6: missing or unassessed, but its linked test src/widget.test.ts#L1 exists",
+        ),
+      ],
+    });
+  });
+
+  it("hands back the colour prop on line 6 when no statement entry assesses it and its linked test exists", async () => {
+    const result = decomposition();
+
+    result.statements = result.statements!.slice(0, 1);
+    expect((await assessTested(result)).objections).toEqual([
+      expect.stringContaining("line 6: missing or unassessed"),
+    ]);
+  });
+
+  it("keeps the missing colour prop and its reason when the claim says why its linked test does not show it", async () => {
+    const result = decomposition();
+    const reason = "The test only renders the default colour.";
+
+    result.statements![1] = { ...result.statements![1], reason };
+    expect(await assessTested(result)).toMatchObject({
+      objections: [],
+      decomposition: { statements: [{ line: 5 }, { line: 6, reason }] },
+    });
+  });
+
+  it("raises nothing for the missing colour prop when its linked test is not at the commit", async () => {
+    expect(
+      (await assessTested(decomposition(), WIDGET_SOURCE)).objections,
+    ).toEqual([]);
+  });
+
+  it("raises nothing for the missing colour prop when its test link sits mid-sentence, outside the trailing link group", async () => {
+    const spec = SPEC.replace(
+      "accept a colour prop.",
+      "accept a colour prop ([validated by accepts a colour prop](src/widget.test.ts#L1)) for its border.",
+    );
+
+    expect(
+      (await assessTested(decomposition(), WIDGET_AND_TEST, spec)).objections,
+    ).toEqual([]);
+  });
+
+  it("applies no linked-test rule to an explicit requirement part, as triage supplies", async () => {
+    const result = await assessImplementation(decomposition(), {
+      spec: testedSpec(),
+      specPath: "specs/widget/spec.md",
+      commit: "merge123",
+      read: async (path) => WIDGET_AND_TEST[path] ?? null,
+      parts: [
+        { line: 5, text: "The widget MUST render messages." },
+        { line: 6, text: "The widget MUST accept a colour prop." },
+      ],
+    });
+
+    expect(result.objections).toEqual([]);
+  });
+
+  it("hands back the missing colour prop when its hashed link cites line 9 and the test now sits on line 1", async () => {
+    const spec = SPEC.replace(
+      "accept a colour prop.",
+      `accept a colour prop. ([validated by accepts a colour prop @${ANCHOR_HASH_OF_THE_COLOUR_TEST_LINE}](src/widget.test.ts#L9))`,
+    );
+
+    expect(
+      (await assessTested(decomposition(), WIDGET_AND_TEST, spec)).objections,
+    ).toEqual([expect.stringContaining("line 6: missing or unassessed")]);
+  });
 });
+
+const ANCHOR_HASH_OF_THE_COLOUR_TEST_LINE = "420663fb";
+
+const WIDGET_SOURCE: Record<string, string> = {
+  "src/widget.ts": "export function ChatMessageList() {}\n",
+};
+const WIDGET_AND_TEST: Record<string, string> = {
+  ...WIDGET_SOURCE,
+  "src/widget.test.ts": 'it("accepts a colour prop", () => {});\n',
+};
+
+function testedSpec(): string {
+  return SPEC.replace(
+    "accept a colour prop.",
+    "accept a colour prop. ([validated by accepts a colour prop](src/widget.test.ts#L1))",
+  );
+}
+
+function assessTested(
+  result: ReturnType<typeof decomposition>,
+  files: Record<string, string> = WIDGET_AND_TEST,
+  spec: string = testedSpec(),
+) {
+  return assessImplementation(result, {
+    spec,
+    specPath: "specs/widget/spec.md",
+    commit: "merge123",
+    read: async (path) => files[path] ?? null,
+  });
+}

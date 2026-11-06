@@ -12,6 +12,7 @@ import {
   testLinksOfDoc,
   type DocTestLink,
 } from "../../domain/spec-link-parser.js";
+import { resolveAnchorLine } from "../../domain/spec-trace/resolve-anchor-line.js";
 
 export interface ImplementationAssessmentInput {
   spec: string;
@@ -32,14 +33,17 @@ type CheckedStatement = {
   objections: string[];
 };
 
+/** Each statement line's linked tests that exist at the commit, named as `path#Lnn`. */
+type TestedLines = ReadonlyMap<number, string[]>;
+
 export async function assessImplementation(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput,
 ): Promise<ImplementationAssessment> {
   const read = cachedRead(input.read);
-  const verify: VerifyEvidence = async (evidence) =>
-    evidenceIsPresent(evidence, await read(evidence.path));
-  const checked = await checkStatements(decomposition, input, verify);
+  const verify = evidenceVerifier(read);
+  const tested = await testedLines(input, read);
+  const checked = await checkStatements(decomposition, input, verify, tested);
   const statements = checked.map((entry) => entry.statement);
   const objections = await taskErrors(
     decomposition,
@@ -76,12 +80,20 @@ function checkStatements(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput,
   verify: VerifyEvidence,
+  tested: TestedLines,
 ): Promise<CheckedStatement[]> {
   return Promise.all(
     (input.parts ?? specParts(input.spec)).map(({ line }) =>
-      checkStatement(decomposition, { ...input, line }, verify),
+      checkStatement(decomposition, { ...input, line }, verify, tested),
     ),
   );
+}
+
+function evidenceVerifier(
+  read: ImplementationAssessmentInput["read"],
+): VerifyEvidence {
+  return async (evidence) =>
+    evidenceIsPresent(evidence, await read(evidence.path));
 }
 
 export function cachedRead(
@@ -113,13 +125,14 @@ async function checkStatement(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput & { line: number },
   verify: VerifyEvidence,
+  tested: TestedLines,
 ): Promise<CheckedStatement> {
   const claims = assessmentsForLine(decomposition, input);
   const claim = claims.at(0);
   const statement = missingStatement(input.specPath, input.line);
 
   if (!claim || claim.status === "missing") {
-    return { statement, objections: [] };
+    return missingClaim(statement, claim, tested.get(input.line));
   }
   const validProof = await verifyClaim(claim, verify);
   const validRevision =
@@ -152,6 +165,30 @@ async function verifyClaim(
   return results.length > 0 && results.every(Boolean);
 }
 
+// A statement whose linked test exists is missing only with a reason; without one the agent looks again (specs/spec-tickets FR23).
+function missingClaim(
+  statement: StatementAssessment,
+  claim: StatementAssessment | undefined,
+  tests: string[] = [],
+): CheckedStatement {
+  const reason = claim?.reason;
+
+  if (reason !== undefined) {
+    return { statement: { ...statement, reason }, objections: [] };
+  }
+  const objections =
+    tests.length > 0 ? [testedObjection(statement, tests)] : [];
+
+  return { statement, objections };
+}
+
+function testedObjection(
+  { file, line }: StatementAssessment,
+  tests: string[],
+): string {
+  return `${file} line ${line}: missing or unassessed, but its linked test ${tests.join(", ")} exists at this commit; read the code that test exercises, then claim present or partial with evidence, or keep missing and set reason to why the test does not show the behaviour.`;
+}
+
 function rejectedStatement(statement: StatementAssessment): CheckedStatement {
   return {
     statement,
@@ -159,6 +196,43 @@ function rejectedStatement(statement: StatementAssessment): CheckedStatement {
       `${statement.file} line ${statement.line}: evidence rejected; treat as missing and restore the full task scope, changes, acceptance criteria and test plan.`,
     ],
   };
+}
+
+// Explicit parts, as triage supplies, are not the spec's statements, so no link belongs to them (specs/spec-tickets FR20).
+async function testedLines(
+  input: ImplementationAssessmentInput,
+  read: ImplementationAssessmentInput["read"],
+): Promise<TestedLines> {
+  if (input.parts) {
+    return new Map();
+  }
+  const links = testLinksOfDoc(input.specPath, input.spec).filter(
+    (link) => !link.misplaced,
+  );
+  const exists = await Promise.all(
+    links.map(async (link) => linkedTestExists(await read(link.path), link)),
+  );
+
+  return byStatementLine(links.filter((link, index) => exists[index]));
+}
+
+function byStatementLine(links: DocTestLink[]): TestedLines {
+  const tested = new Map<number, string[]>();
+
+  for (const { statementLine, ...link } of links) {
+    if (statementLine !== null) {
+      tested.set(statementLine, [
+        ...(tested.get(statementLine) ?? []),
+        linkName(link),
+      ]);
+    }
+  }
+
+  return tested;
+}
+
+function linkName(link: Pick<DocTestLink, "path" | "line">): string {
+  return `${link.path}${link.line ? `#L${link.line}` : ""}`;
 }
 
 function testDiagnostics(
@@ -172,16 +246,18 @@ function testDiagnostics(
         ? "linked test exists"
         : "linked test missing or out of bounds";
 
-      return `${link.path}${link.line ? `#L${link.line}` : ""}: ${status} at ${input.commit}`;
+      return `${linkName(link)}: ${status} at ${input.commit}`;
     }),
   );
 }
 
+// A hashed link follows its test to the line the hash sits on now, so a test moved above a shortened file still exists.
 function linkedTestExists(content: string | null, link: DocTestLink): boolean {
   if (content === null) {
     return false;
   }
   const lines = content.replace(/\n$/, "").split("\n");
+  const line = resolveAnchorLine(link, content);
 
-  return link.line === null || (link.line > 0 && link.line <= lines.length);
+  return line === null || (line > 0 && line <= lines.length);
 }
