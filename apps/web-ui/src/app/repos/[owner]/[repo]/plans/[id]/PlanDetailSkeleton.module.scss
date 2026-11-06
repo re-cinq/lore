@@ -1,0 +1,49 @@
+@use "styles/tokens" as t;
+
+/* Mirrors PlanDetailView.module.scss's header. */
+.header {
+  @include t.row-between(var(--space-4));
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Mirrors PlanRunCard.module.scss's summary row. */
+.run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+/* Mirrors the planning editor's own grid (its gap, --ps-space-layout, is
+   --space-6): the document, then a 12–16rem outline on the right; below
+   48rem one column with the outline on top. */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+  align-items: start;
+  gap: var(--space-6);
+
+  @media (max-width: 47.99rem) {
+    grid-template-columns: minmax(0, 1fr);
+
+    .outline {
+      order: -1;
+    }
+  }
+}
+
+.outline {
+  @include t.stack(var(--space-4));
+}
+
+.document {
+  @include t.stack(var(--space-4));
+}
