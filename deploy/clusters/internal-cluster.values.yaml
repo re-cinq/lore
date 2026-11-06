@@ -30,7 +30,7 @@ platform:
     # to false (deploy/README.md). Leave host set afterwards.
     restore:
       host: 104.155.23.201
-      replica: true
+      replica: false
 
   dgraph:
     image: dgraph/standalone:v24.0.0
@@ -275,19 +275,13 @@ lore-ui:
     UTOPIA_URL: https://utopia.gcp.re-cinq.com
   dbPasswordSecret: { name: lore-db-password, key: password }
   githubAppSecret: { name: github-app-credentials }
-  # Off while lore-db is a streaming replica: a pre-install hook cannot write
-  # to a read-only database, and it blocks every other object of the release.
-  # Back on with the ownership reconciler once the database is promoted.
-  migrations: { enabled: false }
+  migrations: { enabled: true }
 
 # ---- lore-db ownership reconciler (lore-db namespace). Argo CD syncs as
 # cluster admin, so the hook that CI could not run now runs on every sync.
 lore-db-helm:
   cluster: { name: lore-db }
-  # Off while lore-db is a streaming replica of the legacy primary: the
-  # reconciler is a pre-install hook that waits for a writable primary this
-  # release has not created yet. Back on once the database is promoted.
-  ownershipReconciler: { enabled: false }
+  ownershipReconciler: { enabled: true }
 
 # ---- Stations (lore-stations namespace)
 lore-stations:
