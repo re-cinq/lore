@@ -217,7 +217,20 @@ describe("assessImplementation", () => {
 
     expect(result.objections).toEqual([]);
   });
+
+  it("hands back the missing colour prop when its hashed link cites line 9 and the test now sits on line 1", async () => {
+    const spec = SPEC.replace(
+      "accept a colour prop.",
+      `accept a colour prop. ([validated by accepts a colour prop @${ANCHOR_HASH_OF_THE_COLOUR_TEST_LINE}](src/widget.test.ts#L9))`,
+    );
+
+    expect(
+      (await assessTested(decomposition(), WIDGET_AND_TEST, spec)).objections,
+    ).toEqual([expect.stringContaining("line 6: missing or unassessed")]);
+  });
 });
+
+const ANCHOR_HASH_OF_THE_COLOUR_TEST_LINE = "420663fb";
 
 const WIDGET_SOURCE: Record<string, string> = {
   "src/widget.ts": "export function ChatMessageList() {}\n",

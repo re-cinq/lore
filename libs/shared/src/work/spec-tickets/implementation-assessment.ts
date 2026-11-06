@@ -12,6 +12,7 @@ import {
   testLinksOfDoc,
   type DocTestLink,
 } from "../../domain/spec-link-parser.js";
+import { resolveAnchorLine } from "../../domain/spec-trace/resolve-anchor-line.js";
 
 export interface ImplementationAssessmentInput {
   spec: string;
@@ -250,11 +251,13 @@ function testDiagnostics(
   );
 }
 
+// A hashed link follows its test to the line the hash sits on now, so a test moved above a shortened file still exists.
 function linkedTestExists(content: string | null, link: DocTestLink): boolean {
   if (content === null) {
     return false;
   }
   const lines = content.replace(/\n$/, "").split("\n");
+  const line = resolveAnchorLine(link, content);
 
-  return link.line === null || (link.line > 0 && link.line <= lines.length);
+  return line === null || (line > 0 && line <= lines.length);
 }
