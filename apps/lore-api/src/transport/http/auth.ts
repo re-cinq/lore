@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
 export type RateBucket =
-  "webhook" | "task" | "embed" | "turns" | "ws" | "wsOpen" | "default";
+  "webhook" | "task" | "embed" | "turns" | "ws" | "wsOpen" | "session" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30,
@@ -15,6 +15,8 @@ const RATE_LIMITS: Record<RateBucket, number> = {
   turns: 300,
   ws: 30,
   wsOpen: 30,
+  // A person's web session: one page render reads many routes, and every tab shares the one token.
+  session: 600,
   default: 200,
 };
 

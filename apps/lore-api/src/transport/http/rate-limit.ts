@@ -38,6 +38,13 @@ export function bucketFor(path: string): RouteBucket {
   return BUCKET_RULES.find((rule) => rule.matches(path))?.bucket ?? "default";
 }
 
+/** A person's web session spends the `session` budget where anything else would spend the default one. */
+export function personBucketFor(path: string): RouteBucket {
+  const bucket = bucketFor(path);
+
+  return bucket === "default" ? "session" : bucket;
+}
+
 export function registerRateLimit(server: Server): void {
   server.ext("onPreAuth", beforeAuth);
   server.ext("onPostAuth", afterAuth);
@@ -62,7 +69,15 @@ function afterAuth(request: Request, h: ResponseToolkit) {
     ? tokenPrincipal(bearer)
     : addressPrincipal(request);
 
-  return admit(request, h, principal);
+  return admit(request, h, principal, bucketOf(request));
+}
+
+function bucketOf(request: Request): RouteBucket {
+  const { isAuthenticated, credentials } = request.auth;
+
+  return isAuthenticated && credentials.user
+    ? personBucketFor(request.path)
+    : bucketFor(request.path);
 }
 
 function beforeResponse(request: Request, h: ResponseToolkit) {
@@ -79,10 +94,14 @@ function isCounted(request: Request): boolean {
   return (request.plugins as Counted).rateCounted === true;
 }
 
-function admit(request: Request, h: ResponseToolkit, principal: string) {
+function admit(
+  request: Request,
+  h: ResponseToolkit,
+  principal: string,
+  bucket = bucketFor(request.path),
+) {
   (request.plugins as Counted).rateCounted = true;
 
-  const bucket = bucketFor(request.path);
 
   return bucket === "unlimited" || rateLimit(bucket, principal)
     ? h.continue
