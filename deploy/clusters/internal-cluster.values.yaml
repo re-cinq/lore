@@ -275,6 +275,10 @@ lore-ui:
     UTOPIA_URL: https://utopia.gcp.re-cinq.com
   dbPasswordSecret: { name: lore-db-password, key: password }
   githubAppSecret: { name: github-app-credentials }
+  # Off while lore-db is a streaming replica: a pre-install hook cannot write
+  # to a read-only database, and it blocks every other object of the release.
+  # Back on with the ownership reconciler once the database is promoted.
+  migrations: { enabled: false }
 
 # ---- lore-db ownership reconciler (lore-db namespace). Argo CD syncs as
 # cluster admin, so the hook that CI could not run now runs on every sync.
