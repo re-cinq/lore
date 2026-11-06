@@ -1,6 +1,5 @@
 // Joins the pods of a round: each wrote a patch for its own section, and this applies them in the order the sections were handed, commits the spec once, and settles what the pods returned. A section whose patch is missing, or one of whose operations did not apply, asks for another round (see specs/7-feature-planning/spec.md FR-24).
 
-import { createHash } from "node:crypto";
 import {
   defineStation,
   type Brief,
@@ -21,6 +20,7 @@ import {
 } from "@re-cinq/lore-shared/feature-planning/spec-sections.js";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { runVisitsOf } from "../coverage-deps.js";
 
 export interface AssembleDeps {
   /** A spec file as it stands at a branch; null when there is no such file. */
@@ -31,6 +31,16 @@ export interface AssembleDeps {
     file: { path: string; text: string },
     message: string,
   ): Promise<void>;
+  /** Every visit of the run this visit belongs to. */
+  visitsOf(visitId: string): Promise<RunVisit[]>;
+}
+
+/** What the join reads of a visit to tell whether the round it follows produced anything. */
+export interface RunVisit {
+  nodeId: string;
+  iteration: number;
+  branch: number | null;
+  report: { produced?: Record<string, string> } | null;
 }
 
 export const assembleDeps: AssembleDeps = {
@@ -38,6 +48,7 @@ export const assembleDeps: AssembleDeps = {
     (await projectFor(repo)).repo.read(path, ref),
   commitSpec: async (repo, branch, { path, text }, message) =>
     (await projectFor(repo)).repo.commitFile(branch, path, text, message),
+  visitsOf: (visitId) => runVisitsOf(visitId),
 };
 
 export function assembleHandle(deps: AssembleDeps): Handle {
@@ -56,8 +67,8 @@ async function assembled(
   tools: Tools,
 ): Promise<Report> {
   const round = await readRound(deps, brief, tools);
-  const collected = collectedOf(brief, round.state);
-  const patches = alignPatches(round.state.handed, collected.patches);
+  const handedBack = round.fresh ? patchesOf(brief) : [];
+  const patches = alignPatches(round.state.handed, handedBack);
   const applied = applyPatches(
     round.before,
     present(patches),
@@ -65,10 +76,9 @@ async function assembled(
   );
   const settled = settleRound(round.state, patches, applied.failedOps);
   const changes = { before: round.before, after: applied.files };
-  const state = { ...settled.state, consumed: collected.fingerprint };
 
   await commitChanged(deps, round.location, changes, patches);
-  await tools.produce("section_state", JSON.stringify(state));
+  await tools.produce("section_state", JSON.stringify(settled.state));
 
   return { outcome: settled.retry ? "retry" : "success" };
 }
@@ -79,6 +89,8 @@ interface Round {
   /** The spec files the plan names that the branch holds. */
   before: Record<string, string>;
   defaultFile: string;
+  /** The run's newest round of `write` pods produced a patch, so what the join was handed is theirs. */
+  fresh: boolean;
 }
 
 async function readRound(
@@ -96,6 +108,7 @@ async function readRound(
     state: await stateOf(tools),
     before: await specFiles(deps, location, paths),
     defaultFile: paths[0] ?? "",
+    fresh: newestRoundProduced(await deps.visitsOf(brief.visitId)),
   };
 }
 
@@ -103,6 +116,24 @@ async function stateOf(tools: Tools): Promise<SectionState> {
   const text = (await tools.read("section_state")).toString("utf8");
 
   return text === "" ? emptySectionState() : (JSON.parse(text) as SectionState);
+}
+
+/** The floor hands the join what the newest round that produced a patch returned, across the whole run; so when every pod of the newest round failed, it hands an earlier round's patches, already applied or written for a spec a new draft replaced. Those are no patches here. */
+function newestRoundProduced(visits: readonly RunVisit[]): boolean {
+  const pods = visits.filter(
+    (visit) => visit.nodeId === "write" && visit.branch !== null,
+  );
+  const producing = pods.filter((visit) => patchOf(visit) !== undefined);
+
+  return newestOf(producing) >= newestOf(pods);
+}
+
+function patchOf({ report }: RunVisit): string | undefined {
+  return report?.produced?.section_patch;
+}
+
+function newestOf(visits: readonly RunVisit[]): number {
+  return Math.max(0, ...visits.map((visit) => visit.iteration));
 }
 
 interface Branch {
@@ -125,24 +156,6 @@ async function specFiles(
   return Object.fromEntries(
     read.filter((entry): entry is [string, string] => entry[1] !== null),
   );
-}
-
-/** The round's patches, and the fingerprint of what the join was handed. The floor collects from the newest round that produced a patch, so when every pod of this round failed it hands back the patches the last join already applied: those are no patches, or an append would be applied twice. */
-function collectedOf(
-  brief: Brief,
-  state: SectionState,
-): { patches: SectionPatch[]; fingerprint: string } {
-  const fingerprint = fingerprintOf(brief.needs.section_patches);
-  const stale = fingerprint === state.consumed;
-
-  return { patches: stale ? [] : patchesOf(brief), fingerprint };
-}
-
-/** A join handed no patches at all fingerprints as one handed an empty list. */
-function fingerprintOf(text: string | undefined): string {
-  return createHash("sha256")
-    .update(text ?? "[]")
-    .digest("hex");
 }
 
 /** What each pod returned, as the collected texts the join was handed; a text that is not a patch is no patch. */

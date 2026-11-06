@@ -25,11 +25,7 @@ export const coverageDeps: CoverageDeps = {
   readSpec: async (repo, path, ref) =>
     (await projectFor(repo)).repo.read(path, ref),
   listTree: async (repo, ref) => (await projectFor(repo)).repo.tree(ref),
-  visitsOf: async (visitId) => {
-    const visit = await floorClient().stationRuns.get(visitId);
-
-    return visit ? floorClient().stationRuns.list({ run: visit.runId }) : [];
-  },
+  visitsOf: (visitId) => runVisitsOf(visitId),
   filedCoverage: async (repo, planId) => {
     const project = await projectFor(repo);
     const { story } = await existingPlanIssues(project, planId);
@@ -46,3 +42,10 @@ export const coverageDeps: CoverageDeps = {
     );
   },
 };
+
+/** Every visit of the run the visit belongs to, oldest first, as the floor holds them. */
+export async function runVisitsOf(visitId: string) {
+  const visit = await floorClient().stationRuns.get(visitId);
+
+  return visit ? floorClient().stationRuns.list({ run: visit.runId }) : [];
+}
