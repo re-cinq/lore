@@ -1,7 +1,12 @@
 // The push every Utopia mirror kind shares: items pushed four at a time, counting what Utopia said of each.
 
 import { enforceTrue } from "../../lib/enforce.js";
-import type { PushItem } from "../../domain/utopia/statements.js";
+import {
+  staleItemTombstones,
+  type PushItem,
+  type StatementItem,
+} from "../../domain/utopia/statements.js";
+import type { PushedItemLedger } from "./docs/mirror-document.js";
 import type { IngestDocument } from "../../domain/utopia/memory/memory-documents.js";
 import type {
   DocumentPushOutcome,
@@ -24,6 +29,14 @@ export interface MirrorOutcome {
   failed: string[];
 }
 
+/** {@link MirrorDeps} for a mirror that remembers what it pushed under each key, so a part gone since the last push is tombstoned. */
+export interface LedgeredMirrorDeps extends MirrorDeps {
+  /** The item ids last pushed for each key (`test:<path>`, `code:<path>`). */
+  ledger: PushedItemLedger;
+  /** Utopia only marks a tombstoned item missing; its facts stand until the source is swept. */
+  sweepMissing(): Promise<void>;
+}
+
 export interface DocumentMirrorDeps {
   push(document: IngestDocument): Promise<DocumentPushOutcome>;
 }
@@ -37,6 +50,28 @@ export function pushItems(
     idOf: (pushed) => pushed.externalId,
     push: deps.push,
   });
+}
+
+/** One key's items and the tombstones of its parts gone since the last push; the ledger moves on only when every item landed. */
+export async function mirrorKeyedItems(
+  deps: LedgeredMirrorDeps,
+  key: string,
+  current: StatementItem[],
+): Promise<{ outcome: MirrorOutcome; dropped: boolean }> {
+  const removed = staleItemTombstones(
+    await deps.ledger.pushedFor(key),
+    current,
+  );
+  const outcome = await pushItems(deps, [...current, ...removed]);
+
+  if (outcome.failed.length === 0) {
+    await deps.ledger.record(
+      key,
+      current.map((pushed) => pushed.externalId),
+    );
+  }
+
+  return { outcome, dropped: removed.length > 0 };
 }
 
 /** {@link pushItems} for whole text documents, the way an `api` source takes them. */

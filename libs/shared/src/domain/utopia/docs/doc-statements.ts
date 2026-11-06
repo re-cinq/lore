@@ -5,6 +5,7 @@ import {
   parseCodeLinksInStatement,
   resolveLinkPath,
   splitHashedLabel,
+  symbolOfLabel,
   trailingLinkHrefs,
   type SpecLinkRef,
 } from "../../spec-link-parser.js";
@@ -18,10 +19,17 @@ import {
   splitToFit,
   type Fragment,
 } from "../fragments.js";
-import { blobUrl, fileName, statementName, testName } from "../names.js";
+import {
+  blobUrl,
+  definitionName,
+  fileName,
+  statementName,
+  testName,
+} from "../names.js";
 import { sectionsOf, type SectionRef } from "./doc-sections.js";
 import {
   attribute,
+  knownAs,
   relation,
   type Entity,
   type Statement,
@@ -241,6 +249,7 @@ function lineStartOf(test: string, line: number | null): Statement[] {
   return line === null ? [] : [attribute(test, "line_start", String(line))];
 }
 
+/** A code link labelled with a symbol names the definition the statement is implemented by, which its file defines; one labelled otherwise names the file. */
 function codeFragment(
   names: DocNames,
   statement: string,
@@ -248,12 +257,37 @@ function codeFragment(
 ): Fragment {
   const path = resolveLinkPath(link.path, names.path);
   const file = fileName(names.repo, path);
+  const symbol = symbolOfLabel(link.label);
+
+  return symbol === null
+    ? {
+        e: [[file, "SourceFile", true]],
+        s: [
+          relation(statement, "implemented_by", file),
+          attribute(file, "path", path),
+        ],
+      }
+    : definitionFragment(names, statement, { file, path, symbol });
+}
+
+function definitionFragment(
+  names: DocNames,
+  statement: string,
+  linked: { file: string; path: string; symbol: string },
+): Fragment {
+  const definition = definitionName(names.repo, linked.path, linked.symbol);
 
   return {
-    e: [[file, "SourceFile", true]],
+    e: [
+      [linked.file, "SourceFile", true],
+      [definition, "CodeDefinition", true],
+    ],
     s: [
-      relation(statement, "implemented_by", file),
-      attribute(file, "path", path),
+      relation(statement, "implemented_by", definition),
+      relation(linked.file, "defines", definition),
+      attribute(definition, "symbol", linked.symbol),
+      knownAs(definition, linked.symbol),
+      attribute(linked.file, "path", linked.path),
     ],
   };
 }

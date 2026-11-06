@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isLocatedCallback } from "./registration-anchors.js";
+import { anchorHashOf } from "../../domain/anchor-hash.js";
+import { definitionsOf, type Definition } from "./definition-readers.js";
 
 const require = createRequire(import.meta.url);
 
@@ -59,9 +61,19 @@ export async function extractImportedCallSites(
   return sites;
 }
 
-/** One top-level definition of a source file: its name, 1-based line range, text, and the bare identifiers it calls, in first-call order. */
+export type CodeSymbolKind =
+  "class" | "method" | "function" | "interface" | "type" | "enum";
+
+/** One definition of a source file: its name (bare for a top-level one, `Class.method` for a method), kind, whether the file exports it, the content hash of its declaration line, its heritage, 1-based line range, text, and the bare identifiers it calls, in first-call order. */
 export interface CodeSymbol {
   name: string;
+  kind: CodeSymbolKind;
+  exported: boolean;
+  anchorHash: string | null;
+  /** The class a method belongs to; absent on a top-level definition. */
+  container?: string;
+  extends: string[];
+  implements: string[];
   startLine: number;
   endLine: number;
   text: string;
@@ -75,7 +87,7 @@ export interface ImportBinding {
   fromPath: string;
 }
 
-/** The top-level functions, function-valued constants and classes of `source`, with what each calls, plus the file's named imports; an unsupported extension yields neither. */
+/** The top-level functions, function-valued constants, classes with their methods, interfaces, type aliases and enums of `source`, with what each calls, plus the file's named imports; an unsupported extension yields neither. */
 export async function extractCodeSymbols(
   ext: string,
   source: string,
@@ -155,63 +167,12 @@ function callRange(call: Parser.SyntaxNode) {
   };
 }
 
-interface Definition {
-  name: string;
-  node: Parser.SyntaxNode;
-}
+function toCodeSymbol({ node, ...found }: Definition): CodeSymbol {
+  const [declarationLine] = node.text.split("\n");
 
-const FUNCTION_VALUES = new Set([
-  "arrow_function",
-  "function_expression",
-  "function",
-]);
-
-type DefinitionReader = (node: Parser.SyntaxNode) => Definition[];
-
-/** A named declaration (`function f`, `class C`) defines its own name. */
-const namedDeclaration: DefinitionReader = (node) => {
-  const name = node.childForFieldName("name")?.text;
-
-  return name ? [{ name, node }] : [];
-};
-
-/** `const f = () => ...` defines `f`; a constant holding anything but a function defines nothing. */
-const functionConstants: DefinitionReader = (node) => {
-  const declarators = node.namedChildren.filter((declarator) =>
-    FUNCTION_VALUES.has(declarator.childForFieldName("value")?.type ?? ""),
-  );
-
-  return declarators.flatMap((declarator) => {
-    const name = declarator.childForFieldName("name")?.text;
-
-    return name ? [{ name, node }] : [];
-  });
-};
-
-/** `export` is unwrapped to the declaration it carries, keeping the export's span. */
-const exported: DefinitionReader = (node) => {
-  const declaration = node.childForFieldName("declaration");
-  const inner = declaration ? definitionsOf(declaration) : [];
-
-  return inner.map((definition) => ({ ...definition, node }));
-};
-
-const DEFINITION_READERS: Partial<Record<string, DefinitionReader>> = {
-  export_statement: exported,
-  function_declaration: namedDeclaration,
-  class_declaration: namedDeclaration,
-  lexical_declaration: functionConstants,
-  variable_declaration: functionConstants,
-};
-
-/** The named definitions one top-level statement introduces. */
-function definitionsOf(node: Parser.SyntaxNode): Definition[] {
-  return DEFINITION_READERS[node.type]?.(node) ?? [];
-}
-
-function toCodeSymbol({ name, node }: Definition): CodeSymbol {
   return {
-    name,
+    ...found,
+    anchorHash: anchorHashOf(declarationLine),
     startLine: node.startPosition.row + 1,
     endLine: node.endPosition.row + 1,
     text: node.text,

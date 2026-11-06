@@ -286,6 +286,7 @@ describe("utopiaSectionReader code and coupling", () => {
       attr("f", "path", FOOTER),
       [null, "f", "defines", "f#prFooter", null, {}, null, null],
       attr("f#prFooter", "symbol", "prFooter"),
+      attr("f#prFooter", "kind", "function"),
       attr("f#prFooter", "line_start", "20"),
       attr("f#prFooter", "line_end", "31"),
     ],
@@ -320,7 +321,7 @@ describe("utopiaSectionReader code and coupling", () => {
       status: "ok",
       sources: [
         {
-          text: `${FOOTER}\n  defines prFooter (L20-L31)`,
+          text: `${FOOTER}\n  function prFooter (L20-L31)`,
           source_path: FOOTER,
           content_type: "code",
           score: 1,

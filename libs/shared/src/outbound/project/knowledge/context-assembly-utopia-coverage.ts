@@ -86,7 +86,13 @@ async function toItem(
   });
 }
 
-/** `stmt:specs/a/spec.md#0003.2` keeps its statement anchor, `specs/a/spec.md#0003`, so two statements of one spec stay two items and the spec's own doc item is not dropped as seen; `test:a.test.ts.4` and `code:a.ts` are their file. */
+/** `stmt:specs/a/spec.md#0003.2` keeps its statement anchor, `specs/a/spec.md#0003`, so two statements of one spec stay two items and the spec's own doc item is not dropped as seen; `test:a.test.ts#1e7912b3.2` and `code:a.ts` are their file. */
 function pathOf(externalId: string): string {
-  return externalId.slice(externalId.indexOf(":") + 1).replace(/(\.\d+)+$/, "");
+  const unsplit = externalId
+    .slice(externalId.indexOf(":") + 1)
+    .replace(/(\.\d+)+$/, "");
+
+  return externalId.startsWith("test:")
+    ? unsplit.replace(/#[^#]*$/, "")
+    : unsplit;
 }

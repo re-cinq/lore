@@ -147,6 +147,7 @@ describe("extractCodeSymbols", () => {
       { name: "helper", startLine: 4, endLine: 6, calls: ["map"] },
       { name: "advance", startLine: 8, endLine: 11, calls: ["helper", "next"] },
       { name: "Runner", startLine: 13, endLine: 15, calls: ["advance"] },
+      { name: "Runner.run", startLine: 14, endLine: 14, calls: ["advance"] },
     ]);
   });
 

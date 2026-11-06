@@ -35,12 +35,12 @@ export async function mirrorReportFor(
   const deps = run.tests.length > 0 ? await coverageDepsFor(repo) : null;
 
   if (deps) {
-    settled(await mirrorTestReport({ ...deps, ...reportUpkeep(repo) }, run));
+    settled(await mirrorTestReport({ ...deps, ...ledgerUpkeep(repo) }, run));
   }
 }
 
-/** The ids last pushed per test file, and the sweep that deletes what a tombstone only marked. */
-function reportUpkeep(repo: string) {
+/** The ids last pushed per test or source file, and the sweep that deletes what a tombstone only marked. */
+function ledgerUpkeep(repo: string) {
   const pool = getPool();
 
   return {
@@ -61,7 +61,7 @@ export async function unmirrorTestFilesFor(
 
   if (deps) {
     settled(
-      await tombstoneTestFiles({ ...deps, ...reportUpkeep(repo) }, paths),
+      await tombstoneTestFiles({ ...deps, ...ledgerUpkeep(repo) }, paths),
     );
   }
 }
@@ -73,7 +73,12 @@ export async function mirrorCodeFor(
   const deps = await coverageDepsFor(repo);
 
   if (deps) {
-    settled(await mirrorCodeFiles(deps, { repo, ...code }));
+    settled(
+      await mirrorCodeFiles(
+        { ...deps, ...ledgerUpkeep(repo) },
+        { repo, ...code },
+      ),
+    );
   }
 }
 
@@ -84,7 +89,9 @@ export async function unmirrorCodeFor(
   const deps = await coverageDepsFor(repo);
 
   if (deps) {
-    settled(await tombstoneCodeFiles(deps, paths));
+    settled(
+      await tombstoneCodeFiles({ ...deps, ...ledgerUpkeep(repo) }, paths),
+    );
   }
 }
 
