@@ -38,3 +38,6 @@ platform:
   # the lore-db namespace. replica keeps streaming until set to false.
   database: null
   dgraph: null
+  # ServiceMonitors and Grafana dashboards, for a cluster that runs the
+  # Prometheus operator (re-cinq/infrastructure, docs/deploying.md).
+  monitoring: { enabled: false }
