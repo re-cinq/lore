@@ -1935,6 +1935,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/run-stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/run-stream-token */
+    post: operations["post_api_repos_owner_repo_plans_id_run-stream-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/pulls": {
     parameters: {
       query?: never;
@@ -4070,6 +4087,15 @@ export interface components {
         }
       | {
           /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "plan-run";
+          subject: string;
+          token: string;
+        }
+      | {
+          /** @constant */
           type: "watch";
           channel: string;
           runs: string[];
@@ -4256,6 +4282,24 @@ export interface components {
                 /** @constant */
                 type: "resync";
               };
+        }
+      | {
+          /** @constant */
+          type: "plan_run";
+          channel: string;
+          run: {
+            id: string;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            issue_url: string | null;
+            issue_number: number | null;
+            pr_url: string | null;
+            pr_number: number | null;
+            pr_title: string | null;
+            pr_unresolved_threads: number | null;
+            spec_plan_summary: string | null;
+          } | null;
         }
       | {
           /** @constant */
@@ -4623,6 +4667,11 @@ export interface components {
     };
     PlanRefineAsked: {
       slot: string;
+    };
+    PlanRunStreamToken: {
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -9817,6 +9866,46 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_run-stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens this plan's plan-run channel of the live socket (/api/ws) as one person: the plan's current planning run, followed across runs */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanRunStreamToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

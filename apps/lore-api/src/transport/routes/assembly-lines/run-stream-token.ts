@@ -8,7 +8,10 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { zodResponse } from "../../http/zod-response.js";
+import {
+  zodResponse,
+  type ZodResponseOptions,
+} from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { mintLiveToken } from "../../../work/assembly-line-station/live-tokens.js";
@@ -22,19 +25,24 @@ export const RunStreamTokenSchema = z.object({
   expires_at: z.date(),
 });
 
-const OPTIONS = zodResponse(
-  {
-    ...bearerScope("write"),
-    validate: { payload: zodValidate(StreamTokenBody) },
-  },
-  RunStreamTokenSchema,
-  {
-    name: "RunStreamToken",
-    description:
-      "A short-lived token that opens this assembly run's channel of the live socket (/api/ws) as one person",
-    errors: [404],
-  },
-);
+/** What every live-socket token route shares: scope `write`, the person in the body (the web tier has checked their session and access), and the token with its expiry back. */
+export function streamTokenOptions(doc: ZodResponseOptions) {
+  return zodResponse(
+    {
+      ...bearerScope("write"),
+      validate: { payload: zodValidate(StreamTokenBody) },
+    },
+    RunStreamTokenSchema,
+    doc,
+  );
+}
+
+const OPTIONS = streamTokenOptions({
+  name: "RunStreamToken",
+  description:
+    "A short-lived token that opens this assembly run's channel of the live socket (/api/ws) as one person",
+  errors: [404],
+});
 
 /** Injectable for tests; production reads the run through the pool. */
 export interface RunStreamTokenDeps {

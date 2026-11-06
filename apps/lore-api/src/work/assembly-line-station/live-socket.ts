@@ -1,4 +1,4 @@
-// The browser's one live socket (ADR-048): an upgrade at /api/ws on lore-api's own listener, one connection per tab, channels opened by the client and served by the run and plan handlers. Ping/pong keeps it honest through the ingress; a socket that stops answering is terminated and its channels closed.
+// The browser's one live socket (ADR-048): an upgrade at /api/ws on lore-api's own listener, one connection per tab, channels opened by the client and served by the run, run-list, plan-run and plan handlers. Ping/pong keeps it honest through the ingress; a socket that stops answering is terminated and its channels closed.
 
 import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -18,6 +18,10 @@ import {
   type RunChannelDeps,
 } from "./run-channel.js";
 import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
+import {
+  openPlanRunChannel,
+  type PlanRunChannelDeps,
+} from "./plan-run-channel.js";
 import { webRequest } from "./web-request.js";
 import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
 
@@ -37,6 +41,7 @@ let connectionSeq = 0;
 export interface LiveSocketDeps {
   run: RunChannelDeps;
   runs: RunsChannelDeps;
+  planRun: PlanRunChannelDeps;
   collab: CollabServer;
   limits?: LiveSocketLimits;
   pingMs?: number;
@@ -245,21 +250,12 @@ class LiveConnection {
     message: OpenMessage,
     outlet: ChannelOutlet,
   ): Promise<ChannelHandle | null> {
-    switch (message.kind) {
-      case "plan":
-        return Promise.resolve(
-          openPlanChannel(
-            message.channel,
-            webRequest(this.request),
-            outlet,
-            this.deps.collab,
-          ),
-        );
-      case "runs":
-        return openRunsChannel(message, outlet, this.deps.runs);
-      default:
-        return openRunChannel(message, outlet, this.deps.run);
-    }
+    const open = OPENERS[message.kind] as Opener<OpenMessage>;
+
+    return open(message, outlet, {
+      deps: this.deps,
+      request: () => webRequest(this.request),
+    });
   }
 
   private outletFor(channel: string): ChannelOutlet {
@@ -274,6 +270,31 @@ class LiveConnection {
     (this.deps.log ?? console.error)(`[live-socket] ${message}`);
   }
 }
+
+interface OpenContext {
+  deps: LiveSocketDeps;
+  /** The upgrade request as a web Request, for the plan channel's collaboration handshake. */
+  request: () => Request;
+}
+
+type Opener<M extends OpenMessage> = (
+  message: M,
+  outlet: ChannelOutlet,
+  context: OpenContext,
+) => Promise<ChannelHandle | null>;
+
+/** Each channel kind's handler. */
+const OPENERS: {
+  [K in OpenMessage["kind"]]: Opener<Extract<OpenMessage, { kind: K }>>;
+} = {
+  plan: async (message, outlet, { deps, request }) =>
+    openPlanChannel(message.channel, request(), outlet, deps.collab),
+  run: (message, outlet, { deps }) => openRunChannel(message, outlet, deps.run),
+  runs: (message, outlet, { deps }) =>
+    openRunsChannel(message, outlet, deps.runs),
+  "plan-run": (message, outlet, { deps }) =>
+    openPlanRunChannel(message, outlet, deps.planRun),
+};
 
 function serve(
   ws: WebSocket,
