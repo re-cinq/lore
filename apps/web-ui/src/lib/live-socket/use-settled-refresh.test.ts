@@ -15,26 +15,40 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("useSettledRefresh", () => {
-  it("collapses two calls inside the window into one refresh", () => {
-    const { result } = renderHook(() => useSettledRefresh(300));
+  it("refreshes at once on the first call", () => {
+    const { result } = renderHook(() => useSettledRefresh(10_000));
 
-    act(() => {
-      result.current();
-      result.current();
-      vi.advanceTimersByTime(300);
-    });
+    act(() => result.current());
 
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("refreshes nothing before the window elapses", () => {
-    const { result } = renderHook(() => useSettledRefresh(300));
+  it("refreshes twice for calls at 0 s, 1 s and 2 s: at once and once more at 10 s", () => {
+    const { result } = renderHook(() => useSettledRefresh(10_000));
 
     act(() => {
       result.current();
-      vi.advanceTimersByTime(299);
+      vi.advanceTimersByTime(1_000);
+      result.current();
+      vi.advanceTimersByTime(1_000);
+      result.current();
+      vi.advanceTimersByTime(7_999);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes at once again for a call 10 s after a quiet one", () => {
+    const { result } = renderHook(() => useSettledRefresh(10_000));
+
+    act(() => {
+      result.current();
+      vi.advanceTimersByTime(10_000);
+      result.current();
     });
 
-    expect(refresh).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });
