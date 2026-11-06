@@ -6,7 +6,14 @@ import { createHash } from "node:crypto";
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
 export type RateBucket =
-  "webhook" | "task" | "embed" | "turns" | "ws" | "wsOpen" | "session" | "default";
+  | "webhook"
+  | "task"
+  | "embed"
+  | "turns"
+  | "ws"
+  | "wsOpen"
+  | "session"
+  | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30,
