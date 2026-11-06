@@ -15,7 +15,6 @@ on:
       - "deploy/chart/values.yaml"
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/ci/bump-image-tag.sh"
-      - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
     paths:
       - '.github/workflows/_build-image.yml'
@@ -27,7 +26,6 @@ on:
       - "deploy/chart/values.yaml"
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/ci/bump-image-tag.sh"
-      - 'scripts/ci/helm-lock-contention.sh'
   workflow_dispatch:
 
 concurrency:

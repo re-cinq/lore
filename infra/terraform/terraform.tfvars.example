@@ -86,17 +86,10 @@ grafana_hostname  = "grafana.example.com"
 # policy nothing can pass; check with `kubectl get ns | grep -i ingress`.
 ingress_controller_namespace = "ingress-nginx"
 
-# Utopia (deeplethe/utopia), the knowledge-graph app, with its own CNPG database
-# and data disk behind a Google sign-in of its own (utopia.tf). Seed the five
-# lore-utopia-* secrets from a `utopia` OAuth web client whose redirect URI is
-# https://<utopia_hostname>/oauth2/callback (docs/managing-secrets.md) before the
-# apply. The image tag is pinned; bump it on purpose.
-enable_utopia    = false
-utopia_hostname  = "utopia.example.com"
-# The image pin lives in variables.tf defaults (a PR per bump); override here only to test a build.
-# utopia_image_tag = "0.1.0-re.2"
-# Pin the bytes once the tag runs: kubectl -n utopia get pod -l app=utopia -o jsonpath='{.items[0].status.containerStatuses[0].imageID}'
-# utopia_image_digest = "sha256:..."
+# Utopia runs on the internal cluster from re-cinq/utopia; this keeps only its
+# lore-utopia-* Secret Manager entries.
+enable_utopia = false
+
 # Let lore-api create a repo's Utopia knowledge base on its first spec/ADR ingest,
 # with the write token of the Lore person in Utopia (seed lore-utopia-lore-api-token
 # first, docs/managing-secrets.md). Needs deeplethe/utopia#1244 deployed.
