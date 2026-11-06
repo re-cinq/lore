@@ -78,18 +78,18 @@ Once Next has prefetched the plan page down to its `loading.tsx`, a click shows 
 
 ## FR6: The run list asks the floor only for the runs it shows
 
-- `costsByRunOf` reads the cost of each listed run with one `{ run }` filter per run, in parallel, when it lists at most 10 runs. A plan's planning runs are always that few.
-- It keeps the single `{ since }` read for longer lists, such as the `/assembly-runs` page of 50 rows, where one org-wide read is cheaper than 50 per-run reads.
-- A failed cost read leaves the run without a cost instead of failing the list. Today the failure is not caught, so a slow floor here becomes a 30-second wait and then a 500.
+- `costsByRunOf` reads the cost of each listed run with one `{ run }` filter per run, in parallel, when it lists at most 10 runs. A plan's planning runs are always that few. ([validated by reads 2 runs with one { run } read each @b3501d12](apps/lore-api/src/work/floor/floor-costs.test.ts#L38))
+- It keeps the single `{ since }` read for longer lists, such as the `/assembly-runs` page of 50 rows, where one org-wide read is cheaper than 50 per-run reads. ([validated by reads 11 runs with one { since } read from the oldest @a7d886bb](apps/lore-api/src/work/floor/floor-costs.test.ts#L52))
+- A failed cost read leaves the run without a cost instead of failing the list. Today the failure is not caught, so a slow floor here becomes a 30-second wait and then a 500. ([validated by drops only run-2's cost when its read fails, and warns once naming the floor error @32bc1b18](apps/lore-api/src/work/floor/floor-costs.test.ts#L68))
 
 ## FR7: lore-api reuses its GitHub installation token
 
-- `getGitHubToken` creates its `createAppAuth` once per process, not on every call. `@octokit/auth-app` caches the installation token and renews it before it expires, so a PR-status read no longer starts with a token request to GitHub.
-- The `GITHUB_TOKEN` fallback is unchanged.
+- `getGitHubToken` creates its `createAppAuth` once per process, not on every call. `@octokit/auth-app` caches the installation token and renews it before it expires, so a PR-status read no longer starts with a token request to GitHub. ([validated by builds one App auth for two token reads @81eb2b3c](apps/lore-api/src/outbound/github-client-app-auth.test.ts#L35))
+- The `GITHUB_TOKEN` fallback is unchanged. ([validated by answers GITHUB_TOKEN when the App auth fails, and asks the App again next time @2120b9d1](apps/lore-api/src/outbound/github-client-app-auth.test.ts#L43))
 
 ## FR8: A run's visits are read once
 
-- `FloorRunReader.listStationRuns` (`apps/lore-api/src/work/floor/floor-run-reader.ts`) lists the run's station runs once and passes the list to both places that need it. Today it fetches the same list twice in parallel.
+- `FloorRunReader.listStationRuns` (`apps/lore-api/src/work/floor/floor-run-reader.ts`) lists the run's station runs once and passes the list to both places that need it. Today it fetches the same list twice in parallel. ([validated by lists run-1's visits from the floor once @5b289d6a](apps/lore-api/src/work/floor/floor-run-reader-visits.test.ts#L149))
 
 ## FR9: The run has a deadline, and a failure says so
 
