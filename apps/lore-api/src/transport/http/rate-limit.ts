@@ -102,7 +102,6 @@ function admit(
 ) {
   (request.plugins as Counted).rateCounted = true;
 
-
   return bucket === "unlimited" || rateLimit(bucket, principal)
     ? h.continue
     : h
