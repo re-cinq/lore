@@ -1,4 +1,4 @@
-/** Code projection (issue #1992): one CodeChunk per top-level definition of a TypeScript/JavaScript file, with a `CodeChunk.references` edge to every in-repo definition it calls. Content-hash gated per chunk, so re-projecting an unchanged file writes nothing. */
+/** Code projection (issue #1992): one CodeChunk per definition of a TypeScript/JavaScript file, a method as `Class.method`, with a `CodeChunk.references` edge to every in-repo definition it calls and the content hash of its declaration line as `anchor_hash`. Content-hash gated per chunk, so re-projecting an unchanged file writes nothing. `code-callers.ts` matches `symbol_name` exactly, so `step` is not `Runner.step`. */
 
 import { createHash } from "node:crypto";
 import { extname, posix } from "node:path";
@@ -132,7 +132,7 @@ function resolvedCalls(
   return others.flatMap((call) => resolve(call) ?? []);
 }
 
-/** Text and outgoing keys together: an edited import changes what a chunk references without touching its text. */
+/** Text, kind, anchor hash and outgoing keys together: an edited import changes what a chunk references without touching its text, and a chunk stored before the hash was written re-projects once to gain it. */
 function chunkHash(symbol: CodeSymbol, targets: TargetRef[]): string {
   const keys = targets.map((target) => target.xid).join("\n");
 
@@ -140,6 +140,9 @@ function chunkHash(symbol: CodeSymbol, targets: TargetRef[]): string {
     .update(symbol.text)
     .update("\0")
     .update(keys)
+    .update("\0")
+    .update(symbol.kind)
+    .update(symbol.anchorHash ?? "")
     .digest("hex");
 }
 
@@ -236,6 +239,7 @@ async function writeChunk(
     "CodeChunk.start_line": symbol.startLine,
     "CodeChunk.end_line": symbol.endLine,
     "CodeChunk.content_hash": chunk.hash,
+    "CodeChunk.anchor_hash": symbol.anchorHash ?? undefined,
   });
   const previous = referencedUids(await readChunk(dgraph, uid));
   const targetUids = await upsertTargets(dgraph, doc.repo, chunk.targets);

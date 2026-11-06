@@ -327,6 +327,66 @@ describe("statementItems with a hashed link", () => {
   });
 });
 
+describe("statementItems with a symbol code link", () => {
+  const codeLinked = (label: string) =>
+    build(
+      `## Chain\n\n- FR1 — Advances. ([${label}](libs/shared/src/x.ts#L12))\n`,
+    )[0];
+  const file = "re-cinq/lore:libs/shared/src/x.ts";
+  const stmt = `${DOC}#s0000`;
+
+  it("is implemented_by re-cinq/lore:src/x.ts#advance when the code link is labelled advance@9d7adcf9", () => {
+    const definition = `${file}#advance`;
+
+    expect(codeLinked("`advance@9d7adcf9`")).toEqual({
+      externalId: "stmt:specs/mirror/spec.md#0000",
+      e: [
+        [`${DOC}#chain`, "Section", true],
+        [stmt, "Statement", true],
+        [file, "SourceFile", true],
+        [definition, "CodeDefinition", true],
+      ],
+      s: [
+        relation(`${DOC}#chain`, "contains", stmt),
+        attribute(stmt, "line_start", "3"),
+        attribute(stmt, "permalink", `${BLOB}/specs/mirror/spec.md#L3`),
+        attribute(
+          stmt,
+          "text",
+          "FR1 — Advances. ([`advance@9d7adcf9`](libs/shared/src/x.ts#L12))",
+        ),
+        relation(stmt, "implemented_by", definition),
+        relation(file, "defines", definition),
+        attribute(definition, "symbol", "advance"),
+        attribute(definition, "known_as", "advance"),
+        attribute(file, "path", "libs/shared/src/x.ts"),
+      ],
+    });
+  });
+
+  it("is implemented_by the Runner.step definition for a dotted label", () => {
+    const implemented = codeLinked("`Runner.step`").s.filter(
+      (row) => row[2] === "implemented_by",
+    );
+
+    expect(implemented).toEqual([
+      relation(stmt, "implemented_by", `${file}#Runner.step`),
+    ]);
+  });
+
+  it("is implemented_by the source file when the label is the file name", () => {
+    const linked = codeLinked("`x.ts@9d7adcf9`");
+
+    expect({
+      definitions: linked.e.filter(([, kind]) => kind === "CodeDefinition"),
+      implemented: linked.s.filter((row) => row[2] === "implemented_by"),
+    }).toEqual({
+      definitions: [],
+      implemented: [relation(stmt, "implemented_by", file)],
+    });
+  });
+});
+
 function textsOf(pushed: StatementItem): Array<string | null> {
   return pushed.s
     .filter(

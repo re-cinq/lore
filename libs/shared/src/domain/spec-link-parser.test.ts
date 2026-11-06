@@ -7,6 +7,7 @@ import {
   testLinksOfDoc,
   withoutTrailingLinkGroup,
   splitHashedLabel,
+  symbolOfLabel,
   withAnchorHash,
 } from "./spec-link-parser.js";
 
@@ -408,6 +409,29 @@ describe("splitHashedLabel", () => {
         (label) => splitHashedLabel(label).hash,
       ),
     ).toEqual([null, null, null]);
+  });
+});
+
+describe("symbolOfLabel", () => {
+  it("returns advance for `advance@9d7adcf9`, Runner.step for `Runner.step` and advance for implemented by advance", () => {
+    expect(
+      ["`advance@9d7adcf9`", "`Runner.step`", "implemented by advance"].map(
+        symbolOfLabel,
+      ),
+    ).toEqual(["advance", "Runner.step", "advance"]);
+  });
+
+  it("returns null for a file name, a bare word, a hashed bare word and a spaced phrase", () => {
+    expect(
+      [
+        "`deps.ts@3fc8f66b`",
+        "merge-check.ts",
+        "registration",
+        "loader@7ab99ce6",
+        "`route registration`",
+        "`a.b.c`",
+      ].map(symbolOfLabel),
+    ).toEqual([null, null, null, null, null, null]);
   });
 });
 

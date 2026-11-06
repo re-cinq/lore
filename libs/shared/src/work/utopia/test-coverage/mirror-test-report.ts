@@ -1,26 +1,20 @@
-// Mirrors one test run into the repo's Utopia knowledge base, one test file at a time: a file's items are built, pushed four at a time, and its parts the last push had and this one has not are tombstoned, before the next file is built; a tombstone per deleted test file.
+// Mirrors one test run into the repo's Utopia knowledge base, one test file at a time: a file's items are built, pushed four at a time, and the items the last push had and this one has not are tombstoned, before the next file is built; a deleted test file's items are tombstoned from the ledger.
 
 import {
-  testFileTombstones,
   testReportFiles,
   type TestFileItems,
   type TestReportInput,
 } from "../../../domain/utopia/test-coverage/test-report-statements.js";
-import { staleItemTombstones } from "../../../domain/utopia/statements.js";
+import { tombstone } from "../../../domain/utopia/statements.js";
 import {
   combineOutcomes,
+  mirrorKeyedItems,
   pushItems,
-  type MirrorDeps,
+  type LedgeredMirrorDeps,
   type MirrorOutcome,
 } from "../push-items.js";
-import type { PushedItemLedger } from "../docs/mirror-document.js";
 
-export interface TestReportMirrorDeps extends MirrorDeps {
-  /** The item ids last pushed for each test file, keyed by `test:<path>`. */
-  ledger: PushedItemLedger;
-  /** Utopia only marks a tombstoned item missing; its facts stand until the source is swept. */
-  sweepMissing(): Promise<void>;
-}
+export type TestReportMirrorDeps = LedgeredMirrorDeps;
 
 const NOTHING: MirrorOutcome = {
   items: 0,
@@ -51,31 +45,35 @@ export async function mirrorTestReport(
   return outcome;
 }
 
-/** One file's items and the tombstones of its parts gone since the last push; the ledger moves on only when every item landed. */
-async function mirrorTestFile(
+/** One file's items and the tombstones of its parts gone since the last push. */
+function mirrorTestFile(
   deps: TestReportMirrorDeps,
   file: TestFileItems,
 ): Promise<{ outcome: MirrorOutcome; dropped: boolean }> {
-  const current = file.items();
-  const removed = staleItemTombstones(
-    await deps.ledger.pushedFor(file.key),
-    current,
-  );
-  const outcome = await pushItems(deps, [...current, ...removed]);
-
-  if (outcome.failed.length === 0) {
-    await deps.ledger.record(
-      file.key,
-      current.map((pushed) => pushed.externalId),
-    );
-  }
-
-  return { outcome, dropped: removed.length > 0 };
+  return mirrorKeyedItems(deps, file.key, file.items());
 }
 
-export function tombstoneTestFiles(
-  deps: MirrorDeps,
+/** Every id the ledger holds for each deleted file, plus the bare `test:<path>` a file pushed before the per-test shape carried, then the file's row cleared and the source swept once. */
+export async function tombstoneTestFiles(
+  deps: TestReportMirrorDeps,
   paths: string[],
 ): Promise<MirrorOutcome> {
-  return pushItems(deps, testFileTombstones(paths));
+  let outcome = NOTHING;
+
+  for (const path of paths) {
+    const key = `test:${path}`;
+    const ids = await deps.ledger.pushedFor(key);
+
+    outcome = combineOutcomes(
+      outcome,
+      await pushItems(deps, [...ids, key].map(tombstone)),
+    );
+    await deps.ledger.record(key, []);
+  }
+
+  if (outcome.items > 0) {
+    await deps.sweepMissing();
+  }
+
+  return outcome;
 }

@@ -101,18 +101,29 @@ function statementLines(externalId: string, tuple: Tuple): string[] {
   return [
     `${externalId.slice("stmt:".length)}: ${valueOf(tuple, statement, "text")}`,
     ...tests.map((test) => `  validated by ${located(tuple, test)}`),
-    ...files.map((file) => `  implemented by ${fileOf(tuple, file)}`),
+    ...files.map((file) => `  implemented by ${implementer(tuple, file)}`),
   ];
+}
+
+/** A definition by its bare symbol, a file by its path. */
+function implementer(tuple: Tuple, object: string): string {
+  return valueOf(tuple, object, "symbol") || fileOf(tuple, object);
 }
 
 function testLines(_externalId: string, tuple: Tuple): string[] {
   return namesOfKind(tuple, "Test").flatMap((test) => [
-    `${located(tuple, test)} outcome=${valueOf(tuple, test, "outcome")}`,
+    `${located(tuple, test)}${hashed(tuple, test)} outcome=${valueOf(tuple, test, "outcome")}`,
     ...coveredLines(tuple, test),
     ...subjectsOf(tuple, "validated_by", test).map(
       (statement) => `  validates ${statement}`,
     ),
   ]);
+}
+
+function hashed(tuple: Tuple, test: string): string {
+  const hash = valueOf(tuple, test, "anchor_hash");
+
+  return hash ? ` @${hash}` : "";
 }
 
 function coveredLines(tuple: Tuple, test: string): string[] {
@@ -123,21 +134,64 @@ function coveredLines(tuple: Tuple, test: string): string[] {
   );
 }
 
+/** The file, then each definition it defines on its own line, a method indented under the class that contains it. */
 function codeLines(externalId: string, tuple: Tuple): string[] {
   const [file] = namesOfKind(tuple, "SourceFile");
-  const symbols = objectsOf(tuple, file, "defines");
+  const methods = containedDefinitions(tuple);
+  const topLevel = objectsOf(tuple, file, "defines").filter(
+    (symbol) => !methods.has(symbol),
+  );
 
   return [
     file ? fileOf(tuple, file) : externalId.slice("code:".length),
-    ...symbols.map((symbol) => `  defines ${symbolSpan(tuple, symbol)}`),
+    ...topLevel.flatMap((symbol) => [
+      `  ${definitionLine(tuple, symbol)}`,
+      ...objectsOf(tuple, symbol, "contains").map(
+        (method) => `    ${definitionLine(tuple, method)}`,
+      ),
+    ]),
   ];
 }
 
-function symbolSpan(tuple: Tuple, symbol: string): string {
+/** The definitions a definition contains: a class's methods, drawn under it rather than at the top level. */
+function containedDefinitions(tuple: Tuple): Set<string> {
+  const definitions = new Set(namesOfKind(tuple, "CodeDefinition"));
+
+  return new Set(
+    tuple.s.flatMap((row) =>
+      row[2] === "contains" && row[3] && definitions.has(row[1])
+        ? [row[3]]
+        : [],
+    ),
+  );
+}
+
+/** `<kind> <symbol> (L<start>-L<end>[, exported])` and what it extends, implements and references, each by bare symbol. */
+function definitionLine(tuple: Tuple, symbol: string): string {
   const start = valueOf(tuple, symbol, "line_start");
   const end = valueOf(tuple, symbol, "line_end");
+  const exported = valueOf(tuple, symbol, "exported") === "true";
+  const kind = valueOf(tuple, symbol, "kind");
+  const head = `${kind ? `${kind} ` : ""}${valueOf(tuple, symbol, "symbol")} (L${start}-L${end}${exported ? ", exported" : ""})`;
+  const links = ["extends", "implements", "references"].flatMap((phrase) => {
+    const targets = objectsOf(tuple, symbol, phrase);
 
-  return `${valueOf(tuple, symbol, "symbol")} (L${start}-L${end})`;
+    return targets.length > 0
+      ? [
+          `${phrase} ${targets.map((target) => bareSymbol(tuple, target)).join(", ")}`,
+        ]
+      : [];
+  });
+
+  return [head, ...links].join(" ");
+}
+
+/** A definition's `symbol` row, or the part of its name after the last `#` for one the item only names. */
+function bareSymbol(tuple: Tuple, definition: string): string {
+  return (
+    valueOf(tuple, definition, "symbol") ||
+    definition.slice(definition.lastIndexOf("#") + 1)
+  );
 }
 
 function located(tuple: Tuple, test: string): string {
@@ -147,8 +201,15 @@ function located(tuple: Tuple, test: string): string {
   return `${valueOf(tuple, test, "title")} (${path}:${line})`;
 }
 
+/** The file's `path` row, or its entity name with the leading `<repo>:` dropped when the item only names the file. */
 function fileOf(tuple: Tuple, file: string): string {
-  return valueOf(tuple, file, "path") || file;
+  const path = valueOf(tuple, file, "path");
+  const [repo] = namesOfKind(tuple, "Repository");
+
+  return (
+    path ||
+    (repo && file.startsWith(`${repo}:`) ? file.slice(repo.length + 1) : file)
+  );
 }
 
 function namesOfKind(tuple: Tuple, kind: string): string[] {

@@ -517,3 +517,64 @@ resource "kubernetes_config_map" "lore_dashboards" {
 
   depends_on = [kubernetes_namespace.monitoring]
 }
+
+# ---- Alert rules. Alertmanager is off, so nothing routes these anywhere yet: they
+# fire in Prometheus (Alerts page) and in Grafana's alert list, where someone looks.
+# On 2026-11-05 the Utopia database volume filled and nobody noticed until writes failed.
+
+locals {
+  utopia_volume_used_ratio = "kubelet_volume_stats_used_bytes{namespace=\"utopia\"} / kubelet_volume_stats_capacity_bytes{namespace=\"utopia\"}"
+  utopia_volume_runbook    = <<-EOT
+    PVC {{ $labels.persistentvolumeclaim }} in namespace utopia is {{ $value | humanizePercentage }} full.
+    What fills it: on the CNPG database volume (utopia-db-*), mostly superseded chunks
+    Utopia keeps after a document is re-ingested (deeplethe/utopia#1481); on utopia-data,
+    the service's own files. To grow the database disk, raise `storage.size` of the
+    utopia-db Cluster in infra/terraform/utopia.tf (as "Grow the Utopia database disk
+    from 40Gi to 80Gi", #4161 did) and apply from main; the data PVC grows through
+    `utopia_data_size`. standard-rwo expands in place, without a restart.
+  EOT
+}
+
+resource "kubectl_manifest" "utopia_volume_alerts" {
+  count = var.enable_monitoring && var.enable_utopia ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "PrometheusRule"
+    metadata = {
+      name      = "utopia-volumes"
+      namespace = local.monitoring_namespace
+    }
+    spec = {
+      groups = [
+        {
+          name = "utopia-volumes"
+          rules = [
+            {
+              alert  = "UtopiaVolumeFilling"
+              expr   = "${local.utopia_volume_used_ratio} > 0.8"
+              for    = "15m"
+              labels = { severity = "warning" }
+              annotations = {
+                summary     = "Utopia volume {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+                description = local.utopia_volume_runbook
+              }
+            },
+            {
+              alert  = "UtopiaVolumeFull"
+              expr   = "${local.utopia_volume_used_ratio} > 0.95"
+              for    = "5m"
+              labels = { severity = "critical" }
+              annotations = {
+                summary     = "Utopia volume {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full, writes will fail soon"
+                description = local.utopia_volume_runbook
+              }
+            },
+          ]
+        },
+      ]
+    }
+  })
+
+  depends_on = [helm_release.kube_prometheus_stack]
+}

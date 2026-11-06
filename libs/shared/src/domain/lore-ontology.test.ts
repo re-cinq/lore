@@ -34,14 +34,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 9", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 10", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 9,
+      version: 10,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -83,8 +83,8 @@ describe("lore ontology", () => {
       outcome: ["lore:Test", "xsd:string"],
       commit: ["lore:Document, lore:SourceFile, lore:Test", "xsd:string"],
       contains: [
-        "lore:Repository, lore:Document, lore:Section, lore:SourceFile",
-        "lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag",
+        "lore:Repository, lore:Document, lore:Section, lore:SourceFile, lore:CodeDefinition",
+        "lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:CodeDefinition",
       ],
     });
   });
@@ -127,7 +127,7 @@ describe("lore ontology", () => {
       .length;
 
     expect({ declared, temporalOf: Object.fromEntries(temporalOf) }).toEqual({
-      declared: 18,
+      declared: 20,
       temporalOf: {
         contains: "eternal",
         validated_by: "eternal",
@@ -138,6 +138,8 @@ describe("lore ontology", () => {
         defines: "eternal",
         references: "eternal",
         imports: "eternal",
+        extends: "eternal",
+        implements: "eternal",
         changes: "event",
         follows: "event",
         merges: "event",
@@ -270,5 +272,49 @@ describe("lore ontology", () => {
       "lore:Commit, lore:PullRequest, lore:Issue",
       "lore:Person",
     ]);
+  });
+  it("declares kind and exported on CodeDefinition, extends and implements between definitions, contains from a class to its methods and anchor_hash on CodeDefinition, so a file's structure is terms the base knows", async () => {
+    const turtle = await loreOntologyTurtle();
+    const lines = [
+      'lore:kind a owl:DatatypeProperty ;\n  rdfs:label "kind" ;',
+      "rdfs:domain lore:CodeDefinition ;\n  rdfs:range xsd:string .",
+      'lore:exported a owl:DatatypeProperty ;\n  rdfs:label "exported" ;',
+      "rdfs:domain lore:CodeDefinition ;\n  rdfs:range xsd:boolean .",
+      'lore:extends a owl:ObjectProperty ;\n  rdfs:label "extends" ;',
+      'lore:implements a owl:ObjectProperty ;\n  rdfs:label "implements" ;',
+      "rdfs:domain lore:CodeDefinition ;\n  rdfs:range lore:CodeDefinition .",
+      "rdfs:domain lore:Test, lore:CodeDefinition ;\n  rdfs:range xsd:string .",
+      "rdfs:domain lore:Section, lore:Statement ;\n  rdfs:range lore:Code, lore:CodeDefinition .",
+    ];
+
+    expect(lines.map((line) => turtle.includes(line))).toEqual(
+      lines.map(() => true),
+    );
+  });
+
+  it("annotates how each kind is shown: a status with its tones, a title, a quote, a span, a link, a key, children relations and the chain from a statement, so a base draws the chain without knowing the words", async () => {
+    const turtle = await loreOntologyTurtle();
+    const annotations = [
+      'lore:Statement a owl:Class ;\n  rdfs:label "Statement" ;\n  utopia:panel "quote" ;\n  utopia:chain_first "out:validated_by" ;',
+      'lore:Test a owl:Class ;\n  rdfs:label "Test" ;\n  utopia:panel "card" ;',
+      'lore:SourceFile a owl:Class ;\n  rdfs:label "SourceFile" ;\n  utopia:panel "tree" ;',
+      'lore:CodeDefinition a owl:Class ;\n  rdfs:label "CodeDefinition" ;\n  utopia:panel "card" ;',
+      'rdfs:label "outcome" ;\n  utopia:role "status" ;\n  utopia:tones "passed=ok,failed=danger" ;',
+      'rdfs:label "title" ;\n  utopia:role "title" ;',
+      'rdfs:label "text" ;\n  utopia:role "quote" ;',
+      'rdfs:label "line_start" ;\n  utopia:role "span_start" ;',
+      'rdfs:label "line_end" ;\n  utopia:role "span_end" ;',
+      'rdfs:label "permalink" ;\n  utopia:role "link" ;',
+      'rdfs:label "anchor_hash" ;\n  utopia:role "key" ;',
+      'rdfs:label "ranges" ;\n  utopia:role "range" ;',
+      'rdfs:label "contains" ;\n  utopia:role "children" ;',
+      'rdfs:label "defines" ;\n  utopia:role "children" ;',
+      'rdfs:label "validated_by" ;\n  utopia:chain_next "out:covers" ;',
+      'rdfs:label "covers" ;\n  utopia:chain_next "in:changes" ;',
+    ];
+
+    expect(annotations.map((line) => turtle.includes(line))).toEqual(
+      annotations.map(() => true),
+    );
   });
 });

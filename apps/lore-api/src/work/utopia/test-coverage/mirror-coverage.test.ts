@@ -23,7 +23,7 @@ vi.mock("../../../outbound/project-boot.js", () => ({
       rawSettings: async () => ({
         utopia: {
           kb_id: "kb-1",
-          ontology_version: 9,
+          ontology_version: 10,
           sources_extract_off: true,
           history_sources_split: true,
         },
@@ -55,7 +55,10 @@ const readBody = (req: IncomingMessage) =>
 
 beforeAll(async () => {
   server = createServer(async (req, res) => {
-    const body = JSON.parse(await readBody(req)) as Record<string, unknown>;
+    const body = JSON.parse((await readBody(req)) || "{}") as Record<
+      string,
+      unknown
+    >;
 
     seen.push(`${req.method} ${req.url} ${req.headers.authorization}`);
     bodies.push(body);
@@ -130,7 +133,7 @@ const CODE = {
 };
 
 describe("mirrorReportFor", () => {
-  it("pushes test:src/a.test.ts to the test-coverage source src-cov under utp_cov", async () => {
+  it("pushes test:src/a.test.ts#483b3bb1 to the test-coverage source src-cov under utp_cov", async () => {
     await mirrorReportFor("re-cinq/lore", REPORT);
 
     expect({
@@ -138,7 +141,7 @@ describe("mirrorReportFor", () => {
       pushed: bodies.map((body) => body.external_id),
     }).toEqual({
       seen: ["POST /api/v1/sources/src-cov/statements Bearer utp_cov"],
-      pushed: ["test:src/a.test.ts"],
+      pushed: ["test:src/a.test.ts#483b3bb1"],
     });
   });
 
@@ -160,12 +163,12 @@ describe("mirrorReportFor", () => {
     });
   });
 
-  it("rejects naming test:src/a.test.ts when Utopia answers duplicate", async () => {
+  it("rejects naming test:src/a.test.ts#483b3bb1 when Utopia answers duplicate", async () => {
     answer = { action: "duplicate" };
 
     await expect(mirrorReportFor("re-cinq/lore", REPORT)).rejects.toThrow(
       new Error(
-        "1 of 1 items failed: test:src/a.test.ts: duplicate, another document in the knowledge base holds the same content",
+        "1 of 1 items failed: test:src/a.test.ts#483b3bb1: duplicate, another document in the knowledge base holds the same content",
       ),
     );
   });
@@ -189,12 +192,32 @@ describe("mirrorReportFor", () => {
 });
 
 describe("unmirrorTestFilesFor", () => {
-  it("posts the test:src/a.test.ts tombstone to src-cov", async () => {
+  it("posts a tombstone for every test:src/a.test.ts item the ledger holds and the legacy file id to src-cov, then sweeps the source", async () => {
+    pool.query.mockImplementation(async (sql: string) => {
+      if (/FROM lore\.utopia_kind_sources/.test(sql)) {
+        return { rows: [{ id: "src-cov", key: "utp_cov", kbId: "kb-1" }] };
+      }
+
+      if (/FROM lore\.utopia_pushed_items/.test(sql)) {
+        return { rows: [{ external_ids: ["test:src/a.test.ts#483b3bb1"] }] };
+      }
+
+      return { rows: [] };
+    });
+
     await unmirrorTestFilesFor("re-cinq/lore", ["src/a.test.ts"]);
 
     expect({ seen, bodies }).toEqual({
-      seen: ["POST /api/v1/sources/src-cov/statements Bearer utp_cov"],
-      bodies: [{ external_id: "test:src/a.test.ts", deleted: true }],
+      seen: [
+        "POST /api/v1/sources/src-cov/statements Bearer utp_cov",
+        "POST /api/v1/sources/src-cov/statements Bearer utp_cov",
+        "POST /api/v1/kbs/kb-1/sources/src-cov/missing/cleanup Bearer utp_pat_lore",
+      ],
+      bodies: [
+        { external_id: "test:src/a.test.ts#483b3bb1", deleted: true },
+        { external_id: "test:src/a.test.ts", deleted: true },
+        {},
+      ],
     });
   });
 });
@@ -214,12 +237,15 @@ describe("mirrorCodeFor", () => {
 });
 
 describe("unmirrorCodeFor", () => {
-  it("posts the code:src/x/b.ts tombstone to src-cov", async () => {
+  it("posts the code:src/x/b.ts tombstone to src-cov, then sweeps the source with the deployment token", async () => {
     await unmirrorCodeFor("re-cinq/lore", ["src/x/b.ts"]);
 
     expect({ seen, bodies }).toEqual({
-      seen: ["POST /api/v1/sources/src-cov/statements Bearer utp_cov"],
-      bodies: [{ external_id: "code:src/x/b.ts", deleted: true }],
+      seen: [
+        "POST /api/v1/sources/src-cov/statements Bearer utp_cov",
+        "POST /api/v1/kbs/kb-1/sources/src-cov/missing/cleanup Bearer utp_pat_lore",
+      ],
+      bodies: [{ external_id: "code:src/x/b.ts", deleted: true }, {}],
     });
   });
 });

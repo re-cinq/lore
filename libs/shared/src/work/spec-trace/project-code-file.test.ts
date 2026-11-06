@@ -7,6 +7,7 @@ import { findRepoRoot } from "../../lib/repo-root.js";
 import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { callersOf } from "../../outbound/spec-trace/code-callers.js";
+import { anchorHashOf } from "../../domain/anchor-hash.js";
 import {
   deleteCodeFile,
   listCodeFilePaths,
@@ -31,6 +32,12 @@ const RUNNER = [
   'import { nextTransition } from "./transition.js";',
   "export function advance(state: number) {",
   "  return nextTransition(state);",
+  "}",
+].join("\n");
+
+const CLASS_RUNNER = [
+  "export class Runner {",
+  "  step(state: number) { return state + 1; }",
   "}",
 ].join("\n");
 
@@ -131,6 +138,36 @@ describe.skipIf(!reachable)("projectCodeFile (live Dgraph)", () => {
     expect((await listCodeFilePaths(client, repo)).sort()).toEqual([
       "src/runner.ts",
       "src/transition.ts",
+    ]);
+  });
+
+  it("writes anchor_hash on a chunk and a chunk src/runner.ts#Runner.step for the method", async () => {
+    repo = `test-code/${randomUUID()}`;
+    await project("src/runner.ts", CLASS_RUNNER);
+    const res = await client.newTxn({ readOnly: true }).queryWithVars(
+      `query q($repo: string) {
+        chunks(func: eq(CodeChunk.repo, $repo), orderasc: CodeChunk.xid) {
+          CodeChunk.xid
+          CodeChunk.symbol_name
+          CodeChunk.anchor_hash
+        }
+      }`,
+      { $repo: repo },
+    );
+
+    expect((res.data as { chunks: unknown[] }).chunks).toEqual([
+      {
+        "CodeChunk.xid": `${repo}|code|src/runner#Runner`,
+        "CodeChunk.symbol_name": "Runner",
+        "CodeChunk.anchor_hash": anchorHashOf("export class Runner {"),
+      },
+      {
+        "CodeChunk.xid": `${repo}|code|src/runner#Runner.step`,
+        "CodeChunk.symbol_name": "Runner.step",
+        "CodeChunk.anchor_hash": anchorHashOf(
+          "  step(state: number) { return state + 1; }",
+        ),
+      },
     ]);
   });
 });

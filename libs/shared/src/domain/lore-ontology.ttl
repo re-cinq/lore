@@ -44,11 +44,14 @@ lore:Section a owl:Class ;
 
 lore:Statement a owl:Class ;
   rdfs:label "Statement" ;
+  utopia:panel "quote" ;
+  utopia:chain_first "out:validated_by" ;
   rdfs:comment "One sentence or list item of a section that states a behaviour; the unit a test validates and code implements." ;
   owl:disjointWith lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
 lore:Test a owl:Class ;
   rdfs:label "Test" ;
+  utopia:panel "card" ;
   rdfs:comment "One test case (an it/test call) with its title, its file and the lines it spans." ;
   owl:disjointWith lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:Person .
 
@@ -59,13 +62,15 @@ lore:Code a owl:Class ;
 
 lore:SourceFile a owl:Class ;
   rdfs:label "SourceFile" ;
+  utopia:panel "tree" ;
   rdfs:comment "A source file at a commit, by repository-relative path." ;
   rdfs:subClassOf lore:Code ;
   owl:disjointWith lore:CodeDefinition .
 
 lore:CodeDefinition a owl:Class ;
   rdfs:label "CodeDefinition" ;
-  rdfs:comment "A top-level definition in a source file: a function, class, constant or type, with the lines it spans." ;
+  utopia:panel "card" ;
+  rdfs:comment "A definition in a source file: a function, class, method, interface, type, enum or constant, with the lines it spans." ;
   rdfs:subClassOf lore:Code .
 
 # ---- classes: the history that changed the chain ----
@@ -108,13 +113,15 @@ lore:Person a owl:Class ;
 
 lore:contains a owl:ObjectProperty ;
   rdfs:label "contains" ;
-  rdfs:comment "Structure: a repository contains its documents, files, commits, pull requests, issues, tasks, releases and tags; a document contains its sections; a section contains its statements; a test file contains its tests." ;
+  utopia:role "children" ;
+  rdfs:comment "Structure: a repository contains its documents, files, commits, pull requests, issues, tasks, releases and tags; a document contains its sections; a section contains its statements; a test file contains its tests; a class contains its methods." ;
   utopia:temporal "eternal" ;
-  rdfs:domain lore:Repository, lore:Document, lore:Section, lore:SourceFile ;
-  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag .
+  rdfs:domain lore:Repository, lore:Document, lore:Section, lore:SourceFile, lore:CodeDefinition ;
+  rdfs:range lore:Document, lore:SourceFile, lore:Section, lore:Statement, lore:Test, lore:Commit, lore:PullRequest, lore:Issue, lore:Task, lore:Release, lore:Tag, lore:CodeDefinition .
 
 lore:validated_by a owl:ObjectProperty ;
   rdfs:label "validated_by" ;
+  utopia:chain_next "out:covers" ;
   rdfs:comment "A section or statement is validated by a test that checks the behaviour it states." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:Section, lore:Statement ;
@@ -132,7 +139,7 @@ lore:implemented_by a owl:ObjectProperty ;
   rdfs:comment "A section or statement is implemented by the code that realises it." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:Section, lore:Statement ;
-  rdfs:range lore:Code .
+  rdfs:range lore:Code, lore:CodeDefinition .
 
 lore:decided_by a owl:ObjectProperty ;
   rdfs:label "decided_by" ;
@@ -143,13 +150,29 @@ lore:decided_by a owl:ObjectProperty ;
 
 lore:covers a owl:ObjectProperty ;
   rdfs:label "covers" ;
+  utopia:chain_next "in:changes" ;
   rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d'." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:Test ;
   rdfs:range lore:SourceFile .
 
+lore:extends a owl:ObjectProperty ;
+  rdfs:label "extends" ;
+  rdfs:comment "A class or interface extends another." ;
+  utopia:temporal "eternal" ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range lore:CodeDefinition .
+
+lore:implements a owl:ObjectProperty ;
+  rdfs:label "implements" ;
+  rdfs:comment "A class implements an interface." ;
+  utopia:temporal "eternal" ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range lore:CodeDefinition .
+
 lore:defines a owl:ObjectProperty ;
   rdfs:label "defines" ;
+  utopia:role "children" ;
   rdfs:comment "A source file defines a top-level definition." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:SourceFile ;
@@ -248,18 +271,21 @@ lore:commit a owl:DatatypeProperty ;
 
 lore:permalink a owl:DatatypeProperty ;
   rdfs:label "permalink" ;
+  utopia:role "link" ;
   rdfs:comment "GitHub URL of the thing on the default branch, with line anchors where it has lines; of a commit, a pull request, an issue, a release or a tag, its page." ;
   rdfs:domain lore:Document, lore:Section, lore:Statement, lore:Test, lore:Code, lore:Commit, lore:PullRequest, lore:Issue, lore:Release, lore:Tag ;
   rdfs:range xsd:anyURI .
 
 lore:title a owl:DatatypeProperty ;
   rdfs:label "title" ;
+  utopia:role "title" ;
   rdfs:comment "A document's title (its first top-level heading); a test's title as written in its it() call; a section's heading text; a commit's subject line; a pull request's, an issue's or a release's title." ;
   rdfs:domain lore:Document, lore:Test, lore:Section, lore:Commit, lore:PullRequest, lore:Issue, lore:Release ;
   rdfs:range xsd:string .
 
 lore:text a owl:DatatypeProperty ;
   rdfs:label "text" ;
+  utopia:role "quote" ;
   rdfs:comment "The words of a statement or the heading of a section, as written in the document; the body of a commit message; the description of a pull request or an issue; the notes of a release." ;
   rdfs:domain lore:Section, lore:Statement, lore:Commit, lore:PullRequest, lore:Issue, lore:Release ;
   rdfs:range xsd:string .
@@ -270,32 +296,50 @@ lore:symbol a owl:DatatypeProperty ;
   rdfs:domain lore:CodeDefinition ;
   rdfs:range xsd:string .
 
+lore:kind a owl:DatatypeProperty ;
+  rdfs:label "kind" ;
+  rdfs:comment "What a definition is: class, method, function, interface, type or enum." ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range xsd:string .
+
+lore:exported a owl:DatatypeProperty ;
+  rdfs:label "exported" ;
+  rdfs:comment "Whether the file exports the definition." ;
+  rdfs:domain lore:CodeDefinition ;
+  rdfs:range xsd:boolean .
+
 lore:line_start a owl:DatatypeProperty ;
   rdfs:label "line_start" ;
+  utopia:role "span_start" ;
   rdfs:comment "First line (1-based)." ;
   rdfs:domain lore:Section, lore:Statement, lore:Test, lore:CodeDefinition ;
   rdfs:range xsd:integer .
 
 lore:anchor_hash a owl:DatatypeProperty ;
   rdfs:label "anchor_hash" ;
-  rdfs:comment "Content hash of the test's declaration line: the first 8 hex characters of the sha256 of the line lowercased with everything but a-z and 0-9 removed. A spec link ending in @<hash> names the test whose line carries it." ;
-  rdfs:domain lore:Test ;
+  utopia:role "key" ;
+  rdfs:comment "Content hash of the test's or the definition's declaration line: the first 8 hex characters of the sha256 of the line lowercased with everything but a-z and 0-9 removed. A spec link ending in @<hash> names the test whose line carries it." ;
+  rdfs:domain lore:Test, lore:CodeDefinition ;
   rdfs:range xsd:string .
 
 lore:line_end a owl:DatatypeProperty ;
   rdfs:label "line_end" ;
+  utopia:role "span_end" ;
   rdfs:comment "Last line (1-based, inclusive)." ;
   rdfs:domain lore:Section, lore:Statement, lore:Test, lore:CodeDefinition ;
   rdfs:range xsd:integer .
 
 lore:ranges a owl:DatatypeProperty ;
   rdfs:label "ranges" ;
+  utopia:role "range" ;
   rdfs:comment "Line ranges a test executes in a file, as 'a-b,c-d'." ;
   rdfs:domain lore:Test ;
   rdfs:range xsd:string .
 
 lore:outcome a owl:DatatypeProperty ;
   rdfs:label "outcome" ;
+  utopia:role "status" ;
+  utopia:tones "passed=ok,failed=danger" ;
   rdfs:comment "How a test ended at its last run: passed or failed." ;
   rdfs:domain lore:Test ;
   rdfs:range xsd:string .
