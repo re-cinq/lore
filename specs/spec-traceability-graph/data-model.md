@@ -257,28 +257,28 @@ sends the repository's TypeScript and JavaScript source (tests, `.d.ts`, `node_m
 like every other projection. ([validated by TestSelectDocPathsPicksSourceButNotTestsDeclarationsOrBuildOutputForCode @9968c878](apps/lore-code-trace/docs_test.go#L31), [validated by routes src/runner.ts to the code projector and src/old.ts to the code prune @2b9eb7d5](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L330))
 
 lore-api parses each file with tree-sitter into its top-level functions,
-function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls @55788c6d](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L136), [validated by maps the local name next to nextTransition imported from ./transition.js @68af8954](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L153))
+function-valued constants and classes, with the bare identifiers each one calls. ([validated by returns helper, advance and Runner with their line ranges and the identifiers each calls @55788c6d](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L136), [validated by maps the local name next to nextTransition imported from ./transition.js @68af8954](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L154))
 
-A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file @f089b187](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L166))
+A file in a language with no grammar yet yields no definitions and no imports. ([validated by returns no symbols for an unsupported .py file @f089b187](libs/shared/src/work/spec-trace/reference-extractor.test.ts#L167))
 
 Each definition becomes one `CodeChunk` keyed `<repo>|code|<module path without extension>#<symbol>`,
 and a call to a sibling definition or to a named import from a relative path becomes a
 `CodeChunk.references` edge to the chunk with that key; calls into packages are dropped.
 A target whose file is not projected yet is a placeholder carrying only its identity, so
-the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](libs/shared/src/work/spec-trace/project-code-file.test.ts#L68), [validated by answers nextTransition in src/transition.ts as the callee of advance @8fa7e8a6](libs/shared/src/work/spec-trace/project-code-file.test.ts#L76))
+the edge binds whatever order files land in. ([validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](libs/shared/src/work/spec-trace/project-code-file.test.ts#L75), [validated by answers nextTransition in src/transition.ts as the callee of advance @8fa7e8a6](libs/shared/src/work/spec-trace/project-code-file.test.ts#L83))
 
 A chunk's content hash covers its text and the keys it references, so a file projected
-again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged @4d0e5019](libs/shared/src/work/spec-trace/project-code-file.test.ts#L84))
+again unchanged writes nothing. ([validated by reports projected false when src/runner.ts is projected again unchanged @4d0e5019](libs/shared/src/work/spec-trace/project-code-file.test.ts#L91))
 
-A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters @23a52c6a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L119))
+A file over 256,000 characters is generated rather than written and is not parsed. ([validated by reports projected false for a src/generated.ts over 256000 characters @23a52c6a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L126))
 
 Dgraph does not cascade, so removing a chunk removes its edges by hand: a reference
 the new content no longer makes is dropped, a definition that left its file loses its own
 edges and is deleted, or shrinks to a placeholder while callers still point at it so they
-rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition @1d24693a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L92), [validated by removes the reference edges of src/runner.ts when the file is deleted @a46f71a5](libs/shared/src/work/spec-trace/project-code-file.test.ts#L102), [validated by answers advance again when src/transition.ts is deleted and projected back @6ba0916b](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109))
+rebind when it returns, and a placeholder nobody references is deleted. ([validated by answers no callers once advance stops calling nextTransition @1d24693a](libs/shared/src/work/spec-trace/project-code-file.test.ts#L99), [validated by removes the reference edges of src/runner.ts when the file is deleted @a46f71a5](libs/shared/src/work/spec-trace/project-code-file.test.ts#L109), [validated by answers advance again when src/transition.ts is deleted and projected back @6ba0916b](libs/shared/src/work/spec-trace/project-code-file.test.ts#L116))
 
 A full ingest prunes the files the graph holds definition chunks for and the posted tree
-no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files @8d39a079](libs/shared/src/work/spec-trace/project-code-file.test.ts#L128))
+no longer names. ([validated by lists src/runner.ts and src/transition.ts as the projected code files @8d39a079](libs/shared/src/work/spec-trace/project-code-file.test.ts#L135))
 
 ## Branch overlay
 
