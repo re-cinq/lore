@@ -81,22 +81,18 @@ describe("Workload Identity binding, no long-lived key material (infra charts)",
   });
 });
 
-describe("Workload Identity Federation for GitHub Actions (.github/workflows)", () => {
-  const wifWorkflows = walkFiles(workflowsDir).filter((file) =>
-    read(file).includes("google-github-actions/auth"),
-  );
-
-  it("finds the WIF auth action wired into build/deploy workflows", () => {
-    expect(wifWorkflows.length).toBeGreaterThan(0);
-  });
-
-  it("every WIF workflow declares workload_identity_provider and omits credentials_json", () => {
-    const violations = wifWorkflows.filter((file) => {
+describe("GitHub Actions hold no Google credentials (.github/workflows)", () => {
+  // Deploys are pulled by Argo CD from the cluster side, so no workflow needs
+  // Google at all; one that does must federate through a WIF provider.
+  it("no workflow carries a static key, and any Google auth names a WIF provider", () => {
+    const violations = walkFiles(workflowsDir).filter((file) => {
       const text = read(file);
-      const missingProvider = !text.includes("workload_identity_provider:");
       const hasStaticKey = text.includes("credentials_json:");
+      const authWithoutProvider =
+        text.includes("google-github-actions/auth") &&
+        !text.includes("workload_identity_provider:");
 
-      return missingProvider || hasStaticKey;
+      return hasStaticKey || authWithoutProvider;
     });
 
     expect(violations).toEqual([]);
