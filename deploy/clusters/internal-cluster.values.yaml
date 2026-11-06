@@ -172,6 +172,22 @@ platform:
     - name: lore-reviewer-app
       namespace: lore-stations
       keys: { app-id: lore-reviewer-app-id, private-key: lore-reviewer-app-private-key, installation-id: lore-reviewer-app-installation-id }
+    # The floor (re-cinq/floor, namespace floor) reads its tokens and its
+    # database password from here; its chart only takes existing Secrets.
+    - name: floor-api
+      namespace: floor
+      keys: { serviceToken: lore-floor-service-token, visitTokenSecret: floor-visit-token-secret, gitCredentialToken: lore-floor-git-credential-token }
+    - name: floor-postgres
+      namespace: floor
+      template:
+        data: { connectionString: "postgres://floor:{{ .password }}@lore-db-rw.lore-db.svc.cluster.local:5432/floor" }
+      keys: { password: floor-db-password }
+    - name: ghcr
+      namespace: floor
+      template:
+        type: kubernetes.io/dockerconfigjson
+        data: { .dockerconfigjson: "{{ .dockerconfigjson }}" }
+      keys: { dockerconfigjson: lore-ghcr-pull-secret }
     # The floor's agent pods: merged into the floor chart's own agent-secrets.
     - name: floor-agent-secrets-lore-mcp
       namespace: floor
