@@ -200,6 +200,8 @@ platform:
       keys: { LORE_INGEST_TOKEN: lore-ingest-token }
 
 # ---- Lore API (lore-api namespace)
+  monitoring: { enabled: true }
+
 lore-api:
   replicaCount: 1
   gcpProject: re5-n8n-platform

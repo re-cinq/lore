@@ -1,0 +1,33 @@
+{{- /*
+What the cluster's Prometheus scrapes and what its Grafana shows, declared
+here and picked up cluster-wide (re-cinq/infrastructure, docs/deploying.md).
+Each monitor sits in its target's namespace; the dashboards sit in lore-ui's.
+*/ -}}
+{{- if .Values.platform.monitoring.enabled }}
+{{- range $name, $target := dict "lore-api" (dict "namespace" "lore-api" "app" "lore-api") "lore-mcp-gateway" (dict "namespace" "lore-api" "app" "lore-mcp-gateway") "lore-stations" (dict "namespace" "lore-stations" "app" "lore-stations") }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $name }}
+  namespace: {{ $target.namespace }}
+spec:
+  selector:
+    matchLabels: { app: {{ $target.app }} }
+  endpoints:
+    - { port: metrics, path: /metrics, interval: 30s }
+{{- end }}
+{{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lore-dashboard-{{ base $path | trimSuffix ".json" }}
+  namespace: lore-ui
+  labels: { grafana_dashboard: "1" }
+  annotations: { grafana_folder: Lore }
+data:
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+{{- end }}
+{{- end }}
