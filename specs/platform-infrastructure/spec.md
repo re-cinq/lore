@@ -83,7 +83,7 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 `half_life_days`) and the three `memory.memories` decay columns are added
 `if not exists`, the `confidence` CHECK constraint guards the four tiers
 (`verified`/`observed`/`inferred`/`stale`), and both `memory.fact_conflicts` and
-`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts@1b0aa9b2`](apps/lore-api/src/migrations.test.ts#L39), [`migrations.test.ts@f1479ff1`](apps/lore-api/src/migrations.test.ts#L54), [`migrations.test.ts@0d64cb8e`](apps/lore-api/src/migrations.test.ts#L68), [`migrations.test.ts@6021e7ea`](apps/lore-api/src/migrations.test.ts#L74), [`migrations.test.ts@d9178c90`](apps/lore-api/src/migrations.test.ts#L78))
+`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts@1b0aa9b2`](apps/lore-api/src/migrations.test.ts#L36), [`migrations.test.ts@f1479ff1`](apps/lore-api/src/migrations.test.ts#L51), [`migrations.test.ts@0d64cb8e`](apps/lore-api/src/migrations.test.ts#L65), [`migrations.test.ts@6021e7ea`](apps/lore-api/src/migrations.test.ts#L71), [`migrations.test.ts@d9178c90`](apps/lore-api/src/migrations.test.ts#L75))
 
 ### Route plumbing
 
