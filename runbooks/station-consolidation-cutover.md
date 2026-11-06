@@ -14,7 +14,7 @@ factory keeps serving, and work simply stops arriving.
 Two facts, neither visible from a green build:
 
 1. **`EVENT_ROUTER_URL` and `LORE_API_URL` reach the stations chart only
-   through `terraform apply`** ([lore-platform.tf:246-260](../infra/terraform/lore-platform.tf#L246-L260)).
+   through `terraform apply`** (`infra/terraform/lore-platform.tf`, since replaced by `deploy/clusters/internal-cluster.values.yaml` and Argo CD).
    `helm_release.lore_platform` sets `reuse_values = true`, so a CI
    redeploy re-uses the STORED values and never learns a key terraform
    has not applied yet. Until that apply runs, the stations pods serve

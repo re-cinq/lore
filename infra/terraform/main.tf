@@ -68,18 +68,3 @@ provider "kubectl" {
 
 # --- Namespaces ---
 
-resource "kubernetes_namespace" "lore_api" {
-  metadata { name = "lore-api" }
-}
-
-resource "kubernetes_namespace" "lore_agent" {
-  metadata { name = "lore-floor" }
-}
-
-resource "kubernetes_namespace" "lore_ui" {
-  metadata { name = "lore-ui" }
-}
-
-resource "kubernetes_namespace" "lore_stations" {
-  metadata { name = "lore-stations" }
-}

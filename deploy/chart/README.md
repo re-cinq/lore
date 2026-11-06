@@ -25,35 +25,22 @@ Subcharts are **vendored** (physically under `charts/`), so no
 `helm dependency build`/`update` step is needed — `helm template`/`install`
 work as-is.
 
-## Deploy contract: Terraform owns config, CI owns image tags
+## Deploy contract: the values file owns config, CI owns image tags
 
-- **Terraform** (`infra/terraform/lore-platform.tf`) owns the one
-  `helm_release.lore_platform` with all env/secret config via a nested `values`
-  block, and `reuse_values = true` so a `terraform apply` merges config on top
-  of the live release **without** resetting image tags.
-- **CI** (`.github/workflows/build-{floor,lore-api,ui}.yml`) bumps a single
-  service's image per push, each through `scripts/ci/deploy-lore-platform.sh`:
+- **Argo CD** on re:cinq's internal cluster (re-cinq/infrastructure,
+  docs/deploying.md) installs this chart with
+  `deploy/clusters/internal-cluster.values.yaml`: every env, secret name and
+  hostname lives there and changes by PR.
+- **CI** (`.github/workflows/build-{lore-api,mcp-server,stations,ui}.yml`)
+  records each freshly built image's short SHA in that same values file
+  through `scripts/ci/bump-image-tag.sh` and pushes the commit to `main`;
+  Argo CD rolls it out. Several builds from one push each land their own
+  commit; the script rebases and retries when a sibling got there first.
 
-  ```
-  helm upgrade --install lore-platform <this chart> \
-    --namespace lore-floor \
-    --set-string <subchart>.image.tag=<git-sha> \
-    --reset-then-reuse-values --cleanup-on-fail
-  ```
-
-  `--reset-then-reuse-values` keeps the other subcharts' tags and the
-  Terraform-supplied config intact (`--set-string`, never `--set`, so an
-  all-digits short SHA is not coerced to a float and re-rendered as
-  `InvalidImageName` on the next reuse). Several build workflows can fire at
-  once (a `libs/shared` change rebuilds floor + lore-api), so instead of a
-  GitHub `concurrency` group — which keeps only one pending run and cancels the
-  rest — the deploy script serializes on Helm's own release lock: it retries
-  while another deploy holds the lock and clears only a stale (>5 min) leftover
-  from a dead run.
-
-Not deployed by this chart (stays Terraform-owned): the GKE cluster, the
-namespaces, ESO + ExternalSecrets, the two ingresses, the CNPG cluster CR, and
-the Dgraph StatefulSet.
+Not deployed by this chart: the GKE cluster and its baseline (ingress
+controller, cert-manager, External Secrets, CloudNativePG), which
+re-cinq/infrastructure owns. The namespaces, ExternalSecrets, ingresses, the
+CNPG cluster and the Dgraph StatefulSet ship here.
 
 ## Hook ordering
 

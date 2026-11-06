@@ -97,27 +97,26 @@ describe("GitHub Actions hold no Google credentials (.github/workflows)", () => 
   });
 });
 
-describe("Dgraph's one pod survives node consolidation (infra/terraform)", () => {
+describe("Dgraph's one pod survives node consolidation (deploy/chart)", () => {
   it("declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod", () => {
-    const terraform = read(
-      path.join(repoRoot, "infra/terraform/lore-dgraph.tf"),
-    );
-    const [budget] =
-      /resource "kubectl_manifest" "lore_dgraph_disruption_budget" \{[\s\S]*?\n\}/.exec(
-        terraform,
-      ) ?? [""];
+    const manifests = read(
+      path.join(repoRoot, "deploy/chart/templates/lore-dgraph.yaml"),
+    ).split(/^---$/m);
+    const budget =
+      manifests.find((doc) => /kind: PodDisruptionBudget/.test(doc)) ?? "";
+    const statefulSet =
+      manifests.find((doc) => /kind: StatefulSet/.test(doc)) ?? "";
     const [, podLabels] =
-      /resource "kubectl_manifest" "lore_dgraph_statefulset" \{[\s\S]*?template = \{\s*metadata = \{ labels = (\{[^}]*\}) \}/.exec(
-        terraform,
+      /template:\s*\n\s*metadata:\s*\n\s*labels: (\{[^}]*\})/.exec(
+        statefulSet,
       ) ?? ["", "no pod labels found"];
-    const [, selected] = /selector\s+=\s+\{ matchLabels = (\{[^}]*\}) \}/.exec(
+    const [, selected] = /selector:\s*\n\s*matchLabels: (\{[^}]*\})/.exec(
       budget,
     ) ?? ["", "no selector found"];
 
     expect({
-      kind: /kind\s+=\s+"PodDisruptionBudget"/.test(budget),
-      minAvailable: /minAvailable\s+=\s+1\b/.test(budget),
+      minAvailable: /minAvailable: 1\b/.test(budget),
       selected,
-    }).toEqual({ kind: true, minAvailable: true, selected: podLabels });
+    }).toEqual({ minAvailable: true, selected: podLabels });
   });
 });

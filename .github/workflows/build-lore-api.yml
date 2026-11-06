@@ -35,7 +35,6 @@ on:
       - 'deploy/chart/values.yaml'
       - '.github/workflows/build-lore-api.yml'
       - 'scripts/ci/bump-image-tag.sh'
-      - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
     paths:
       - '.github/workflows/_build-image.yml'

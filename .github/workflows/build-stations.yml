@@ -18,7 +18,6 @@ on:
       - 'deploy/chart/values.yaml'
       - '.github/workflows/build-stations.yml'
       - 'scripts/ci/bump-image-tag.sh'
-      - 'scripts/ci/helm-lock-contention.sh'
   workflow_dispatch:
 
 concurrency:
