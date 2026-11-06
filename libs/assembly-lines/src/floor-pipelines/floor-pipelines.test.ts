@@ -1081,7 +1081,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("retries every failed planning agent once before the run fails, and no service station", () => {
+  it("retries every failed planning agent but the write branches once before the run fails, and no service station", () => {
     const { line } = pipelineOf("feature-planning");
     const retried = line.edges
       .filter((edge) => edge.on === "failed" && edge.from === edge.to)
@@ -1095,7 +1095,6 @@ describe("the feature-planning pipeline", () => {
       "qa-generate:1",
       "qa-recheck:1",
       "rework:1",
-      "write:1",
     ]);
   });
 
@@ -1121,7 +1120,7 @@ describe("the feature-planning pipeline", () => {
       ],
       fromWrite: [
         { from: "write", to: "assemble", on: "success" },
-        { from: "write", to: "write", on: "failed", iteration_max: 1 },
+        { from: "write", to: "assemble", on: "failed" },
       ],
       fromAssemble: [
         {
@@ -2094,5 +2093,18 @@ it("routes rejected implementation evidence back three times and gives filing an
     filing: { name: "verified_decomposition" },
     coverage: { name: "verified_decomposition" },
     summary: [{ name: "ticketing_result", kind: "file" }],
+  });
+});
+
+it("sends a write pod that failed to the assemble join, and never back to write, whose retried visit would have no item", () => {
+  const { line } = pipelineOf("feature-planning");
+  const fromWrite = edgesOn(line, "write");
+
+  expect({
+    onFailed: fromWrite.filter((edge) => edge.on === "failed"),
+    intoWrite: line.edges.filter((edge) => edge.to === "write"),
+  }).toEqual({
+    onFailed: [{ from: "write", to: "assemble", on: "failed" }],
+    intoWrite: [{ from: "split-sections", to: "write", on: "success" }],
   });
 });

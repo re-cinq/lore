@@ -480,4 +480,38 @@ describe("verified spec ticket flow", () => {
     ]);
     expect(run.filed).toEqual([]);
   });
+
+  it("hands the missing message list back before filing while its linked test exists, and files it once the claim says why", async () => {
+    const spec = SPEC.replace(
+      "render messages.",
+      "render messages. ([validated by renders messages](src/widget.test.ts#L1))",
+    );
+    const run = scene(decomposition("missing"), {
+      [PATH]: spec,
+      "src/widget.test.ts": 'it("renders messages", () => {});\n',
+    });
+
+    expect({ report: await run.verify(), issues: run.filed }).toMatchObject({
+      report: {
+        outcome: "changes_requested",
+        error: expect.stringContaining(
+          "line 5: missing or unassessed, but its linked test src/widget.test.ts#L1 exists",
+        ),
+      },
+      issues: [],
+    });
+    const raw = decomposition("missing");
+    const [rendering, colour] = raw.statements;
+    const reason = "The test renders an empty list only.";
+
+    run.artifacts.decomposition = JSON.stringify({
+      ...raw,
+      statements: [{ ...rendering, reason }, colour],
+    });
+    expect([await run.verify(), await run.file()]).toEqual([
+      { outcome: "success" },
+      { outcome: "success" },
+    ]);
+    expect(run.filed).toHaveLength(2);
+  });
 });

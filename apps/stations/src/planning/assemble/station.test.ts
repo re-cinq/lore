@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import { assembleHandle, type AssembleDeps } from "./station.js";
+import { assembleHandle, type AssembleDeps, type RunVisit } from "./station.js";
 
 const SPEC_PATH = "specs/widget/spec.md";
 const SPEC =
@@ -34,6 +34,7 @@ function scene(
   patches: unknown[],
   state: object = STATE,
   specPlanPath = SPEC_PATH,
+  visits: RunVisit[] = [],
 ) {
   const produced: Record<string, string> = {};
   const committed: Array<{ path: string; text: string; message: string }> = [];
@@ -54,6 +55,7 @@ function scene(
     commitSpec: async (_repo, _branch, { path, text }, message) => {
       committed.push({ path, text, message });
     },
+    visitsOf: async () => visits,
   };
 
   return {
@@ -231,4 +233,59 @@ describe("assembleHandle", () => {
       done: ["scope", "risk"],
     });
   });
+
+  it("applies nothing when every write pod of the newest round failed, though the floor hands it an earlier round's patches", async () => {
+    const { handle, tools, brief, committed, produced } = scene(
+      [scope, risk],
+      { ...STATE, handed: ["scope"], done: ["risk"] },
+      SPEC_PATH,
+      [...podsThatProduced(1), ...podsThatFailed(2)],
+    );
+
+    const report = await handle(brief, tools);
+
+    expect({
+      report,
+      commits: committed.length,
+      state: stateOf(produced),
+    }).toMatchObject({
+      report: { outcome: "retry" },
+      commits: 0,
+      state: { done: ["risk"], attempts: { scope: 1 } },
+    });
+  });
+
+  it("applies the newest round's patches, though they are the same as the round before", async () => {
+    const quiet = patch("risk", [], { status: "nothing_relevant" });
+    const { handle, tools, brief, produced } = scene(
+      [quiet],
+      { ...STATE, handed: ["risk"], done: ["scope"] },
+      SPEC_PATH,
+      [...podsThatProduced(1), ...podsThatProduced(2)],
+    );
+
+    const report = await handle(brief, tools);
+
+    expect({ report, done: stateOf(produced).done }).toEqual({
+      report: { outcome: "success" },
+      done: ["scope", "risk"],
+    });
+  });
 });
+
+function podsThatProduced(iteration: number): RunVisit[] {
+  return writePods(iteration, { produced: { section_patch: "blob://p" } });
+}
+
+function podsThatFailed(iteration: number): RunVisit[] {
+  return writePods(iteration, {});
+}
+
+function writePods(iteration: number, report: RunVisit["report"]): RunVisit[] {
+  return [0, 1].map((branch) => ({
+    nodeId: "write",
+    iteration,
+    branch,
+    report,
+  }));
+}

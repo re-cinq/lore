@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Alert } from "@/components/Alert";
+import LinkPending from "@/components/LinkPending";
 import type { PlanSummary } from "@/lib/api/plans";
 import PlanStatusBadge from "./PlanStatusBadge";
 import styles from "./PlanListView.module.scss";
@@ -52,7 +53,10 @@ function PlanCard({ base, plan }: { base: string; plan: PlanSummary }) {
     <Link href={`${base}/${plan.id}`} className={`spec-card ${styles.card}`}>
       <div className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>{plan.title}</h3>
-        <PlanStatusBadge status={plan.status} />
+        <span className={styles.cardStatus}>
+          <LinkPending label="Opening plan" className={styles.pending} />
+          <PlanStatusBadge status={plan.status} />
+        </span>
       </div>
       <p className={`meta ${styles.detail}`}>
         {plan.type} plan · version {plan.version} · by {plan.createdBy}

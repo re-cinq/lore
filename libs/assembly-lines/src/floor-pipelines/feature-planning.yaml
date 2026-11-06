@@ -242,10 +242,13 @@ line:
     - from: write
       to: assemble
       on: success
+    # A pod that failed (a timeout, a crash) reaches the join like one that
+    # returned nothing, and assemble lists its section again. The floor cannot
+    # run one branch of a fan-out again by itself: the retried visit gets no
+    # `item`, and the run ends on "missing required need(s) item".
     - from: write
-      to: write
+      to: assemble
       on: failed
-      iteration_max: 1
     # A section whose pod returned no usable patch, or whose patch did not all
     # apply, goes round again: split-sections lists what is left.
     - from: assemble

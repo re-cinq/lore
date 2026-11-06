@@ -3,12 +3,14 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RootLoading from "./loading";
 import RepoLoading from "./repos/[owner]/[repo]/loading";
+import PlanLoading from "./repos/[owner]/[repo]/plans/[id]/loading";
 import SearchLoading from "./search/loading";
 import ContextLoading from "./context/loading";
 
 const routes: Array<[string, React.ComponentType, string]> = [
   ["root", RootLoading, "Loading"],
   ["repo", RepoLoading, "Loading repository"],
+  ["plan", PlanLoading, "Loading plan"],
   ["search", SearchLoading, "Loading search"],
   ["context", ContextLoading, "Loading context"],
 ];
