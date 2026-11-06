@@ -1203,9 +1203,9 @@ share one persistence surface instead of inline SQL. ([validated by `awaitingApp
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts@36bb5027`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L75), [`security-posture.test.ts@514be64d`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts@36bb5027`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L75), [`security-posture.test.ts@2f1964ef`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L87))
 - Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts@2ee19429`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L67))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts@94c62b67`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L87), [`security-posture.test.ts@514be64d`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L96))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts@2f1964ef`](libs/shared/src/domain/infra-contract/security-posture.test.ts#L87))
 - Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts@2fc1ae53`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L167), [`chunks.test.ts@8caa545d`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L178))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
