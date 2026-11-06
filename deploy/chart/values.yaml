@@ -32,5 +32,9 @@ platform:
   legacyWebhookHost: ""
   externalSecrets: []
   ingresses: []
+  # database.restore.host: another CNPG primary to be born from, as its
+  # streaming_replica user with the TLS client certificate in secrets
+  # legacy-db-replication (tls.crt, tls.key) and legacy-db-ca (ca.crt) in
+  # the lore-db namespace. replica keeps streaming until set to false.
   database: null
   dgraph: null

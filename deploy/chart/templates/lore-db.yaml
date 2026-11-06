@@ -22,12 +22,33 @@ spec:
   instances: 1
   imageName: {{ $db.image }}
   bootstrap:
+    {{- if and $db.restore $db.restore.host }}
+    pg_basebackup:
+      source: legacy
+    {{- else }}
     initdb:
       database: lore
       owner: lore
       secret: { name: lore-db-credentials }
       postInitSQL:
         - CREATE EXTENSION IF NOT EXISTS vector
+    {{- end }}
+  {{- if and $db.restore $db.restore.host }}
+  externalClusters:
+    - name: legacy
+      connectionParameters:
+        host: {{ $db.restore.host | quote }}
+        port: "5432"
+        user: streaming_replica
+        dbname: postgres
+        sslmode: verify-ca
+      sslKey: { name: legacy-db-replication, key: tls.key }
+      sslCert: { name: legacy-db-replication, key: tls.crt }
+      sslRootCert: { name: legacy-db-ca, key: ca.crt }
+  replica:
+    enabled: {{ $db.restore.replica }}
+    source: legacy
+  {{- end }}
   # The pod's identity writes WAL and backups to the bucket (Workload Identity).
   serviceAccountTemplate:
     metadata:
@@ -38,6 +59,9 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: lore-db-backup
+        {{- with $db.backupServerName }}
+        serverName: {{ . }}
+        {{- end }}
   storage:
     size: {{ $db.size }}
   resources:

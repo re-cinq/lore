@@ -4,7 +4,9 @@
 
 platform:
   gcpProject: re5-n8n-platform
-  secretStore: gcp-secret-manager
+  # Secrets still live in re5-n8n-platform's Secret Manager; the internal
+  # cluster reads it as the legacy store until they are copied over.
+  secretStore: gcp-secret-manager-legacy
   clusterIssuer: letsencrypt-prod
   ingressClassName: nginx-ingress
   namespaces: [lore-api, lore-floor, lore-ui, lore-db, lore-stations, lore-dgraph]
@@ -17,9 +19,18 @@ platform:
       requests: { cpu: 500m, memory: 1Gi }
       limits: { cpu: "2", memory: 4Gi }
     backupBucket: lore-db-backups-re5-n8n-platform
+    # The legacy cluster archived under the default name lore-db; this
+    # cluster's backups go under their own name in the same bucket.
+    backupServerName: lore-db-internal
     backupRetention: 7d
     backupSchedule: "0 0 2 * * *"
     backupServiceAccount: lore-db-backup@re5-n8n-platform.iam.gserviceaccount.com
+    # Migration from n8n-cluster: born from its lore-db primary with
+    # pg_basebackup, streaming as a replica until the cutover flips replica
+    # to false (deploy/README.md). Leave host set afterwards.
+    restore:
+      host: LEGACY_DB_IP
+      replica: true
 
   dgraph:
     image: dgraph/standalone:v24.0.0

@@ -9,7 +9,7 @@ A new image lands when a build workflow commits its tag into the cluster's value
 Render locally:
 
 ```sh
-helm template lore deploy/chart -f deploy/clusters/n8n-cluster.values.yaml
+helm template lore deploy/chart -f deploy/clusters/internal-cluster.values.yaml
 ```
 
 Secret values never live here. Every entry under `platform.externalSecrets` names a Secret Manager key; the cluster's External Secrets Operator fills the Kubernetes Secret.
@@ -19,7 +19,7 @@ Secret values never live here. Every entry under `platform.externalSecrets` name
 Until the cutover, `infra/terraform` still applies the umbrella and owns the platform objects. The chart renders the same objects with the same names, so Argo adopts them in place. The order:
 
 1. Merge this chart. Terraform keeps working; it now reads the chart from `deploy/chart`.
-2. Argo CD on `n8n-cluster` picks the repo up (needs `deploy/clusters/n8n-cluster.values.yaml`, present) and creates the `lore` application. Check it is Healthy and Synced in the Argo UI. Objects it adopts get an `argocd.argoproj.io/tracking-id` annotation and nothing else changes.
+2. Argo CD on `internal-cluster` picks the repo up (needs `deploy/clusters/internal-cluster.values.yaml`, present) and creates the `lore` application. Check it is Healthy and Synced in the Argo UI. Objects it adopts get an `argocd.argoproj.io/tracking-id` annotation and nothing else changes.
 3. Release the Kubernetes objects from Terraform state so a later `terraform apply` neither fights Argo nor deletes them:
    ```sh
    cd infra/terraform

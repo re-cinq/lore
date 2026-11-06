@@ -28,11 +28,15 @@ spec:
   template:
     metadata:
       labels: { app: lore-dgraph }
+      annotations:
+        # One replica on one disk: the node autoscaler must not move it.
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
     spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: dgraph
           image: {{ $g.image }}
