@@ -1,39 +1,50 @@
 #!/usr/bin/env bash
-# Records a freshly built image tag in the cluster values file and pushes the
-# commit to main. Argo CD on the cluster deploys it from there. Replaces the
-# `helm upgrade` push that deploy-lore-platform.sh used to do.
+# Records a freshly built image tag in the cluster values file and lands it on
+# main through a pull request, which branch protection requires. Argo CD on the
+# cluster deploys it from there.
 #
 # Usage: bump-image-tag.sh <subchart> <tag> [values-file]
 #   e.g. bump-image-tag.sh lore-api 5d270e9
+# Needs GH_TOKEN with contents and pull-requests write.
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-api}"
 TAG="${2:?image tag}"
 VALUES="${3:-deploy/clusters/internal-cluster.values.yaml}"
-
-# Tags are quoted on purpose: an all-digit short SHA would otherwise be read as
-# a number (deploy-lore-platform.sh learned that with --set).
-yq -i ".\"${SUBCHART}\".image.tag = \"${TAG}\"" "$VALUES"
-
-if git diff --quiet -- "$VALUES"; then
-  echo "[lore] ${SUBCHART} already at ${TAG}"
-  exit 0
-fi
+BRANCH="deploy/${SUBCHART}-${TAG}"
 
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git add "$VALUES"
-git commit -m "deploy(${SUBCHART}): ${TAG}" -m "Built from $(git rev-parse --short HEAD). Argo CD rolls it out."
 
-# Several services build from one push; each lands its own commit. Rebase and
-# retry rather than fail when a sibling got there first.
+# Several services build from one push, each with its own pull request. When a
+# sibling merges first, the branch is rebuilt on the new main and merged again.
 for attempt in 1 2 3 4 5 6; do
-  if git push origin HEAD:main; then
+  git fetch --quiet origin main
+  git checkout --quiet -B "$BRANCH" origin/main
+
+  # Tags are quoted on purpose: an all-digit short SHA would otherwise be read
+  # as a number.
+  yq -i ".\"${SUBCHART}\".image.tag = \"${TAG}\"" "$VALUES"
+
+  if git diff --quiet -- "$VALUES"; then
+    echo "[lore] ${SUBCHART} already at ${TAG}"
     exit 0
   fi
-  echo "[lore] push rejected (attempt ${attempt}); rebasing"
-  git fetch origin main
-  git rebase origin/main
+
+  git commit --quiet -am "deploy(${SUBCHART}): ${TAG}" -m "Built from ${GITHUB_SHA:-$(git rev-parse --short HEAD)}. Argo CD rolls it out."
+  git push --quiet --force origin "HEAD:refs/heads/${BRANCH}"
+
+  if ! gh pr view "$BRANCH" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+    gh pr create --base main --head "$BRANCH" \
+      --title "deploy(${SUBCHART}): ${TAG}" \
+      --body "Image tag bump from the build workflow. Argo CD rolls it out once merged."
+  fi
+
+  if gh pr merge "$BRANCH" --squash --delete-branch; then
+    exit 0
+  fi
+  echo "[lore] merge of ${BRANCH} failed (attempt ${attempt}); rebuilding on main"
+  sleep $((attempt * 5))
 done
-echo "[lore] could not push the tag bump after 6 attempts" >&2
+echo "[lore] could not merge the tag bump after 6 attempts" >&2
 exit 1
