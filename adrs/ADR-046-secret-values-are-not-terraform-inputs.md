@@ -94,4 +94,4 @@ Terraform no longer proves a secret has a value, so two scripts do:
 
 - [`specs/eso-gitops/spec.md`](../specs/eso-gitops/spec.md) — the spec this amends
 - [`docs/managing-secrets.md`](../docs/managing-secrets.md) — the operational procedures
-- [`infra/terraform/secrets.tf`](../infra/terraform/secrets.tf) — the containers, the `moved` block, and the reasoning inline
+- [`projects/internal/secrets.tf` in re-cinq/infrastructure](https://github.com/re-cinq/infrastructure/blob/main/projects/internal/secrets.tf) — the containers live there since #4197 removed Terraform from this repository

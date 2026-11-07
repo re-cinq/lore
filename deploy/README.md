@@ -141,6 +141,5 @@ Google Cloud resources (service accounts, buckets, Secret Manager containers,
 the BigQuery billing export) and the cluster baseline the chart assumes
 (External Secrets Operator and its ClusterSecretStores, the CloudNativePG
 operator, cert-manager, ingress, Prometheus, Grafana, Headlamp, Argo CD) are in
-re-cinq/infrastructure. `infra/terraform` in this repository holds only
-project-level GCP resources and the Grafana service account; it owns no
-Kubernetes object.
+re-cinq/infrastructure (`projects/internal`). This repository carries no
+Terraform since #4197: lore is a Helm chart only.
