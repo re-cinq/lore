@@ -2,7 +2,7 @@
 
 **For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first run of 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27, the ticket grade and the reader change of 2026-10-31, and what they say about the switch. The latest evidence favours Utopia; the first run, which does not, was taken before its data was in place.
 
-## Where this stands (2026-10-31, updated 2026-11-04)
+## Where this stands (2026-10-31, updated 2026-11-05)
 
 Utopia is ahead of Lore on the evidence so far, with two caveats, and since 2026-10-31 its assembly reads six sections instead of two.
 
@@ -96,16 +96,17 @@ What the Sonnet judge named useful, before the readers, split cleanly by store: 
 
 The in-API judge scored every ticket 3 for both stores on both repositories, so it separates nothing; a grade that saturates is not a measurement. The next change to #4032 is a stricter scale or a stronger judge model, measured against the Sonnet numbers above.
 
-## Utopia arm tuning, 2026-11-01 to 2026-11-04: ahead on lore, level on Otto, in a third of the text
+## Utopia arm tuning, 2026-11-01 to 2026-11-05: ahead on lore, level on Otto, in a third of the text
 
 From 2026-11-01 the ticket grade is judged inside lore-api with the score decided in code: a useful item counts only when its quote is word for word in the block, and the block is graded without its `<context query>` header, which echoes the ticket. That is why the scores below sit lower than the 3.00 of 10-31, which separated nothing. Each run is `run.mjs --tickets 8 --backend both` on the latest 8 `priority:*` tickets per repository, with the document evals (`--sample 20`) beside it.
 
-Four changes to the Utopia arm went live in this window:
+Five changes to the Utopia arm went live in this window:
 
 - **#4068 (11-01): less noise.** Fewer specs and ADRs per section, and no memory that names nothing the ticket names.
 - **#4072 (11-01): size by relevance.** A document is kept only when it scores at least 0.75 of the best document hit, and the repo and ADR sections grow with the number of areas (folders or files) the ticket names. In a probe of 36 questions, documents above that line were used 74% of the time and those below it 15%.
 - **#4077 (11-02): commits linked to files and tickets.** Each commit in the `git-history` source names its pull request, the issues it closes or refers to, and the files it changed, and a new Recent Changes section brings the last commits that touched the files a ticket names. All 14 repositories were re-pushed: 2,276 commits, none failed.
-- **#4101 (11-04, open): Recent Changes reads each commit whole,** since a hit is often only the chunk with the file list.
+- **#4101 (11-04): Recent Changes reads each commit whole,** since a hit is often only the chunk with the file list.
+- **#4103 (11-05): coupling items carry the lines they cite.** A `test-coverage` statement is finished with the test it names and the lines that test covers, read from the repository's files at the default branch (at most three spans, 40 lines each), so the section shows the code instead of only naming it; a widened `repo` or `adrs` item leads a run of blocks under one heading with that heading once; and a snake_case name such as `run_id` no longer lets a foreign memory through.
 
 ### Ticket grade
 
@@ -119,6 +120,7 @@ Four changes to the Utopia arm went live in this window:
 | after #4072 | Otto | 2.38 | 2.38 | | 1,455 tokens |
 | after #4077 (11-04) | lore | 2.25 | **2.75** | 32,924 chars | 12,606 chars |
 | after #4077 (11-04) | Otto | 2.25 | 2.13 | 30,356 chars | 4,422 chars |
+| after #4103 (11-05) | lore | 2.25 | **2.75** | 32,078 chars | 15,259 chars |
 
 The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 once #4106 let the ticket eval name it. It plans questions about the ticket, answers them from Lore's stores and the repository's files, and writes the block on Gemini 3 Flash.
 
@@ -152,7 +154,8 @@ The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 on
 - **The noise cuts raised the useful share** from 52-53% to 61-70%, above Lore's 58-64% after #4072. The one loss measured was Otto's `.specify/spec.md`, at 0.61 of the best hit, dropped by the 0.75 line.
 - **Recent Changes helped where a ticket's history mattered** (lore #4057, where the judge used "the logic … was introduced in commit #4039") and was named as noise on two Otto tickets: once for a commit of another task, once for the long file list of a commit touching 40 files. The next change shows only the files the ticket names, with a count of the rest.
 - **Otto's dip on 11-04 is one ticket,** #689, scored 1, where no section of either store held what the ticket asked.
-- **Utopia's assembly on Otto took 28.9 s at p50 on 11-04,** against 2.9 s on lore, while its extraction queue drained the 2,276 updated commits.
+- **Utopia's assembly on Otto took 28.9 s at p50 on 11-04,** against 2.9 s on lore, while its extraction queue drained the 2,276 updated commits. On 11-05, after #4103, lore read 9.9 s at p50 with the queue still draining (utopia-db at 2.6 cores), against 1.5 s idle on 11-04; the clean number waits for an empty queue.
+- **After #4103 the coupling section stopped being named as noise.** On 11-04 the judge named "Coupled Spec & Tests" as noise on most lore tickets; on 11-05 it named it once as redundant (#4075, where the statement repeats the spec text beside it) and once as noise (#4012, where the coupled tests belong to loop pause rather than the triage label), and six tickets scored 3. The mean held at 2.75 because the two UI and stations tickets (#4013, #4012) stayed at 2 with or without the lines.
 - **`lore-v2` as shipped sat between the two on lore and last on Otto; after #4112 and #4116 it is level with Utopia on lore (2.75) and ahead of both on Otto (2.50),** in the smallest block (4 to 4.6k characters) and 17 to 20 s at p50, down from 30 to 36 s. Where it reads code it is the most precise of the three: on lore #4012 it named `isOutOfBudget`, its argument and the existing `ranOutOfCredit` check, and on #4056 the two functions behind the bug. On 11-04 it failed on tickets whose answer was in no file it opened (lore #4057; Otto #673 and #689), and the judge named its scaffolding as noise on most blocks; on 11-05 lore #4057 scores 3 and only Otto #689 keeps its 1, the ticket no store answers. The noise the judge still names is the ticket's own sections (`Implements`, `References`, `How to test`), which the compose rule now forbids copying; whether the judge reads them in the block or in the ticket text it is also handed is the next thing to check.
 - **Round 3 (#4118 #4119 #4120) lifts lore-v2 to 3.00 on lore and 2.75 on Otto, ahead of both stores on both repos, at twice the latency.** #4118 answers the builder's questions over the repository's own store (Utopia by omission) instead of Lore's DB, #4120 reads the spec lines a ticket links as GitHub blob URLs, and #4119 stops the judge naming the ticket's own sections as the block's noise, which it had done on most verdicts (a rebuilt block for Otto #673 held none of them). Every lore ticket scores 3; on Otto only #689 keeps its 1. The cost is the evidence stage, 30 to 58 s against 7 to 13 s before, with three to five questions now answered in parallel by Utopia; p50 is 40 to 44 s and the slowest build 69 s, inside the MCP tool's 120 s. The next change caps the questions and gives each Utopia answer a time budget, aiming at the round-2 20 s with round-3 scores.
 - **The 11-05 reruns measured the whole path.** Half the builds after #4112 fell back on a 90 s write-up timeout and were graded as the template assembly, so the mean hid a builder that finished three times in eight; the eval's `Sections` column now says `builder` or `fallback: <reason>` per ticket, and a mean is read beside its built count.
