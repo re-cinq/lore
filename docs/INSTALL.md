@@ -6,7 +6,7 @@ Lore is three installs on one Kubernetes cluster, in this order:
 | ----- | ---- | ------------------- | --------- | ------------------------------- |
 | A | Cluster add-ons: ingress controller, cert-manager, DNS, Postgres (operator or managed), secret store | the client's own tooling | theirs | the infra team |
 | B | The **floor**, the engine that runs agent pods. Its Helm chart carries the **ai-agent-subsystem** (CRDs + controller) that turns a run into a pod | [re-cinq/floor](https://github.com/re-cinq/floor), chart `oci://ghcr.io/re-cinq/charts/floor` | `floor` | the Lore team, with Helm |
-| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `deploy/chart` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db`, release record in `lore-floor` | the Lore team, with Helm (on our own GKE: Argo CD) |
+| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `deploy/chart` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db` (+ `lore-floor` for the webhook alias) | the Lore team, with Helm (on our own GKE: Argo CD, see [deploy/README.md](../deploy/README.md)) |
 
 Section 1 is the checklist for the team that provisions the cluster. Sections 2 to 4 are the installs. The developer-laptop install, onboarding and verification follow. The ai-agent-subsystem is not installed on its own: the floor chart vendors it (`subsystem.enabled=true`). Install it separately, from [its own docs](https://re-cinq.github.io/ai-agent-subsystem/), only when another floor on the same cluster already runs it; the floor is then installed with `--skip-crds`.
 
@@ -313,7 +313,7 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 
 ### 4.2 Our own GKE, with Argo CD
 
-Our reference install. Argo CD on `internal-cluster` deploys `deploy/chart` with `deploy/clusters/internal-cluster.values.yaml` on every merge to `main` (re-cinq/infrastructure, `docs/deploying.md`). The chart renders the namespaces, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph and the five services. Google Cloud resources (service accounts, buckets, Secret Manager containers, the BigQuery billing export) and the cluster add-ons (ESO and `ClusterSecretStore/gcp-secret-manager`, CNPG operator, cert-manager, ingress) are in re-cinq/infrastructure. The floor is installed separately (section 3).
+Our reference install, described in [deploy/README.md](../deploy/README.md). Argo CD on `internal-cluster` (project `re-cinq-internal`) deploys `deploy/chart` with `deploy/clusters/internal-cluster.values.yaml` on every merge to `main` (re-cinq/infrastructure, `docs/deploying.md`); nobody runs `helm` against that cluster. The chart renders the namespaces, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph and the five services. Google Cloud resources (service accounts, buckets, Secret Manager containers, the BigQuery billing export) and the cluster add-ons (ESO and `ClusterSecretStore/gcp-secret-manager`, CNPG operator, cert-manager, ingress) are in re-cinq/infrastructure. The floor is installed separately (section 3).
 
 Secret values are added by a person with `gcloud secrets versions add <name> --project re-cinq-internal` ([managing-secrets.md](managing-secrets.md)). Non-secret config is an edit to the values file. On a fresh cluster, then the baseline schema:
 
@@ -418,7 +418,7 @@ curl -s -H "Authorization: Bearer <lore-ingest-token>" https://<lore_api host>/a
 
 ## Upgrading
 
-Any Kubernetes: section 4.1 step 6 with new image tags; the floor with `helm upgrade floor oci://ghcr.io/re-cinq/charts/floor --version <release> -n floor --reuse-values`. Our GKE: merge to `main`; the build workflows bump the image tags in `deploy/clusters/internal-cluster.values.yaml` and Argo CD syncs.
+Any Kubernetes: section 4.1 step 6 with new image tags; the floor with `helm upgrade floor oci://ghcr.io/re-cinq/charts/floor --version <release> -n floor --reuse-values`. Our GKE: merge to `main`; the build workflows bump the image tags in `deploy/clusters/internal-cluster.values.yaml` and Argo CD syncs ([deploy/README.md](../deploy/README.md)).
 
 ## Disaster recovery
 

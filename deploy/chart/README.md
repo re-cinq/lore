@@ -13,8 +13,8 @@ as subcharts under `charts/`:
 
 ## One release, many namespaces
 
-This is a single Helm release (`lore-platform`, recorded in the `lore-floor`
-home namespace), but its resources land in four namespaces. Each subchart
+Argo CD renders this chart as one release named `lore` in the application's
+home namespace `lore`, but its resources land in four namespaces. Each subchart
 template sets `metadata.namespace: {{ .Values.namespace }}` explicitly (instead
 of relying on `.Release.Namespace`) and pins resource names to `.Chart.Name`
 (instead of `.Release.Name`). Without that, every resource would inherit the
@@ -28,7 +28,7 @@ work as-is.
 ## Deploy contract: the values file owns config, CI owns image tags
 
 - **Argo CD** on re:cinq's internal cluster (re-cinq/infrastructure,
-  docs/deploying.md) installs this chart with
+  docs/deploying.md; [../README.md](../README.md)) installs this chart with
   `deploy/clusters/internal-cluster.values.yaml`: every env, secret name and
   hostname lives there and changes by PR.
 - **CI** (`.github/workflows/build-{lore-api,mcp-server,stations,ui}.yml`)
@@ -44,14 +44,14 @@ CNPG cluster and the Dgraph StatefulSet ship here.
 
 ## Hook ordering
 
-Pre-install/pre-upgrade hooks run on **every** umbrella upgrade (they are
-release-scoped). Weights order them: lore-db ownership-reconciler (`-10`) →
+Pre-install/pre-upgrade hooks run as Argo CD PreSync hooks on **every** sync
+(they are release-scoped). Weights order them: lore-db ownership-reconciler (`-10`) →
 ui migrate ConfigMap (`-5`) → ui migrate Job (`0`). All hooks are idempotent,
 so they no-op when re-run by an unrelated (e.g. floor) deploy.
 
 ## Render locally
 
 ```
-helm template lore-platform . --include-crds --namespace lore-floor
+helm template lore . --include-crds --namespace lore -f ../clusters/internal-cluster.values.yaml
 helm lint .
 ```

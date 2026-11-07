@@ -375,7 +375,7 @@ rebuild is the 950 MB step that OOM-killed agent pods on 2026-09-13.
 
 ## GKE Deployment
 
-Five service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart; the release record itself lives in the `lore-floor` namespace, which is all that is left of the Floor Lore ran itself):
+Five service workloads on GKE (one umbrella chart, `lore-platform`, rendered by Argo CD as application `lore` and spanning a namespace per subchart; `lore-floor` holds only the webhook ingress alias, all that is left of the Floor Lore ran itself):
 - PostgreSQL + pgvector: `lore-db` namespace
 - Lore API server (remote REST, and the door for GitHub's webhooks): `lore-api` namespace
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
