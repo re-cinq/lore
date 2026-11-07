@@ -11,9 +11,9 @@ The split of responsibilities is unusual, so read this before editing either
 half:
 
 - **The CNPG `Cluster` itself is NOT in this chart.** It is defined in
-  [`infra/terraform/lore-db.tf`](../../../../../lore-db.tf)
-  (image `ghcr.io/cloudnative-pg/postgresql:16-bookworm`, barman-cloud backup
-  plugin) and deployed by `terraform apply`, alongside the CNPG operator.
+  [`deploy/chart/templates/lore-db.yaml`](../../templates/lore-db.yaml) in the
+  umbrella (barman-cloud backup plugin). The CNPG operator comes from
+  re-cinq/infrastructure.
 - **This subchart carries the operational add-ons** that must run on every
   umbrella deploy — today that is the **schema-ownership reconciler**: a
   `pre-install,pre-upgrade` hook Job (`templates/ownership-reconciler-job.yaml`)

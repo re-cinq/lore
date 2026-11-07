@@ -36,7 +36,7 @@ set -euo pipefail
 # docker for the local restore.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTEXT="${LORE_DB_CONTEXT:-gke_re5-n8n-platform_europe-west1_n8n-cluster}"
+CONTEXT="${LORE_DB_CONTEXT:-gke_re-cinq-internal_europe-west1_internal-cluster}"
 NAMESPACE="${LORE_DB_NAMESPACE:-lore-db}"
 DB_NAME="${LORE_DB_NAME:-lore}"
 DUMP_DIR="$ROOT/.lore-dumps"

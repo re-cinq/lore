@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Copy the prod Dgraph (memory graph + spec-traceability graph — one shared instance,
-# see infra/terraform/lore-dgraph.tf) into the local dev Dgraph.
+# deploy/chart/templates/) into the local dev Dgraph.
 #
 #   scripts/infra/pull-prod-graph.sh                    # export + fetch, nothing local touched
 #   scripts/infra/pull-prod-graph.sh --restore          # ...then load it locally
@@ -20,7 +20,7 @@ set -euo pipefail
 # API server resets the stream, which it does on transfers this size (see pull-prod-db.sh).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTEXT="${LORE_DB_CONTEXT:-gke_re5-n8n-platform_europe-west1_n8n-cluster}"
+CONTEXT="${LORE_DB_CONTEXT:-gke_re-cinq-internal_europe-west1_internal-cluster}"
 NAMESPACE="${LORE_DGRAPH_NAMESPACE:-lore-dgraph}"
 LOCAL_CONTAINER="${LORE_DGRAPH_CONTAINER:-lore-dgraph}"
 DUMP_DIR="$ROOT/.lore-dumps"

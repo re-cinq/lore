@@ -22,7 +22,7 @@ before-hook-creation`); the tracking table makes already-applied migrations a
 fast no-op. `helm upgrade --wait` blocks until the hook succeeds; a failing
 migration fails the deploy.
 
-The Job connects as `lore`, which owns the database (`infra/terraform/lore-db.tf`
+The Job connects as `lore`, which owns the database (`deploy/chart/templates/lore-db.yaml`
 initdb `owner`), using the chart's existing `dbPasswordSecret` — the same
 secret the UI connects with. Because `lore` owns its schemas, DDL and `GRANT`
 need no superuser; `enableSuperuserAccess` stays at CNPG's secure default. The

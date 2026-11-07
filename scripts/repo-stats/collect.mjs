@@ -32,7 +32,7 @@ const OLD_ENGINE_LINES = [
 const REPO_NAME = /^[\w.-]+\/[\w.-]+$/;
 const DB_CONTEXT =
   process.env.LORE_DB_CONTEXT ??
-  "gke_re5-n8n-platform_europe-west1_n8n-cluster";
+  "gke_re-cinq-internal_europe-west1_internal-cluster";
 
 const PULLS_QUERY = `
 query($q: String!, $after: String) {

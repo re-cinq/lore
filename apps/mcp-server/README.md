@@ -112,7 +112,7 @@ shared backend. Most developers only ever run this mode.
 agent pods — built by `.github/workflows/build-mcp-server.yml`
 (`ghcr.io/re-cinq/lore-mcp`) and deployed by the `lore-mcp-helm` subchart of the
 `lore-platform` umbrella into the `lore-api` namespace, with a public `:443`
-Ingress owned by Terraform (`infra/terraform/lore-mcp.tf`, host from
+Ingress rendered by the umbrella chart (`deploy/chart/templates/ingresses.yaml`, host from
 `lore_mcp_url`). Agent recipes point at it via `resources.mcp_servers` in the agent
 definitions of the floor pipeline files; the entry is omitted until `lore_mcp_url` is set, so the
 gateway is inert until deployed. The remote REST backend both transports proxy
