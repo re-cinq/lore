@@ -1,13 +1,9 @@
 # Schema migrations
 
 Incremental, ordered DDL applied to the `lore-db` (CNPG) database on **every
-Helm deploy** of the `lore-platform` umbrella, via this `ui-helm` subchart's
-`pre-install,pre-upgrade` hook Job (`templates/migrate-job.yaml`). Both deploy
-paths deploy the umbrella release, so both run the hook:
-
-- GitHub Actions — `scripts/ci/deploy-lore-platform.sh` (run by the
-  floor/lore-api/ui build workflows on merge to main)
-- Terraform — `helm_release.lore_platform`
+sync** of the umbrella chart, via this `ui-helm` subchart's
+`pre-install,pre-upgrade` hook Job (`templates/migrate-job.yaml`). Argo CD runs
+it as a PreSync hook on every merge to `main` (`deploy/README.md`).
 
 Unlike the baseline `scripts/infra/setup-*-schema.sh` scripts (run once by an
 operator when first provisioning a cluster), these run on each deploy and are
@@ -19,8 +15,8 @@ The hook templates a ConfigMap from every `*.sql` here, then a hook Job applies
 the files not yet recorded in `lore.schema_migrations`, in filename order, each
 in a single transaction. The Job re-runs every deploy (`hook-delete-policy:
 before-hook-creation`); the tracking table makes already-applied migrations a
-fast no-op. `helm upgrade --wait` blocks until the hook succeeds; a failing
-migration fails the deploy.
+fast no-op. Argo CD waits for the hook; a failing migration fails the sync and
+nothing else of that revision is applied.
 
 The Job connects as `lore`, which owns the database (`deploy/chart/templates/lore-db.yaml`
 initdb `owner`), using the chart's existing `dbPasswordSecret` — the same
