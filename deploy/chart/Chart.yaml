@@ -20,8 +20,9 @@ description: |
     lore-db-helm: {...}
     lore-stations: {...}
 
-  Cluster, namespaces, ExternalSecrets, ingresses, the CNPG cluster CR, and the
-  Dgraph StatefulSet remain owned by Terraform (infra/terraform/*.tf).
+  The umbrella's own templates render the namespaces, ExternalSecrets,
+  ingresses, the CNPG cluster CR and Dgraph. The cluster and its addons belong
+  to re-cinq/infrastructure.
 version: 0.1.0
 appVersion: "0.1.0"
 

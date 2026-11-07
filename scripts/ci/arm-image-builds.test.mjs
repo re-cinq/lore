@@ -214,12 +214,3 @@ test("no lore-platform chart pins a node architecture", () => {
   );
 });
 
-test("the GKE node pools stay on x86 n2 machines", () => {
-  const machineTypes = [
-    ...read("infra/terraform/modules/gke-mcp/main.tf").matchAll(
-      /machine_type\s*=\s*"([^"]+)"/g,
-    ),
-  ].map(([, type]) => type);
-
-  assert.deepEqual(machineTypes, ["n2-standard-4", "n2-standard-2"]);
-});

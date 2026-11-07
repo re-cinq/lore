@@ -33,7 +33,7 @@ spec:
           # without the wait, a request arriving in that moment hits a closed
           # port and is answered 502. That matters most for GitHub's webhook
           # deliveries (`POST /api/webhook/github`, which the public webhook
-          # hostnames route here, infra/terraform/event-router.tf): GitHub
+          # hostnames route here, deploy/chart/templates/ingresses.yaml): GitHub
           # does not retry one.
           lifecycle:
             preStop:
