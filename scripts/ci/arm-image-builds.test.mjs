@@ -213,4 +213,3 @@ test("no lore-platform chart pins a node architecture", () => {
     { status: 1, files: "" },
   );
 });
-
