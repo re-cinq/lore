@@ -65,10 +65,13 @@ already owns the dgraph egress and the Vertex embed path.
   assembly line, no pod. A payload too large for one body — the full-ingest
   fallback — rides a `{seq, total}` chunk envelope; every chunk projects
   immediately (idempotent), and the state advances only with the final chunk.
-  Unknown kinds and malformed commits are 400s; a deployment without
+  Unknown kinds and malformed commits are 400s, and so is a test report whose
+  `tests` is not an array (a `null` once reached the projector and became a
+  500); the runner for its part posts an empty array, never `null`, for a
+  manifest that lists no tests. A deployment without
   `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
   instead of pretending to ingest.
-  ([validated by projects changed docs, prunes deleted ones, and advances the state @3c01c4d6](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L162), [`ingest-delta.test.ts@ba017a56`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L312), [`ingest-delta.test.ts@7165fd1a`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L348), [`ingest-delta.test.ts@d72e850d`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L459), [`ingest-delta.test.ts@d300f12a`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L547), [`ingest-delta.test.ts@bb705048`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L601), [`ingest-delta.test.ts@84ef9fdd`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L687))
+  ([validated by projects changed docs, prunes deleted ones, and advances the state @3c01c4d6](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L162), [`ingest-delta.test.ts@ba017a56`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L312), [`ingest-delta.test.ts@7165fd1a`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L348), [`ingest-delta.test.ts@d72e850d`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L459), [`ingest-delta.test.ts@d300f12a`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L547), [`ingest-delta.test.ts@bb705048`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L601), [`ingest-delta.test.ts@84ef9fdd`](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L687), [validated by rejects a test report whose tests field is null as a 400 @703662be](apps/lore-api/src/transport/routes/ingest/report-evidence.test.ts#L38), [validated by TestBuildCombinedReportMarshalsNoTestsAsEmptyArrays @1b21ccf4](apps/lore-code-trace/main_test.go#L100))
 
   A test-report delta built on a branch other than the repo's default one is
   work in flight, not `main`: it is ingested into that branch's overlay, prunes
