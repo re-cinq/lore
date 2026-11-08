@@ -94,6 +94,24 @@ func TestBuildCombinedReportSkipsARunWholeEntryWithoutRunningIt(t *testing.T) {
 	}
 }
 
+// A manifest whose list command names no tests still posts a report; its tests
+// and results must be empty arrays, since a nil slice marshals as null and
+// lore-api iterates both.
+func TestBuildCombinedReportMarshalsNoTestsAsEmptyArrays(t *testing.T) {
+	noTests := echoEntry()
+	noTests.List = `printf '%s' '[]'`
+
+	report, _, err := buildCombinedReport(context.Background(), []Manifest{noTests}, t.TempDir(), "", reportMeta{Commit: "c1", Branch: "main"}, io.Discard)
+	if err != nil {
+		t.Fatalf("buildCombinedReport: %v", err)
+	}
+	body, _ := json.Marshal(report)
+	want := `{"commit":"c1","branch":"main","tests":[],"results":[]}`
+	if string(body) != want {
+		t.Errorf("marshalled report = %s, want %s", body, want)
+	}
+}
+
 // The skipped entry has no say in whether the report is narrowed to what a change
 // affects: an entry its related command narrowed stays narrowed beside it, while
 // a listable entry with no related command still widens the report.

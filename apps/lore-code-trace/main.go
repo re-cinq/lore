@@ -213,7 +213,7 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 // count when the run asks whether every entry was narrowed to the tests a change
 // affects: it adds nothing to the report for the delta to filter.
 func buildCombinedReport(ctx context.Context, manifests []Manifest, root, ingestedBase string, meta reportMeta, logw io.Writer) (TestReport, bool, error) {
-	combined := TestReport{Commit: meta.Commit, Branch: meta.Branch}
+	combined := TestReport{Commit: meta.Commit, Branch: meta.Branch, Tests: []TestDescriptor{}, Results: []TaggedRunResult{}}
 	everyManifestNarrowed := true
 	for _, m := range manifests {
 		if m.runsWhole() {
