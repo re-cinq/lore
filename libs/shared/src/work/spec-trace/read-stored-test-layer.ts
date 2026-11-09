@@ -31,7 +31,7 @@ const READ_BLOCKS: Record<keyof LayerKeys, string> = {
   }`,
   coverage: `coverage(func: eq(Coverage.xid, ${LIST})) {
     uid xid: Coverage.xid repo: Coverage.repo tool: Coverage.tool commit: Coverage.commit
-    Coverage.covers @facets(ranges) { uid path: File.path xid: File.xid }
+    Coverage.covers @facets { uid path: File.path xid: File.xid repo: File.repo }
   }`,
   sources: `sources(func: eq(File.xid, ${LIST})) { uid xid: File.xid }`,
 };
@@ -139,24 +139,35 @@ function coverageOf(row: Record<string, unknown>): StoredCoverage {
   };
 }
 
-// A covered file without a path or xid is left out, so its coverage reads as not well formed and is written as before.
+// A covered file without a path or xid, or whose edge carries a facet the ingest does not write, is left out, so its coverage reads as not well formed and is written as before.
 function coverOf(row: Record<string, unknown>): [string, StoredCover][] {
   const { path, xid } = row;
 
-  if (typeof path !== "string" || typeof xid !== "string") {
+  if (
+    typeof path !== "string" ||
+    typeof xid !== "string" ||
+    hasForeignFacet(row)
+  ) {
     return [];
   }
 
-  return [
-    [
-      path,
-      {
-        uid: uidOf(row),
-        xid,
-        ...stringField("ranges", row["Coverage.covers|ranges"]),
-      },
-    ],
-  ];
+  return [[path, coverFields(row, xid)]];
+}
+
+function coverFields(row: Record<string, unknown>, xid: string): StoredCover {
+  return {
+    uid: uidOf(row),
+    xid,
+    ...stringField("repo", row["repo"]),
+    ...stringField("ranges", row["Coverage.covers|ranges"]),
+  };
+}
+
+function hasForeignFacet(row: Record<string, unknown>): boolean {
+  return Object.keys(row).some(
+    (key) =>
+      key.startsWith("Coverage.covers|") && key !== "Coverage.covers|ranges",
+  );
 }
 
 function byUniqueXid<T>(

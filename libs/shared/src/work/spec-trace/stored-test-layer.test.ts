@@ -87,7 +87,10 @@ const TICKS_COVERAGE: StoredCoverage = {
   repo: REPO,
   tool: "test-interface",
   covers: new Map([
-    ["src/clock.ts", { uid: "0x3", xid: CLOCK_SOURCE_XID, ranges: "2-5" }],
+    [
+      "src/clock.ts",
+      { uid: "0x3", xid: CLOCK_SOURCE_XID, repo: REPO, ranges: "2-5" },
+    ],
   ]),
   wellFormed: true,
 };
@@ -253,6 +256,27 @@ describe("isCoverageUnchanged", () => {
     ).toBe(false);
   });
 
+  it("writes a coverage whose covered File node holds another repo", () => {
+    const foreign: StoredCoverage = {
+      ...TICKS_COVERAGE,
+      covers: new Map([
+        [
+          "src/clock.ts",
+          {
+            uid: "0x3",
+            xid: CLOCK_SOURCE_XID,
+            repo: "re-cinq/other",
+            ranges: "2-5",
+          },
+        ],
+      ]),
+    };
+
+    expect(isCoverageUnchanged(foreign, TICKS_PLANNED, TICKS_CONTEXT)).toBe(
+      false,
+    );
+  });
+
   it("writes a coverage one of whose covered files the read found without a path", () => {
     expect(
       isCoverageUnchanged(
@@ -290,6 +314,7 @@ describe("storedTestLayerOf", () => {
               uid: "0x3",
               path: "src/clock.ts",
               xid: CLOCK_SOURCE_XID,
+              repo: REPO,
               "Coverage.covers|ranges": "2-5",
             },
           ],
@@ -316,6 +341,30 @@ describe("storedTestLayerOf", () => {
       coverage: { [`${REPO}|${CLOCK}|ticks`]: TICKS_COVERAGE },
       sources: { [CLOCK_SOURCE_XID]: "0x3" },
     });
+  });
+
+  it("reads a coverage as not well formed when its src/clock.ts edge carries a hits facet besides ranges", () => {
+    const layer = storedTestLayerOf({
+      coverage: [
+        {
+          uid: "0x9",
+          xid: `${REPO}|${CLOCK}|ticks`,
+          "Coverage.covers": [
+            {
+              uid: "0x3",
+              path: "src/clock.ts",
+              xid: CLOCK_SOURCE_XID,
+              "Coverage.covers|ranges": "2-5",
+              "Coverage.covers|hits": 3,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(layer.coverage.get(`${REPO}|${CLOCK}|ticks`)?.wellFormed).toBe(
+      false,
+    );
   });
 
   it("drops an xid two TestChunk nodes hold, so the upsert's own lookup decides which one is written", () => {
@@ -746,6 +795,7 @@ function coverageRow(store: Store, [uid, node]: [string, GraphNode]): Row {
         uid: fileUid,
         path: file?.fields["File.path"],
         xid: file?.fields["File.xid"],
+        repo: file?.fields["File.repo"],
         ...facets,
       };
     }),

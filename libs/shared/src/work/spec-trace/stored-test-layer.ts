@@ -35,14 +35,15 @@ export interface StoredSuite {
   parentUid?: string;
 }
 
-/** One file a stored Coverage covers: the File node, its xid, and the ranges facet on the edge to it. */
+/** One file a stored Coverage covers: the File node, its xid and repo, and the ranges facet on the edge to it. */
 export interface StoredCover {
   uid: string;
   xid?: string;
+  repo?: string;
   ranges?: string;
 }
 
-/** A stored Coverage node with the files it covers keyed by path; `wellFormed` is false when a covered file has no path or xid, or two share a path. */
+/** A stored Coverage node with the files it covers keyed by path; `wellFormed` is false when a covered file has no path or xid, its edge carries a facet besides ranges, or two share a path. */
 export interface StoredCoverage {
   uid: string;
   repo?: string;
@@ -190,20 +191,25 @@ function sameCovers(
     stored.wellFormed &&
     stored.covers.size === planned.covers.size &&
     [...planned.covers].every(([path, wanted]) =>
-      sameCover(stored.covers.get(path), wanted, sources),
+      sameCover(
+        stored.covers.get(path),
+        { ...wanted, repo: planned.repo },
+        sources,
+      ),
     )
   );
 }
 
 function sameCover(
   cover: StoredCover | undefined,
-  { ranges, fileXid }: { ranges: string; fileXid: string },
+  { ranges, fileXid, repo }: { ranges: string; fileXid: string; repo: string },
   sources: ReadonlyMap<string, string>,
 ): boolean {
   return (
     cover !== undefined &&
     cover.ranges === ranges &&
     cover.xid === fileXid &&
+    cover.repo === repo &&
     sources.get(fileXid) === cover.uid
   );
 }
