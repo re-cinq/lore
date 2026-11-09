@@ -6,7 +6,7 @@
 
 ## Done when these pass
 
-- [ ] **commits a Lore-owned file when the branch's copy differs from the canonical content** — asserts that a drifted LORE-owned file is committed while an identical one is skipped
+- [x] **commits a Lore-owned file when the branch's copy differs from the canonical content** — asserts that a drifted LORE-owned file is committed while an identical one is skipped
   `libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts`
 
 ## Facets
