@@ -1,8 +1,6 @@
 import {
-  StateEffect,
   StateField,
   type EditorState,
-  type Extension,
   type Transaction,
 } from "@codemirror/state";
 import {
@@ -11,7 +9,7 @@ import {
   EditorView,
   WidgetType,
 } from "@codemirror/view";
-import { softBreaks, type Range } from "./prompt-marks";
+import { softBreaks } from "./prompt-marks";
 
 class SpaceWidget extends WidgetType {
   eq(): boolean {
@@ -28,55 +26,57 @@ class SpaceWidget extends WidgetType {
 }
 
 const SOFT_BREAK = Decoration.replace({ widget: new SpaceWidget() });
-const focusChanged = StateEffect.define<boolean>();
 
 interface SoftBreakState {
-  focused: boolean;
+  /** Where the line breaks typed in this editor sit; they stay visible, as Enter promises. */
+  typed: number[];
   decorations: DecorationSet;
 }
 
-function drawn(state: EditorState, selection: Range | null): DecorationSet {
-  return Decoration.set(
-    softBreaks(state.sliceDoc(), selection).map((lineBreak) =>
-      SOFT_BREAK.range(lineBreak.from, lineBreak.to),
-    ),
+function drawn(state: EditorState, typed: number[]): SoftBreakState {
+  const soft = softBreaks(state.sliceDoc()).filter(
+    (lineBreak) => !typed.includes(lineBreak.from),
   );
+
+  return {
+    typed,
+    decorations: Decoration.set(
+      soft.map((lineBreak) => SOFT_BREAK.range(lineBreak.from, lineBreak.to)),
+    ),
+  };
 }
 
-function focusOf(value: SoftBreakState, transaction: Transaction): boolean {
-  const focus = transaction.effects.find((effect) => effect.is(focusChanged));
+function typedAfter(typed: number[], transaction: Transaction): number[] {
+  const kept = typed.map((position) => transaction.changes.mapPos(position));
 
-  return focus?.is(focusChanged) ? focus.value : value.focused;
+  return transaction.isUserEvent("input")
+    ? [...kept, ...insertedBreaks(transaction)]
+    : kept;
 }
 
-function redrawn(
-  { focused }: Pick<SoftBreakState, "focused">,
-  state: EditorState,
-): SoftBreakState {
-  const { main } = state.selection;
+function insertedBreaks(transaction: Transaction): number[] {
+  const breaks: number[] = [];
 
-  return { focused, decorations: drawn(state, focused ? main : null) };
+  transaction.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+    const inserted = transaction.state.sliceDoc(fromB, toB);
+
+    [...inserted].forEach((character, index) => {
+      if (character === "\n") {
+        breaks.push(fromB + index);
+      }
+    });
+  });
+
+  return breaks;
 }
 
-const softBreakField = StateField.define<SoftBreakState>({
-  create: (state) => ({ focused: false, decorations: drawn(state, null) }),
-  update(value, transaction) {
-    const focused = focusOf(value, transaction);
-    const changed =
-      focused !== value.focused ||
-      transaction.docChanged ||
-      transaction.selection;
-
-    return changed ? redrawn({ focused }, transaction.state) : value;
-  },
+/** A paragraph's wrapping line breaks drawn as spaces, in the paragraph being edited too; a line break typed here stays a line. */
+export const softBreakPreview = StateField.define<SoftBreakState>({
+  create: (state) => drawn(state, []),
+  update: (value, transaction) =>
+    transaction.docChanged
+      ? drawn(transaction.state, typedAfter(value.typed, transaction))
+      : value,
   provide: (field) =>
     EditorView.decorations.from(field, (value) => value.decorations),
 });
-
-/** A paragraph's wrapping line breaks drawn as spaces, except in the paragraph being edited. */
-export const softBreakPreview: Extension = [
-  softBreakField,
-  EditorView.focusChangeEffect.of((_state, focusing) =>
-    focusChanged.of(focusing),
-  ),
-];

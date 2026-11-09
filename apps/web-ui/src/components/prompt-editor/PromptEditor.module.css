@@ -71,8 +71,7 @@
   color: var(--text-muted);
 }
 
-/* CodeMirror draws its caret near-black by default, which vanishes on the dark theme. */
-.editor :global(.cm-cursor),
-.editor :global(.cm-dropCursor) {
-  border-left-color: var(--text);
+/* The browser draws the caret; CodeMirror's light base theme pins it black, invisible on the dark theme. The extra .cm-editor outranks that rule. */
+.editor :global(.cm-editor .cm-content) {
+  caret-color: var(--text);
 }

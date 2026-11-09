@@ -153,4 +153,22 @@ describe("PromptEditor", () => {
 
     expect(container.querySelectorAll(".cm-line")).toHaveLength(2);
   });
+
+  it("draws 'Read the ticket' on two lines after Enter is pressed after 'Read'", () => {
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue="Read the ticket" />,
+    );
+    const view = EditorView.findFromDOM(
+      container.querySelector<HTMLElement>(".cm-editor")!,
+    )!;
+
+    view.dispatch({ selection: { anchor: 4 } });
+    runScopeHandlers(
+      view,
+      new KeyboardEvent("keydown", { key: "Enter" }),
+      "editor",
+    );
+
+    expect(container.querySelectorAll(".cm-line")).toHaveLength(2);
+  });
 });
