@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **falls back to the default timezone instead of throwing on an invalid timezone** — an invalid `LORE_BUSINESS_HOURS_TZ` falls back to `Europe/Berlin` behavior instead of raising an `Intl` exception.
+- [x] **falls back to the default timezone instead of throwing on an invalid timezone** — an invalid `LORE_BUSINESS_HOURS_TZ` falls back to `Europe/Berlin` behavior instead of raising an `Intl` exception.
   `libs/shared/src/lib/business-hours.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Wrap the `Intl.DateTimeFormat` call in `currentHourAndWeekday` to catch `RangeError`, or validate the timezone beforehand, and fallback to `Europe/Berlin`.
+- [x] Wrap the `Intl.DateTimeFormat` call in `currentHourAndWeekday` to catch `RangeError`, or validate the timezone beforehand, and fallback to `Europe/Berlin`.
 
 ## Out of scope
 
