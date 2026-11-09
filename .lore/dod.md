@@ -14,6 +14,7 @@
 - [x] update `decideScaffoldCommit` to return true when a LORE-owned file differs from canonical content
 - [x] update `enrol-repo.test.ts` to reflect new lore-owned-refresh contract (old "skip + needs-attention" test replaced)
 - [x] fix rotten spec link at `specs/4-ux-repo-onboarding/spec.md` FR-5.4 (repointed to onboard-scaffold.test.ts#L29)
+- [x] move misplaced validated-by links in FR-2.3 to the trailing group so spec-links and lint CI checks pass
 
 ## Out of scope
 
