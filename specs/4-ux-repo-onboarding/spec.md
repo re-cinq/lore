@@ -202,7 +202,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   today's requirements itself, by one rule for a first onboarding and an
   update alike: a LORE-owned file — the ingest and spec-impact workflows, the
   three `lore-*.yml` issue templates — is committed whenever the branch's copy
-  differs from the canonical content, and a REPO-owned one
+  differs from the canonical content ([validated by commits a Lore-owned file when the branch's copy differs from the canonical content @0146fe34](../../libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts#L11)), and a REPO-owned one
   (`.claude/settings.json`, `ISSUE_TEMPLATE/config.yml`) only when absent, so a
   repo's own settings are never overwritten. A file already at its canonical
   content is never committed: GitHub's contents API makes a commit even for
