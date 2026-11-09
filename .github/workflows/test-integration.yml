@@ -107,6 +107,7 @@ jobs:
           PGUSER: lore
           PGPASSWORD: test
           PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/domain/test-paths.acceptance.test.ts
 
       # The live-Dgraph suites moved here from the pr-checks `shared` matrix

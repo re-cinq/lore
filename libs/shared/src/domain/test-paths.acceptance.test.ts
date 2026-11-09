@@ -27,51 +27,54 @@ async function pgReachable(): Promise<boolean> {
 
 const pgUp = await pgReachable();
 
-describe.skipIf(!pgUp)("in Postgres", () => {
-  const testPaths = [
-    "mcp-server/src/local-runner.test.ts",
-    "web-ui/src/lib/spec-summary.test.tsx",
-    "agent/src/jobs/spec-test-linker.spec.ts",
-    "src/__tests__/router.ts",
-    "pkg/store/store_test.go",
-    "api/tests/test_user.py",
-    "api/user_test.py",
-    "src/main/CalculatorTest.java",
-    "src/test/CalculatorTests.kt",
-    "src/store/store_test.rs",
-    "spec/models/user_spec.rb",
-    "Tests/CalculatorTests.cs",
-    "tests/CalculatorTest.php",
-  ];
-  const productionPaths = [
-    "shared/src/test-paths.ts",
-    "mcp-server/src/routes.ts",
-    "specs/local-task-runner/spec.md",
-    "src/tested/handler.ts",
-    "pkg/store/store.go",
-    "app/foo.py",
-    "src/Production.java",
-    "src/foo.rs",
-    "lib/foo.rb",
-    "src/Service.cs",
-    "src/Controller.php",
-  ];
+describe.skipIf(!pgUp && process.env.LORE_REQUIRE_PG_CONTRACT !== "1")(
+  "in Postgres",
+  () => {
+    const testPaths = [
+      "mcp-server/src/local-runner.test.ts",
+      "web-ui/src/lib/spec-summary.test.tsx",
+      "agent/src/jobs/spec-test-linker.spec.ts",
+      "src/__tests__/router.ts",
+      "pkg/store/store_test.go",
+      "api/tests/test_user.py",
+      "api/user_test.py",
+      "src/main/CalculatorTest.java",
+      "src/test/CalculatorTests.kt",
+      "src/store/store_test.rs",
+      "spec/models/user_spec.rb",
+      "Tests/CalculatorTests.cs",
+      "tests/CalculatorTest.php",
+    ];
+    const productionPaths = [
+      "shared/src/test-paths.ts",
+      "mcp-server/src/routes.ts",
+      "specs/local-task-runner/spec.md",
+      "src/tested/handler.ts",
+      "pkg/store/store.go",
+      "app/foo.py",
+      "src/Production.java",
+      "src/foo.rs",
+      "lib/foo.rb",
+      "src/Service.cs",
+      "src/Controller.php",
+    ];
 
-  it("matches the same 13 test paths and 11 production paths in Postgres through TEST_PATH_SQL_PATTERN", async () => {
-    const pool = new Pool(PG_CONFIG);
+    it("matches the same 13 test paths and 11 production paths in Postgres through TEST_PATH_SQL_PATTERN", async () => {
+      const pool = new Pool(PG_CONFIG);
 
-    try {
-      const { rows } = await pool.query<{ matches: boolean }>(
-        "SELECT path ~ $2 AS matches FROM unnest($1::text[]) AS path",
-        [[...testPaths, ...productionPaths], TEST_PATH_SQL_PATTERN],
-      );
+      try {
+        const { rows } = await pool.query<{ matches: boolean }>(
+          "SELECT path ~ $2 AS matches FROM unnest($1::text[]) AS path",
+          [[...testPaths, ...productionPaths], TEST_PATH_SQL_PATTERN],
+        );
 
-      expect(rows.map((row) => row.matches)).toEqual([
-        ...testPaths.map(isTestFile),
-        ...productionPaths.map(isTestFile),
-      ]);
-    } finally {
-      await pool.end();
-    }
-  });
-});
+        expect(rows.map((row) => row.matches)).toEqual([
+          ...testPaths.map(isTestFile),
+          ...productionPaths.map(isTestFile),
+        ]);
+      } finally {
+        await pool.end();
+      }
+    });
+  },
+);
