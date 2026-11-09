@@ -8,15 +8,15 @@
 
 ## Done when these pass
 
-- [ ] **returns 400 to refuse an unbounded read of a whole repository** — `/trace/graph` route refuses unbounded reads with a 400 Bad Request
+- [x] **returns 400 to refuse an unbounded read of a whole repository** — `/trace/graph` route refuses unbounded reads with a 400 Bad Request
   `apps/lore-api/src/transport/routes/trace/trace-graph.acceptance.test.ts`
-- [ ] **draws covers links when coverage is only listed once in the tests block, leaving it out of the per-statement block** — `flattenSpecGraph` emits `covers` links without expecting coverage inside each statement's `validated_by` links
+- [x] **draws covers links when coverage is only listed once in the tests block, leaving it out of the per-statement block** — `flattenSpecGraph` emits `covers` links without expecting coverage inside each statement's `validated_by` links
   `libs/shared/src/outbound/spec-trace/spec-graph.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Enforce bounds on the `/trace/graph` route by requiring a path parameter
-- [ ] Update `flattenSpecGraph` to lookup the coverage from the `tests` block instead of `stmts[].vb[].cov`
+- [x] Enforce bounds on the `/trace/graph` route by requiring a path parameter
+- [x] Update `flattenSpecGraph` to lookup the coverage from the `tests` block instead of `stmts[].vb[].cov`
 - [ ] Modify `GRAPH_DQL` to leave each test's coverage out of the per-statement block and list it once
 
 ## Out of scope
