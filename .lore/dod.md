@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **public barrel (index.ts)** — the existing barrel guard that must stay green after being updated to check recursively.
+- [x] **public barrel (index.ts)** — the existing barrel guard that must stay green after being updated to check recursively.
   `libs/shared/src/index.test.ts`
 
 ## Facets
 
-- [ ] Remove `FR — artifact-copy` from `specs/shared-utilities/spec.md`.
-- [ ] Update the barrel guard in `libs/shared/src/index.test.ts` to find `.ts` files recursively under `src/`.
-- [ ] Update `libs/shared/src/index.ts` to export all discovered non-test modules to make the updated guard pass.
+- [x] Remove `FR — artifact-copy` from `specs/shared-utilities/spec.md`.
+- [x] Update the barrel guard in `libs/shared/src/index.test.ts` to find `.ts` files recursively under `src/`.
+- [x] Update `libs/shared/src/index.ts` to export all discovered non-test modules to make the updated guard pass.
 
 ## Out of scope
 
