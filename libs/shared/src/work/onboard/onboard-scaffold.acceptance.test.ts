@@ -7,7 +7,6 @@ import {
 } from "../trace-impact-workflow.js";
 
 describe("commitOnboardScaffold", () => {
-  // eslint-disable-next-line re-lint/require-spec-link
   it("commits a Lore-owned file when the branch's copy differs from the canonical content", async () => {
     const commits: string[] = [];
     const repo = {
