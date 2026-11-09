@@ -90,7 +90,7 @@ describe("computeStatus", () => {
     expect(
       computeStatus(
         open,
-        [{ conclusion: "action_required" }],
+        [{ status: "queued", conclusion: null }],
         [{ state: "APPROVED" }],
       ),
     ).toBe("open");
