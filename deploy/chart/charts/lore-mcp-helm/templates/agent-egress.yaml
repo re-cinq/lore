@@ -1,0 +1,28 @@
+{{- if .Values.agentPods.namespace }}
+# Agent pods may only reach DNS, public :443 and the floor. In-cluster, the
+# public gateway address is short-circuited to its pod IP, which that rule
+# excludes, so the pods reach the gateway by its Service instead: policies add
+# up, and this one opens that hop.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Chart.Name }}-agent-egress
+  namespace: {{ .Values.agentPods.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .Values.agentPods.podLabels | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.namespace }}
+          podSelector:
+            matchLabels:
+              app: {{ .Chart.Name }}
+      ports:
+        - port: {{ .Values.service.port }}
+          protocol: TCP
+{{- end }}
