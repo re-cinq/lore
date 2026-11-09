@@ -4,6 +4,7 @@ import { assessImplementation } from "./implementation-assessment.js";
 
 const SPEC =
   "# Widget\nAn interface.\n## Requirements\n\n- The widget MUST render messages.\n- The widget MUST accept a colour prop.\n";
+const LEAD_IN_SPEC = `${SPEC}\n**Independent Test:** Render one message and look for it.\n`;
 const EVIDENCE = {
   path: "src/widget.ts",
   start: 1,
@@ -145,6 +146,29 @@ describe("assessImplementation", () => {
     result.stories[0].tasks[0].remaining = "Add the colour prop";
     expect((await assess(result).result).objections).toEqual([
       expect.stringContaining("remaining work conflicts with present"),
+    ]);
+  });
+
+  it("drops line 8, an Independent Test lead-in, from T001's spec lines and verifies T001 on line 5 alone", async () => {
+    const result = decomposition();
+
+    result.stories[0].tasks[0].spec_lines = [{ line: 5 }, { line: 8 }];
+    expect(await assess(result, LEAD_IN_SPEC).result).toMatchObject({
+      objections: [],
+      decomposition: {
+        stories: [{ tasks: [{ id: "T001", spec_lines: [{ line: 5 }] }] }],
+      },
+    });
+  });
+
+  it("still rejects T001 citing line 3, the Requirements heading, where no statement starts", async () => {
+    const result = decomposition();
+
+    result.stories[0].tasks[0].spec_lines = [{ line: 5 }, { line: 3 }];
+    expect((await assess(result, LEAD_IN_SPEC).result).objections).toEqual([
+      expect.stringContaining(
+        "T001: spec_lines must name exact starting lines",
+      ),
     ]);
   });
 

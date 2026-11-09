@@ -3,6 +3,7 @@ import type {
   StatementAssessment,
 } from "../../domain/feature-planning/decomposition-result.js";
 import { taskErrors, type VerifyEvidence } from "./implementation-tasks.js";
+import { withoutUnplannableLines } from "./plannable-lines.js";
 import {
   specParts,
   type SpecPart,
@@ -36,7 +37,20 @@ type CheckedStatement = {
 /** Each statement line's linked tests that exist at the commit, named as `path#Lnn`. */
 type TestedLines = ReadonlyMap<number, string[]>;
 
-export async function assessImplementation(
+// Triage's explicit parts are taken as given; a spec's own lines first lose the statements that state no work (specs/spec-tickets FR24).
+export function assessImplementation(
+  decomposition: DecompositionResult,
+  input: ImplementationAssessmentInput,
+): Promise<ImplementationAssessment> {
+  return assessPlannable(
+    input.parts
+      ? decomposition
+      : withoutUnplannableLines(decomposition, input.spec, input.specPath),
+    input,
+  );
+}
+
+async function assessPlannable(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput,
 ): Promise<ImplementationAssessment> {
