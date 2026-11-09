@@ -6,15 +6,15 @@
 
 ## Done when these pass
 
-- [ ] **leaves a PR open when approved but a check is pending (in_progress with null conclusion)** — fails because it returns "approved" instead of "open"
+- [x] **leaves a PR open when approved but a check is pending (in_progress with null conclusion)** — fails because it returns "approved" instead of "open"
   `apps/web-ui/src/lib/github.acceptance.test.ts`
-- [ ] **leaves a PR open when approved but a check is queued with null conclusion** — fails because it returns "approved" instead of "open"
+- [x] **leaves a PR open when approved but a check is queued with null conclusion** — fails because it returns "approved" instead of "open"
   `apps/web-ui/src/lib/github.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Check `status` explicitly in `isApprovedAndPassing` (or within `computeStatus`), updating its signature if needed to include `status`.
-- [ ] Update `isApprovedAndPassing` to treat `conclusion: null` as open when the `status` is `queued` or `in_progress`.
+- [x] Check `status` explicitly in `isApprovedAndPassing` (or within `computeStatus`), updating its signature if needed to include `status`.
+- [x] Update `isApprovedAndPassing` to treat `conclusion: null` as open when the `status` is `queued` or `in_progress`.
 
 ## Out of scope
 

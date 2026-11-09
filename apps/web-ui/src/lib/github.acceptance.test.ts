@@ -1,4 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("octokit", () => ({
+  Octokit: vi.fn(function () {
+    return { rest: {}, hook: { before: () => {} } };
+  }),
+}));
+vi.mock("@octokit/auth-app", () => ({ createAppAuth: vi.fn() }));
+
 import { computeStatus } from "./github.js";
 
 describe("FR — github (web-ui)", () => {

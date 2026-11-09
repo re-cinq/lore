@@ -96,6 +96,16 @@ describe("computeStatus", () => {
     ).toBe("open");
   });
 
+  it("returns open when approved but a check is in_progress with null conclusion", () => {
+    expect(
+      computeStatus(
+        open,
+        [{ status: "in_progress", conclusion: null }],
+        [{ state: "APPROVED" }],
+      ),
+    ).toBe("open");
+  });
+
   it("returns open when there are no checks and no reviews", () => {
     expect(computeStatus(open, [], [])).toBe("open");
   });
