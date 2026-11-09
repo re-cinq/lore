@@ -350,3 +350,136 @@ describe("segmentStatements start line", () => {
     ]);
   });
 });
+
+describe("classifying lines that are not requirements", () => {
+  const SPEC = [
+    "# Widget",
+    "",
+    "Intro sentence.",
+    "",
+    "## User Story 1 - Send a message (Priority: P1)",
+    "",
+    "**Why this priority:** It is the first goal. Every other story builds on it.",
+    "",
+    "**Independent Test:** Send one message. Assert one row.",
+    "",
+    "**Acceptance Scenarios:**",
+    "",
+    "1. **Given** a session, **When** a message is sent, **Then** it is stored.",
+    "",
+    "## Requirements",
+    "",
+    "**Crash guard**",
+    "",
+    "**Never throws.**",
+    "",
+    "**The client MUST retry**",
+    "",
+    "**FR-001**: The widget MUST render messages.",
+    "",
+    "## Sources",
+    "",
+    "- `src/widget.ts`: the renderer.",
+    "",
+    "## Data Sources",
+    "",
+    "- The widget MUST read data from the session.",
+    "",
+  ].join("\n");
+
+  function testabilityOf(text: string) {
+    const statements = segmentStatements(SPEC);
+    const intro = buildIntroOrdinals(statements);
+    const statement = statements.find((each) => each.text.startsWith(text));
+
+    return statement
+      ? classifyByHeuristic(statement, intro).testability
+      : "missing";
+  }
+
+  it("stamps both sentences of a paragraph opened by a bold Why this priority label with the label, without its colon, and a plain paragraph with none", () => {
+    const statements = segmentStatements(SPEC);
+
+    expect(
+      statements
+        .filter((each) => each.line === 7 || each.line === 3)
+        .map(({ text, leadIn }) => ({ text, leadIn })),
+    ).toEqual([
+      { text: "Intro sentence.", leadIn: undefined },
+      {
+        text: "**Why this priority:** It is the first goal.",
+        leadIn: "Why this priority",
+      },
+      { text: "Every other story builds on it.", leadIn: "Why this priority" },
+    ]);
+  });
+
+  it("marks both sentences of a Why this priority paragraph untestable as rationale, the second one too", () => {
+    expect([
+      testabilityOf("**Why this priority:**"),
+      testabilityOf("Every other story builds on it."),
+    ]).toEqual(["untestable", "untestable"]);
+  });
+
+  it("marks both sentences of an Independent Test paragraph untestable", () => {
+    expect([
+      testabilityOf("**Independent Test:**"),
+      testabilityOf("Assert one row."),
+    ]).toEqual(["untestable", "untestable"]);
+  });
+
+  it("marks a line that is only a bold label, Acceptance Scenarios or Crash guard, untestable, and keeps the scenario under it testable", () => {
+    expect([
+      testabilityOf("**Acceptance Scenarios:**"),
+      testabilityOf("**Crash guard**"),
+      testabilityOf("**Given** a session"),
+    ]).toEqual(["untestable", "untestable", "testable"]);
+  });
+
+  it("keeps a bold line that ends a sentence or names MUST testable, and a paragraph led by a bold FR-001", () => {
+    expect([
+      testabilityOf("**Never throws.**"),
+      testabilityOf("**The client MUST retry**"),
+      testabilityOf("**FR-001**"),
+    ]).toEqual(["testable", "testable", "testable"]);
+  });
+
+  it("marks a bullet under a heading that is just Sources untestable as background, and keeps one under Data Sources testable", () => {
+    const statements = segmentStatements(SPEC);
+    const intro = buildIntroOrdinals(statements);
+    const [source, context] = ["`src/widget.ts`", "The widget MUST read"].map(
+      (text) => statements.find((each) => each.text.startsWith(text)),
+    );
+
+    expect([
+      source && classifyByHeuristic(source, intro),
+      context && classifyByHeuristic(context, intro).testability,
+    ]).toEqual([
+      {
+        testability: "untestable",
+        category: "background",
+        matchedBySection: true,
+      },
+      "testable",
+    ]);
+  });
+
+  it("marks a bullet under References or Sources and References untestable, and keeps one under Source Files testable", () => {
+    const under = (heading: string) =>
+      classifyByHeuristic(
+        {
+          ordinal: 9,
+          text: "A link.",
+          kind: "list-item",
+          enclosingHeading: heading,
+        },
+        new Set(),
+      ).testability;
+
+    expect([
+      under("References"),
+      under("13. Sources and References"),
+      under("Source Files"),
+    ]).toEqual(["untestable", "untestable", "testable"]);
+  });
+});
