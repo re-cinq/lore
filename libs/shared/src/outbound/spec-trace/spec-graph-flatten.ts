@@ -122,7 +122,9 @@ function emitFeatureNode(
 ): void {
   const { feature } = spec;
 
-  if (!feature) {return;}
+  if (!feature) {
+    return;
+  }
   const p = feature["Feature.path"] ?? feature.uid;
 
   sink.nodes.set(feature.uid, {

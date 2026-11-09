@@ -1,4 +1,3 @@
-/* eslint-disable re-lint/require-spec-link */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../../outbound/project-boot.js", () => ({ projectFor: vi.fn() }));

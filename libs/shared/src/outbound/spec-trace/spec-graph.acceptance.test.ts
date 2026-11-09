@@ -1,4 +1,3 @@
-/* eslint-disable re-lint/require-spec-link */
 import { describe, it, expect } from "vitest";
 import { flattenSpecGraph } from "./spec-graph-flatten.js";
 
