@@ -64,28 +64,29 @@ describe("collapsedMarkup", () => {
 });
 
 describe("softBreaks", () => {
-  it("finds the break in 'Read the\\nticket' as soft when unfocused", () => {
-    expect(softBreaks("Read the\nticket", null)).toEqual([{ from: 8, to: 9 }]);
+  it("finds the break in 'Read the\\nticket' as soft", () => {
+    expect(softBreaks("Read the\nticket")).toEqual([{ from: 8, to: 9 }]);
   });
 
   it("keeps the break before '- item' hard", () => {
-    expect(softBreaks("Read this\n- item", null)).toEqual([]);
+    expect(softBreaks("Read this\n- item")).toEqual([]);
   });
 
   it("keeps the break after '## Title' hard", () => {
-    expect(softBreaks("## Title\nRead this", null)).toEqual([]);
+    expect(softBreaks("## Title\nRead this")).toEqual([]);
   });
 
   it("keeps the breaks around a blank line hard", () => {
-    expect(softBreaks("One\n\nTwo", null)).toEqual([]);
+    expect(softBreaks("One\n\nTwo")).toEqual([]);
   });
 
   it("keeps breaks inside a fenced code block hard", () => {
-    expect(softBreaks("```\nnpm ci\nnpm test\n```", null)).toEqual([]);
+    expect(softBreaks("```\nnpm ci\nnpm test\n```")).toEqual([]);
   });
 
-  it("joins only 'Three\\nfour' while the cursor is in 'One\\ntwo'", () => {
-    expect(softBreaks("One\ntwo\n\nThree\nfour", { from: 1, to: 1 })).toEqual([
+  it("joins 'One\\ntwo' and 'Three\\nfour', the paragraph being edited too", () => {
+    expect(softBreaks("One\ntwo\n\nThree\nfour")).toEqual([
+      { from: 3, to: 4 },
       { from: 14, to: 15 },
     ]);
   });

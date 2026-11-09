@@ -108,22 +108,15 @@ interface Line extends Range {
   text: string;
 }
 
-/** The line breaks that only wrap a paragraph, drawn as spaces; the paragraph holding the selection keeps its own. */
-export function softBreaks(text: string, selection: Range | null): Range[] {
+/** The line breaks that only wrap a paragraph, drawn as spaces even while the paragraph is edited. */
+export function softBreaks(text: string): Range[] {
   const lines = linesOf(text);
   const prose = proseLines(lines);
-  const editing = selection === null ? null : paragraphAround(text, selection);
 
   return lines
     .slice(0, -1)
     .filter((_line, index) => prose[index] && prose[index + 1])
-    .map((line) => ({ from: line.to, to: line.to + 1 }))
-    .filter(
-      (lineBreak) =>
-        editing === null ||
-        lineBreak.to <= editing.from ||
-        lineBreak.from >= editing.to,
-    );
+    .map((line) => ({ from: line.to, to: line.to + 1 }));
 }
 
 function linesOf(text: string): Line[] {
@@ -151,14 +144,4 @@ function proseLines(lines: Line[]): boolean[] {
 
     return !fenced && text.trim() !== "" && !BLOCK_LINE.test(text);
   });
-}
-
-function paragraphAround(text: string, selection: Range): Range {
-  const start = text.lastIndexOf("\n\n", selection.from - 1);
-  const end = text.indexOf("\n\n", selection.to);
-
-  return {
-    from: start === -1 ? 0 : start + 1,
-    to: end === -1 ? text.length : end,
-  };
 }
