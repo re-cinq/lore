@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Remove `auto_review from yes/no, ` from the `settings-form` contract in `specs/shared-utilities/spec.md`.
+- [x] Remove `auto_review from yes/no, ` from the `settings-form` contract in `specs/shared-utilities/spec.md`.
 
 ## Out of scope
 
