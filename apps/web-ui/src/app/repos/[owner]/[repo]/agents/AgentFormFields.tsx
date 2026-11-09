@@ -91,7 +91,7 @@ export function ImageFields(props: ImageFieldsProps): React.ReactElement {
         defaultValue={image ?? ""}
         placeholder={image ?? defaultImage ?? "(inherit default runner image)"}
       />
-      <ImageNote defaultImage={defaultImage} />
+      <ImageNote defaultImage={defaultImage} showApprovalPr={showApprovalPr} />
 
       {showApprovalPr && (
         <>
@@ -285,11 +285,12 @@ function resourceFields(
 }
 
 /** What blank means, and what changing it costs. The approval requirement is stated HERE rather than only enforced server-side, so the ceremony is visible before the save fails. */
-function ImageNote({
-  defaultImage,
-}: {
+function ImageNote(props: {
   defaultImage?: string;
+  showApprovalPr: boolean;
 }): React.ReactElement {
+  const { defaultImage, showApprovalPr } = props;
+
   return (
     <span className={styles.formNote}>
       Inherits the default runner image
@@ -299,9 +300,19 @@ function ImageNote({
           (<code>{defaultImage}</code>)
         </>
       ) : null}{" "}
-      when blank. Changing it requires a CODEOWNERS-approved{" "}
-      <code>dark-factory-approval</code> PR — reference it below.
+      when blank.
+      {showApprovalPr && <ApprovalPrNote />}
     </span>
+  );
+}
+
+function ApprovalPrNote(): React.ReactElement {
+  return (
+    <>
+      {" "}
+      Changing it requires a CODEOWNERS-approved{" "}
+      <code>dark-factory-approval</code> PR — reference it below.
+    </>
   );
 }
 

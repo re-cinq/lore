@@ -12,9 +12,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import {
   parseAgentPatch,
   type AgentPatch,
-  type PodResources,
 } from "../../../work/agents/agents-schema.js";
-import { patchPodResources } from "./agent-common.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
@@ -67,7 +65,7 @@ async function serveOrgUpdate(
   try {
     return await orgUpdateOutcome(deps, name, request, h);
   } catch (err) {
-    // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
+    // A guard's refusal (no floor) already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
 
     console.error("[agents] org update failed:", err);
@@ -119,7 +117,7 @@ async function applyOrgPatch(
 }
 
 /** Only the patched fields change on the floor; with no floor there is nowhere to write, so the write is refused. */
-async function writeOrgPatch(
+function writeOrgPatch(
   definitions: FloorDefinitions,
   name: string,
   patch: AgentPatch,
@@ -132,37 +130,15 @@ async function writeOrgPatch(
   return new FloorAgentDefs(floor).updateOrg(
     name,
     withoutClearedRequired(fields),
-    await orgPodResourcesWrite(floor, name, pod_resources),
+    orgPodResourcesWrite(pod_resources),
   );
 }
 
-type FloorApi = NonNullable<ReturnType<FloorDefinitions>>;
-
-/** Merged per key over the org default's stored pod resources; the org default inherits from nothing. */
-async function orgPodResourcesWrite(
-  floor: FloorApi,
-  name: string,
-  podResources: AgentPatch["pod_resources"],
-) {
-  if (podResources === undefined) {
-    return undefined;
-  }
-  const stored = await storedPodResources(floor, name);
-
-  return {
-    podResources: patchPodResources(stored, podResources),
-    inheritedConfig: null,
-  };
-}
-
-async function storedPodResources(
-  floor: FloorApi,
-  name: string,
-): Promise<PodResources | undefined> {
-  const body = (await floor.get(name))?.body;
-  const config = body?.settings.config;
-
-  return config?.pod_resources as PodResources | undefined;
+/** Replaces the org default's pod resources whole: the form sends every quantity, so a blank one is cleared; the org default inherits from nothing. */
+function orgPodResourcesWrite(podResources: AgentPatch["pod_resources"]) {
+  return podResources === undefined
+    ? undefined
+    : { podResources, inheritedConfig: null };
 }
 
 function withoutClearedRequired(

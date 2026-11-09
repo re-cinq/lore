@@ -167,7 +167,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
-  it("keeps requests.cpu 500m when a patch names only limits.memory 4Gi", async () => {
+  it("replaces fix-ci's requests.cpu 500m with the sent limits.memory 4Gi, so a blanked quantity is cleared", async () => {
     const floor = new InMemoryAgentDefinitions();
 
     await floor.put("fix-ci", {
@@ -183,7 +183,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
 
     expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
-      pod_resources: { requests: { cpu: "500m" }, limits: { memory: "4Gi" } },
+      pod_resources: { limits: { memory: "4Gi" } },
     });
   });
 

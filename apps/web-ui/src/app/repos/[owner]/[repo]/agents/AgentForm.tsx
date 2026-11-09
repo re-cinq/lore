@@ -29,7 +29,7 @@ interface AgentFormProps {
   isNew: boolean;
   /** Default runner image for placeholder (shows inherited, not prefilled). */
   defaultImage?: string;
-  /** Org-default editing hides image+approval (API refuses org image change). */
+  /** Org-default editing hides the repo-scoped approval PR input. */
   orgScope?: boolean;
 }
 
