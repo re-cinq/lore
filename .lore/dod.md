@@ -15,8 +15,8 @@
 
 ## Facets
 
-- [ ] Reconcile `specs/shared-utilities/spec.md` L93 from version 5 to version 9.
-- [ ] Reconcile `specs/shared-utilities/spec.md` L241 from version 7 to version 9 for the staleness threshold.
+- [x] Reconcile `specs/shared-utilities/spec.md` L93 from version 5 to version 9.
+- [x] Reconcile `specs/shared-utilities/spec.md` L241 from version 7 to version 9 for the staleness threshold.
 
 ## Out of scope
 
