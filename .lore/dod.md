@@ -12,6 +12,8 @@
 ## Facets
 
 - [x] update `decideScaffoldCommit` to return true when a LORE-owned file differs from canonical content
+- [x] update `enrol-repo.test.ts` to reflect new lore-owned-refresh contract (old "skip + needs-attention" test replaced)
+- [x] fix rotten spec link at `specs/4-ux-repo-onboarding/spec.md` FR-5.4 (repointed to onboard-scaffold.test.ts#L29)
 
 ## Out of scope
 
