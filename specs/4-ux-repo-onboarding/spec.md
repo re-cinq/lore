@@ -202,14 +202,14 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   today's requirements itself, by one rule for a first onboarding and an
   update alike: a LORE-owned file — the ingest and spec-impact workflows, the
   three `lore-*.yml` issue templates — is committed whenever the branch's copy
-  differs from the canonical content. ([validated by commits a Lore-owned file when the branch's copy differs from the canonical content @0146fe34](../../libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts#L10), [validated by returns true for a lore-owned file when it differs from canonical content @fd674110](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L14), [validated by returns true for any file when it is absent @efd56338](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L23))
+  differs from the canonical content.
   A REPO-owned one (`.claude/settings.json`, `ISSUE_TEMPLATE/config.yml`) is only committed when absent, so a
   repo's own settings are never overwritten. A file already at its canonical
-  content is never committed. ([validated by returns false for a lore-owned file when it matches canonical content @9d1a4a59](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
+  content is never committed.
   GitHub's contents API makes a commit even for
   identical bytes, and an up-to-date repo would get an empty pull request.
   Paths are read exactly, so a repo with a `.github/` directory still receives
-  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197))
+  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197), [validated by commits a Lore-owned file when the branch's copy differs from the canonical content @0146fe34](../../libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts#L10), [validated by returns true for a lore-owned file when it differs from canonical content @fd674110](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L14), [validated by returns true for any file when it is absent @efd56338](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L23), [validated by returns false for a lore-owned file when it matches canonical content @9d1a4a59](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
