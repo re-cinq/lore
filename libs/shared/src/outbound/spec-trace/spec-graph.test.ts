@@ -4,7 +4,9 @@ import {
   specLabel,
   flattenSpecRing,
   UNGROUPED_SECTION,
+  fetchSpecGraph,
 } from "./spec-graph.js";
+import type { DgraphClientPort } from "./deps.js";
 
 describe("flattenSpecRing", () => {
   it("counts per-section coverage and tags each statement tested by validated_by", () => {
@@ -408,5 +410,27 @@ describe("flattenSpecGraph unlinked tests", () => {
     });
 
     expect(graph).toEqual({ nodes: [], links: [] });
+  });
+});
+
+describe("fetchSpecGraph", () => {
+  it("fetches coverage only once from the tests block, not from each per-statement validated_by", async () => {
+    let capturedQuery = "";
+    const mockDgraph: DgraphClientPort = {
+      newTxn: () => ({
+        queryWithVars: async (q: string) => {
+          capturedQuery = q;
+
+          return { data: {} } as never;
+        },
+        discard: async () => {},
+        mutate: async () => {},
+      }),
+    };
+
+    await fetchSpecGraph("o/r", mockDgraph);
+    expect(
+      (capturedQuery.match(/cov: TestChunk\.coverage/g) ?? []).length,
+    ).toBe(1);
   });
 });

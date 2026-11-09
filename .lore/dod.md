@@ -17,7 +17,7 @@
 
 - [x] Enforce bounds on the `/trace/graph` route by requiring a path parameter
 - [x] Update `flattenSpecGraph` to lookup the coverage from the `tests` block instead of `stmts[].vb[].cov`
-- [ ] Modify `GRAPH_DQL` to leave each test's coverage out of the per-statement block and list it once
+- [x] Modify `GRAPH_DQL` to leave each test's coverage out of the per-statement block and list it once
 
 ## Out of scope
 

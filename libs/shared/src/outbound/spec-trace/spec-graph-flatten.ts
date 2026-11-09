@@ -125,19 +125,21 @@ function emitFeatureNode(
   if (!feature) {
     return;
   }
-  const p = feature["Feature.path"] ?? feature.uid;
-
-  sink.nodes.set(feature.uid, {
-    id: feature.uid,
-    type: "Feature",
-    label: basename(p),
-    path: p,
-  });
+  sink.nodes.set(feature.uid, featureNodeFor(feature));
   sink.links.push({
     source: feature.uid,
     target: spec.uid,
     kind: "in_feature",
   });
+}
+
+function featureNodeFor(feature: {
+  uid: string;
+  "Feature.path"?: string;
+}): SpecGraphNode {
+  const p = feature["Feature.path"] ?? feature.uid;
+
+  return { id: feature.uid, type: "Feature", label: basename(p), path: p };
 }
 
 function emitSpecChildNodes(

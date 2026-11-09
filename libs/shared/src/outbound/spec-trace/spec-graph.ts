@@ -59,7 +59,6 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       Statement.text
       vb: Statement.validated_by {
         uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
-        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
       }
       ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: Statement.decided_by { uid ADR.file_path ADR.number }
@@ -69,7 +68,6 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       AcceptanceCriterion.text
       vb: AcceptanceCriterion.validated_by {
         uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
-        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
       }
       ib: AcceptanceCriterion.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: AcceptanceCriterion.decided_by { uid ADR.file_path ADR.number }
