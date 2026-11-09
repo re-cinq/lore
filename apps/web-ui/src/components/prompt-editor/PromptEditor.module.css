@@ -70,3 +70,9 @@
   background: var(--pill-bg);
   color: var(--text-muted);
 }
+
+/* CodeMirror draws its caret near-black by default, which vanishes on the dark theme. */
+.editor :global(.cm-cursor),
+.editor :global(.cm-dropCursor) {
+  border-left-color: var(--text);
+}

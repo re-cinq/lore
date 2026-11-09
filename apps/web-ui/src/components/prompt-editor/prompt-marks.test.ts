@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collapsedMarkup, promptMarks } from "./prompt-marks";
+import { collapsedMarkup, promptMarks, softBreaks } from "./prompt-marks";
 
 describe("promptMarks", () => {
   it("returns a level-2 heading over '## How you work' with its '## ' as markup", () => {
@@ -59,6 +59,34 @@ describe("collapsedMarkup", () => {
     expect(collapsedMarkup(text, promptMarks(text), null)).toEqual([
       { from: 0, to: 3 },
       { from: 8, to: 11 },
+    ]);
+  });
+});
+
+describe("softBreaks", () => {
+  it("finds the break in 'Read the\\nticket' as soft when unfocused", () => {
+    expect(softBreaks("Read the\nticket", null)).toEqual([{ from: 8, to: 9 }]);
+  });
+
+  it("keeps the break before '- item' hard", () => {
+    expect(softBreaks("Read this\n- item", null)).toEqual([]);
+  });
+
+  it("keeps the break after '## Title' hard", () => {
+    expect(softBreaks("## Title\nRead this", null)).toEqual([]);
+  });
+
+  it("keeps the breaks around a blank line hard", () => {
+    expect(softBreaks("One\n\nTwo", null)).toEqual([]);
+  });
+
+  it("keeps breaks inside a fenced code block hard", () => {
+    expect(softBreaks("```\nnpm ci\nnpm test\n```", null)).toEqual([]);
+  });
+
+  it("joins only 'Three\\nfour' while the cursor is in 'One\\ntwo'", () => {
+    expect(softBreaks("One\ntwo\n\nThree\nfour", { from: 1, to: 1 })).toEqual([
+      { from: 14, to: 15 },
     ]);
   });
 });

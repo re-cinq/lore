@@ -125,4 +125,32 @@ describe("PromptEditor", () => {
 
     expect(submittedPrompt(container.querySelector("form")!)).toBe("Read\n");
   });
+
+  it("draws 'Read the\\nticket' as one line while unfocused", () => {
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue={"Read the\nticket"} />,
+    );
+
+    expect(container.querySelectorAll(".cm-line")).toHaveLength(1);
+  });
+
+  it("submits 'Read the\\nticket' unchanged although it draws as one line", () => {
+    const { container } = render(
+      <form>
+        <PromptEditor name="prompt" defaultValue={"Read the\nticket"} />
+      </form>,
+    );
+
+    expect(submittedPrompt(container.querySelector("form")!)).toBe(
+      "Read the\nticket",
+    );
+  });
+
+  it("keeps '- one\\n- two' on two lines", () => {
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue={"- one\n- two"} />,
+    );
+
+    expect(container.querySelectorAll(".cm-line")).toHaveLength(2);
+  });
 });

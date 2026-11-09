@@ -100,3 +100,65 @@ function linesAround(text: string, selection: Range): Range {
     to: lineEnd === -1 ? text.length : lineEnd,
   };
 }
+
+const BLOCK_LINE = /^\s*(#{1,6} |[-*+] |\d+\. |>|\|)/;
+const FENCE = /^\s*```/;
+
+interface Line extends Range {
+  text: string;
+}
+
+/** The line breaks that only wrap a paragraph, drawn as spaces; the paragraph holding the selection keeps its own. */
+export function softBreaks(text: string, selection: Range | null): Range[] {
+  const lines = linesOf(text);
+  const prose = proseLines(lines);
+  const editing = selection === null ? null : paragraphAround(text, selection);
+
+  return lines
+    .slice(0, -1)
+    .filter((_line, index) => prose[index] && prose[index + 1])
+    .map((line) => ({ from: line.to, to: line.to + 1 }))
+    .filter(
+      (lineBreak) =>
+        editing === null ||
+        lineBreak.to <= editing.from ||
+        lineBreak.from >= editing.to,
+    );
+}
+
+function linesOf(text: string): Line[] {
+  let from = 0;
+
+  return text.split("\n").map((lineText) => {
+    const line = { from, to: from + lineText.length, text: lineText };
+
+    from = line.to + 1;
+
+    return line;
+  });
+}
+
+// A fence line and every line inside a fence are code, never prose.
+function proseLines(lines: Line[]): boolean[] {
+  let fenced = false;
+
+  return lines.map(({ text }) => {
+    if (FENCE.test(text)) {
+      fenced = !fenced;
+
+      return false;
+    }
+
+    return !fenced && text.trim() !== "" && !BLOCK_LINE.test(text);
+  });
+}
+
+function paragraphAround(text: string, selection: Range): Range {
+  const start = text.lastIndexOf("\n\n", selection.from - 1);
+  const end = text.indexOf("\n\n", selection.to);
+
+  return {
+    from: start === -1 ? 0 : start + 1,
+    to: end === -1 ? text.length : end,
+  };
+}
