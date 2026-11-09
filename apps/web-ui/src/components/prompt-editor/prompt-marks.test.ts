@@ -104,7 +104,7 @@ describe("joinedParagraphs", () => {
     );
   });
 
-  it("returns 'Hi \u{1F642} Read the' for 'Hi \u{1F642} Read\\nthe'", () => {
+  it("joins 'Read\\nthe' after an emoji of two UTF-16 units", () => {
     expect(joinedParagraphs("Hi \u{1F642} Read\nthe")).toBe(
       "Hi \u{1F642} Read the",
     );
