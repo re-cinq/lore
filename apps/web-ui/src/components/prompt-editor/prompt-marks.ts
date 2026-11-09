@@ -108,7 +108,16 @@ interface Line extends Range {
   text: string;
 }
 
-/** The line breaks that only wrap a paragraph, drawn as spaces even while the paragraph is edited. */
+/** The prompt with each paragraph's wrapping line breaks turned into spaces; list, heading, quote, table and code lines keep theirs. */
+export function joinedParagraphs(text: string): string {
+  const soft = new Set(softBreaks(text).map((lineBreak) => lineBreak.from));
+
+  return [...text]
+    .map((character, index) => (soft.has(index) ? " " : character))
+    .join("");
+}
+
+/** The line breaks that only wrap a paragraph. */
 export function softBreaks(text: string): Range[] {
   const lines = linesOf(text);
   const prose = proseLines(lines);

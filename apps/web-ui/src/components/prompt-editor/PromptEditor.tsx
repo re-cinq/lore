@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { joinedParagraphs } from "./prompt-marks";
 import { usePromptView } from "./prompt-view";
 import styles from "./PromptEditor.module.css";
 
@@ -17,17 +18,14 @@ export default function PromptEditor(props: PromptEditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLInputElement>(null);
 
-  usePromptView(host, field, { doc: defaultValue ?? "", placeholder });
+  const doc = joinedParagraphs(defaultValue ?? "");
+
+  usePromptView(host, field, { doc, placeholder });
 
   return (
     <>
       <div ref={host} className={styles.editor} />
-      <input
-        ref={field}
-        type="hidden"
-        name={name}
-        defaultValue={defaultValue}
-      />
+      <input ref={field} type="hidden" name={name} defaultValue={doc} />
     </>
   );
 }
