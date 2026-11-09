@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { enrolHandle } from "../../../../stations/src/onboard/enrol/station.js";
 import { openOnboardPrHandle } from "../../../../stations/src/onboard/open-pr/station.js";
-import { enrolRepo, type EnrolTarget } from "@re-cinq/lore-shared/onboard/enrol-repo.js";
-import { startOnboardingOnFloor, type OnboardOnFloorDeps } from "./onboard-on-floor.js";
+import {
+  enrolRepo,
+  type EnrolTarget,
+} from "@re-cinq/lore-shared/onboard/enrol-repo.js";
+import {
+  startOnboardingOnFloor,
+  type OnboardOnFloorDeps,
+} from "./onboard-on-floor.js";
 import { recordedPlanFloor } from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
 
 type Tools = any;
@@ -38,7 +44,12 @@ describe("Onboarding Active Line", () => {
         return enrolRepo(
           {
             repo: {
-              read: (path) => Promise.resolve(path === ".github/workflows/lore-ingest.yml" ? "divergent content" : null),
+              read: (path) =>
+                Promise.resolve(
+                  path === ".github/workflows/lore-ingest.yml"
+                    ? "divergent content"
+                    : null,
+                ),
               commitFile: (branch, path) => {
                 commits.push(path);
 
@@ -54,68 +65,81 @@ describe("Onboarding Active Line", () => {
             },
             audit: () => Promise.resolve(),
           },
-          target
+          target,
         );
-      }
-    })({
-      visitId: "v1",
-      iteration: 1,
-      needs: {
-        target: "https://github.com/re-cinq/app@lore/onboard/task-1",
-        task_id: "task-1"
-      }
-    }, TOOLS);
+      },
+    })(
+      {
+        visitId: "v1",
+        iteration: 1,
+        needs: {
+          target: "https://github.com/re-cinq/app@lore/onboard/task-1",
+          task_id: "task-1",
+        },
+      },
+      TOOLS,
+    );
 
     let openedPr = false;
     let recordedPr = false;
     let prBody = "";
     const prReport = await openOnboardPrHandle({
-      pulls: () => Promise.resolve({
-        list: () => Promise.resolve([]),
-        pull: () => Promise.resolve(null),
-        open: (branch, details) => {
-          openedPr = true;
-          prBody = details.body;
+      pulls: () =>
+        Promise.resolve({
+          list: () => Promise.resolve([]),
+          pull: () => Promise.resolve(null),
+          open: (branch, details) => {
+            openedPr = true;
+            prBody = details.body;
 
-          return Promise.resolve({
-            repo: "re-cinq/app",
-            number: 42,
-            url: "https://github.com/re-cinq/app/pull/42",
-            branch: "lore/onboard/task-1",
-            author: "lore-agent",
-            title: "lore: onboard re-cinq/app",
-            body: details.body,
-            state: "open",
-            draft: false
-          });
-        },
-      }),
+            return Promise.resolve({
+              repo: "re-cinq/app",
+              number: 42,
+              url: "https://github.com/re-cinq/app/pull/42",
+              branch: "lore/onboard/task-1",
+              author: "lore-agent",
+              title: "lore: onboard re-cinq/app",
+              body: details.body,
+              state: "open",
+              draft: false,
+            });
+          },
+        }),
       recordOnboardingPr: () => {
         recordedPr = true;
 
         return Promise.resolve();
-      }
-    })({
-      visitId: "v2",
-      iteration: 1,
-      needs: {
-        target: "https://github.com/re-cinq/app@lore/onboard/task-1",
-        task_id: "task-1",
-        attention: (enrolReport as any).produced.attention
-      }
-    }, TOOLS);
+      },
+    })(
+      {
+        visitId: "v2",
+        iteration: 1,
+        needs: {
+          target: "https://github.com/re-cinq/app@lore/onboard/task-1",
+          task_id: "task-1",
+          attention: (enrolReport as any).produced.attention,
+        },
+      },
+      TOOLS,
+    );
 
-    expect({ ensuredBranch, commits, enrolOutcome: enrolReport.outcome }).toMatchObject({
+    expect({
+      ensuredBranch,
+      commits,
+      enrolOutcome: enrolReport.outcome,
+    }).toMatchObject({
       ensuredBranch: "lore/onboard/task-1",
       commits: expect.arrayContaining([".github/workflows/lore-ingest.yml"]),
-      enrolOutcome: "success"
+      enrolOutcome: "success",
     });
-    
-    expect({ openedPr, recordedPr, prOutcome: prReport.outcome }).toMatchObject({
-      openedPr: true,
-      recordedPr: true,
-      prOutcome: "success"
-    });
+
+    expect({ openedPr, recordedPr, prOutcome: prReport.outcome }).toMatchObject(
+      {
+        openedPr: true,
+        recordedPr: true,
+        prOutcome: "success",
+      },
+    );
 
     expect(prBody).toContain((enrolReport as any).produced.attention);
   });
@@ -143,44 +167,59 @@ describe("Onboarding Active Line", () => {
             },
             audit: () => Promise.resolve(),
           },
-          target
+          target,
         );
-      }
-    })({
-      visitId: "v1",
-      iteration: 1,
-      needs: {
-        target: "https://github.com/re-cinq/app@lore/onboard/task-1",
-        task_id: "task-1"
-      }
-    }, TOOLS);
+      },
+    })(
+      {
+        visitId: "v1",
+        iteration: 1,
+        needs: {
+          target: "https://github.com/re-cinq/app@lore/onboard/task-1",
+          task_id: "task-1",
+        },
+      },
+      TOOLS,
+    );
 
     let openedPr = false;
     const prReport = await openOnboardPrHandle({
-      pulls: () => Promise.resolve({
-        list: () => Promise.resolve([]),
-        pull: () => Promise.resolve(null),
-        open: () => {
-          openedPr = true;
+      pulls: () =>
+        Promise.resolve({
+          list: () => Promise.resolve([]),
+          pull: () => Promise.resolve(null),
+          open: () => {
+            openedPr = true;
 
-          return Promise.reject(new Error("Validation Failed: No commits between main and lore/onboard/task-1"));
+            return Promise.reject(
+              new Error(
+                "Validation Failed: No commits between main and lore/onboard/task-1",
+              ),
+            );
+          },
+        }),
+      recordOnboardingPr: () => Promise.resolve(),
+    })(
+      {
+        visitId: "v2",
+        iteration: 1,
+        needs: {
+          target: "https://github.com/re-cinq/app@lore/onboard/task-1",
+          task_id: "task-1",
+          attention: (enrolReport as any).produced?.attention || "",
         },
-      }),
-      recordOnboardingPr: () => Promise.resolve()
-    })({
-      visitId: "v2",
-      iteration: 1,
-      needs: {
-        target: "https://github.com/re-cinq/app@lore/onboard/task-1",
-        task_id: "task-1",
-        attention: (enrolReport as any).produced?.attention || ""
-      }
-    }, TOOLS);
+      },
+      TOOLS,
+    );
 
-    expect({ commitCount, openedPr, prOutcome: prReport.outcome }).toMatchObject({
+    expect({
+      commitCount,
+      openedPr,
+      prOutcome: prReport.outcome,
+    }).toMatchObject({
       commitCount: 0,
       openedPr: true,
-      prOutcome: "changes_requested"
+      prOutcome: "changes_requested",
     });
   });
 });
