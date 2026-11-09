@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Fix Postgres compatibility in TEST_PATH_SQL_PATTERN regex
+- [x] Fix Postgres compatibility in TEST_PATH_SQL_PATTERN regex
 
 ## Out of scope
 
