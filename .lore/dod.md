@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Apply `withoutBlindRetryOnCreates` inside `appOctokit`
-- [ ] Update `specs/shared-utilities/spec.md` to list four clients instead of three
+- [x] Apply `withoutBlindRetryOnCreates` inside `appOctokit`
+- [x] Update `specs/shared-utilities/spec.md` to list four clients instead of three
 
 ## Out of scope
 
