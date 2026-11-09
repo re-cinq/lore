@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **raises for a field the map does not bind** — raises an error if the record has a field not bound by the column map, instead of silently dropping it.
+- [x] **raises for a field the map does not bind** — raises an error if the record has a field not bound by the column map, instead of silently dropping it.
   `libs/shared/src/lib/row.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Iterate over `Object.keys(record)` in `toRow` and use `enforceTrue` to assert each field is bound by `columns`.
+- [x] Iterate over `Object.keys(record)` in `toRow` and use `enforceTrue` to assert each field is bound by `columns`.
 
 ## Out of scope
 
