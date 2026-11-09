@@ -247,7 +247,6 @@ export {
 } from "./outbound/project/assembly-runs/subject-keys.js";
 
 // Sub-barrel exports — directories covered by their own index.ts.
-export * from "./agent-defaults/index.js";
 export * from "./domain/models/index.js";
 export * from "./domain/feature-planning/index.js";
 export * from "./domain/loops/index.js";
@@ -306,21 +305,11 @@ export * from "./lib/truncate-for-storage.js";
 export * from "./lib/wire-schema.js";
 export * from "./outbound/db/pg-pool.js";
 export * from "./outbound/google/access-token.js";
-export * from "./outbound/llm/anthropic-cache-log.js";
-export * from "./outbound/llm/anthropic-pricing.js";
-export * from "./outbound/llm/anthropic-request.js";
-export * from "./outbound/llm/call-outcome.js";
-export * from "./outbound/llm/gemini-pricing.js";
-export * from "./outbound/llm/gemini-provider.js";
-export * from "./outbound/llm/gemini-response.js";
-export * from "./outbound/llm/model-pricing.js";
-export * from "./outbound/llm/model-vendor.js";
-export * from "./outbound/llm/prompt-cache.js";
-export * from "./outbound/llm/vertex-provider.js";
+export * from "./outbound/llm/index.js";
 export * from "./outbound/postgres-memory-upsert.js";
 export * from "./outbound/setup-spec-trace-schema.schema.js";
 export * from "./outbound/setup-spec-trace-schema.schema-types.js";
-export * from "./test-helpers/fake-pg-pool.js";
+
 export * from "./work/ci-wait/round-brief.js";
 export * from "./work/repo-validation/repo-validation-detect.js";
 export * from "./work/scheduler/cron-emitters.js";

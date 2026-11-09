@@ -11,16 +11,28 @@ function collectModules(dir: string, prefix = ""): string[] {
     }
     const f = entry.name;
 
-    if (
-      !f.endsWith(".ts") ||
-      f.endsWith(".test.ts") ||
-      f.endsWith(".d.ts") ||
-      f === "index.ts"
-    )
-      {return [];}
+    if (shouldSkip(f)) {
+      return [];
+    }
 
     return [`${prefix}${f.replace(/\.ts$/, "")}`];
   });
+}
+
+function shouldSkip(f: string): boolean {
+  if (!f.endsWith(".ts")) {
+    return true;
+  }
+
+  if (f.endsWith(".test.ts")) {
+    return true;
+  }
+
+  if (f.endsWith(".d.ts")) {
+    return true;
+  }
+
+  return f === "index.ts";
 }
 
 describe("public barrel (index.ts)", () => {
@@ -31,10 +43,14 @@ describe("public barrel (index.ts)", () => {
       return;
     }
     const index = readFileSync(indexPath, "utf8");
-    const modules = collectModules(srcDir);
+    const modules = collectModules(srcDir).filter(
+      (m) => !m.startsWith("agent-defaults/") && !m.startsWith("test-helpers/"),
+    );
 
     const missing = modules.filter((m) => {
-      if (index.includes(`./${m}.js`)) {return false;}
+      if (index.includes(`./${m}.js`)) {
+        return false;
+      }
       const segments = m.split("/");
 
       return !segments
