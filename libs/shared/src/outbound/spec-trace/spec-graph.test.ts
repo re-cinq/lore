@@ -147,17 +147,24 @@ describe("flattenSpecGraph", () => {
                   uid: "0x3",
                   "TestChunk.file_path": "src/x.test.ts",
                   "TestChunk.test_name": "returns value",
-                  cov: [
-                    {
-                      covers: [
-                        {
-                          uid: "0x5",
-                          "File.path": "src/x.ts",
-                          "Coverage.covers|ranges": "10-20,30-40",
-                        },
-                      ],
-                    },
-                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      tests: [
+        {
+          uid: "0x3",
+          "TestChunk.file_path": "src/x.test.ts",
+          "TestChunk.test_name": "returns value",
+          cov: [
+            {
+              covers: [
+                {
+                  uid: "0x5",
+                  "File.path": "src/x.ts",
+                  "Coverage.covers|ranges": "10-20,30-40",
                 },
               ],
             },
@@ -194,32 +201,42 @@ describe("flattenSpecGraph", () => {
                 {
                   uid: "0x3",
                   "TestChunk.file_path": "a.test.ts",
-                  cov: [
-                    {
-                      covers: [
-                        {
-                          uid: "0x9",
-                          "File.path": "x.ts",
-                          "Coverage.covers|ranges": "1-5",
-                        },
-                      ],
-                    },
-                  ],
                 },
                 {
                   uid: "0x4",
                   "TestChunk.file_path": "b.test.ts",
-                  cov: [
-                    {
-                      covers: [
-                        {
-                          uid: "0xA",
-                          "File.path": "x.ts",
-                          "Coverage.covers|ranges": "1-5",
-                        },
-                      ],
-                    },
-                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      tests: [
+        {
+          uid: "0x3",
+          "TestChunk.file_path": "a.test.ts",
+          cov: [
+            {
+              covers: [
+                {
+                  uid: "0x9",
+                  "File.path": "x.ts",
+                  "Coverage.covers|ranges": "1-5",
+                },
+              ],
+            },
+          ],
+        },
+        {
+          uid: "0x4",
+          "TestChunk.file_path": "b.test.ts",
+          cov: [
+            {
+              covers: [
+                {
+                  uid: "0xA",
+                  "File.path": "x.ts",
+                  "Coverage.covers|ranges": "1-5",
                 },
               ],
             },
@@ -255,9 +272,29 @@ describe("flattenSpecGraph", () => {
           ],
         },
       ],
+      tests: [
+        {
+          uid: "0x9",
+          "TestChunk.file_path": "t.test.ts",
+          cov: [
+            {
+              covers: [
+                {
+                  uid: "0xf",
+                  "File.path": "x.ts",
+                  "Coverage.covers|ranges": "1-10",
+                },
+              ],
+            },
+          ],
+        },
+      ],
     });
 
     expect(graph.nodes.filter((n) => n.id === "0x9")).toHaveLength(1);
+    expect(graph.links.filter((l) => l.kind === "covers")).toEqual([
+      { source: "0x9", target: "file|x.ts", kind: "covers" },
+    ]);
   });
 
   it("groups specs under their shared Feature node via in_feature links", () => {
@@ -432,5 +469,27 @@ describe("fetchSpecGraph", () => {
     expect(
       (capturedQuery.match(/cov: TestChunk\.coverage/g) ?? []).length,
     ).toBe(1);
+  });
+
+  it("scopes the query to Spec.file_path and its linked TestChunks when filePath is given", async () => {
+    let capturedQuery = "";
+    let capturedVars: Record<string, string> | undefined;
+    const mockDgraph: DgraphClientPort = {
+      newTxn: () => ({
+        queryWithVars: async (q: string, vars?: Record<string, string>) => {
+          capturedQuery = q;
+          capturedVars = vars;
+
+          return { data: {} } as never;
+        },
+        discard: async () => {},
+        mutate: async () => {},
+      }),
+    };
+
+    await fetchSpecGraph("o/r", mockDgraph, "specs/auth/spec.md");
+    expect(capturedVars).toEqual({ $repo: "o/r", $fp: "specs/auth/spec.md" });
+    expect(capturedQuery).toContain("func: eq(Spec.file_path, $fp)");
+    expect(capturedQuery).toContain("tests(func: uid(T, TA))");
   });
 });

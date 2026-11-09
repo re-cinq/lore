@@ -69,8 +69,8 @@ export class DgraphTrace implements TracePort {
     return recomputeFile(repo, filePath, this.dgraph);
   }
 
-  graph(repo: string): Promise<SpecGraph> {
-    return fetchSpecGraph(repo, this.dgraph);
+  graph(repo: string, filePath?: string): Promise<SpecGraph> {
+    return fetchSpecGraph(repo, this.dgraph, filePath);
   }
 
   ring(repo: string, filePath: string): Promise<SpecRing> {

@@ -82,7 +82,7 @@ const PATH_KINDS: Record<
   "failures-touching": async (trace, filePath) => ({
     failures: await trace.failuresTouching(filePath),
   }),
-  graph: async (trace) => trace.graph(),
+  graph: (trace, filePath) => trace.graph(filePath),
 };
 
 export function traceRoute(): ServerRoute {

@@ -36,18 +36,14 @@ export interface GraphResult {
       OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }
     >;
   }>;
-  /** Every covered TestChunk in the repo, spec-linked or not; the flattener draws the ones no statement claimed. */
+  /** Covered TestChunks (listed once in the top-level tests block); the flattener reads coverage from here. */
   tests?: NonNullable<OwnerLinks["vb"]>;
 }
 
-type CovEntry = NonNullable<NonNullable<OwnerLinks["vb"]>[number]["cov"]>;
-type CovIndex = Map<string, CovEntry>;
-
-// Bundles the mutable accumulator and the read-only coverage index built from the tests block.
+// Bundles the mutable node and link accumulators.
 interface GraphSink {
   nodes: Map<string, SpecGraphNode>;
   links: SpecGraphLink[];
-  covIndex: CovIndex;
 }
 
 /** Pure: Dgraph query result → de-duplicated nodes + links. */
@@ -55,7 +51,6 @@ export function flattenSpecGraph(graph: GraphResult): SpecGraph {
   const sink: GraphSink = {
     nodes: new Map(),
     links: [],
-    covIndex: buildCovIndex(graph.tests),
   };
 
   for (const spec of graph.q ?? []) {
@@ -70,31 +65,19 @@ export function flattenSpecGraph(graph: GraphResult): SpecGraph {
     emitFeatureNode(spec, sink);
     emitSpecChildNodes(spec, specPath, sink);
   }
-  emitUnlinkedTests(graph.tests, sink);
+  emitTestCoverage(graph.tests, sink);
 
   return { nodes: [...sink.nodes.values()], links: sink.links };
 }
 
-function buildCovIndex(tests: GraphResult["tests"]): CovIndex {
-  const index: CovIndex = new Map();
+/** Emits TestChunk → File `covers` edges once per test from the top-level `tests` block, adding unlinked covered TestChunks. */
+function emitTestCoverage(tests: GraphResult["tests"], sink: GraphSink): void {
+  const covered = (tests ?? []).filter(coversSomething);
 
-  for (const t of tests ?? []) {
-    if (t.cov?.length) {
-      index.set(t.uid, t.cov);
+  for (const chunk of covered) {
+    if (!sink.nodes.has(chunk.uid)) {
+      sink.nodes.set(chunk.uid, testChunkNode(chunk));
     }
-  }
-
-  return index;
-}
-
-/** Tests with coverage that no statement validated_by: a repo with tests but no specs still has a graph. A chunk that covers nothing draws nothing. */
-function emitUnlinkedTests(tests: GraphResult["tests"], sink: GraphSink): void {
-  const unclaimed = (tests ?? []).filter(
-    (chunk) => !sink.nodes.has(chunk.uid) && coversSomething(chunk),
-  );
-
-  for (const chunk of unclaimed) {
-    sink.nodes.set(chunk.uid, testChunkNode(chunk));
     emitCoveredFileNodes(chunk, sink);
   }
 }
@@ -209,7 +192,6 @@ function emitValidatedByLinks(
   for (const t of vb ?? []) {
     sink.nodes.set(t.uid, testChunkNode(t));
     sink.links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
-    emitCoveredFileNodes(t, sink);
   }
 }
 
@@ -283,9 +265,7 @@ function emitCoveredFileNodes(
   testChunk: NonNullable<OwnerLinks["vb"]>[number],
   sink: GraphSink,
 ): void {
-  for (const f of resolveCov(testChunk, sink.covIndex).flatMap(
-    (c) => c.covers ?? [],
-  )) {
+  for (const f of (testChunk.cov ?? []).flatMap((c) => c.covers ?? [])) {
     const fp = f["File.path"] ?? f.uid;
     const fileId = `file|${fp}`;
 
@@ -298,14 +278,6 @@ function emitCoveredFileNodes(
     });
     sink.links.push({ source: testChunk.uid, target: fileId, kind: "covers" });
   }
-}
-
-// Falls back to the global tests-block index when the per-statement vb entry carries no cov.
-function resolveCov(
-  chunk: NonNullable<OwnerLinks["vb"]>[number],
-  covIndex: CovIndex,
-): CovEntry {
-  return chunk.cov?.length ? chunk.cov : (covIndex.get(chunk.uid) ?? []);
 }
 
 /** "adrs/ADR-016-dark-factory.md" → "ADR-016 (dark-factory)". */

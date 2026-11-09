@@ -41,4 +41,17 @@ describe("GET /api/repos/:owner/:repo/trace/graph", () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  it("forwards the requested path to trace.graph", async () => {
+    const graph = vi.fn().mockResolvedValue({ nodes: [], links: [] });
+
+    vi.mocked(projectFor).mockResolvedValue({
+      trace: { graph },
+    } as never);
+
+    const res = await get(`${base}?path=specs/auth/spec.md`);
+
+    expect(res.statusCode).toBe(200);
+    expect(graph).toHaveBeenCalledWith("specs/auth/spec.md");
+  });
 });
