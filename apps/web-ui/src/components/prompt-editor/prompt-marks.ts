@@ -112,7 +112,8 @@ interface Line extends Range {
 export function joinedParagraphs(text: string): string {
   const soft = new Set(softBreaks(text).map((lineBreak) => lineBreak.from));
 
-  return [...text]
+  return text
+    .split("")
     .map((character, index) => (soft.has(index) ? " " : character))
     .join("");
 }

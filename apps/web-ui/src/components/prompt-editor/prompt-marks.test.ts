@@ -103,4 +103,10 @@ describe("joinedParagraphs", () => {
       "Read the ticket\n\n- one\n- two",
     );
   });
+
+  it("returns 'Hi \u{1F642} Read the' for 'Hi \u{1F642} Read\\nthe'", () => {
+    expect(joinedParagraphs("Hi \u{1F642} Read\nthe")).toBe(
+      "Hi \u{1F642} Read the",
+    );
+  });
 });
