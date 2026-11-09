@@ -19,6 +19,14 @@ import {
 } from "../../domain/spec-trace/trace-scope.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { stampGraphBaseline } from "./graph-baseline.js";
+import {
+  chunksNamed,
+  isCoverageUnchanged,
+  NO_STORED_TESTS,
+  type PlannedCoverage,
+  type StoredCoverage,
+  type StoredTestLayer,
+} from "./stored-test-layer.js";
 import { firstOf } from "./uid-refs.js";
 
 /** What one coverage ingest is expressed against: the scope it writes into, the tool that produced it, and the commit its line numbers belong to. */
@@ -28,21 +36,38 @@ export interface CoverageMeta {
   commit: string;
 }
 
+/** One coverage record: the test it belongs to and the ranges it covered. */
+interface CoverageRecord {
+  testFile: string;
+  testName: string;
+  covered: CoveredChunk[];
+}
+
+/** One report's coverage ingest: what it writes against, what the graph already holds, and what it settles once every record is in. */
+interface CoverageRun {
+  dgraph: DgraphClientPort;
+  meta: CoverageMeta;
+  stored: StoredTestLayer;
+  knownFiles: FileUids;
+  rootCoverage: Set<string>;
+  rootFiles: Set<string>;
+  staleCommits: string[];
+}
+
+/** Writes each record's Coverage node, its covered files and its test's link, skipping a record `stored` already holds as written, then hangs every record's nodes off the scope's root in one write. */
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
   meta: CoverageMeta,
-  records: Array<{
-    testFile: string;
-    testName: string;
-    covered: CoveredChunk[];
-  }>,
+  records: CoverageRecord[],
+  stored: StoredTestLayer = NO_STORED_TESTS,
 ): Promise<{ coverageNodes: number; coversEdges: number; unmatched: number }> {
+  const run = newCoverageRun(dgraph, meta, stored);
   let coversEdges = 0;
-  const fileUids: FileUids = new Map();
 
   for (const record of records) {
-    coversEdges += await ingestOneCoverage(dgraph, meta, record, fileUids);
+    coversEdges += await ingestOneCoverage(run, record);
   }
+  await settleCoverageRun(run);
 
   // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment. An overlay stamps its OWN anchor instead — a branch push must never move main's coordinate system.
   if (records.length && !isOverlay(meta.scope)) {
@@ -53,15 +78,83 @@ export async function ingestCoverageReport(
   return { coverageNodes: records.length, coversEdges, unmatched: 0 };
 }
 
+function newCoverageRun(
+  dgraph: DgraphClientPort,
+  meta: CoverageMeta,
+  stored: StoredTestLayer,
+): CoverageRun {
+  return {
+    dgraph,
+    meta,
+    stored,
+    knownFiles: new Map(),
+    rootCoverage: new Set(),
+    rootFiles: new Set(),
+    staleCommits: [],
+  };
+}
+
 /** The File uid of every xid this report has already upserted. Every test of a file covers the same files, and a File node holds only its repo and path, so one upsert per File per report is enough: re-upserting it for each of a file's tests was most of a report's Dgraph round trips. */
 type FileUids = Map<string, string>;
 
+/** Ingests one record, or keeps it when the graph holds it as written; answers how many files it covers. */
 async function ingestOneCoverage(
-  dgraph: DgraphClientPort,
-  meta: CoverageMeta,
-  record: { testFile: string; testName: string; covered: CoveredChunk[] },
-  knownFiles: FileUids,
+  run: CoverageRun,
+  record: CoverageRecord,
 ): Promise<number> {
+  const { meta, stored } = run;
+  const xid = scopedXid(meta.scope, record.testFile, record.testName);
+  const held = stored.coverage.get(xid);
+  const holders = chunksNamed(stored, record.testFile, record.testName);
+
+  if (
+    held &&
+    isCoverageUnchanged(held, plannedCoverage(meta, record), holders)
+  ) {
+    return keepCoverage(run, held);
+  }
+
+  return writeCoverage(run, record);
+}
+
+/** What writing this record would store: its tool and each covered file's serialized ranges. */
+function plannedCoverage(
+  meta: CoverageMeta,
+  record: CoverageRecord,
+): PlannedCoverage {
+  const covers = new Map<string, string>();
+
+  for (const [file, ranges] of groupRangesByFile(record.covered)) {
+    covers.set(file, serializeRanges(ranges));
+  }
+
+  return { tool: meta.tool, covers };
+}
+
+/** Folds a coverage the graph already holds into the run: its root edges, its files for later records, and its commit when this report's differs. */
+function keepCoverage(run: CoverageRun, held: StoredCoverage): number {
+  const { meta, knownFiles } = run;
+
+  run.rootCoverage.add(held.uid);
+
+  for (const [path, cover] of held.covers) {
+    knownFiles.set(scopedXid(meta.scope, path), cover.uid);
+    run.rootFiles.add(cover.uid);
+  }
+
+  if (held.commit !== meta.commit) {
+    run.staleCommits.push(held.uid);
+  }
+
+  return held.covers.size;
+}
+
+/** Writes one record's Coverage node, its covered files and its test's link, leaving the root edges to the run. */
+async function writeCoverage(
+  run: CoverageRun,
+  record: CoverageRecord,
+): Promise<number> {
+  const { dgraph, meta, knownFiles } = run;
   const { scope } = meta;
   const coverageUid = await upsertCoverageNode(dgraph, meta, record);
   const fileUids = await replaceCovers(dgraph, coverageUid, record, {
@@ -69,10 +162,43 @@ async function ingestOneCoverage(
     knownFiles,
   });
 
-  await attachCoverageToScopeRoot(dgraph, scope, coverageUid, fileUids);
+  run.rootCoverage.add(coverageUid);
+  fileUids.forEach((uid) => run.rootFiles.add(uid));
   await linkTestChunkCoverage(dgraph, scope, record, coverageUid);
 
   return fileUids.length;
+}
+
+/** Brings the commit of every kept coverage up to this report's in one write, then hangs every record's nodes off the root in another. */
+async function settleCoverageRun(run: CoverageRun): Promise<void> {
+  const { dgraph, meta } = run;
+
+  await restampCommits(dgraph, run.staleCommits, meta.commit);
+  await attachCoverageToScopeRoot(dgraph, meta.scope, {
+    coverage: [...run.rootCoverage],
+    files: [...run.rootFiles],
+  });
+}
+
+/** Sets `Coverage.commit` on every kept node at once; N-Quads also store an empty commit, which JSON would drop. */
+async function restampCommits(
+  dgraph: DgraphClientPort,
+  coverageUids: string[],
+  commit: string,
+): Promise<void> {
+  if (!coverageUids.length) {
+    return;
+  }
+  const value = JSON.stringify(commit);
+
+  await withTxn(dgraph, (txn) =>
+    txn.mutate({
+      setNquads: coverageUids
+        .map((uid) => `<${uid}> <Coverage.commit> ${value} .`)
+        .join("\n"),
+      commitNow: true,
+    }),
+  );
 }
 
 /** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
@@ -209,17 +335,19 @@ function groupRangesByFile(
   return rangesByFile;
 }
 
-/** Hangs the coverage node and the files it covers off the scope's root — the Repo node on main, the branch's Overlay node otherwise — so both stay reachable from the graph's entry point. */
+/** Hangs the run's coverage nodes and the files they cover off the scope's root — the Repo node on main, the branch's Overlay node otherwise — so both stay reachable from the graph's entry point; a run with no records writes nothing. */
 async function attachCoverageToScopeRoot(
   dgraph: DgraphClientPort,
   scope: TraceScope,
-  coverageUid: string,
-  fileUids: string[],
+  { coverage, files }: { coverage: string[]; files: string[] },
 ): Promise<void> {
+  if (!coverage.length) {
+    return;
+  }
   await upsertByXid(dgraph, scope.rootType, scope.key, {
-    [rootEdge(scope, "coverage")]: [{ uid: coverageUid }],
-    ...(fileUids.length
-      ? { [rootEdge(scope, "files")]: fileUids.map((uid) => ({ uid })) }
+    [rootEdge(scope, "coverage")]: coverage.map((uid) => ({ uid })),
+    ...(files.length
+      ? { [rootEdge(scope, "files")]: files.map((uid) => ({ uid })) }
       : {}),
   });
 }

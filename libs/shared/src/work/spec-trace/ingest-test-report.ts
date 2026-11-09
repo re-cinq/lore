@@ -22,6 +22,10 @@ import {
   writeSentenceGroup,
   writeStatementGroup,
 } from "./ingest-test-report-groups.js";
+import {
+  readStoredTestLayer,
+  type StoredTestLayer,
+} from "./stored-test-layer.js";
 
 export type { DescriptorChunk };
 
@@ -50,14 +54,16 @@ export interface IngestTestReportResult {
 /** No spec links from an overlay. A Statement belongs to `main` — the branch is measured AGAINST it — so writing `validated_by` from a branch test would let an unmerged run change what main claims to have proved. */
 const NO_SPEC_LINKS = { validatedBy: 0, violated: 0 };
 
+/** Projects a report's tests, spec links and coverage, reading first what its test files already hold so that nothing the graph holds as written is written again. */
 export async function ingestTestReport(
   dgraph: DgraphClientPort,
   scope: TraceScope,
   report: TestReport,
 ): Promise<IngestTestReportResult> {
-  const entries = await projectDescriptors(dgraph, scope, report.tests);
+  const stored = await readStoredTestLayer(dgraph, scope, testFilesOf(report));
+  const entries = await projectDescriptors(dgraph, scope, report.tests, stored);
   const links = await specLinksFor(dgraph, scope, entries, report);
-  const cov = await ingestReportCoverage(dgraph, scope, report);
+  const cov = await ingestReportCoverage(dgraph, scope, report, stored);
 
   await pruneUnreportedTests(dgraph, scope, report.tests);
 
@@ -68,6 +74,11 @@ export async function ingestTestReport(
     coversEdges: cov.coversEdges,
     violated: links.violated,
   };
+}
+
+/** Every test file the report describes, once each. */
+function testFilesOf(report: TestReport): string[] {
+  return [...new Set(report.tests.map((test) => test.file))];
 }
 
 /** The spec links this report justifies, or none at all when it describes a branch. */
@@ -149,11 +160,13 @@ async function ingestReportCoverage(
   dgraph: DgraphClientPort,
   scope: TraceScope,
   report: TestReport,
+  stored: StoredTestLayer,
 ) {
   return ingestCoverageReport(
     dgraph,
     { scope, tool: "test-interface", commit: report.commit ?? "" },
     coverageRecordsFor(report),
+    stored,
   );
 }
 

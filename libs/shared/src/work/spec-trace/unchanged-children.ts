@@ -13,6 +13,7 @@ import {
 } from "./project-spec-file-nodes.js";
 import { sha256, type ProjectionContext } from "./project-spec-file-context.js";
 import type { StoredBlock } from "./project-blocks.js";
+import { edgeRows } from "./uid-refs.js";
 
 /** What projecting a statement or criterion writes, as far as deciding to skip it needs; criteria carry no kind, classification, section or ADRs. */
 export interface ChildState {
@@ -312,15 +313,4 @@ function stringsOf(value: unknown, key: string): string[] {
   return edgeRows(value).flatMap((row) =>
     typeof row[key] === "string" ? [row[key]] : [],
   );
-}
-
-// Dgraph answers a single uid edge as an object and a list edge as an array.
-function edgeRows(value: unknown): Record<string, unknown>[] {
-  if (Array.isArray(value)) {
-    return value as Record<string, unknown>[];
-  }
-
-  return value !== null && typeof value === "object"
-    ? [value as Record<string, unknown>]
-    : [];
 }
