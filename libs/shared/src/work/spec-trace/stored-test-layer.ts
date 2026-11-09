@@ -1,13 +1,23 @@
-/** What a test report's files already hold in the graph, read once per report, so a suite, test or coverage the graph holds exactly as the report would write it is not written again: re-sending an unchanged suite costs one read instead of about twenty requests a test. */
+/** What a test report's nodes already hold in the graph, read once per report (read-stored-test-layer.ts), so a suite, test or coverage the graph holds exactly as the report would write it is not written again: re-sending an unchanged suite costs one read instead of about twenty requests a test. Anything the read cannot vouch for is written as before. */
 
-import type { DgraphClientPort } from "../../outbound/spec-trace/deps.js";
-import { withTxn } from "../../outbound/spec-trace/dgraph-upsert.js";
-import type { TraceScope } from "../../domain/spec-trace/trace-scope.js";
-import { edgeRows } from "./uid-refs.js";
+import type {
+  CoveredChunk,
+  TestDescriptor,
+} from "../../outbound/spec-trace/deps.js";
+import {
+  scopedXid,
+  type TraceScope,
+} from "../../domain/spec-trace/trace-scope.js";
+import {
+  fileScopedTestChunkXid,
+  suiteLevelXid,
+  testChunkXid,
+} from "./test-chunk-identity.js";
 
 /** A stored TestChunk, as far as deciding to skip it needs. */
 export interface StoredTestChunk {
   uid: string;
+  repo?: string;
   name?: string;
   file?: string;
   start?: number;
@@ -19,41 +29,61 @@ export interface StoredTestChunk {
 /** A stored level of a suite chain. */
 export interface StoredSuite {
   uid: string;
+  repo?: string;
   name?: string;
   file?: string;
   parentUid?: string;
 }
 
-/** One file a stored Coverage covers: the File node and the ranges facet on the edge to it. */
+/** One file a stored Coverage covers: the File node, its xid, and the ranges facet on the edge to it. */
 export interface StoredCover {
   uid: string;
+  xid?: string;
   ranges?: string;
 }
 
-/** A stored Coverage node, with the files it covers keyed by path. */
+/** A stored Coverage node with the files it covers keyed by path; `wellFormed` is false when a covered file has no path or xid, or two share a path. */
 export interface StoredCoverage {
   uid: string;
+  repo?: string;
   tool?: string;
   commit?: string;
   covers: ReadonlyMap<string, StoredCover>;
+  wellFormed: boolean;
 }
 
-/** The TestChunks, TestSuites and Coverage nodes a report's files hold in one scope, keyed by xid. */
+/** What the graph holds for one report: its TestChunks, TestSuites, Coverage and covered File nodes by xid, each only when one node holds the xid; the TestChunks of its files in its scope, which a coverage record's lookup by file and name searches; and the file-and-name keys the report creates or moves a TestChunk under. */
 export interface StoredTestLayer {
   chunks: ReadonlyMap<string, StoredTestChunk>;
   suites: ReadonlyMap<string, StoredSuite>;
   coverage: ReadonlyMap<string, StoredCoverage>;
+  sources: ReadonlyMap<string, string>;
+  holders: StoredTestChunk[];
+  touched: ReadonlySet<string>;
 }
 
-/** Nothing stored: a coverage-only payload, or a file never ingested, writes every node. */
+/** Nothing stored: a coverage-only payload, a report never ingested, or a read that failed, writes every node. */
 export const NO_STORED_TESTS: StoredTestLayer = {
   chunks: new Map(),
   suites: new Map(),
   coverage: new Map(),
+  sources: new Map(),
+  holders: [],
+  touched: new Set(),
 };
+
+/** The xids a report's writes would look up, and its test files. */
+export interface LayerKeys {
+  files: string[];
+  chunks: string[];
+  suites: string[];
+  coverage: string[];
+  sources: string[];
+}
 
 /** What the ingest would write for one suite level. */
 export interface PlannedSuite {
+  repo: string;
   name: string | undefined;
   file: string;
   parentUid: string | undefined;
@@ -61,6 +91,7 @@ export interface PlannedSuite {
 
 /** What the ingest would write for one TestChunk. */
 export interface PlannedChunk {
+  repo: string;
   name: string;
   file: string;
   start?: number;
@@ -68,10 +99,24 @@ export interface PlannedChunk {
   suiteUid?: string;
 }
 
-/** What the ingest would write for one Coverage node: its tool, and the ranges it covers keyed by file path. */
+/** What the ingest would write for one Coverage node: its repo and tool, and per covered path the ranges and the xid of the File node it points at. */
 export interface PlannedCoverage {
+  repo: string;
   tool: string;
-  covers: ReadonlyMap<string, string>;
+  covers: ReadonlyMap<string, { ranges: string; fileXid: string }>;
+}
+
+/** What a coverage record's skip also depends on: the File nodes by xid, and the TestChunks its lookup by file and name could land on, undefined when the report writes a TestChunk under that name. */
+export interface CoverageContext {
+  sources: ReadonlyMap<string, string>;
+  holders: StoredTestChunk[] | undefined;
+}
+
+/** A coverage record as the coverage ingest consumes it. */
+interface CoverageRecordKeys {
+  testFile: string;
+  testName: string;
+  covered: CoveredChunk[];
 }
 
 /** True when the graph holds this suite level as the ingest would write it; a name or parent the upsert would not write is no change. */
@@ -81,6 +126,7 @@ export function isSuiteUnchanged(
 ): boolean {
   return (
     stored !== undefined &&
+    stored.repo === planned.repo &&
     stored.file === planned.file &&
     writtenMatches(stored.name, planned.name) &&
     writtenMatches(stored.parentUid, planned.parentUid)
@@ -94,25 +140,37 @@ export function isChunkUnchanged(
 ): boolean {
   return (
     stored !== undefined &&
-    stored.name === planned.name &&
-    stored.file === planned.file &&
+    sameIdentity(stored, planned) &&
     writtenMatches(stored.start, planned.start) &&
     writtenMatches(stored.end, planned.end) &&
     writtenMatches(stored.suiteUid, planned.suiteUid)
   );
 }
 
-/** True when the graph holds this coverage as the ingest would write it: the same tool and the same ranges on the same files, with the one test its record names pointing at it alone. */
+/** True when the graph holds this coverage as the ingest would write it: the same repo and tool, the same ranges on the same File nodes an upsert would find, and the one test its record names pointing at it alone. */
 export function isCoverageUnchanged(
   stored: StoredCoverage | undefined,
   planned: PlannedCoverage,
-  holders: StoredTestChunk[],
+  { sources, holders }: CoverageContext,
 ): boolean {
   return (
     stored !== undefined &&
+    stored.repo === planned.repo &&
     stored.tool === planned.tool &&
-    sameCovers(stored.covers, planned.covers) &&
+    sameCovers(stored, planned, sources) &&
+    holders !== undefined &&
     pointsAtItAlone(holders, stored.uid)
+  );
+}
+
+function sameIdentity(
+  stored: Pick<StoredTestChunk, "repo" | "file" | "name">,
+  planned: { repo: string; file: string; name: string },
+): boolean {
+  return (
+    stored.repo === planned.repo &&
+    stored.file === planned.file &&
+    stored.name === planned.name
   );
 }
 
@@ -124,12 +182,29 @@ function writtenMatches<T>(
 }
 
 function sameCovers(
-  stored: ReadonlyMap<string, StoredCover>,
-  planned: ReadonlyMap<string, string>,
+  stored: StoredCoverage,
+  planned: PlannedCoverage,
+  sources: ReadonlyMap<string, string>,
 ): boolean {
   return (
-    stored.size === planned.size &&
-    [...planned].every(([path, ranges]) => stored.get(path)?.ranges === ranges)
+    stored.wellFormed &&
+    stored.covers.size === planned.covers.size &&
+    [...planned.covers].every(([path, wanted]) =>
+      sameCover(stored.covers.get(path), wanted, sources),
+    )
+  );
+}
+
+function sameCover(
+  cover: StoredCover | undefined,
+  { ranges, fileXid }: { ranges: string; fileXid: string },
+  sources: ReadonlyMap<string, string>,
+): boolean {
+  return (
+    cover !== undefined &&
+    cover.ranges === ranges &&
+    cover.xid === fileXid &&
+    sources.get(fileXid) === cover.uid
   );
 }
 
@@ -147,168 +222,121 @@ function pointsAtItAlone(
   );
 }
 
-// DQL's eq takes a list of values but no list variable, so the paths go in as JSON strings, which DQL reads as string literals.
-const FILES = "@@FILES@@";
-
-const STORED_TEST_LAYER_QUERY = `query q($repo: string) {
-  chunks(func: eq(TestChunk.file_path, ${FILES})) @filter(eq(TestChunk.repo, $repo)) {
-    uid
-    xid: TestChunk.xid
-    name: TestChunk.test_name
-    file: TestChunk.file_path
-    start: TestChunk.start_line
-    end: TestChunk.end_line
-    suite: TestChunk.suite { uid }
-    coverage: TestChunk.coverage {
-      uid
-      xid: Coverage.xid
-      tool: Coverage.tool
-      commit: Coverage.commit
-      Coverage.covers @facets(ranges) { uid path: File.path }
-    }
-  }
-  suites(func: eq(TestSuite.file_path, ${FILES})) @filter(eq(TestSuite.repo, $repo)) {
-    uid
-    xid: TestSuite.xid
-    name: TestSuite.name
-    file: TestSuite.file_path
-    parent: TestSuite.parent { uid }
-  }
-}`;
-
-/** One read of everything the report's test files hold in this scope; a report with no tests reads nothing. */
-export async function readStoredTestLayer(
-  dgraph: DgraphClientPort,
-  scope: TraceScope,
-  files: string[],
-): Promise<StoredTestLayer> {
-  if (files.length === 0) {
-    return NO_STORED_TESTS;
-  }
-
-  return withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(storedTestLayerQuery(files), {
-      $repo: scope.key,
-    });
-
-    return storedTestLayerOf(res.data);
-  });
-}
-
-function storedTestLayerQuery(files: string[]): string {
-  const list = `[${files.map((file) => JSON.stringify(file)).join(", ")}]`;
-
-  return STORED_TEST_LAYER_QUERY.replaceAll(FILES, list);
-}
-
-/** The read's answer as maps by xid; each chunk's coverage nodes are gathered into a map of their own. */
-export function storedTestLayerOf(
-  answer: Record<string, unknown> | undefined,
-): StoredTestLayer {
-  const chunkRows = edgeRows(answer?.["chunks"]);
-
-  return {
-    chunks: byXid(chunkRows, chunkOf),
-    suites: byXid(edgeRows(answer?.["suites"]), suiteOf),
-    coverage: byXid(
-      chunkRows.flatMap((row) => edgeRows(row["coverage"])),
-      coverageOf,
-    ),
-  };
-}
-
-/** The stored TestChunks of one file that carry this test name: the ones a coverage record's lookup by file and name can land on. */
-export function chunksNamed(
-  { chunks }: StoredTestLayer,
+/** The TestChunks a coverage record's lookup by file and name can land on, or undefined when the report creates or moves a TestChunk under that name, so the read cannot say where the lookup lands after the report's writes. */
+export function holdersOf(
+  layer: StoredTestLayer,
   file: string,
   name: string,
-): StoredTestChunk[] {
-  return [...chunks.values()].filter(
+): StoredTestChunk[] | undefined {
+  if (layer.touched.has(nameKey(file, name))) {
+    return undefined;
+  }
+
+  return layer.holders.filter(
     (chunk) => chunk.file === file && chunk.name === name,
   );
 }
 
-function chunkOf(row: Record<string, unknown>): StoredTestChunk {
-  return {
-    uid: String(row["uid"]),
-    ...stringField("name", row["name"]),
-    ...stringField("file", row["file"]),
-    ...numberField("start", row["start"]),
-    ...numberField("end", row["end"]),
-    ...stringField("suiteUid", firstUid(row["suite"])),
-    coverageUids: edgeRows(row["coverage"]).map((cover) =>
-      String(cover["uid"]),
-    ),
-  };
+/** One TestChunk the report writes: its xid and the repo, file and name it gives it. */
+interface NamedChunk {
+  xid: string;
+  repo: string;
+  file: string;
+  name: string;
 }
 
-function suiteOf(row: Record<string, unknown>): StoredSuite {
-  return {
-    uid: String(row["uid"]),
-    ...stringField("name", row["name"]),
-    ...stringField("file", row["file"]),
-    ...stringField("parentUid", firstUid(row["parent"])),
-  };
+/** The layer with every file-and-name key marked that the report's TestChunk writes create or move: a test or file chunk the graph does not hold, or holds under another repo, file or name. */
+export function withTouched(
+  layer: StoredTestLayer,
+  scope: TraceScope,
+  tests: TestDescriptor[],
+): StoredTestLayer {
+  const keys = namedChunksOf(scope, tests).flatMap((chunk) =>
+    touchedKeys(layer, chunk),
+  );
+
+  return { ...layer, touched: new Set(keys) };
 }
 
-function coverageOf(row: Record<string, unknown>): StoredCoverage {
-  return {
-    uid: String(row["uid"]),
-    ...stringField("tool", row["tool"]),
-    ...stringField("commit", row["commit"]),
-    covers: new Map(edgeRows(row["Coverage.covers"]).flatMap(coverOf)),
-  };
+function namedChunksOf(
+  scope: TraceScope,
+  tests: TestDescriptor[],
+): NamedChunk[] {
+  const repo = scope.key;
+  const testChunks = tests.map((test) => ({
+    xid: testChunkXid(scope, test.id),
+    repo,
+    file: test.file,
+    name: test.name,
+  }));
+  const fileChunks = uniqueFiles(tests).map((file) => ({
+    xid: fileScopedTestChunkXid(repo, file),
+    repo,
+    file,
+    name: file,
+  }));
+
+  return [...testChunks, ...fileChunks];
 }
 
-function coverOf(row: Record<string, unknown>): [string, StoredCover][] {
-  const path = row["path"];
+function touchedKeys({ chunks }: StoredTestLayer, chunk: NamedChunk): string[] {
+  const held = chunks.get(chunk.xid);
 
-  if (typeof path !== "string") {
-    return [];
+  if (held === undefined) {
+    return [nameKey(chunk.file, chunk.name)];
   }
 
-  return [
-    [
-      path,
-      {
-        uid: String(row["uid"]),
-        ...stringField("ranges", row["Coverage.covers|ranges"]),
-      },
-    ],
-  ];
+  return sameIdentity(held, chunk)
+    ? []
+    : [nameKey(chunk.file, chunk.name), heldKey(held)];
 }
 
-function byXid<T>(
-  rows: Record<string, unknown>[],
-  parse: (row: Record<string, unknown>) => T,
-): ReadonlyMap<string, T> {
-  return new Map(
-    rows.flatMap((row) =>
-      typeof row["xid"] === "string" ? [[row["xid"], parse(row)]] : [],
-    ),
+function heldKey(held: StoredTestChunk): string {
+  return nameKey(held.file ?? "", held.name ?? "");
+}
+
+function nameKey(file: string, name: string): string {
+  return JSON.stringify([file, name]);
+}
+
+/** Every xid the report's writes would look up, and its test files: the chunks of each test and file, every level of each suite chain, each coverage record's node, and each covered file's node. */
+export function layerKeysOf(
+  scope: TraceScope,
+  tests: TestDescriptor[],
+  records: CoverageRecordKeys[],
+): LayerKeys {
+  const files = uniqueFiles(tests);
+
+  return {
+    files,
+    chunks: unique([
+      ...tests.map((test) => testChunkXid(scope, test.id)),
+      ...files.map((file) => fileScopedTestChunkXid(scope.key, file)),
+    ]),
+    suites: unique(tests.flatMap((test) => suiteXidsOf(scope, test))),
+    coverage: unique(records.map((record) => coverageXidOf(scope, record))),
+    sources: unique(records.flatMap((record) => sourceXidsOf(scope, record))),
+  };
+}
+
+function suiteXidsOf(scope: TraceScope, test: TestDescriptor): string[] {
+  return (test.suite ?? []).map((_, level) =>
+    suiteLevelXid(scope, test, level),
   );
 }
 
-function firstUid(value: unknown): string | undefined {
-  const uid = edgeRows(value).at(0)?.["uid"];
-
-  return typeof uid === "string" ? uid : undefined;
+function coverageXidOf(scope: TraceScope, record: CoverageRecordKeys): string {
+  return scopedXid(scope, record.testFile, record.testName);
 }
 
-function stringField<K extends string>(
-  key: K,
-  value: unknown,
-): Partial<Record<K, string>> {
-  return typeof value === "string"
-    ? ({ [key]: value } as Record<K, string>)
-    : {};
+function sourceXidsOf(scope: TraceScope, record: CoverageRecordKeys): string[] {
+  return record.covered.map((range) => scopedXid(scope, range.file));
 }
 
-function numberField<K extends string>(
-  key: K,
-  value: unknown,
-): Partial<Record<K, number>> {
-  return typeof value === "number"
-    ? ({ [key]: value } as Record<K, number>)
-    : {};
+function uniqueFiles(tests: TestDescriptor[]): string[] {
+  return unique(tests.map((test) => test.file));
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

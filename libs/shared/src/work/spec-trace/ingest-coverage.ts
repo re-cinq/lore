@@ -18,9 +18,10 @@ import {
   type TraceScope,
 } from "../../domain/spec-trace/trace-scope.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import { groupRangesByFile, serializeRanges } from "./coverage-ranges.js";
 import { stampGraphBaseline } from "./graph-baseline.js";
 import {
-  chunksNamed,
+  holdersOf,
   isCoverageUnchanged,
   NO_STORED_TESTS,
   type PlannedCoverage,
@@ -43,18 +44,19 @@ interface CoverageRecord {
   covered: CoveredChunk[];
 }
 
-/** One report's coverage ingest: what it writes against, what the graph already holds, and what it settles once every record is in. */
+/** One report's coverage ingest: what it writes against, what the graph already holds, the records it has handled so far, and what it settles for the kept ones once every record is in. */
 interface CoverageRun {
   dgraph: DgraphClientPort;
   meta: CoverageMeta;
   stored: StoredTestLayer;
   knownFiles: FileUids;
+  seen: Set<string>;
   rootCoverage: Set<string>;
   rootFiles: Set<string>;
   staleCommits: string[];
 }
 
-/** Writes each record's Coverage node, its covered files and its test's link, skipping a record `stored` already holds as written, then hangs every record's nodes off the scope's root in one write. */
+/** Writes each record's Coverage node, its covered files, its root edges and its test's link, exactly as before, unless `stored` holds the record as written; the kept records then take this report's commit and their root edges in one write each. */
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
   meta: CoverageMeta,
@@ -88,6 +90,7 @@ function newCoverageRun(
     meta,
     stored,
     knownFiles: new Map(),
+    seen: new Set(),
     rootCoverage: new Set(),
     rootFiles: new Set(),
     staleCommits: [],
@@ -102,33 +105,46 @@ async function ingestOneCoverage(
   run: CoverageRun,
   record: CoverageRecord,
 ): Promise<number> {
-  const { meta, stored } = run;
-  const xid = scopedXid(meta.scope, record.testFile, record.testName);
-  const held = stored.coverage.get(xid);
-  const holders = chunksNamed(stored, record.testFile, record.testName);
+  const held = keepableCoverage(run, record);
 
-  if (
-    held &&
-    isCoverageUnchanged(held, plannedCoverage(meta, record), holders)
-  ) {
-    return keepCoverage(run, held);
-  }
-
-  return writeCoverage(run, record);
+  return held ? keepCoverage(run, held) : writeCoverage(run, record);
 }
 
-/** What writing this record would store: its tool and each covered file's serialized ranges. */
+/** The stored coverage this record would write unchanged, if any; a record the report names twice is written after the first time, so the last one wins, as when every record was written. */
+function keepableCoverage(
+  { meta, stored, seen }: CoverageRun,
+  record: CoverageRecord,
+): StoredCoverage | undefined {
+  const { testFile, testName } = record;
+  const xid = scopedXid(meta.scope, testFile, testName);
+  const held = seen.has(xid) ? undefined : stored.coverage.get(xid);
+  const holders = holdersOf(stored, testFile, testName);
+
+  seen.add(xid);
+
+  return isCoverageUnchanged(held, plannedCoverage(meta, record), {
+    sources: stored.sources,
+    holders,
+  })
+    ? held
+    : undefined;
+}
+
+/** What writing this record would store: its repo and tool, and per covered file the serialized ranges and the xid of the File node the edge points at. */
 function plannedCoverage(
   meta: CoverageMeta,
   record: CoverageRecord,
 ): PlannedCoverage {
-  const covers = new Map<string, string>();
+  const covers = new Map<string, { ranges: string; fileXid: string }>();
 
   for (const [file, ranges] of groupRangesByFile(record.covered)) {
-    covers.set(file, serializeRanges(ranges));
+    covers.set(file, {
+      ranges: serializeRanges(ranges),
+      fileXid: scopedXid(meta.scope, file),
+    });
   }
 
-  return { tool: meta.tool, covers };
+  return { repo: meta.scope.key, tool: meta.tool, covers };
 }
 
 /** Folds a coverage the graph already holds into the run: its root edges, its files for later records, and its commit when this report's differs. */
@@ -149,7 +165,7 @@ function keepCoverage(run: CoverageRun, held: StoredCoverage): number {
   return held.covers.size;
 }
 
-/** Writes one record's Coverage node, its covered files and its test's link, leaving the root edges to the run. */
+/** Writes one record exactly as before: its Coverage node, its covered files, its root edges, then its test's link. */
 async function writeCoverage(
   run: CoverageRun,
   record: CoverageRecord,
@@ -162,14 +178,16 @@ async function writeCoverage(
     knownFiles,
   });
 
-  run.rootCoverage.add(coverageUid);
-  fileUids.forEach((uid) => run.rootFiles.add(uid));
+  await attachCoverageToScopeRoot(dgraph, scope, {
+    coverage: [coverageUid],
+    files: fileUids,
+  });
   await linkTestChunkCoverage(dgraph, scope, record, coverageUid);
 
   return fileUids.length;
 }
 
-/** Brings the commit of every kept coverage up to this report's in one write, then hangs every record's nodes off the root in another. */
+/** Brings the commit of every kept coverage up to this report's in one write, then hangs the kept records' nodes off the root in another. */
 async function settleCoverageRun(run: CoverageRun): Promise<void> {
   const { dgraph, meta } = run;
 
@@ -314,28 +332,7 @@ async function upsertCoveredFiles(
   return targets;
 }
 
-/** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
-function serializeRanges(ranges: CoveredChunk[]): string {
-  return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
-}
-
-/** Groups covered intervals by the file they belong to, preserving covered order within each file. */
-function groupRangesByFile(
-  covered: CoveredChunk[],
-): Map<string, CoveredChunk[]> {
-  const rangesByFile = new Map<string, CoveredChunk[]>();
-
-  for (const range of covered) {
-    (
-      rangesByFile.get(range.file) ??
-      rangesByFile.set(range.file, []).get(range.file)!
-    ).push(range);
-  }
-
-  return rangesByFile;
-}
-
-/** Hangs the run's coverage nodes and the files they cover off the scope's root — the Repo node on main, the branch's Overlay node otherwise — so both stay reachable from the graph's entry point; a run with no records writes nothing. */
+/** Hangs coverage nodes and the files they cover off the scope's root — the Repo node on main, the branch's Overlay node otherwise — so both stay reachable from the graph's entry point; a run with no records writes nothing. */
 async function attachCoverageToScopeRoot(
   dgraph: DgraphClientPort,
   scope: TraceScope,

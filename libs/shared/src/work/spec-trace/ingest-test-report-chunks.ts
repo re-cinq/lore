@@ -30,11 +30,12 @@ export interface DescriptorChunk {
   fileChunkUid: string;
 }
 
-/** Where one report's test layer is written, and what the graph already holds for its files. */
+/** Where one report's test layer is written, what the graph already holds for it, and the tests this report has written so far. */
 interface TestLayerWrite {
   dgraph: DgraphClientPort;
   scope: TraceScope;
   stored: StoredTestLayer;
+  seen: Set<string>;
 }
 
 /** Per-report accumulators an ingested descriptor folds into: the file-scoped TestChunk cache plus the root edge sets. */
@@ -51,7 +52,7 @@ export async function projectDescriptors(
   descriptors: TestDescriptor[],
   stored: StoredTestLayer = NO_STORED_TESTS,
 ): Promise<DescriptorChunk[]> {
-  const layer: TestLayerWrite = { dgraph, scope, stored };
+  const layer: TestLayerWrite = { dgraph, scope, stored, seen: new Set() };
   const state: DescriptorIngestState = {
     fileChunkUidByFile: new Map(),
     repoTestChunkUids: new Set(),
@@ -124,6 +125,7 @@ async function suiteLevelUid(
 ): Promise<string> {
   const xid = suiteLevelXid(scope, descriptor, level);
   const planned = {
+    repo: scope.key,
     name: descriptor.suite?.[level],
     file: descriptor.file,
     parentUid,
@@ -134,16 +136,13 @@ async function suiteLevelUid(
     return held.uid;
   }
 
-  return upsertByXid(dgraph, "TestSuite", xid, suiteFields(scope, planned));
+  return upsertByXid(dgraph, "TestSuite", xid, suiteFields(planned));
 }
 
 /** The node fields for one level of a suite chain; `parent` is spread in only when there is a level above it. */
-function suiteFields(
-  scope: TraceScope,
-  { name, file, parentUid }: PlannedSuite,
-) {
+function suiteFields({ repo, name, file, parentUid }: PlannedSuite) {
   return {
-    "TestSuite.repo": scope.key,
+    "TestSuite.repo": repo,
     "TestSuite.name": name,
     "TestSuite.file_path": file,
     ...(parentUid ? { "TestSuite.parent": { uid: parentUid } } : {}),
@@ -190,11 +189,13 @@ async function upsertFileChunk(
   layer: TestLayerWrite,
   file: string,
 ): Promise<string> {
-  return keptOrUpsertedChunk(
-    layer,
-    fileScopedTestChunkXid(layer.scope.key, file),
-    { name: file, file },
-  );
+  const { key } = layer.scope;
+
+  return keptOrUpsertedChunk(layer, fileScopedTestChunkXid(key, file), {
+    repo: key,
+    name: file,
+    file,
+  });
 }
 
 /** The node for ONE test. Line numbers are spread conditionally rather than written as null: a descriptor from a runner that cannot report them is a test with unknown bounds, and storing 0 would place it at the top of its file. */
@@ -203,7 +204,26 @@ async function upsertTestChunk(
   descriptor: TestDescriptor,
   suiteUid: string | undefined,
 ): Promise<string> {
-  return keptOrUpsertedChunk(layer, testChunkXid(layer.scope, descriptor.id), {
+  const { dgraph, scope, seen } = layer;
+  const xid = testChunkXid(scope, descriptor.id);
+  const planned = plannedTestChunk(scope, descriptor, suiteUid);
+
+  // A test the report names twice is written again after the first time, so the last one wins, as when every test was written.
+  if (seen.has(xid)) {
+    return upsertByXid(dgraph, "TestChunk", xid, chunkFields(planned));
+  }
+  seen.add(xid);
+
+  return keptOrUpsertedChunk(layer, xid, planned);
+}
+
+function plannedTestChunk(
+  scope: TraceScope,
+  descriptor: TestDescriptor,
+  suiteUid: string | undefined,
+): PlannedChunk {
+  return {
+    repo: scope.key,
     name: descriptor.name,
     file: descriptor.file,
     ...(descriptor.startLine !== undefined
@@ -211,12 +231,12 @@ async function upsertTestChunk(
       : {}),
     ...(descriptor.endLine !== undefined ? { end: descriptor.endLine } : {}),
     ...(suiteUid ? { suiteUid } : {}),
-  });
+  };
 }
 
 /** The uid of a TestChunk: the stored one when the graph holds it as planned, else the one the upsert writes. */
 async function keptOrUpsertedChunk(
-  { dgraph, scope, stored }: TestLayerWrite,
+  { dgraph, stored }: TestLayerWrite,
   xid: string,
   planned: PlannedChunk,
 ): Promise<string> {
@@ -226,12 +246,12 @@ async function keptOrUpsertedChunk(
     return held.uid;
   }
 
-  return upsertByXid(dgraph, "TestChunk", xid, chunkFields(scope, planned));
+  return upsertByXid(dgraph, "TestChunk", xid, chunkFields(planned));
 }
 
-function chunkFields(scope: TraceScope, planned: PlannedChunk) {
+function chunkFields(planned: PlannedChunk) {
   return {
-    "TestChunk.repo": scope.key,
+    "TestChunk.repo": planned.repo,
     "TestChunk.test_name": planned.name,
     "TestChunk.file_path": planned.file,
     ...(planned.start !== undefined

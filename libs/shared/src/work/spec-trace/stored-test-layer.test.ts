@@ -1,15 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DgraphClientPort,
   DgraphTxn,
 } from "../../outbound/memory-store.js";
 import { mainScope } from "../../domain/spec-trace/trace-scope.js";
+import { enforceTrue } from "../../lib/enforce.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
+import {
+  storedTestLayerOf,
+  storedTestLayerQuery,
+} from "./read-stored-test-layer.js";
 import {
   isChunkUnchanged,
   isCoverageUnchanged,
   isSuiteUnchanged,
-  storedTestLayerOf,
+  NO_STORED_TESTS,
+  withTouched,
   type StoredCoverage,
   type StoredTestChunk,
 } from "./stored-test-layer.js";
@@ -23,6 +29,7 @@ const COLOUR = `${WIDGET}::Widget > accepts a colour`;
 const TICKS = `${CLOCK}::ticks`;
 const FIRST_COMMIT = "a".repeat(40);
 const NEXT_COMMIT = "b".repeat(40);
+const CLOCK_SOURCE_XID = `${REPO}|src/clock.ts`;
 
 const REPORT: TestReport = {
   commit: FIRST_COMMIT,
@@ -67,6 +74,7 @@ const REPORT: TestReport = {
 
 const TICKS_CHUNK: StoredTestChunk = {
   uid: "0x1",
+  repo: REPO,
   name: "ticks",
   file: CLOCK,
   start: 1,
@@ -76,19 +84,32 @@ const TICKS_CHUNK: StoredTestChunk = {
 
 const TICKS_COVERAGE: StoredCoverage = {
   uid: "0x9",
+  repo: REPO,
   tool: "test-interface",
-  covers: new Map([["src/clock.ts", { uid: "0x3", ranges: "2-5" }]]),
+  covers: new Map([
+    ["src/clock.ts", { uid: "0x3", xid: CLOCK_SOURCE_XID, ranges: "2-5" }],
+  ]),
+  wellFormed: true,
 };
 
 const TICKS_PLANNED = {
+  repo: REPO,
   tool: "test-interface",
-  covers: new Map([["src/clock.ts", "2-5"]]),
+  covers: new Map([
+    ["src/clock.ts", { ranges: "2-5", fileXid: CLOCK_SOURCE_XID }],
+  ]),
+};
+
+const TICKS_CONTEXT = {
+  sources: new Map([[CLOCK_SOURCE_XID, "0x3"]]),
+  holders: [TICKS_CHUNK],
 };
 
 describe("isChunkUnchanged", () => {
-  it("keeps a test the graph holds with the name, file and lines the report gives", () => {
+  it("keeps a test the graph holds with the repo, name, file and lines the report gives", () => {
     expect(
       isChunkUnchanged(TICKS_CHUNK, {
+        repo: REPO,
         name: "ticks",
         file: CLOCK,
         start: 1,
@@ -100,6 +121,7 @@ describe("isChunkUnchanged", () => {
   it("writes a test whose lines moved from 1-3 to 4-6", () => {
     expect(
       isChunkUnchanged(TICKS_CHUNK, {
+        repo: REPO,
         name: "ticks",
         file: CLOCK,
         start: 4,
@@ -109,56 +131,61 @@ describe("isChunkUnchanged", () => {
   });
 
   it("keeps a test the report gives no lines for, as an upsert never clears the stored ones", () => {
-    expect(isChunkUnchanged(TICKS_CHUNK, { name: "ticks", file: CLOCK })).toBe(
-      true,
-    );
+    expect(
+      isChunkUnchanged(TICKS_CHUNK, { repo: REPO, name: "ticks", file: CLOCK }),
+    ).toBe(true);
   });
 
   it("writes a test the graph does not hold", () => {
-    expect(isChunkUnchanged(undefined, { name: "ticks", file: CLOCK })).toBe(
-      false,
-    );
+    expect(
+      isChunkUnchanged(undefined, { repo: REPO, name: "ticks", file: CLOCK }),
+    ).toBe(false);
+  });
+
+  it("writes a test whose node the graph holds under another repo", () => {
+    expect(
+      isChunkUnchanged(
+        { ...TICKS_CHUNK, repo: "re-cinq/other" },
+        { repo: REPO, name: "ticks", file: CLOCK },
+      ),
+    ).toBe(false);
   });
 });
 
 describe("isSuiteUnchanged", () => {
-  it("writes a suite level whose parent is now 0x5 rather than 0x4, and keeps one whose name, file and parent match", () => {
+  it("writes a suite level whose parent is now 0x5 rather than 0x4, and keeps one whose repo, name, file and parent match", () => {
     const stored = {
       uid: "0x7",
+      repo: REPO,
       name: "Widget",
       file: WIDGET,
       parentUid: "0x4",
     };
+    const planned = { repo: REPO, name: "Widget", file: WIDGET };
 
     expect([
-      isSuiteUnchanged(stored, {
-        name: "Widget",
-        file: WIDGET,
-        parentUid: "0x5",
-      }),
-      isSuiteUnchanged(stored, {
-        name: "Widget",
-        file: WIDGET,
-        parentUid: "0x4",
-      }),
+      isSuiteUnchanged(stored, { ...planned, parentUid: "0x5" }),
+      isSuiteUnchanged(stored, { ...planned, parentUid: "0x4" }),
     ]).toEqual([false, true]);
   });
 });
 
 describe("isCoverageUnchanged", () => {
-  it("keeps a coverage with the same tool and ranges, pointed at by its one test alone", () => {
+  it("keeps a coverage with the same repo, tool and ranges on the File node an upsert would find, pointed at by its one test alone", () => {
     expect(
-      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, [TICKS_CHUNK]),
+      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, TICKS_CONTEXT),
     ).toBe(true);
   });
 
   it("writes a coverage whose ranges on src/clock.ts grew from 2-5 to 2-6", () => {
     const grown = {
       ...TICKS_PLANNED,
-      covers: new Map([["src/clock.ts", "2-6"]]),
+      covers: new Map([
+        ["src/clock.ts", { ranges: "2-6", fileXid: CLOCK_SOURCE_XID }],
+      ]),
     };
 
-    expect(isCoverageUnchanged(TICKS_COVERAGE, grown, [TICKS_CHUNK])).toBe(
+    expect(isCoverageUnchanged(TICKS_COVERAGE, grown, TICKS_CONTEXT)).toBe(
       false,
     );
   });
@@ -167,12 +194,12 @@ describe("isCoverageUnchanged", () => {
     const wider = {
       ...TICKS_PLANNED,
       covers: new Map([
-        ["src/clock.ts", "2-5"],
-        ["src/tick.ts", "1-2"],
+        ["src/clock.ts", { ranges: "2-5", fileXid: CLOCK_SOURCE_XID }],
+        ["src/tick.ts", { ranges: "1-2", fileXid: `${REPO}|src/tick.ts` }],
       ]),
     };
 
-    expect(isCoverageUnchanged(TICKS_COVERAGE, wider, [TICKS_CHUNK])).toBe(
+    expect(isCoverageUnchanged(TICKS_COVERAGE, wider, TICKS_CONTEXT)).toBe(
       false,
     );
   });
@@ -181,57 +208,175 @@ describe("isCoverageUnchanged", () => {
     const twin = { ...TICKS_CHUNK, uid: "0x2" };
 
     expect(
-      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, [TICKS_CHUNK, twin]),
+      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, {
+        ...TICKS_CONTEXT,
+        holders: [TICKS_CHUNK, twin],
+      }),
+    ).toBe(false);
+  });
+
+  it("writes a coverage whose src/clock.ts edge points at a feat/x overlay's File node", () => {
+    const stray: StoredCoverage = {
+      ...TICKS_COVERAGE,
+      covers: new Map([
+        [
+          "src/clock.ts",
+          {
+            uid: "0x3",
+            xid: `${REPO}|branch:feat/x|src/clock.ts`,
+            ranges: "2-5",
+          },
+        ],
+      ]),
+    };
+
+    expect(isCoverageUnchanged(stray, TICKS_PLANNED, TICKS_CONTEXT)).toBe(
+      false,
+    );
+  });
+
+  it("writes a coverage whose covered file's xid two File nodes hold, so the read cannot say which one an upsert finds", () => {
+    expect(
+      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, {
+        ...TICKS_CONTEXT,
+        sources: new Map(),
+      }),
+    ).toBe(false);
+  });
+
+  it("writes a coverage whose test the report creates or moves, so the read cannot say where the link's lookup lands", () => {
+    expect(
+      isCoverageUnchanged(TICKS_COVERAGE, TICKS_PLANNED, {
+        ...TICKS_CONTEXT,
+        holders: undefined,
+      }),
+    ).toBe(false);
+  });
+
+  it("writes a coverage one of whose covered files the read found without a path", () => {
+    expect(
+      isCoverageUnchanged(
+        { ...TICKS_COVERAGE, wellFormed: false },
+        TICKS_PLANNED,
+        TICKS_CONTEXT,
+      ),
     ).toBe(false);
   });
 });
 
 describe("storedTestLayerOf", () => {
-  it("reads a chunk's single suite edge as an object, its coverage by xid with each file's ranges facet, and drops a row with no xid", () => {
+  it("reads a chunk's single suite edge as an object, a coverage's covered files with their xid and ranges facet, and the File nodes by xid", () => {
     const layer = storedTestLayerOf({
       chunks: [
         {
           uid: "0x1",
           xid: `${REPO}|${TICKS}`,
+          repo: REPO,
           name: "ticks",
           file: CLOCK,
           start: 1,
           end: 3,
           suite: { uid: "0x7" },
-          coverage: [
+        },
+      ],
+      coverage: [
+        {
+          uid: "0x9",
+          xid: `${REPO}|${CLOCK}|ticks`,
+          repo: REPO,
+          tool: "test-interface",
+          "Coverage.covers": [
             {
-              uid: "0x9",
-              xid: `${REPO}|${CLOCK}|ticks`,
-              tool: "test-interface",
-              commit: FIRST_COMMIT,
-              "Coverage.covers": [
-                {
-                  uid: "0x3",
-                  path: "src/clock.ts",
-                  "Coverage.covers|ranges": "2-5",
-                },
-              ],
+              uid: "0x3",
+              path: "src/clock.ts",
+              xid: CLOCK_SOURCE_XID,
+              "Coverage.covers|ranges": "2-5",
             },
           ],
         },
-        { uid: "0x2", name: "no xid" },
       ],
-      suites: [{ uid: "0x7", xid: `${REPO}|${WIDGET}|Widget`, name: "Widget" }],
+      sources: [{ uid: "0x3", xid: CLOCK_SOURCE_XID }],
+      holders: [
+        { uid: "0x1", name: "ticks", file: CLOCK, coverage: [{ uid: "0x9" }] },
+      ],
     });
 
     expect({
       chunks: Object.fromEntries(layer.chunks),
-      suites: Object.fromEntries(layer.suites),
       coverage: Object.fromEntries(layer.coverage),
+      sources: Object.fromEntries(layer.sources),
     }).toEqual({
       chunks: {
-        [`${REPO}|${TICKS}`]: { ...TICKS_CHUNK, suiteUid: "0x7" },
+        [`${REPO}|${TICKS}`]: {
+          ...TICKS_CHUNK,
+          suiteUid: "0x7",
+          coverageUids: [],
+        },
       },
-      suites: { [`${REPO}|${WIDGET}|Widget`]: { uid: "0x7", name: "Widget" } },
-      coverage: {
-        [`${REPO}|${CLOCK}|ticks`]: { ...TICKS_COVERAGE, commit: FIRST_COMMIT },
-      },
+      coverage: { [`${REPO}|${CLOCK}|ticks`]: TICKS_COVERAGE },
+      sources: { [CLOCK_SOURCE_XID]: "0x3" },
     });
+  });
+
+  it("drops an xid two TestChunk nodes hold, so the upsert's own lookup decides which one is written", () => {
+    const layer = storedTestLayerOf({
+      chunks: [
+        { uid: "0x1", xid: `${REPO}|${TICKS}`, name: "ticks" },
+        { uid: "0x2", xid: `${REPO}|${TICKS}`, name: "ticks" },
+      ],
+    });
+
+    expect(layer.chunks.size).toBe(0);
+  });
+});
+
+describe("storedTestLayerQuery", () => {
+  it("quotes every value as a JSON string, keeps a $& in a test name as written, and leaves out the suites block when no test has a suite", () => {
+    const query = storedTestLayerQuery(SCOPE, {
+      files: [CLOCK],
+      chunks: [`${REPO}|${CLOCK}::costs $& "more"`],
+      suites: [],
+      coverage: [],
+      sources: [],
+    });
+
+    expect({
+      quoted: query.includes(
+        `eq(TestChunk.xid, [${JSON.stringify(`${REPO}|${CLOCK}::costs $& "more"`)}])`,
+      ),
+      repo: query.includes(`eq(TestChunk.repo, ${JSON.stringify(REPO)})`),
+      suites: query.includes("TestSuite.xid"),
+    }).toEqual({ quoted: true, repo: true, suites: false });
+  });
+});
+
+describe("withTouched", () => {
+  it("marks the name of a test the graph does not hold and both names of a file chunk a spec citation renamed, and leaves a test held as written unmarked", () => {
+    const layer = withTouched(
+      {
+        ...NO_STORED_TESTS,
+        chunks: new Map([
+          [`${REPO}|${TICKS}`, TICKS_CHUNK],
+          [
+            `${REPO}|${CLOCK}`,
+            { ...TICKS_CHUNK, uid: "0x5", name: "ticks", file: CLOCK },
+          ],
+        ]),
+      },
+      SCOPE,
+      [
+        ...REPORT.tests.filter((test) => test.id === TICKS),
+        { id: `${CLOCK}::tocks`, name: "tocks", file: CLOCK },
+      ],
+    );
+
+    expect([...layer.touched].sort()).toEqual(
+      [
+        JSON.stringify([CLOCK, "tocks"]),
+        JSON.stringify([CLOCK, CLOCK]),
+        JSON.stringify([CLOCK, "ticks"]),
+      ].sort(),
+    );
   });
 });
 
@@ -286,6 +431,67 @@ describe("ingestTestReport skipping what the graph holds (fake port)", () => {
     await ingestTestReport(fresh.port, SCOPE, changed);
 
     expect(snapshotOf(replayed)).toEqual(snapshotOf(fresh));
+  });
+
+  it("ends with the last of two ticks tests that share an id, at lines 4-6 rather than 1-3, as a fresh ingest of the same report does", async () => {
+    const replayed = fakeGraph();
+    const fresh = fakeGraph();
+    const twice: TestReport = {
+      ...REPORT,
+      tests: [
+        ...REPORT.tests,
+        { id: TICKS, name: "ticks", file: CLOCK, startLine: 4, endLine: 6 },
+      ],
+    };
+
+    await ingestTestReport(replayed.port, SCOPE, twice);
+    await ingestTestReport(replayed.port, SCOPE, twice);
+    await ingestTestReport(fresh.port, SCOPE, twice);
+
+    expect(
+      fieldOf(replayed, `TestChunk|${REPO}|${TICKS}`, "TestChunk.start_line"),
+    ).toBe(4);
+    expect(snapshotOf(replayed)).toEqual(snapshotOf(fresh));
+  });
+
+  it("rewrites the ticks coverage when a test named ticks comes under a new id while the old one is still in the graph", async () => {
+    const graph = fakeGraph();
+    const reidentified: TestReport = {
+      ...REPORT,
+      tests: REPORT.tests.map((test) =>
+        test.id === TICKS ? { ...test, id: `${CLOCK}::ticks#2` } : test,
+      ),
+      results: REPORT.results.map((result) =>
+        result.id === TICKS ? { ...result, id: `${CLOCK}::ticks#2` } : result,
+      ),
+    };
+
+    await ingestTestReport(graph.port, SCOPE, REPORT);
+    const again = await ingest(graph, reidentified);
+
+    expect(upsertsByType(again.queries)).toEqual({
+      TestChunk: 1,
+      Coverage: 1,
+    });
+  });
+
+  it("writes every node as a first ingest does, and logs why, when the read of what the graph holds fails", async () => {
+    const graph = fakeGraph({ failRead: true });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await ingestTestReport(graph.port, SCOPE, REPORT);
+    const again = await ingest(graph, REPORT);
+
+    expect(upsertsByType(again.queries)).toEqual({
+      TestSuite: 2,
+      TestChunk: 5,
+      Coverage: 5,
+      File: 2,
+    });
+    expect(String(logged.mock.calls[0]?.[0])).toContain(
+      "reading what the graph holds failed",
+    );
+    logged.mockRestore();
   });
 });
 
@@ -359,7 +565,7 @@ interface FakeGraph {
   store: Store;
 }
 
-function fakeGraph(): FakeGraph {
+function fakeGraph({ failRead = false } = {}): FakeGraph {
   const store: Store = {
     nodes: new Map(),
     uidByKey: new Map(),
@@ -370,6 +576,12 @@ function fakeGraph(): FakeGraph {
   const txn: DgraphTxn = {
     queryWithVars: async (query, vars) => {
       store.queries.push(query);
+
+      enforceTrue(
+        !(failRead && STORED_READ.test(query)),
+        Error,
+        "Dgraph refused the query",
+      );
 
       return { data: answer(store, query, vars) };
     },
@@ -382,6 +594,8 @@ function fakeGraph(): FakeGraph {
   return { port: { newTxn: () => txn }, store };
 }
 
+const STORED_READ = /^\{\s*(holders|chunks)\(func:/;
+
 type Answer = (
   store: Store,
   query: string,
@@ -390,7 +604,7 @@ type Answer = (
 
 const ANSWERS: [RegExp, Answer][] = [
   [/found\(func: eq\(/, foundAnswer],
-  [/chunks\(func: eq\(TestChunk\.file_path, \[/, storedAnswer],
+  [STORED_READ, storedAnswer],
   [/cov\(func: uid\(\$uid\)\)/, coversAnswer],
   [/tc\(func: eq\(TestChunk\.file_path, \$file\)\)/, testChunkAnswer],
 ];
@@ -416,25 +630,47 @@ function foundAnswer(
   return { found: uid !== undefined && store.nodes.has(uid) ? [{ uid }] : [] };
 }
 
-function storedAnswer(
-  store: Store,
-  query: string,
-  vars: Record<string, string>,
-): Record<string, Row[]> {
-  const files = JSON.parse(
-    /eq\(TestChunk\.file_path, (\[.*?\])\)/s.exec(query)?.[1] ?? "[]",
-  ) as string[];
-  const scoped = (type: string) =>
-    nodesOf(store, type).filter(
-      ([, node]) =>
-        files.includes(String(node.fields[`${type}.file_path`])) &&
-        node.fields[`${type}.repo`] === vars["$repo"],
+function storedAnswer(store: Store, query: string): Record<string, Row[]> {
+  const byXid = (type: string, block: string) => {
+    const xids = listIn(query, block, `${type}.xid`);
+
+    return nodesOf(store, type).filter(([, node]) =>
+      xids.includes(String(node.fields[`${type}.xid`])),
     );
+  };
+  const repo = JSON.parse(
+    /eq\(TestChunk\.repo, ("(?:[^"\\]|\\.)*")\)/.exec(query)?.[1] ?? '""',
+  ) as string;
+  const files = listIn(query, "holders", "TestChunk.file_path");
+  const holders = nodesOf(store, "TestChunk").filter(
+    ([, node]) =>
+      files.includes(String(node.fields["TestChunk.file_path"])) &&
+      node.fields["TestChunk.repo"] === repo,
+  );
 
   return {
-    chunks: scoped("TestChunk").map((entry) => chunkRow(store, entry)),
-    suites: scoped("TestSuite").map(suiteRow),
+    holders: holders.map((entry) => chunkRow(entry)),
+    chunks: byXid("TestChunk", "chunks").map((entry) => chunkRow(entry)),
+    suites: byXid("TestSuite", "suites").map(suiteRow),
+    coverage: byXid("Coverage", "coverage").map((entry) =>
+      coverageRow(store, entry),
+    ),
+    sources: byXid("File", "sources").map(([uid, node]) => ({
+      uid,
+      xid: node.fields["File.xid"],
+    })),
   };
+}
+
+const JSON_LIST = /(\[(?:"(?:[^"\\]|\\.)*"(?:, )?)*\])/.source;
+
+function listIn(query: string, block: string, predicate: string): string[] {
+  const pattern = new RegExp(
+    `${block}\\(func: eq\\(${predicate.replace(".", "\\.")}, ${JSON_LIST}\\)`,
+  );
+  const match = pattern.exec(query)?.[1];
+
+  return match ? (JSON.parse(match) as string[]) : [];
 }
 
 function coversAnswer(
@@ -474,12 +710,13 @@ function nodesOf(store: Store, type: string): [string, GraphNode][] {
   return [...store.nodes].filter(([, node]) => node.type === type);
 }
 
-function chunkRow(store: Store, [uid, node]: [string, GraphNode]): Row {
+function chunkRow([uid, node]: [string, GraphNode]): Row {
   const field = (name: string) => node.fields[`TestChunk.${name}`];
 
   return {
     uid,
     xid: field("xid"),
+    repo: field("repo"),
     name: field("test_name"),
     file: field("file_path"),
     start: field("start_line"),
@@ -487,26 +724,31 @@ function chunkRow(store: Store, [uid, node]: [string, GraphNode]): Row {
     suite: targetsOf(node, "TestChunk.suite").map((target) => ({
       uid: target,
     }))[0],
-    coverage: targetsOf(node, "TestChunk.coverage").map((target) =>
-      coverageRow(store, target),
-    ),
+    coverage: targetsOf(node, "TestChunk.coverage").map((target) => ({
+      uid: target,
+    })),
   };
 }
 
-function coverageRow(store: Store, uid: string): Row {
-  const node = store.nodes.get(uid);
-  const covers = node?.edges.get("Coverage.covers") ?? new Map<string, Row>();
+function coverageRow(store: Store, [uid, node]: [string, GraphNode]): Row {
+  const covers = node.edges.get("Coverage.covers") ?? new Map<string, Row>();
 
   return {
     uid,
-    xid: node?.fields["Coverage.xid"],
-    tool: node?.fields["Coverage.tool"],
-    commit: node?.fields["Coverage.commit"],
-    "Coverage.covers": [...covers].map(([fileUid, facets]) => ({
-      uid: fileUid,
-      path: store.nodes.get(fileUid)?.fields["File.path"],
-      ...facets,
-    })),
+    xid: node.fields["Coverage.xid"],
+    repo: node.fields["Coverage.repo"],
+    tool: node.fields["Coverage.tool"],
+    commit: node.fields["Coverage.commit"],
+    "Coverage.covers": [...covers].map(([fileUid, facets]) => {
+      const file = store.nodes.get(fileUid);
+
+      return {
+        uid: fileUid,
+        path: file?.fields["File.path"],
+        xid: file?.fields["File.xid"],
+        ...facets,
+      };
+    }),
   };
 }
 
@@ -514,6 +756,7 @@ function suiteRow([uid, node]: [string, GraphNode]): Row {
   return {
     uid,
     xid: node.fields["TestSuite.xid"],
+    repo: node.fields["TestSuite.repo"],
     name: node.fields["TestSuite.name"],
     file: node.fields["TestSuite.file_path"],
     parent: targetsOf(node, "TestSuite.parent").map((target) => ({

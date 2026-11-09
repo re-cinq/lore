@@ -23,14 +23,17 @@ import {
   writeStatementGroup,
 } from "./ingest-test-report-groups.js";
 import {
-  readStoredTestLayer,
+  layerKeysOf,
+  NO_STORED_TESTS,
+  withTouched,
   type StoredTestLayer,
 } from "./stored-test-layer.js";
+import { readStoredTestLayer } from "./read-stored-test-layer.js";
 
 export type { DescriptorChunk };
 
 /** A coverage record as {@link ingestCoverageReport} consumes it. */
-interface CoverageRecord {
+export interface CoverageRecord {
   testFile: string;
   testName: string;
   covered: CoveredChunk[];
@@ -54,13 +57,13 @@ export interface IngestTestReportResult {
 /** No spec links from an overlay. A Statement belongs to `main` — the branch is measured AGAINST it — so writing `validated_by` from a branch test would let an unmerged run change what main claims to have proved. */
 const NO_SPEC_LINKS = { validatedBy: 0, violated: 0 };
 
-/** Projects a report's tests, spec links and coverage, reading first what its test files already hold so that nothing the graph holds as written is written again. */
+/** Projects a report's tests, spec links and coverage, reading first what the graph holds for them so that nothing it holds as written is written again. */
 export async function ingestTestReport(
   dgraph: DgraphClientPort,
   scope: TraceScope,
   report: TestReport,
 ): Promise<IngestTestReportResult> {
-  const stored = await readStoredTestLayer(dgraph, scope, testFilesOf(report));
+  const stored = await storedLayerFor(dgraph, scope, report);
   const entries = await projectDescriptors(dgraph, scope, report.tests, stored);
   const links = await specLinksFor(dgraph, scope, entries, report);
   const cov = await ingestReportCoverage(dgraph, scope, report, stored);
@@ -76,9 +79,24 @@ export async function ingestTestReport(
   };
 }
 
-/** Every test file the report describes, once each. */
-function testFilesOf(report: TestReport): string[] {
-  return [...new Set(report.tests.map((test) => test.file))];
+/** What the graph holds for the report, with the names it writes tests under marked; when the read fails the report writes every node, as it did before the read existed, rather than fail. */
+async function storedLayerFor(
+  dgraph: DgraphClientPort,
+  scope: TraceScope,
+  report: TestReport,
+): Promise<StoredTestLayer> {
+  try {
+    const keys = layerKeysOf(scope, report.tests, coverageRecordsFor(report));
+    const stored = await readStoredTestLayer(dgraph, scope, keys);
+
+    return withTouched(stored, scope, report.tests);
+  } catch (error) {
+    console.error(
+      `[ingest-test-report] ${scope.key}: reading what the graph holds failed, so every node is written: ${String(error)}`,
+    );
+
+    return NO_STORED_TESTS;
+  }
 }
 
 /** The spec links this report justifies, or none at all when it describes a branch. */
@@ -170,7 +188,8 @@ async function ingestReportCoverage(
   );
 }
 
-function coverageRecordsFor(report: TestReport): CoverageRecord[] {
+/** The coverage records a report hands the coverage ingest: one per test file, merging its tests' ranges, then one per test that covered something. */
+export function coverageRecordsFor(report: TestReport): CoverageRecord[] {
   const fileLevelRecords = [...coveredRangesByFile(report)].map(
     ([file, ranges]) => ({
       testFile: file,
