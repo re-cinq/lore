@@ -15,6 +15,8 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    // The prompt editor's caret colour is asserted against CodeMirror's own theme, so its module CSS is loaded.
+    css: { include: [/prompt-editor\/.*\.module\.css$/] },
     coverage: {
       provider: "v8",
       include: ["src/**"],

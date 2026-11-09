@@ -126,7 +126,7 @@ describe("PromptEditor", () => {
     expect(submittedPrompt(container.querySelector("form")!)).toBe("Read\n");
   });
 
-  it("draws 'Read the\\nticket' as one line while unfocused", () => {
+  it("draws 'Read the\\nticket' as one line", () => {
     const { container } = render(
       <PromptEditor name="prompt" defaultValue={"Read the\nticket"} />,
     );
@@ -134,7 +134,7 @@ describe("PromptEditor", () => {
     expect(container.querySelectorAll(".cm-line")).toHaveLength(1);
   });
 
-  it("submits 'Read the\\nticket' unchanged although it draws as one line", () => {
+  it("submits 'Read the ticket' for a stored 'Read the\\nticket'", () => {
     const { container } = render(
       <form>
         <PromptEditor name="prompt" defaultValue={"Read the\nticket"} />
@@ -142,7 +142,7 @@ describe("PromptEditor", () => {
     );
 
     expect(submittedPrompt(container.querySelector("form")!)).toBe(
-      "Read the\nticket",
+      "Read the ticket",
     );
   });
 
@@ -170,5 +170,15 @@ describe("PromptEditor", () => {
     );
 
     expect(container.querySelectorAll(".cm-line")).toHaveLength(2);
+  });
+
+  it("gives the caret the text colour rather than CodeMirror's black", () => {
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue="Read" />,
+    );
+
+    expect(
+      getComputedStyle(container.querySelector(".cm-content")!).caretColor,
+    ).toBe("var(--text)");
   });
 });

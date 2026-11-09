@@ -3,7 +3,6 @@ import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as emptyText } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { livePreview } from "./live-preview";
-import { softBreakPreview } from "./soft-breaks";
 
 export interface PromptViewOptions {
   doc: string;
@@ -54,7 +53,6 @@ function promptExtensions({
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     livePreview,
-    softBreakPreview,
     EditorView.lineWrapping,
     emptyText(placeholder ?? ""),
     EditorView.updateListener.of((update) => {

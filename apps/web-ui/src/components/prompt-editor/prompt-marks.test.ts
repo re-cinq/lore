@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { collapsedMarkup, promptMarks, softBreaks } from "./prompt-marks";
+import {
+  collapsedMarkup,
+  joinedParagraphs,
+  promptMarks,
+  softBreaks,
+} from "./prompt-marks";
 
 describe("promptMarks", () => {
   it("returns a level-2 heading over '## How you work' with its '## ' as markup", () => {
@@ -89,5 +94,19 @@ describe("softBreaks", () => {
       { from: 3, to: 4 },
       { from: 14, to: 15 },
     ]);
+  });
+});
+
+describe("joinedParagraphs", () => {
+  it("returns 'Read the ticket\\n\\n- one\\n- two' for 'Read the\\nticket\\n\\n- one\\n- two'", () => {
+    expect(joinedParagraphs("Read the\nticket\n\n- one\n- two")).toBe(
+      "Read the ticket\n\n- one\n- two",
+    );
+  });
+
+  it("joins 'Read\\nthe' after an emoji of two UTF-16 units", () => {
+    expect(joinedParagraphs("Hi \u{1F642} Read\nthe")).toBe(
+      "Hi \u{1F642} Read the",
+    );
   });
 });
