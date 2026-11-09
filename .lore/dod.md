@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] update `decideScaffoldCommit` to return true when a LORE-owned file differs from canonical content
+- [x] update `decideScaffoldCommit` to return true when a LORE-owned file differs from canonical content
 
 ## Out of scope
 

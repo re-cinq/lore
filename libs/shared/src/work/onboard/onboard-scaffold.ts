@@ -56,6 +56,10 @@ export function decideScaffoldCommit(
   file: Pick<ScaffoldFile, "owner" | "content">,
   current: string | null,
 ): boolean {
+  if (file.owner === "lore") {
+    return current !== file.content;
+  }
+
   return current === null;
 }
 
