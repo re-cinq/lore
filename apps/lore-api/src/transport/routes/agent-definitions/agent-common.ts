@@ -106,7 +106,7 @@ export async function resolvePodResourcesUpdate(
   };
 }
 
-function patchPodResources(
+export function patchPodResources(
   stored: PodResources | null | undefined,
   patch: PodResources | null,
 ): PodResources | null {

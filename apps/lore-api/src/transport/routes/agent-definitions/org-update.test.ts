@@ -129,14 +129,62 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
-  it("rejects a non-empty image with 400 — org image changes go through the per-repo two-key flow", async () => {
-    const res = await put(await server(await floorWithFixCi()), {
+  it("puts image ghcr.io/acme/runner:2 on fix-ci's settings", async () => {
+    const floor = await floorWithFixCi();
+
+    const res = await put(await server(floor), {
       name: "fix-ci",
-      image: "ghcr.io/acme/runner:1",
+      image: "ghcr.io/acme/runner:2",
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.payload).error).toBe("image_org_gated");
+    expect({
+      status: res.statusCode,
+      image: (await floor.get("fix-ci"))?.body.settings.image,
+    }).toEqual({ status: 200, image: "ghcr.io/acme/runner:2" });
+  });
+
+  it("saves a 4Gi memory limit when image is null, keeping fix-ci's image", async () => {
+    const floor = await floorWithFixCi();
+
+    const res = await put(await server(floor), {
+      name: "fix-ci",
+      image: null,
+      pod_resources: { limits: { memory: "4Gi" } },
+    });
+
+    expect({
+      status: res.statusCode,
+      settings: (await floor.get("fix-ci"))?.body.settings,
+    }).toMatchObject({
+      status: 200,
+      settings: {
+        image: "ghcr.io/re-cinq/agent:1",
+        config: {
+          skills: ["lore-context"],
+          pod_resources: { limits: { memory: "4Gi" } },
+        },
+      },
+    });
+  });
+
+  it("keeps requests.cpu 500m when a patch names only limits.memory 4Gi", async () => {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("fix-ci", {
+      settings: {
+        ...FIX_CI.settings,
+        config: { pod_resources: { requests: { cpu: "500m" } } },
+      },
+    });
+
+    await put(await server(floor), {
+      name: "fix-ci",
+      pod_resources: { limits: { memory: "4Gi" } },
+    });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      pod_resources: { requests: { cpu: "500m" }, limits: { memory: "4Gi" } },
+    });
   });
 
   it("rejects an invalid body with 400 invalid_agent", async () => {

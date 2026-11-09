@@ -76,11 +76,12 @@ export function PodResourceFields({
 interface ImageFieldsProps {
   image: string | null | undefined;
   defaultImage?: string;
+  /** The approval PR is the repo-scoped two-key ceremony; the org default's image is gated by admin scope alone. */
+  showApprovalPr: boolean;
 }
 
-/** Repo-scoped only: the API refuses an org-wide image change, because the two-key ceremony that authorizes one is repo-scoped. */
 export function ImageFields(props: ImageFieldsProps): React.ReactElement {
-  const { image, defaultImage } = props;
+  const { image, defaultImage, showApprovalPr } = props;
 
   return (
     <>
@@ -92,8 +93,12 @@ export function ImageFields(props: ImageFieldsProps): React.ReactElement {
       />
       <ImageNote defaultImage={defaultImage} />
 
-      <label>Approval PR (only when changing the image)</label>
-      <input name="approval_pr" placeholder="re-cinq/lore#123" />
+      {showApprovalPr && (
+        <>
+          <label>Approval PR (only when changing the image)</label>
+          <input name="approval_pr" placeholder="re-cinq/lore#123" />
+        </>
+      )}
     </>
   );
 }

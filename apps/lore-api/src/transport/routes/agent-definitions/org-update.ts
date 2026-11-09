@@ -11,22 +11,27 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
   parseAgentPatch,
-  imageFieldTouched,
+  type AgentPatch,
+  type PodResources,
 } from "../../../work/agents/agents-schema.js";
+import { patchPodResources } from "./agent-common.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
-// Writes the ORG DEFAULT, the floor definition's own settings (#3995); `image` is refused here since the two-key ceremony is CODEOWNERS-scoped per repo.
+// Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
 
 const OrgAgentWrittenSchema = z.object({
   ok: OkTrue,
   agent: ResolvedAgentDefinitionSchema,
 });
 
-const IMAGE_ORG_DETAIL =
-  "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
-  "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
+/** A required org field sent as null is a form field left empty, so the stored value stays. */
+const REQUIRED_ORG_FIELDS: readonly string[] = [
+  "prompt",
+  "image",
+  "timeout_minutes",
+];
 
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
@@ -78,7 +83,7 @@ async function orgUpdateOutcome(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  let patch: ReturnType<typeof parseAgentPatch>;
+  let patch: AgentPatch;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
@@ -101,17 +106,11 @@ function issuesOf(err: unknown): unknown {
     : (err as Error).message;
 }
 
-/** Applies a validated patch to the ORG default. `image` is refused here rather than ignored: an org-wide image change affects every repo that has not overridden it, so it is a per-repo decision by design. */
 async function applyOrgPatch(
   deps: OrgWriteDeps,
   name: string,
-  patch: ReturnType<typeof parseAgentPatch>,
+  patch: AgentPatch,
 ) {
-  enforceTrue(
-    !imageFieldTouched(patch),
-    apiError(400, { detail: IMAGE_ORG_DETAIL }),
-    "image_org_gated",
-  );
   const agent = await writeOrgPatch(deps.definitions, name, patch);
 
   await audit(deps.pool, "agent_org_updated", { name });
@@ -120,10 +119,10 @@ async function applyOrgPatch(
 }
 
 /** Only the patched fields change on the floor; with no floor there is nowhere to write, so the write is refused. */
-function writeOrgPatch(
+async function writeOrgPatch(
   definitions: FloorDefinitions,
   name: string,
-  patch: ReturnType<typeof parseAgentPatch>,
+  patch: AgentPatch,
 ) {
   const floor = definitions();
 
@@ -132,18 +131,48 @@ function writeOrgPatch(
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
-    fields,
-    orgPodResourcesUpdate(pod_resources),
+    withoutClearedRequired(fields),
+    await orgPodResourcesWrite(floor, name, pod_resources),
   );
 }
 
-// Merged over the definition's own config; the org default inherits from nothing.
-function orgPodResourcesUpdate(
-  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
+type FloorApi = NonNullable<ReturnType<FloorDefinitions>>;
+
+/** Merged per key over the org default's stored pod resources; the org default inherits from nothing. */
+async function orgPodResourcesWrite(
+  floor: FloorApi,
+  name: string,
+  podResources: AgentPatch["pod_resources"],
 ) {
-  return podResources === undefined
-    ? undefined
-    : { podResources, inheritedConfig: null };
+  if (podResources === undefined) {
+    return undefined;
+  }
+  const stored = await storedPodResources(floor, name);
+
+  return {
+    podResources: patchPodResources(stored, podResources),
+    inheritedConfig: null,
+  };
+}
+
+async function storedPodResources(
+  floor: FloorApi,
+  name: string,
+): Promise<PodResources | undefined> {
+  const body = (await floor.get(name))?.body;
+  const config = body?.settings.config;
+
+  return config?.pod_resources as PodResources | undefined;
+}
+
+function withoutClearedRequired(
+  fields: Omit<AgentPatch, "pod_resources">,
+): Omit<AgentPatch, "pod_resources"> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(
+      ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),
+    ),
+  );
 }
 
 async function audit(
