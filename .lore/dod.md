@@ -6,13 +6,13 @@
 
   ## Done when these pass
 
-  - [ ] **returns false when neither field contains the query, even if their concatenation does** — returning false when neither field individually contains the query, despite cross-field overlap
+  - [x] **returns false when neither field contains the query, even if their concatenation does** — returning false when neither field individually contains the query, despite cross-field overlap
     `apps/web-ui/src/lib/graph-search.acceptance.test.ts`
 
   ## Facets
 
-  - [ ] Add cross-field regression test to `apps/web-ui/src/lib/graph-search.acceptance.test.ts`
-  - [ ] Update `nodeMatchesQuery` to check `label` and `path` separately.
+  - [x] Add cross-field regression test to `apps/web-ui/src/lib/graph-search.acceptance.test.ts`
+  - [x] Update `nodeMatchesQuery` to check `label` and `path` separately.
 
   ## Out of scope
 

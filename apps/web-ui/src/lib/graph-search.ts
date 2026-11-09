@@ -9,5 +9,8 @@ export function nodeMatchesQuery(
     return true;
   }
 
-  return `${node.label ?? ""} ${node.path ?? ""}`.toLowerCase().includes(q);
+  return (
+    (node.label ?? "").toLowerCase().includes(q) ||
+    (node.path ?? "").toLowerCase().includes(q)
+  );
 }
