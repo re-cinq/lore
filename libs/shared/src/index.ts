@@ -325,3 +325,11 @@ export * from "./work/ci-wait/round-brief.js";
 export * from "./work/repo-validation/repo-validation-detect.js";
 export * from "./work/scheduler/cron-emitters.js";
 export * from "./work/scheduler/cron-scheduler.js";
+
+// Explicit re-exports to resolve star-export ambiguities between sub-barrels.
+export type { Chunk } from "./work/chunk-primitives.js";
+export type { Assert } from "./lib/row.js";
+export type { Statement } from "./domain/spec-segment.js";
+export type { UnlinkedStatement } from "./work/spec-status-coverage.js";
+export type { TestReport } from "./domain/models/test-report.js";
+export type { DriftedStatement } from "./work/spec-trace/format-drift-report.js";
