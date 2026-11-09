@@ -75,4 +75,15 @@ describe("groupSpecSummaries", () => {
       title: "onboarding",
     });
   });
+
+  it("titles a spec.md-less folder from its key even when a sibling file has a title", () => {
+    const groups = groupSpecSummaries([
+      { filePath: "specs/auth/plan.md", title: "Plan", description: "" },
+    ]);
+
+    expect(groups[0]).toMatchObject({
+      key: "specs/auth",
+      title: "auth",
+    });
+  });
 });

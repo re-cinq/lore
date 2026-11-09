@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Handle the absence of `spec.md` separately from the absence of its title
+- [x] Handle the absence of `spec.md` separately from the absence of its title
 
 ## Out of scope
 
