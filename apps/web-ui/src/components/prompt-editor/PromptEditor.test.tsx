@@ -171,4 +171,14 @@ describe("PromptEditor", () => {
 
     expect(container.querySelectorAll(".cm-line")).toHaveLength(2);
   });
+
+  it("gives the caret the text colour rather than CodeMirror's black", () => {
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue="Read" />,
+    );
+
+    expect(
+      getComputedStyle(container.querySelector(".cm-content")!).caretColor,
+    ).toBe("var(--text)");
+  });
 });
