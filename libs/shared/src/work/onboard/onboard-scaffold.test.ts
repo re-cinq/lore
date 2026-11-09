@@ -11,7 +11,6 @@ describe("decideScaffoldCommit", () => {
     ).toBe(false);
   });
 
-  // eslint-disable-next-line re-lint/require-spec-link
   it("returns true for a lore-owned file when it differs from canonical content", () => {
     expect(
       decideScaffoldCommit(
@@ -21,14 +20,12 @@ describe("decideScaffoldCommit", () => {
     ).toBe(true);
   });
 
-  // eslint-disable-next-line re-lint/require-spec-link
   it("returns true for any file when it is absent", () => {
     expect(
       decideScaffoldCommit({ owner: "lore", content: "canonical" }, null),
     ).toBe(true);
   });
 
-  // eslint-disable-next-line re-lint/require-spec-link
   it("returns false for a repo-owned file when it already exists", () => {
     expect(
       decideScaffoldCommit(
