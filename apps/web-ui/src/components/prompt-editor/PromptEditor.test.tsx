@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { undo } from "@codemirror/commands";
+import { readFileSync } from "node:fs";
 import PromptEditor from "./PromptEditor";
 
 const PROMPT =
@@ -180,5 +181,24 @@ describe("PromptEditor", () => {
     expect(
       getComputedStyle(container.querySelector(".cm-content")!).caretColor,
     ).toBe("var(--text)");
+  });
+
+  it("draws each block of the shipped code-review prompt as one line", () => {
+    const body = readFileSync(
+      `${process.cwd()}/../../libs/shared/src/agent-defaults/code-review.md`,
+      "utf8",
+    ).replace(/^---\n[\s\S]*?\n---\n/, "");
+    const { container } = render(
+      <PromptEditor name="prompt" defaultValue={body} />,
+    );
+    const lines = [...container.querySelectorAll(".cm-line")]
+      .map((line) => line.textContent ?? "")
+      .filter((text) => text.trim() !== "");
+
+    expect(lines.slice(1, 4)).toEqual([
+      expect.stringContaining("Read the diff and changed files"),
+      expect.stringContaining("the PR title, the spec sections it touches"),
+      expect.stringContaining("Read the change as its user"),
+    ]);
   });
 });

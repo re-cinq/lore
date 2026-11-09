@@ -109,4 +109,8 @@ describe("joinedParagraphs", () => {
       "Hi \u{1F642} Read the",
     );
   });
+
+  it("returns 'Read the ticket' for a form-saved 'Read the\\r\\nticket'", () => {
+    expect(joinedParagraphs("Read the\r\nticket")).toBe("Read the ticket");
+  });
 });
