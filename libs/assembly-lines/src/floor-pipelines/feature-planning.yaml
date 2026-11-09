@@ -250,11 +250,15 @@ line:
       to: assemble
       on: failed
     # A section whose pod returned no usable patch, or whose patch did not all
-    # apply, goes round again: split-sections lists what is left.
+    # apply, goes round again: split-sections lists what is left. assemble itself
+    # gives a section one retry per gate round (MAX_SECTION_ATTEMPTS), but this
+    # budget counts across the run, so it matches the gate's five handbacks: at
+    # two, a run whose sections needed a retry in three rounds ended as
+    # iteration_max although every retry had worked.
     - from: assemble
       to: split-sections
       on: retry
-      iteration_max: 2
+      iteration_max: 5
     - from: assemble
       to: qa-answer
       on: success

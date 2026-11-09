@@ -1127,7 +1127,7 @@ describe("the feature-planning pipeline", () => {
           from: "assemble",
           to: "split-sections",
           on: "retry",
-          iteration_max: 2,
+          iteration_max: 5,
         },
         { from: "assemble", to: "qa-answer", on: "success" },
         { from: "assemble", to: "failed", on: "failed" },
@@ -1254,7 +1254,7 @@ describe("the feature-planning pipeline", () => {
       body: "spec-write",
       intoSplit: [
         "draft:success:-",
-        "assemble:retry:2",
+        "assemble:retry:5",
         "qa-gate:changes_requested:5",
       ],
     });
