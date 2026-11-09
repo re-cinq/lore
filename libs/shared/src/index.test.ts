@@ -10,13 +10,15 @@ function collectModules(dir: string, prefix = ""): string[] {
       return collectModules(join(dir, entry.name), `${prefix}${entry.name}/`);
     }
     const f = entry.name;
+
     if (
       !f.endsWith(".ts") ||
       f.endsWith(".test.ts") ||
       f.endsWith(".d.ts") ||
       f === "index.ts"
     )
-      return [];
+      {return [];}
+
     return [`${prefix}${f.replace(/\.ts$/, "")}`];
   });
 }
@@ -32,8 +34,9 @@ describe("public barrel (index.ts)", () => {
     const modules = collectModules(srcDir);
 
     const missing = modules.filter((m) => {
-      if (index.includes(`./${m}.js`)) return false;
+      if (index.includes(`./${m}.js`)) {return false;}
       const segments = m.split("/");
+
       return !segments
         .slice(0, -1)
         .some((_, i) =>
