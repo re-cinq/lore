@@ -20,6 +20,13 @@ service:
   type: ClusterIP
   port: 8080
 
+# The floor's agent pods, which fetch skills and speak MCP to this gateway.
+# An empty namespace leaves their egress alone.
+agentPods:
+  namespace: ai-agents
+  podLabels:
+    agents.re-cinq.com/component: job
+
 resources:
   limits:
     cpu: "500m"
@@ -34,8 +41,8 @@ env:
   LORE_MCP_PORT: "8080"
   LORE_METRICS_PORT: "9464"
   # In-cluster lore-api. The gateway is a normal Deployment (NOT under the
-  # agent-job NetworkPolicy), so it may use the ClusterIP directly — only the
-  # agent→gateway hop must be public :443 (Terraform-owned Ingress).
+  # agent-job NetworkPolicy), so it may use the ClusterIP directly. Agent pods
+  # reach it by its Service too, through templates/agent-egress.yaml.
   LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
   LORE_TEAM: platform
 
