@@ -29,7 +29,7 @@ interface AgentFormProps {
   isNew: boolean;
   /** Default runner image for placeholder (shows inherited, not prefilled). */
   defaultImage?: string;
-  /** Org-default editing hides image+approval (API refuses org image change). */
+  /** Org-default editing hides the repo-scoped approval PR input. */
   orgScope?: boolean;
 }
 
@@ -111,12 +111,10 @@ interface ExecutionFieldsProps {
   defaultImage?: string;
 }
 
-/** How this agent RUNS: its limits, its pod resources, and — repo-scoped only — the execution image. The image is omitted org-wide because the API refuses an org-wide image change: the two-key ceremony authorizing one is itself repo-scoped. */
-function ExecutionFields({
-  values,
-  image,
-  defaultImage,
-}: ExecutionFieldsProps) {
+/** How this agent RUNS: its limits, its pod resources and its execution image. */
+function ExecutionFields(props: ExecutionFieldsProps) {
+  const { values, image, defaultImage } = props;
+
   return (
     <>
       <RunLimitsFields
@@ -125,12 +123,12 @@ function ExecutionFields({
         promptPlaceholder={values.promptPlaceholder}
         promptInherited={values.promptInherited}
       />
-
       <PodResourceFields podResources={values.podResources} />
-
-      {!values.orgScope && (
-        <ImageFields image={image} defaultImage={defaultImage} />
-      )}
+      <ImageFields
+        image={image}
+        defaultImage={defaultImage}
+        showApprovalPr={!values.orgScope}
+      />
     </>
   );
 }

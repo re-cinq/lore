@@ -181,7 +181,7 @@ describe("AgentForm", () => {
     expect(memoryLimit.placeholder).toBe("1Gi");
   });
 
-  it("orgScope notes the org-wide save and hides the image + approval inputs", () => {
+  it("orgScope notes the org-wide save, shows the image input and hides the approval input", () => {
     const { container, getByText } = render(
       <AgentForm repo="" agent={agent} action={noop} isNew={false} orgScope />,
     );
@@ -189,8 +189,10 @@ describe("AgentForm", () => {
     expect(
       getByText(/Saving updates it for every repo without its own override/),
     ).toBeTruthy();
-    expect(container.querySelector('input[name="image"]')).toBeNull();
-    expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
+    expect({
+      image: container.querySelector('input[name="image"]') !== null,
+      approvalPr: container.querySelector('input[name="approval_pr"]') !== null,
+    }).toEqual({ image: true, approvalPr: false });
   });
 
   it("surfaces an error returned by the action", async () => {
