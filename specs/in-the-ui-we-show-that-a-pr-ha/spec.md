@@ -128,7 +128,7 @@ show a small status indicator next to the PR link (fetched client-side).
 
 ## Acceptance Criteria
 
-1. The run list shows a live PR status badge when a PR exists ([validated by `github.test.ts@a3d87739`](apps/web-ui/src/lib/github.test.ts#L99))
+1. The run list shows a live PR status badge when a PR exists ([validated by `github.test.ts@a3d87739`](apps/web-ui/src/lib/github.test.ts#L109))
 
 2. Check results (pass/fail) visible without going to GitHub ([validated by `github.test.ts@4585fb9d`](apps/web-ui/src/lib/github.test.ts#L53))
 
