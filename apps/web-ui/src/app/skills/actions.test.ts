@@ -86,12 +86,41 @@ describe("updateSkill", () => {
   });
 });
 
+describe("updateSkill request", () => {
+  it("sends a PUT body without name for ghost", async () => {
+    answer(200, { ok: true });
+
+    await updateSkill("ghost", {}, skillForm("## Help"));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+
+    expect(body).toEqual({
+      title: "Ghost",
+      model: null,
+      content: "## Help",
+      enabled: true,
+    });
+  });
+});
+
 describe("deleteSkill", () => {
   it("returns the error when the API answers 503", async () => {
     answer(503, { error: "database unavailable" });
 
-    const state = await deleteSkill("ghost", {}, new FormData());
+    const state = await deleteSkill("ghost");
 
     expect(state).toEqual({ error: "database unavailable" });
+  });
+
+  it("revalidates /skills and does not redirect when the API answers 200", async () => {
+    answer(200, { ok: true, deleted: "ghost" });
+
+    const state = await deleteSkill("ghost");
+
+    expect({
+      state,
+      revalidated: revalidatePath.mock.calls,
+      redirected: redirect.mock.calls,
+    }).toEqual({ state: {}, revalidated: [["/skills"]], redirected: [] });
   });
 });

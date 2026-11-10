@@ -1,16 +1,25 @@
 "use client";
 
-import { useActionState } from "react";
-import { SubmitButton } from "@/components/SubmitButton";
-import type { SkillFormAction } from "./SkillForm";
+import ConfirmedActionButton from "@/components/ConfirmedActionButton";
+import type { ServerAction } from "@/components/useRefreshingAction";
 
-export function DeleteSkillButton({ action }: { action: SkillFormAction }) {
-  const [state, formAction] = useActionState(action, {});
+interface DeleteSkillButtonProps {
+  name: string;
+  remove: ServerAction;
+}
 
+export function DeleteSkillButton({ name, remove }: DeleteSkillButtonProps) {
   return (
-    <form action={formAction}>
-      <SubmitButton>Delete</SubmitButton>
-      {state.error && <span role="alert">{state.error}</span>}
-    </form>
+    <ConfirmedActionButton
+      action={remove}
+      label="Delete"
+      question={{
+        title: `Delete ${name}?`,
+        body: "The org skill is removed and agents stop receiving it. This cannot be undone.",
+        confirmLabel: "Delete skill",
+        tone: "danger",
+        typeToConfirm: name,
+      }}
+    />
   );
 }

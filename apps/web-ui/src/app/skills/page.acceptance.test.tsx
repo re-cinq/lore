@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 
 import SkillsPage from "./page";
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 describe("Skills Management UI", () => {
   beforeEach(() => {
@@ -40,25 +45,16 @@ describe("Skills Management UI", () => {
     ).toBeInTheDocument();
   });
 
-  it("Skill definitions offer options for setting models, titles, and content", async () => {
+  it("Skills page offers Add skill and no inline form fields when no skills exist", async () => {
     vi.spyOn(global, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ skills: [] })),
     );
 
-    const ui = await SkillsPage({ searchParams: Promise.resolve({}) });
+    render(await SkillsPage({ searchParams: Promise.resolve({}) }));
 
-    render(ui);
-
-    const createBtn =
-      screen.queryByRole("button", { name: /create|new/i }) ||
-      screen.queryByRole("link", { name: /create|new/i });
-
-    if (createBtn) {
-      fireEvent.click(createBtn);
-    }
-
-    expect(await screen.findByLabelText(/model/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/content|skill\.md/i)).toBeInTheDocument();
+    expect({
+      add: screen.getByRole("link", { name: "Add skill" }).getAttribute("href"),
+      fields: screen.queryAllByRole("textbox").length,
+    }).toEqual({ add: "/skills/new", fields: 0 });
   });
 });

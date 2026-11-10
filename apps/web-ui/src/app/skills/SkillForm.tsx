@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
+import Link from "next/link";
+import { FormError } from "@/components/FormError";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { SkillFormState, SkillFormValues } from "./actions";
 import { HELP_BLOCK_TEMPLATE } from "./help-template";
@@ -32,16 +34,20 @@ export function SkillForm({ skill, action }: SkillFormProps) {
   const initial = state.values ?? valuesOf(skill);
 
   return (
-    <section>
-      <h2>{skill ? `Edit skill: ${skill.name}` : "New skill"}</h2>
-      <form action={formAction}>
+    <div>
+      <div className="breadcrumb">
+        <Link href="/skills">Skills</Link> /{" "}
+        <strong>{skill ? skill.name : "New skill"}</strong>
+      </div>
+      <h1>{skill ? `Edit skill: ${skill.name}` : "New skill"}</h1>
+      <form action={formAction} className="task-form">
         <IdentityFields isNew={!skill} initial={initial} />
         <ModelSelect initialModel={initial.model} />
         <ContentField initialContent={initial.content} />
         <EnabledCheckbox initialEnabled={initial.enabled} />
         <FormFooter isNew={!skill} error={state.error} />
       </form>
-    </section>
+    </div>
   );
 }
 
@@ -54,15 +60,11 @@ interface IdentityFieldsProps {
   initial: SkillFormValues;
 }
 
-/** The name is the skill's directory and key, so it is typed once and travels hidden afterwards. */
+/** The name is the skill's directory and key, so it is typed once and read-only afterwards. */
 function IdentityFields({ isNew, initial }: IdentityFieldsProps) {
   return (
     <>
-      {isNew ? (
-        <TextField field="name" initial={initial} required />
-      ) : (
-        <input type="hidden" name="name" value={initial.name} />
-      )}
+      <TextField field="name" initial={initial} required readOnly={!isNew} />
       <TextField field="title" initial={initial} required />
       <TextField field="description" initial={initial} />
     </>
@@ -126,9 +128,11 @@ interface FormFooterProps {
 function FormFooter({ isNew, error }: FormFooterProps) {
   return (
     <>
-      {error && <p role="alert">{error}</p>}
-      <SubmitButton>{isNew ? "Create" : "Save"}</SubmitButton>
-      {!isNew && <a href="?">Cancel</a>}
+      <FormError message={error} />
+      <SubmitButton pendingLabel={isNew ? "Creating…" : "Saving…"}>
+        {isNew ? "Create" : "Save"}
+      </SubmitButton>
+      <Link href="/skills">Cancel</Link>
     </>
   );
 }
@@ -139,9 +143,15 @@ interface TextFieldProps {
   field: TextFieldName;
   initial: SkillFormValues;
   required?: boolean;
+  readOnly?: boolean;
 }
 
-function TextField({ field, initial, required }: TextFieldProps) {
+const NAME_HINT =
+  "Lowercase letters, digits and dashes, starting with a letter or digit.";
+
+const NAME_PATTERN = "[a-z0-9][a-z0-9\\-]*";
+
+function TextField({ field, initial, required, readOnly }: TextFieldProps) {
   const id = `skill-${field}`;
 
   return (
@@ -152,6 +162,10 @@ function TextField({ field, initial, required }: TextFieldProps) {
         name={field}
         type="text"
         required={required}
+        readOnly={readOnly}
+        pattern={field === "name" ? NAME_PATTERN : undefined}
+        title={field === "name" ? NAME_HINT : undefined}
+        placeholder={field === "name" ? "my-skill" : undefined}
         defaultValue={initial[field]}
       />
     </div>
