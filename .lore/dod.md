@@ -11,9 +11,10 @@
 
 ## Facets
 
-- [ ] Fetch the per-PR blocked reason using `useSWR` (or similar fetch) in `RunLiveShell.tsx` or a child component
-- [ ] Display the blocked reason label from the API response
-- [ ] Show a skeleton or loading state until the fetch resolves
+- [x] Fetch the per-PR blocked reason using `useSWR` (or similar fetch) in `RunLiveShell.tsx` or a child component
+- [x] Display the blocked reason label from the API response
+- [x] Show a skeleton or loading state until the fetch resolves
+- [ ] Fix `oreAllMocks` ReferenceError in acceptance test afterEach (line 15)
 
 ## Out of scope
 
