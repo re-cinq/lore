@@ -1,94 +1,216 @@
-import { describe, expect, it } from "vitest";
-import { planRun } from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
-import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import {
+  planRun,
+  planVisit,
+} from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
+import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  clearLoopProgressArgs,
+  LOOP_STEP_DESCRIPTIONS,
+  loopProgressCheck,
   loopProgressHandlers,
+  publishLoopRunProgress,
+  supersededLoopCheck,
   type LoopProgressDeps,
+  type LoopRunView,
+  type LoopVisitView,
 } from "./loop-progress-handlers.js";
 
-const SHA = "abc123def456";
-const REPO = "acme/widgets";
+const PR_URL = "https://github.com/re-cinq/lore/pull/241";
+const LIVE_SHA = "9dcdcc5";
 
-const loopRun = planRun({
-  id: "run-1",
-  lineId: "implementation-loop",
-  repo: `github.com/${REPO}`,
-  startItems: {
-    repo: {
-      kind: "git",
-      ref: `github.com/${REPO}@lore/implementation-loop/issue-7`,
-      by: "lore",
-    },
-    pr_check_sha: { kind: "value", ref: SHA, by: "lore" },
-  },
-});
+describe("loopProgressCheck and publishLoopRunProgress", () => {
+  beforeEach(() => {
+    clearLoopProgressArgs();
+  });
 
-function scene(overrides: Partial<LoopProgressDeps> = {}): {
-  checks: CheckRunInput[];
-  deps: LoopProgressDeps;
-} {
-  const checks: CheckRunInput[] = [];
-
-  return {
-    checks,
-    deps: {
-      run: async () => loopRun,
-      upsertCheckRun: async (_repo, input) => {
-        checks.push(input);
+  it("publishes lore/implementation-loop on the pull request's live head rather than a stale head_sha stamped at start", () => {
+    const run = loopRun({
+      startItems: {
+        pr_url: { kind: "value", ref: PR_URL, by: "lore" },
+        head_sha: { kind: "value", ref: "stale-start-sha", by: "lore" },
       },
-      ...overrides,
-    },
-  };
-}
-
-describe("loop progress handlers", () => {
-  it("publishes an in-progress check on the pr_check_sha when a station run is dispatched for the implementation loop", async () => {
-    const { checks, deps } = scene();
-    const handler = loopProgressHandlers(deps).get("station_run.dispatched")!;
-
-    await handler({
-      run_id: "run-1",
-      line_id: "implementation-loop",
-      node_id: "tdd-round",
     });
+    const check = loopProgressCheck(run, [], { liveHeadSha: LIVE_SHA });
 
-    expect(checks).toHaveLength(1);
-    expect(checks[0]).toMatchObject({
-      headSha: SHA,
+    expect(check).toMatchObject({
+      headSha: LIVE_SHA,
       name: "lore/implementation-loop",
       status: "in_progress",
     });
   });
 
-  it("skips a dispatched station run that belongs to a different line", async () => {
-    const { checks, deps } = scene();
-    const handler = loopProgressHandlers(deps).get("station_run.dispatched")!;
+  it("publishes nothing while the pull request's live head is unknown or no PR exists yet", async () => {
+    const { checks, deps, run, visits } = publishScene({ liveHeadSha: null });
 
-    await handler({
-      run_id: "run-1",
-      line_id: "code-review",
-      node_id: "post-review",
-    });
-
-    expect(checks).toHaveLength(0);
+    expect(loopProgressCheck(run, visits, { liveHeadSha: null })).toBeNull();
+    await publishLoopRunProgress(deps, run, visits);
+    expect(checks).toEqual([]);
   });
 
-  it("publishes a success check when an implementation-loop run settles", async () => {
-    const { checks, deps } = scene();
-    const handler = loopProgressHandlers(deps).get("run.settled")!;
-
-    await handler({
-      run_id: "run-1",
-      line_id: "implementation-loop",
-      outcome: "success",
+  it("opens the run page /assembly-runs/<id> on the Lore UI via detailsUrl", () => {
+    const check = loopProgressCheck(loopRun(), [openPrVisit()], {
+      liveHeadSha: LIVE_SHA,
+      uiUrl: "https://lore.example.com",
     });
 
-    expect(checks).toHaveLength(1);
-    expect(checks[0]).toMatchObject({
-      headSha: SHA,
-      name: "lore/implementation-loop",
+    expect(check).toMatchObject({
+      detailsUrl: "https://lore.example.com/assembly-runs/694a406f",
+    });
+  });
+
+  it("titles an in-flight check with the description of the step in flight and names that step and its visit in the summary", () => {
+    const visits: LoopVisitView[] = [
+      openPrVisit(),
+      planVisit(
+        "tdd-round",
+        { outcome: "changes_requested" },
+        { iteration: 3 },
+      ),
+      planVisit("await-ci", null, { iteration: 3 }),
+    ];
+    const check = loopProgressCheck(loopRun(), visits, {
+      liveHeadSha: LIVE_SHA,
+    });
+
+    expect(check).toMatchObject({
+      status: "in_progress",
+      title: LOOP_STEP_DESCRIPTIONS["await-ci"],
+    });
+    expect(check?.summary).toContain("Now at `await-ci` (visit 3)");
+  });
+
+  it("publishes a green completed check when the run completed even though rounds recorded changes_requested", () => {
+    const run = loopRun({
+      outcome: "success",
+      finishedAt: "2026-11-10T10:00:00.000Z",
+    });
+    const visits: LoopVisitView[] = [
+      openPrVisit(),
+      planVisit("tdd-round", { outcome: "changes_requested" }),
+      planVisit("await-ci", { outcome: "changes_requested" }),
+      planVisit("await-pr", { outcome: "success" }),
+    ];
+
+    expect(
+      loopProgressCheck(run, visits, { liveHeadSha: LIVE_SHA }),
+    ).toMatchObject({
       status: "completed",
       conclusion: "success",
+      summary: "Finished.",
     });
   });
+
+  it("publishes failure and cancelled conclusions for non-completed terminal outcomes", () => {
+    const failedRun = loopRun({
+      outcome: "iteration_max",
+      reason: "round budget exhausted",
+      finishedAt: "2026-11-10T10:00:00.000Z",
+    });
+    const cancelledRun = loopRun({
+      outcome: "pr_closed",
+      finishedAt: "2026-11-10T10:00:00.000Z",
+    });
+
+    expect(
+      loopProgressCheck(failedRun, [openPrVisit()], { liveHeadSha: LIVE_SHA }),
+    ).toMatchObject({
+      status: "completed",
+      conclusion: "failure",
+      summary: "implementation-loop failed — round budget exhausted.",
+    });
+    expect(
+      loopProgressCheck(cancelledRun, [openPrVisit()], {
+        liveHeadSha: LIVE_SHA,
+      }),
+    ).toMatchObject({
+      status: "completed",
+      conclusion: "cancelled",
+      summary: "PR closed.",
+    });
+  });
+
+  it("refreshes the check on pull request synchronize and sweep tick events", async () => {
+    const { checks, deps } = publishScene({ liveHeadSha: LIVE_SHA });
+    const handlers = loopProgressHandlers(deps);
+
+    await handlers.get("github.pull_request.synchronize")?.({
+      repo: "re-cinq/lore",
+      pr_number: 241,
+    });
+    await handlers.get("cron.pr_ready_check.tick")?.({});
+
+    expect(checks).toHaveLength(2);
+    expect(checks[0]).toMatchObject({
+      headSha: LIVE_SHA,
+      name: "lore/implementation-loop",
+      status: "in_progress",
+    });
+  });
+
+  it("closes the check on the previous head as neutral Superseded when the head moves and returns null when unchanged", () => {
+    const nextCheck: CheckRunInput = {
+      headSha: "new-sha",
+      name: "lore/implementation-loop",
+      status: "in_progress",
+      title: "Waiting on CI.",
+      summary: "Running.",
+    };
+
+    expect(
+      supersededLoopCheck({ pr_check_sha: "old-sha" }, nextCheck),
+    ).toMatchObject({
+      headSha: "old-sha",
+      name: "lore/implementation-loop",
+      status: "completed",
+      conclusion: "neutral",
+      title: "Superseded",
+    });
+    expect(
+      supersededLoopCheck({ pr_check_sha: "new-sha" }, nextCheck),
+    ).toBeNull();
+  });
 });
+
+function openPrVisit(): LoopVisitView {
+  return planVisit("open-pr", {
+    outcome: "success",
+    produced: { pr_url: PR_URL },
+  });
+}
+
+function loopRun(overrides: Partial<LoopRunView> = {}): LoopRunView {
+  return {
+    ...planRun({
+      id: "694a406f",
+      lineId: "implementation-loop",
+      repo: "github.com/re-cinq/lore",
+      outcome: null,
+      finishedAt: null,
+    }),
+    args: { pr_number: 241 },
+    ...overrides,
+  };
+}
+
+function publishScene(opts: { liveHeadSha: string | null }) {
+  const checks: CheckRunInput[] = [];
+  const run = loopRun();
+  const visits: LoopVisitView[] = [
+    openPrVisit(),
+    { ...planVisit("tdd-round"), report: null },
+  ];
+  const deps: LoopProgressDeps = {
+    run: () => Promise.resolve(run),
+    visits: () => Promise.resolve(visits),
+    openLoopRuns: () => Promise.resolve([run]),
+    pullHeadSha: () => Promise.resolve(opts.liveHeadSha),
+    upsertCheckRun: (_repo, input) => {
+      checks.push(input);
+
+      return Promise.resolve();
+    },
+  };
+
+  return { checks, deps, run, visits };
+}

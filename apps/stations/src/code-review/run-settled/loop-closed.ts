@@ -40,6 +40,7 @@ export interface SettleLoopDeps {
   isTaskMerged(taskId: string): Promise<boolean>;
   /** The ports the settling rules write through, for one settled run. */
   closed(settled: FloorLoopRun): LoopRunClosedDeps;
+  publishProgress?(run: RunView, visits: readonly VisitView[]): Promise<void>;
 }
 
 /** Settles the ticket of a loop run, then lets the wrapped station do its own part. */
@@ -65,7 +66,18 @@ async function settleTicket(
   if (!run) {
     return;
   }
-  const settled = closedLoopRunOf(run, await deps.visits(runId));
+  const visits = await deps.visits(runId);
+
+  await publishSettledCheck(deps, run, visits);
+  await closeLoopTicket(deps, run, visits);
+}
+
+async function closeLoopTicket(
+  deps: SettleLoopDeps,
+  run: RunView,
+  visits: VisitView[],
+): Promise<void> {
+  const settled = closedLoopRunOf(run, visits);
 
   if (settled.run.taskId && (await deps.isTaskMerged(settled.run.taskId))) {
     return;
@@ -77,6 +89,18 @@ async function settleTicket(
     run.reason ?? undefined,
     deps.closed(settled),
   );
+}
+
+async function publishSettledCheck(
+  deps: SettleLoopDeps,
+  run: RunView,
+  visits: readonly VisitView[],
+): Promise<void> {
+  try {
+    await deps.publishProgress?.(run, visits);
+  } catch (err) {
+    console.warn(`[loop-progress] settle publish failed: ${String(err)}`);
+  }
 }
 
 /** The two node types the settling rules look for. The floor's line has no retrospective; its `done` marker stands where one was. */

@@ -1,114 +1,104 @@
-// Publishes the lore/implementation-loop GitHub check as the loop run enters each step and once more when it settles (specs/implementation-loop FR17).
+// Refreshes the lore/implementation-loop GitHub check on pull request head movement and sweep ticks, complementing the live floor watch and the lore-run-settled service station (specs/implementation-loop FR17).
+import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
-import type { RunView } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { loreRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { startValueOf } from "@re-cinq/lore-shared/floor/run-start-items.js";
-import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
-import { loreCheckName } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
-import { projectFor } from "../outbound/project-boot.js";
-import { LOOP_BLUEPRINT } from "../work/pr-ready-check/sweep-contract.js";
+import {
+  clearLoopProgressArgs,
+  LOOP_STEP_DESCRIPTIONS,
+  loopPrNumberOf,
+  loopProgressCheck,
+  loopProgressProductionDeps,
+  publishLoopRunProgress,
+  supersededLoopCheck,
+  type LoopCheckContext,
+  type LoopProgressDeps,
+  type LoopRunView,
+  type LoopVisitView,
+} from "../outbound/loop-progress.js";
 
-export interface LoopProgressDeps {
-  run(runId: string): Promise<RunView | null>;
-  upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
-}
-
-interface Ctx {
-  prCheckSha: string;
-  repo: string;
-}
-
-const STATION_RUN_DISPATCHED = "station_run.dispatched";
-const RUN_SETTLED = "run.settled";
+export {
+  clearLoopProgressArgs,
+  LOOP_STEP_DESCRIPTIONS,
+  loopPrNumberOf,
+  loopProgressCheck,
+  loopProgressProductionDeps,
+  publishLoopRunProgress,
+  supersededLoopCheck,
+  type LoopCheckContext,
+  type LoopProgressDeps,
+  type LoopRunView,
+  type LoopVisitView,
+};
 
 export const LOOP_PROGRESS_EVENTS: readonly string[] = [
-  STATION_RUN_DISPATCHED,
-  RUN_SETTLED,
+  "github.pull_request.opened",
+  "github.pull_request.synchronize",
+  "github.pull_request.ready_for_review",
+  "github.pull_request.reopened",
+  "cron.pr_ready_check.tick",
 ];
 
+/** Builds event handlers for pull-request head movement and sweep ticks that refresh lore/implementation-loop. */
 export function loopProgressHandlers(
   deps: LoopProgressDeps,
 ): Map<string, EventHandler> {
-  return new Map<string, EventHandler>([
-    [STATION_RUN_DISPATCHED, onStationRunDispatched(deps)],
-    [RUN_SETTLED, onRunSettled(deps)],
-  ]);
+  const handle = handleProgressEvent(deps);
+
+  return new Map(LOOP_PROGRESS_EVENTS.map((name) => [name, handle]));
 }
 
-function onStationRunDispatched(deps: LoopProgressDeps): EventHandler {
-  return withLoopCtx(deps, async (ctx, p) => {
-    const step = p["node_id"] ?? "step";
-
-    await deps.upsertCheckRun(ctx.repo, {
-      headSha: ctx.prCheckSha,
-      name: loreCheckName(LOOP_BLUEPRINT),
-      title: step,
-      status: "in_progress",
-      summary: `Running: ${step}`,
-    });
-  });
-}
-
-function onRunSettled(deps: LoopProgressDeps): EventHandler {
-  return withLoopCtx(deps, async (ctx) => {
-    await deps.upsertCheckRun(ctx.repo, {
-      headSha: ctx.prCheckSha,
-      name: loreCheckName(LOOP_BLUEPRINT),
-      title: "Completed",
-      status: "completed",
-      conclusion: "success",
-      summary: "The implementation loop run completed.",
-    });
-  });
-}
-
-function withLoopCtx(
-  deps: LoopProgressDeps,
-  fn: (ctx: Ctx, p: Record<string, string | undefined>) => Promise<void>,
-): EventHandler {
+function handleProgressEvent(deps: LoopProgressDeps): EventHandler {
   return async (params) => {
-    const p = params as Record<string, string | undefined>;
-    const ctx = await resolveCtx(deps, p["run_id"], p["line_id"]);
+    const runId = typeof params.run_id === "string" ? params.run_id : undefined;
 
-    if (!ctx) {
+    if (runId) {
+      await refreshLoopRunById(deps, runId);
+
       return;
     }
-    await fn(ctx, p);
+    const repo = typeof params.repo === "string" ? params.repo : undefined;
+    const prNumber =
+      typeof params.pr_number === "number" ? params.pr_number : undefined;
+
+    await refreshOpenLoopRuns(deps, { repo, prNumber });
   };
 }
 
-async function resolveCtx(
+/** Refreshes the check for one loop run by id. */
+export async function refreshLoopRunById(
   deps: LoopProgressDeps,
-  runId: string | undefined,
-  lineId: string | undefined,
-): Promise<Ctx | null> {
-  if (!runId || lineId !== LOOP_BLUEPRINT) {
-    return null;
-  }
+  runId: string,
+): Promise<void> {
   const run = await deps.run(runId);
 
-  if (!run?.repo) {
-    return null;
+  if (!run || run.lineId !== LOOP_LINE) {
+    return;
   }
-  const prCheckSha = startValueOf(run, "pr_check_sha");
+  const visits = await deps.visits(runId);
 
-  if (!prCheckSha) {
-    return null;
-  }
-
-  return { prCheckSha, repo: loreRepoOf(run.repo) };
+  await publishLoopRunProgress(deps, run, visits);
 }
 
-export const loopProgressProductionDeps: LoopProgressDeps = {
-  run: async (runId) => {
-    const floor = floorIfConfigured();
+/** Refreshes the check for every open loop run, optionally scoped to one repo and pull request. */
+export async function refreshOpenLoopRuns(
+  deps: LoopProgressDeps,
+  filter?: { repo?: string; prNumber?: number },
+): Promise<void> {
+  const runs = (await deps.openLoopRuns?.(filter?.repo)) ?? [];
 
-    return floor ? ((await floor.runs.get(runId))?.run ?? null) : null;
-  },
-  upsertCheckRun: async (repo, input) => {
-    const { repo: repository } = await projectFor(repo);
+  for (const run of runs) {
+    await refreshFilteredRun(deps, run, filter?.prNumber);
+  }
+}
 
-    await repository.upsertCheckRun(input);
-  },
-};
+async function refreshFilteredRun(
+  deps: LoopProgressDeps,
+  run: LoopRunView,
+  prNumber?: number,
+): Promise<void> {
+  const visits = await deps.visits(run.id);
+
+  if (prNumber !== undefined && loopPrNumberOf(run, visits) !== prNumber) {
+    return;
+  }
+  await publishLoopRunProgress(deps, run, visits);
+}
