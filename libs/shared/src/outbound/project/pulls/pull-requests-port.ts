@@ -26,6 +26,8 @@ export interface BranchRule {
   requiredApprovals: number;
   codeOwnersReview: boolean;
   requiredChecks: string[];
+  /** False when classic protection answered 403 (App lacks Administration: read), so 0 required approvals from rulesets alone cannot prove the branch is unprotected. */
+  classicProtectionReadable?: boolean;
 }
 
 /** GitHub's own verdict on a PR: `mergeable` is null while GitHub is still computing; `state` is its `mergeable_state` (clean, blocked, behind, dirty, unstable, unknown…). */

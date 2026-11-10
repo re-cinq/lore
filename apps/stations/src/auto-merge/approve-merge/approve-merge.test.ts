@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   APPROVAL_BODY,
   approveAndMerge,
+  NEEDS_ADMINISTRATION_READ,
   NEEDS_CODE_OWNER,
   NEEDS_REVIEWER,
   LOOP_OFF,
@@ -19,6 +20,7 @@ function scene(opts: {
   autoMerge?: boolean;
   loopOn?: boolean;
   codeOwnersReview?: boolean;
+  classicProtectionReadable?: boolean;
 }) {
   const steps: string[] = [];
   const project: MergeProject = {
@@ -33,6 +35,7 @@ function scene(opts: {
       getBranchRule: async () => ({
         requiredApprovals: opts.requiredApprovals ?? 1,
         codeOwnersReview: opts.codeOwnersReview ?? false,
+        classicProtectionReadable: opts.classicProtectionReadable ?? true,
       }),
       enableAutoMerge: async (nodeId, method) => {
         steps.push(`arm:${nodeId}:${method}`);
@@ -191,5 +194,20 @@ describe("approveAndMerge", () => {
       "ask-owners:7:1:approve",
       "audit:auto_merge_approved",
     ]);
+  });
+
+  it("refuses to direct-merge when classic protection answered 403 and no ruleset asks for an approval", async () => {
+    const { project, approver, steps } = scene({
+      requiredApprovals: 0,
+      classicProtectionReadable: false,
+    });
+
+    expect({
+      step: await approveAndMerge(project, approver(LORE), 7),
+      steps,
+    }).toEqual({
+      step: { outcome: "failed", reason: NEEDS_ADMINISTRATION_READ },
+      steps: [],
+    });
   });
 });

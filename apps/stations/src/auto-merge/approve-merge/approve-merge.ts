@@ -24,7 +24,12 @@ export interface MergeProject {
     > | null>;
     getBranchRule(
       branch: string,
-    ): Promise<Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">>;
+    ): Promise<
+      Pick<
+        BranchRule,
+        "requiredApprovals" | "codeOwnersReview" | "classicProtectionReadable"
+      >
+    >;
     enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
     merge(number: number, method: MergeMethod): Promise<void>;
   };
@@ -70,10 +75,13 @@ export async function approveAndMerge(
 
   return rule.requiredApprovals > 0
     ? approveProtected(project, usable, { prNumber, pull, rule })
-    : mergeUnprotected(project, usable, prNumber);
+    : mergeUnprotected(project, usable, prNumber, rule);
 }
 
-type Rule = Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">;
+type Rule = Pick<
+  BranchRule,
+  "requiredApprovals" | "codeOwnersReview" | "classicProtectionReadable"
+>;
 
 interface ProtectedTarget {
   prNumber: number;
@@ -83,6 +91,9 @@ interface ProtectedTarget {
 
 export const LOOP_OFF =
   "the auto-merge loop was switched off before the pull request was approved";
+
+export const NEEDS_ADMINISTRATION_READ =
+  "needs Administration read on the GitHub App: classic branch protection answered 403 and no ruleset requires an approval, so Lore cannot tell whether the branch is unprotected";
 
 /** A branch rule that asks for an approval needs one GitHub counts; Lore's own App cannot give it on a pull request it opened. */
 async function approveProtected(
@@ -154,7 +165,12 @@ async function mergeUnprotected(
   project: MergeProject,
   approver: Approver | null,
   prNumber: number,
+  rule: Rule,
 ): Promise<MergeStep> {
+  if (rule.classicProtectionReadable === false) {
+    return { outcome: "failed", reason: NEEDS_ADMINISTRATION_READ };
+  }
+
   if (await askOwnersIfAny(project, prNumber, "approve and merge")) {
     return { outcome: "failed", reason: NEEDS_CODE_OWNER };
   }

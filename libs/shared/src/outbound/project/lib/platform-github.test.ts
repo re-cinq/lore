@@ -1399,6 +1399,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 1,
       codeOwnersReview: true,
       requiredChecks: ["build", "lint"],
+      classicProtectionReadable: true,
     });
   });
 
@@ -1426,6 +1427,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 2,
       codeOwnersReview: false,
       requiredChecks: ["build", "test"],
+      classicProtectionReadable: true,
     });
   });
 
@@ -1436,10 +1438,11 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 0,
       codeOwnersReview: false,
       requiredChecks: [],
+      classicProtectionReadable: true,
     });
   });
 
-  it("getBranchRule reads 1 approval from the ruleset when classic protection answers 403", async () => {
+  it("getBranchRule reads 1 approval from the ruleset and marks classicProtectionReadable false when classic protection answers 403", async () => {
     state.requestAnswers = {
       [RULES]: [
         {
@@ -1457,6 +1460,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 1,
       codeOwnersReview: false,
       requiredChecks: [],
+      classicProtectionReadable: false,
     });
   });
 
