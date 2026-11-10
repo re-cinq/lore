@@ -96,6 +96,19 @@ jobs:
           LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/outbound/project/assembly-runs/assembly-runs.contract.test.ts
 
+      # TEST_PATH_SQL_PATTERN must match the same paths as isTestFile — the
+      # acceptance test verifies this against a live Postgres instance. It skips
+      # when Postgres is unreachable (unit matrix), so this is the one place it
+      # actually runs.
+      - name: test-paths SQL pattern against real Postgres
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run --root libs/shared src/domain/test-paths.acceptance.test.ts
 
       # The live-Dgraph suites moved here from the pr-checks `shared` matrix
       # entry: ~two dozen of them share ONE graph, and a leftover chunk in the
