@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **starts fetching check-runs as soon as PR resolves, without waiting for reviews or threads** — ensures the request for `check-runs` relies solely on the PR's `headSha` and proceeds independently of the slower `reviews` or `graphql` reads.
+- [x] **starts fetching check-runs as soon as PR resolves, without waiting for reviews or threads** — ensures the request for `check-runs` relies solely on the PR's `headSha` and proceeds independently of the slower `reviews` or `graphql` reads.
   `apps/lore-api/src/outbound/github-client.acceptance.test.ts`
 
 ## Facets
 
-- [ ] refactor `fetchPrStatus` to initiate the `pr` fetch independently and `.then()` or `await` it inside a separate promise chain to fetch `check-runs` while `reviews` and `threads` are still pending
+- [x] refactor `fetchPrStatus` to initiate the `pr` fetch independently and `.then()` or `await` it inside a separate promise chain to fetch `check-runs` while `reviews` and `threads` are still pending
 
 ## Out of scope
 
