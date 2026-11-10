@@ -18,8 +18,10 @@ export default function ReonboardButton({
     e.preventDefault();
     setPending(true);
     setError(undefined);
+
     try {
       const result = await action();
+
       if (result && typeof result === "object" && result.error) {
         setError(result.error);
       }
