@@ -65,7 +65,7 @@ describe("SkillForm", () => {
     const { container } = render(<SkillForm skill={null} action={refusing} />);
 
     expect(container.querySelector(".cm-editor")).not.toBeNull();
-    expect(container.querySelector("textarea")).toBeNull();
+    expect(container.querySelector("textarea[name=content]")).toBeNull();
   });
 
   it("offers Enabled as a Yes/No select that starts on Yes for a new skill", () => {
@@ -101,6 +101,66 @@ describe("SkillForm", () => {
     expect(
       screen.getByText(
         "Yes installs this skill into every developer's ~/.claude/skills through the Lore MCP server; No removes it there.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("edits the description in a 3-row textarea named description", () => {
+    render(<SkillForm skill={null} action={refusing} />);
+    const field = screen.getByLabelText("Description") as HTMLTextAreaElement;
+
+    expect({ tag: field.tagName, name: field.name, rows: field.rows }).toEqual({
+      tag: "TEXTAREA",
+      name: "description",
+      rows: 3,
+    });
+  });
+
+  it("starts the description textarea on the stored multi-line description", () => {
+    const skill = {
+      name: "tdd",
+      title: "TDD",
+      description: "first line\nsecond line",
+      model: null,
+      content: "stored",
+      enabled: true,
+      projectId: null,
+    };
+
+    render(<SkillForm skill={skill} action={refusing} />);
+
+    expect(screen.getByLabelText("Description")).toHaveValue(
+      "first line\nsecond line",
+    );
+  });
+
+  it("edits only the body of a stored skill and keeps its extra frontmatter in a hidden field", () => {
+    const skill = {
+      name: "tdd",
+      title: "TDD",
+      description: "Drives tests",
+      model: null,
+      content:
+        "---\nname: tdd\ndescription: Drives tests\ncontext: fork\n---\n\n# TDD\n\nRed, green.\n",
+      enabled: true,
+      projectId: null,
+    };
+
+    render(<SkillForm skill={skill} action={refusing} />);
+    const form = new FormData(document.querySelector("form")!);
+
+    expect({
+      content: form.get("content"),
+      extraFrontmatter: form.get("extra_frontmatter"),
+    }).toEqual({ content: "Red, green.\n", extraFrontmatter: "context: fork" });
+  });
+
+  it("explains under the editor that name, title, description and model come from the fields", () => {
+    render(<SkillForm skill={null} action={refusing} />);
+
+    expect(
+      screen.getByText(
+        "Name, title, description and model are written into the file from the fields above.",
       ),
     ).toBeTruthy();
   });
