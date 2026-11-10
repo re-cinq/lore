@@ -8,6 +8,7 @@ import { FormError } from "@/components/FormError";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { SkillFormState, SkillFormValues } from "./actions";
 import { HELP_BLOCK_TEMPLATE } from "./help-template";
+import { splitSkillContent } from "./skill-content";
 import type { SkillDefinition } from "./skill-definition";
 
 export type SkillFormAction = (
@@ -67,7 +68,7 @@ function IdentityFields({ isNew, initial }: IdentityFieldsProps) {
     <>
       <TextField field="name" initial={initial} required readOnly={!isNew} />
       <TextField field="title" initial={initial} required />
-      <TextField field="description" initial={initial} />
+      <DescriptionField initialDescription={initial.description} />
     </>
   );
 }
@@ -88,11 +89,19 @@ function ModelSelect({ initialModel }: { initialModel: string }) {
   );
 }
 
+/** Name, title, description and model have their own fields; the editor holds the body and the other frontmatter keys ride along hidden. */
 function ContentField({ initialContent }: { initialContent: string }) {
+  const { extraFrontmatter, body } = splitSkillContent(initialContent);
+
   return (
     <div>
+      <input type="hidden" name="extra_frontmatter" value={extraFrontmatter} />
       <span>Content (SKILL.md)</span>
-      <PromptEditor name="content" defaultValue={initialContent} verbatim />
+      <PromptEditor name="content" defaultValue={body} verbatim />
+      <p>
+        Name, title, description and model are written into the file from the
+        fields above.
+      </p>
       <p>
         The Help block between the lore-help markers needs a line starting with{" "}
         <code>**Summary.**</code> and a line starting with{" "}
@@ -140,7 +149,25 @@ function FormFooter({ isNew, error }: FormFooterProps) {
   );
 }
 
-type TextFieldName = "name" | "title" | "description";
+function DescriptionField({
+  initialDescription,
+}: {
+  initialDescription: string;
+}) {
+  return (
+    <div>
+      <label htmlFor="skill-description">{LABELS.description}</label>
+      <textarea
+        id="skill-description"
+        name="description"
+        rows={3}
+        defaultValue={initialDescription}
+      />
+    </div>
+  );
+}
+
+type TextFieldName = "name" | "title";
 
 interface TextFieldProps {
   field: TextFieldName;
@@ -175,7 +202,7 @@ function TextField({ field, initial, required, readOnly }: TextFieldProps) {
   );
 }
 
-const LABELS: Record<TextFieldName, string> = {
+const LABELS = {
   name: "Name",
   title: "Title",
   description: "Description",

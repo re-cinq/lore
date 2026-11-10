@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
 import type { ApiResult } from "@/lib/api/result";
 import { failureMessage } from "./failure-message";
+import { composeSkillContent } from "./skill-content";
 
 const WRITE_TIMEOUT_MS = 5000;
 
@@ -91,12 +92,20 @@ function settle(result: ApiResult, values?: SkillFormValues): SkillFormState {
 function readValues(formData: FormData): SkillFormValues {
   const text = (field: string) => String(formData.get(field) ?? "");
 
-  return {
+  const fields = {
     name: text("name"),
     title: text("title"),
     description: text("description"),
     model: text("model"),
-    content: text("content"),
+  };
+
+  return {
+    ...fields,
+    content: composeSkillContent({
+      ...fields,
+      extraFrontmatter: text("extra_frontmatter"),
+      body: text("content"),
+    }),
     enabled: formData.get("enabled") === "yes",
   };
 }

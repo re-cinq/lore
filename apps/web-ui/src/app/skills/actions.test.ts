@@ -53,7 +53,7 @@ describe("createSkill", () => {
           title: "Ghost",
           description: "",
           model: "",
-          content: "no help here",
+          content: "---\nname: ghost\n---\n\n# Ghost\n\nno help here",
           enabled: true,
         },
       },
@@ -97,8 +97,25 @@ describe("updateSkill request", () => {
     expect(body).toEqual({
       title: "Ghost",
       model: null,
-      content: "## Help",
+      content: "---\nname: ghost\n---\n\n# Ghost\n\n## Help",
       enabled: true,
+    });
+  });
+
+  it("sends content whose frontmatter carries the posted description, model and extra keys for ghost", async () => {
+    answer(200, { ok: true });
+    const form = skillForm("## Help");
+
+    form.set("description", "Haunts");
+    form.set("model", "claude-haiku-4-5-20251001");
+    form.set("extra_frontmatter", "context: fork");
+    await updateSkill("ghost", {}, form);
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      description: "Haunts",
+      model: "claude-haiku-4-5-20251001",
+      content:
+        "---\nname: ghost\ndescription: Haunts\nmodel: claude-haiku-4-5-20251001\ncontext: fork\n---\n\n# Ghost\n\n## Help",
     });
   });
 });
