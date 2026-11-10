@@ -93,6 +93,13 @@ export function listMemories(
 /** Search page's lexical hits across memories/facts, ranked — distinct from `lore_search_memory`'s embedding search. */
 export function searchMemory(
   q: string,
+  repo?: string,
 ): Promise<ApiResult<{ results: Record<string, unknown>[] }>> {
-  return apiFetch("lore-api", `/api/memory-search?q=${encodeURIComponent(q)}`);
+  const params = new URLSearchParams({ q });
+
+  if (repo) {
+    params.set("repo", repo);
+  }
+
+  return apiFetch("lore-api", `/api/memory-search?${params}`);
 }

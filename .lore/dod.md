@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **propagates the selected repo into memory/fact retrieval** — The test observes `SearchPage` propagation of the repo query param into the `apiFetch` call targeting `/api/memory-search`.
+- [x] **propagates the selected repo into memory/fact retrieval** — The test observes `SearchPage` propagation of the repo query param into the `apiFetch` call targeting `/api/memory-search`.
   `apps/web-ui/src/app/search/search-memory-repo-propagation.acceptance.test.tsx`
 
 ## Facets
 
-- [ ] Pass `repo` parameter from `runSearch` down to `searchMemory`.
+- [x] Pass `repo` parameter from `runSearch` down to `searchMemory`.
 
 ## Out of scope
 

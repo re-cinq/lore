@@ -13,11 +13,18 @@ describe("SearchPage memory retrieval", () => {
         res.writeHead(200, { "Content-Type": "application/json" });
 
         if (req.url?.includes("/api/repos")) {
-          res.end(JSON.stringify({ status: "ok", data: { repos: [{ full_name: "re-cinq/lore" }] } }));
+          res.end(
+            JSON.stringify({
+              repos: [{ full_name: "re-cinq/lore" }],
+              total: 1,
+            }),
+          );
         }
 
         if (!req.url?.includes("/api/repos")) {
-          res.end(JSON.stringify({ status: "ok", data: { results: [], chunks: [] } }));
+          res.end(
+            JSON.stringify({ status: "ok", data: { results: [], chunks: [] } }),
+          );
         }
       });
       server.listen(0, () => {
@@ -35,14 +42,18 @@ describe("SearchPage memory retrieval", () => {
     const { default: SearchPage } = await import("./page");
 
     requests = [];
-    
+
     try {
-      await SearchPage({ searchParams: Promise.resolve({ q: "deploy", repo: "re-cinq/lore" }) });
+      await SearchPage({
+        searchParams: Promise.resolve({ q: "deploy", repo: "re-cinq/lore" }),
+      });
     } catch (_e: any) {
       void _e;
     }
-    
-    const memorySearchReq = requests.find(r => r.url.includes("/api/memory-search"));
+
+    const memorySearchReq = requests.find((r) =>
+      r.url.includes("/api/memory-search"),
+    );
 
     expect(memorySearchReq).toBeDefined();
     expect(memorySearchReq?.url).toContain("repo=re-cinq%2Flore");
