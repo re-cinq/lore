@@ -17,7 +17,7 @@ export default function ActionForm({ action, pendingLabel, children }: Props) {
   return (
     <form onSubmit={onSubmit}>
       {error && <p>{error}</p>}
-      <SubmitButton pending={pending} pendingLabel={pendingLabel}>
+      <SubmitButton className="" pending={pending} pendingLabel={pendingLabel}>
         {children}
       </SubmitButton>
     </form>
@@ -42,9 +42,7 @@ function useActionForm(action: Action) {
       setPending(false);
     }
   };
-  const onSubmit = (e: React.FormEvent) => {
-    void handleSubmit(e);
-  };
+  const onSubmit = (e: React.FormEvent) => void handleSubmit(e);
 
   return { pending, error, onSubmit };
 }
