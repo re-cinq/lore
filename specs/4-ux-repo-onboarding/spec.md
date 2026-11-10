@@ -208,7 +208,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   content is never committed: GitHub's contents API makes a commit even for
   identical bytes, and an up-to-date repo would get an empty pull request.
   Paths are read exactly, so a repo with a `.github/` directory still receives
-  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197))
+  its issue templates (#1201). An LLM never retypes these. ([validated by refreshes drifted Lore-owned deterministic content, creates a branch, and opens a PR with gap reporting.](apps/lore-api/src/work/repo/active-line.acceptance.test.ts#L17), [validated by skips PR creation (no-op behavior) when Lore-owned files match canonical exactly.](apps/lore-api/src/work/repo/active-line.acceptance.test.ts#L131), [validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
