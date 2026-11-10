@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Add `getChangedFiles` to `PlatformGitHub` and `GitHubPort` pointing to the paginated file list logic.
+- [x] Add `getChangedFiles` to `PlatformGitHub` and `GitHubPort` pointing to the paginated file list logic.
 - [ ] Remove or migrate internal usage of `listFiles` in `blocked-reason` if necessary.
 
 ## Out of scope

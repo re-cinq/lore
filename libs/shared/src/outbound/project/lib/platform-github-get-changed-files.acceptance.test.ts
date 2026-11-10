@@ -18,7 +18,6 @@ describe("PlatformGitHub.getChangedFiles", () => {
 
     vi.spyOn(ok, "paginate").mockResolvedValue(fakeFiles);
 
-    // @ts-expect-error - testing missing method
     const files = await gh.getChangedFiles("re-cinq/lore", 7);
 
     expect(files).toHaveLength(150);
