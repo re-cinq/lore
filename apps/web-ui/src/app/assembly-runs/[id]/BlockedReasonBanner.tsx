@@ -36,13 +36,17 @@ function useBlockedReason(
   const [reason, setReason] = useState<BlockedReason | null>(null);
 
   useEffect(() => {
-    if (runStatus !== "settled" || prNumber === null) {return;}
+    if (runStatus !== "settled" || prNumber === null) {
+      return;
+    }
 
     let disposed = false;
 
     readBlockedReason(repo, prNumber)
       .then((next) => {
-        if (!disposed && next !== null) {setReason(next);}
+        if (!disposed && next !== null) {
+          setReason(next);
+        }
       })
       .catch(() => {});
 
