@@ -42,15 +42,16 @@ describe("GET /healthz acceptance", () => {
     process.env.LORE_DB_HOST = "db.internal";
     vi.mocked(getHealthStatus).mockResolvedValue({
       connected: false,
-      reason: "database connection failed",
-    } as any);
+      chunk_count: null,
+      reason: "connection failed",
+    });
 
     const res = await inject(null);
 
     expect(res.statusCode).toBe(503);
     expect(res.result).toEqual({
       status: "error",
-      reason: "database connection failed",
+      reason: "connection failed",
     });
   });
 
