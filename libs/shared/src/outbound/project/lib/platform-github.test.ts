@@ -42,6 +42,7 @@ const state: {
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
   requestAnswers?: Record<string, unknown>;
   issueUpdateCall?: Record<string, unknown>;
+  updateCommentCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -217,6 +218,9 @@ vi.mock("octokit", () => ({
           state.issueUpdateCall = params;
 
           return { data: {} };
+        },
+        updateComment: async (params: Record<string, unknown>) => {
+          state.updateCommentCall = params;
         },
         listDependenciesBlockedBy: async (params: Record<string, unknown>) => {
           state.blockersCall = params;
@@ -1539,5 +1543,24 @@ describe("PlatformGitHub commit statuses", () => {
     ];
     expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
     warn.mockRestore();
+  });
+});
+
+describe("PlatformGitHub updateIssueComment", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.updateCommentCall = undefined;
+  });
+
+  it("updateIssueComment sends owner, repo, comment_id and body to the REST PATCH adapter", async () => {
+    await gh().updateIssueComment("re-cinq/lore", 42, "new body");
+
+    expect(state.updateCommentCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      comment_id: 42,
+      body: "new body",
+    });
   });
 });

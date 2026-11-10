@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Add a unit test to `platform-github.test.ts` that mocks `issues.updateComment` and asserts `updateIssueComment` sends the correct owner, repo, comment_id, and body.
+- [x] Add a unit test to `platform-github.test.ts` that mocks `issues.updateComment` and asserts `updateIssueComment` sends the correct owner, repo, comment_id, and body.
 
 ## Out of scope
 

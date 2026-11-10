@@ -61,7 +61,7 @@ Three new writes are added to the same adapter:
 
 - `enablePullRequestAutoMerge(prId, mergeMethod)` — GraphQL `enablePullRequestAutoMerge` mutation. Arms GitHub's native auto-merge on the PR; always called with `mergeMethod: SQUASH`. Only callable on a PR where the branch rule requires an approval and the PR is not yet mergeable (GitHub refuses otherwise).
 - `disablePullRequestAutoMerge(prId)` — GraphQL mutation. Called on every open PR the auto-merge loop armed (Lore-authored, or one the loop ran for) when the loop is switched off.
-- `updateIssueComment(commentId, body)` — REST `PATCH /repos/{o}/{r}/issues/comments/{id}`. Edits an existing comment in place; used by the blocked-reason station to maintain the `<!-- lore:blocked-reason -->` idempotent comment on the PR and on the backlog issue.
+- `updateIssueComment(commentId, body)` — REST `PATCH /repos/{o}/{r}/issues/comments/{id}`. Edits an existing comment in place; used by the blocked-reason station to maintain the `<!-- lore:blocked-reason -->` idempotent comment on the PR and on the backlog issue. ([validated by updateIssueComment sends owner, repo, comment_id and body to the REST PATCH adapter @2cfca83a](libs/shared/src/outbound/project/lib/platform-github.test.ts#L1556))
 
 ### lore-reviewer App credentials
 
