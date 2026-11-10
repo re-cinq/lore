@@ -15,6 +15,7 @@ import {
   FormActions,
   RunLimitsFields,
 } from "./AgentFormFields";
+import McpServerFields from "./McpServerFields";
 
 export type AgentFormAction = (
   prev: AgentFormState,
@@ -124,6 +125,7 @@ function ExecutionFields(props: ExecutionFieldsProps) {
         promptInherited={values.promptInherited}
       />
       <PodResourceFields podResources={values.podResources} />
+      <McpServerFields servers={values.mcpServers} />
       <ImageFields
         image={image}
         defaultImage={defaultImage}

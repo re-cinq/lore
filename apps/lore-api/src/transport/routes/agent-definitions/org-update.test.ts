@@ -101,6 +101,55 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
+  it("puts the search MCP server with its X-API-Key header into fix-ci's config, keeping its skill", async () => {
+    const floor = await floorWithFixCi();
+    const search = {
+      name: "search",
+      transport: "http",
+      url: "https://search.test/mcp",
+      headers: [{ name: "X-API-Key", ref: "search-api-key" }],
+    };
+
+    await put(await server(floor), { name: "fix-ci", mcp_servers: [search] });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+      mcp_servers: [search],
+    });
+  });
+
+  it("removes fix-ci's MCP servers when mcp_servers is null", async () => {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("fix-ci", {
+      settings: {
+        ...FIX_CI.settings,
+        config: {
+          skills: ["lore-context"],
+          mcp_servers: [{ name: "files", transport: "stdio", command: "npx" }],
+        },
+      },
+    });
+
+    await put(await server(floor), { name: "fix-ci", mcp_servers: null });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+    });
+  });
+
+  it("answers 400 invalid_agent for an http MCP server with no url", async () => {
+    const res = await put(await server(await floorWithFixCi()), {
+      name: "fix-ci",
+      mcp_servers: [{ name: "search", transport: "http" }],
+    });
+
+    expect({
+      status: res.statusCode,
+      error: JSON.parse(res.payload).error,
+    }).toEqual({ status: 400, error: "invalid_agent" });
+  });
+
   it("keeps fix-ci's config as it was when the PUT never mentions pod_resources", async () => {
     const floor = await floorWithFixCi();
 

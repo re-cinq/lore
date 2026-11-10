@@ -35,6 +35,18 @@ describe("parseAgentForm", () => {
     });
   });
 
+  it("carries the files MCP server from the mcp_servers field and omits the key when the field is absent", () => {
+    const files = { name: "files", transport: "stdio", command: "npx" };
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(
+        fd({ ...base, mcp_servers: JSON.stringify([files]) }),
+      ).def.mcp_servers,
+      untouched: "mcp_servers" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: [files], untouched: false });
+  });
+
   it("collects the six pod-resource inputs into pod_resources", () => {
     const p = parseAgentForm(
       fd({

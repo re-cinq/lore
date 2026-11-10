@@ -6248,6 +6248,26 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
         };
       };
     };
@@ -8439,6 +8459,26 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
         };
       };
     };
@@ -8523,6 +8563,26 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
         };
       };
     };

@@ -1,5 +1,6 @@
 import type { AgentDefinition } from "./agents-mirror";
 import type { AgentSaveResult } from "./agents-api";
+import { parseMcpServers, type McpServer } from "./mcp-servers-form";
 
 // Pure FormData→agent payload parsing shared by the new/edit server actions; kept here (not page.tsx) so the branchy bits are unit-tested.
 
@@ -15,6 +16,8 @@ export interface ParsedAgentForm {
   def: Omit<AgentDefinition, "project_id"> & {
     /** null clears a previously saved value — the API treats absence as "leave". */
     pod_resources: PodResources | null;
+    /** Absent while the form's servers are untouched; null clears a saved list. */
+    mcp_servers?: McpServer[] | null;
   };
   approvalPr?: string;
 }
@@ -72,7 +75,14 @@ function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
     // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
     config: null,
     pod_resources: parsePodResources(fd),
+    ...mcpServersOf(fd),
   };
+}
+
+function mcpServersOf(fd: FormData): { mcp_servers?: McpServer[] | null } {
+  const servers = parseMcpServers(fd);
+
+  return servers === undefined ? {} : { mcp_servers: servers };
 }
 
 function parseModel(fd: FormData): string | null {

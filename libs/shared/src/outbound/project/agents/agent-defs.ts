@@ -3,7 +3,7 @@ import type {
   AgentDefinitionInput,
   AgentDefsReadPort,
   AgentDefsWritePort,
-  PodResourcesWrite,
+  ConfigWrite,
 } from "./agent-defs-port.js";
 
 /** project.agentDefs — repo-bound Agent *definitions* (config): resolve/list field-merge project → org. */
@@ -40,7 +40,7 @@ export class AgentDefsWriter extends AgentDefs {
   update(
     name: string,
     patch: Partial<AgentDefinitionInput>,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition> {
     return this.writableDefs.update(this.repo, name, patch, podResources);
   }

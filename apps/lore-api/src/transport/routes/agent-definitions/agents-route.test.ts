@@ -356,6 +356,39 @@ describe("routes — agents", () => {
       );
     });
 
+    it("an update with mcp_servers hands the adapter the list whole", async () => {
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+      const files = { name: "files", transport: "stdio", command: "npx" };
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        mcp_servers: [files],
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { mcpServers: [files], inheritedConfig: null },
+      );
+    });
+
+    it("a create with mcp_servers writes the list over the inherited config", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills: ["lore-context"] },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+      const files = { name: "files", transport: "stdio", command: "npx" };
+
+      await call(BASE, "POST", { name: "general", mcp_servers: [files] });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: { skills: ["lore-context"], mcp_servers: [files] },
+        }),
+      );
+    });
+
     it("deletes an agent by name", async () => {
       fakeAgents.delete.mockResolvedValue(undefined);
       const { res } = await call(`${BASE}/general`, "DELETE");
