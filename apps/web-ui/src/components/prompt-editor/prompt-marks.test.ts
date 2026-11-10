@@ -43,7 +43,11 @@ describe("promptMarks", () => {
 
 describe("promptMarks over fenced code", () => {
   it("returns only a fence over '```bash\\n# install\\nnpm ci\\n```', the '# install' not a heading", () => {
-    expect(promptMarks("```bash\n# install\nnpm ci\n```")).toEqual([
+    expect(
+      promptMarks("```bash\n# install\nnpm ci\n```").filter(
+        (mark) => mark.kind !== "token",
+      ),
+    ).toEqual([
       {
         kind: "fence",
         block: true,
@@ -54,6 +58,41 @@ describe("promptMarks over fenced code", () => {
           { from: 0, to: 7 },
           { from: 25, to: 28 },
         ],
+      },
+    ]);
+  });
+
+  it("returns a comment token over '# install' and a keyword token over 'const' in a bash and a ts fence, hiding nothing", () => {
+    const text = "```bash\n# install\n```\n\n```ts\nconst a = 1;\n```";
+
+    expect(
+      promptMarks(text)
+        .filter((mark) => mark.kind === "token")
+        .map((mark) => ({ ...mark, text: text.slice(mark.from, mark.to) })),
+    ).toEqual([
+      {
+        kind: "token",
+        className: "hljs-comment",
+        from: 8,
+        to: 17,
+        markup: [],
+        text: "# install",
+      },
+      {
+        kind: "token",
+        className: "hljs-keyword",
+        from: 29,
+        to: 34,
+        markup: [],
+        text: "const",
+      },
+      {
+        kind: "token",
+        className: "hljs-number",
+        from: 39,
+        to: 40,
+        markup: [],
+        text: "1",
       },
     ]);
   });

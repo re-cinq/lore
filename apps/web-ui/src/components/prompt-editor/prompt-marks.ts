@@ -2,6 +2,7 @@ import { fencedBlocks, type FencedBlock } from "./fenced-blocks";
 import { lineBlocks, type LineBlock } from "./line-blocks";
 import { tableBlocks, type Table, type TableBlock } from "./tables";
 import { inlineMarks, type InlineMark } from "./inline-marks";
+import { codeTokens, type CodeToken } from "./code-tokens";
 import {
   blanked,
   linesOf,
@@ -16,6 +17,7 @@ export type { Range };
 export type PromptMark =
   | (MarkRange & { kind: "heading"; level: number })
   | KindMark<"placeholder" | "tag">
+  | (MarkRange & { kind: "token"; className: string })
   | InlineMark
   | LineBlock
   | (MarkRange & { kind: "fence"; block: true; lineStarts: number[] })
@@ -44,6 +46,7 @@ export function promptMarks(text: string): PromptMark[] {
 
   return [
     ...fences.map(fenceMark),
+    ...codeTokens(text, fences).map(tokenMark),
     ...tables.map(tableMark),
     ...headings(unquoted),
     ...lineBlocks(linesOf(unquoted)),
@@ -63,6 +66,10 @@ function tableMark(block: TableBlock): PromptMark {
     markup: [{ from: block.from, to: block.to }],
     table: block.table,
   };
+}
+
+function tokenMark(token: CodeToken): PromptMark {
+  return { kind: "token", markup: [], ...token };
 }
 
 function fenceMark(block: FencedBlock): PromptMark {

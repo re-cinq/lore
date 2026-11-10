@@ -116,6 +116,9 @@ const DRAWINGS: {
   link: (mark) => [markDecoration("link", mark)],
   placeholder: (mark) => [markDecoration("placeholder", mark)],
   tag: (mark) => [markDecoration("tag", mark)],
+  token: (mark) => [
+    Decoration.mark({ class: mark.className }).range(mark.from, mark.to),
+  ],
 };
 
 function draw<Kind extends PromptMark["kind"]>(mark: MarkOfKind<Kind>): Drawn {

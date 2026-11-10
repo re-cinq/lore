@@ -443,4 +443,20 @@ describe("PromptEditor", () => {
       expect.stringContaining("Read the change as its user"),
     ]);
   });
+
+  it("draws 'const' of a ts fence in a keyword token and submits the text byte for byte", () => {
+    const fence = '```ts\nconst name = "lore"; // greet\n```';
+    const { container } = render(
+      <form>
+        <PromptEditor name="prompt" defaultValue={fence} verbatim />
+      </form>,
+    );
+
+    expect({
+      keywords: [...container.querySelectorAll(".hljs-keyword")].map(
+        (token) => token.textContent,
+      ),
+      submitted: submittedPrompt(container.querySelector("form")!),
+    }).toEqual({ keywords: ["const"], submitted: fence });
+  });
 });
