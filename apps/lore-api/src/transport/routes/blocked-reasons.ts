@@ -132,7 +132,7 @@ function withPool(
 function mapRow(row: any): BlockedReason {
   return {
     repo: row.repo,
-    prNumber: row.pr_number,
+    prNumber: Number(row.pr_number),
     reason: row.reason,
     label: labelForReason(row.reason, row.detail),
     detail: row.detail,

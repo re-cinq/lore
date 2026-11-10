@@ -14,7 +14,7 @@ The red bar is CI's to show. The tests are run by the `lore-api (1/2)` or `lore-
 
 ## Facets
 
-- [ ] Explicitly cast or parse `row.pr_number` inside `mapRow` function inside `blocked-reasons.ts`.
+- [x] Explicitly cast or parse `row.pr_number` inside `mapRow` function inside `blocked-reasons.ts`.
 
 ## Out of scope
 
