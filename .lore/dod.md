@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **refreshes the check as the run enters each step** — fails because no handler exists for `station_run.dispatched`
+- [x] **refreshes the check as the run enters each step** — fails because no handler exists for `station_run.dispatched`
   `apps/stations/src/events/loop-progress.acceptance.test.ts`
-- [ ] **publishes a green check when a finished run completed** — fails because no handler exists for `run.settled`
+- [x] **publishes a green check when a finished run completed** — fails because no handler exists for `run.settled`
   `apps/stations/src/events/loop-progress.acceptance.test.ts`
-- [ ] **closes the check left on the previous head as neutral Superseded when the head moves** — fails because no handler exists for `station_run.dispatched`
+- [x] **closes the check left on the previous head as neutral Superseded when the head moves** — fails because no handler exists for `station_run.dispatched`
   `apps/stations/src/events/loop-progress.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Write a `loop-progress-handlers.ts` module with handlers for `station_run.dispatched` and `run.settled`
-- [ ] Wire the handlers into `buildStationHandlers()`
-- [ ] Publish the `lore/implementation-loop` GitHub check appropriately on each event
+- [x] Write a `loop-progress-handlers.ts` module with handlers for `station_run.dispatched` and `run.settled`
+- [x] Wire the handlers into `buildStationHandlers()`
+- [x] Publish the `lore/implementation-loop` GitHub check appropriately on each event
 
 ## Out of scope
 
