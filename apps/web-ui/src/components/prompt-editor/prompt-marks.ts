@@ -109,7 +109,9 @@ interface Line extends Range {
 }
 
 /** The prompt with each paragraph's wrapping line breaks turned into spaces; list, heading, quote, table and code lines keep theirs. */
-export function joinedParagraphs(text: string): string {
+export function joinedParagraphs(saved: string): string {
+  // A form submission turns every line break into CRLF, and CodeMirror breaks a line at a lone CR too.
+  const text = saved.replace(/\r\n?/g, "\n");
   const soft = new Set(softBreaks(text).map((lineBreak) => lineBreak.from));
 
   return text
