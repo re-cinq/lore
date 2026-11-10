@@ -59,7 +59,6 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       Statement.text
       vb: Statement.validated_by {
         uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
-        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
       }
       ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: Statement.decided_by { uid ADR.file_path ADR.number }
@@ -69,7 +68,6 @@ const GRAPH_DQL = `query specGraph($repo: string) {
       AcceptanceCriterion.text
       vb: AcceptanceCriterion.validated_by {
         uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
-        cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
       }
       ib: AcceptanceCriterion.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
       db: AcceptanceCriterion.decided_by { uid ADR.file_path ADR.number }
@@ -81,13 +79,51 @@ const GRAPH_DQL = `query specGraph($repo: string) {
   }
 }`;
 
-/** Reads a repo's spec force-graph (Specs + linked Statements + their test/code/ADR targets), plus the covered tests no spec links so a spec-less repo still draws. */
+const SCOPED_GRAPH_DQL = `query specGraph($repo: string, $fp: string) {
+  q(func: eq(Spec.file_path, $fp)) @filter(eq(Spec.repo, $repo)) {
+    uid
+    Spec.file_path
+    feature: Spec.feature { uid Feature.path }
+    stmts: ~Statement.spec @filter(has(Statement.validated_by) OR has(Statement.implemented_by) OR has(Statement.decided_by)) {
+      uid
+      Statement.text
+      vb: Statement.validated_by {
+        uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
+        T as uid
+      }
+      ib: Statement.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
+      db: Statement.decided_by { uid ADR.file_path ADR.number }
+    }
+    acs: ~AcceptanceCriterion.spec @filter(has(AcceptanceCriterion.validated_by) OR has(AcceptanceCriterion.implemented_by) OR has(AcceptanceCriterion.decided_by)) {
+      uid
+      AcceptanceCriterion.text
+      vb: AcceptanceCriterion.validated_by {
+        uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
+        TA as uid
+      }
+      ib: AcceptanceCriterion.implemented_by { uid CodeChunk.file_path CodeChunk.start_line }
+      db: AcceptanceCriterion.decided_by { uid ADR.file_path ADR.number }
+    }
+  }
+  tests(func: uid(T, TA)) @filter(has(TestChunk.coverage)) {
+    uid TestChunk.file_path TestChunk.test_name TestChunk.start_line TestChunk.end_line
+    cov: TestChunk.coverage { covers: Coverage.covers @facets(ranges) { uid File.path } }
+  }
+}`;
+
+/** Reads a repo's spec force-graph (Specs + linked Statements + their test/code/ADR targets), scoped to `filePath` when given, plus the covered tests no spec links when unscoped. */
 export async function fetchSpecGraph(
   repo: string,
   dgraph: DgraphClientPort,
+  filePath?: string,
 ): Promise<SpecGraph> {
   const graph = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(GRAPH_DQL, { $repo: repo });
+    const res = filePath
+      ? await txn.queryWithVars(SCOPED_GRAPH_DQL, {
+          $repo: repo,
+          $fp: filePath,
+        })
+      : await txn.queryWithVars(GRAPH_DQL, { $repo: repo });
 
     return res.data as GraphResult;
   });

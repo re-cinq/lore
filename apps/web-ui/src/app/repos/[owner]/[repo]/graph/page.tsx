@@ -1,6 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { fetchProjectionCommits, fetchTraceGraph } from "@/lib/trace-api";
+import {
+  fetchProjectionCommits,
+  fetchTraceGraph,
+  fetchTraceSpecs,
+} from "@/lib/trace-api";
 import GraphView from "./GraphView";
 import GraphEmptyState from "./GraphEmptyState";
 import { decideGraphEmptyReason } from "@/lib/graph-empty-state";
@@ -15,12 +19,16 @@ const PAGE_COLUMN: React.CSSProperties = {
 
 interface RepoGraphPageProps {
   params: Promise<{ owner: string; repo: string }>;
+  searchParams?: Promise<{ path?: string }>;
 }
 
-export default async function RepoGraphPage({ params }: RepoGraphPageProps) {
-  const { owner, repo } = await params;
+export default async function RepoGraphPage({
+  params,
+  searchParams,
+}: RepoGraphPageProps) {
+  const [{ owner, repo }, query] = await Promise.all([params, searchParams]);
   const [graph, projection] = await Promise.all([
-    fetchTraceGraph(`${owner}/${repo}`),
+    loadRepoGraph(`${owner}/${repo}`, query?.path),
     fetchProjectionCommits(`${owner}/${repo}`),
   ]);
 
@@ -34,6 +42,28 @@ export default async function RepoGraphPage({ params }: RepoGraphPageProps) {
       )}
     </div>
   );
+}
+
+/** Fetches the bounded graph for the requested spec, falling back to the repository's first spec. */
+async function loadRepoGraph(fullName: string, requestedPath?: string) {
+  const specs = await fetchTraceSpecs(fullName);
+  const activePath = selectedSpecPath(specs, requestedPath);
+
+  return activePath
+    ? fetchTraceGraph(fullName, activePath)
+    : { nodes: [], links: [] };
+}
+
+/** The spec the query asked for when it exists in the repository, or the repository's first spec. */
+function selectedSpecPath(
+  specs: readonly string[],
+  requested: string | undefined,
+): string | undefined {
+  if (requested && specs.includes(requested)) {
+    return requested;
+  }
+
+  return specs[0];
 }
 
 /** What the graph is and how much of it there is. The counts are stated up front because an under-projected graph looks the same as a small repo until you know the numbers. */

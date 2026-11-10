@@ -55,7 +55,6 @@ const NO_PATH_KINDS: Partial<
   }),
   adrs: async (trace) => ({ adrs: await trace.adrs() }),
   "adr-summaries": async (trace) => ({ summaries: await trace.adrSummaries() }),
-  graph: async (trace) => trace.graph(),
   callers: callersResult,
 };
 
@@ -83,6 +82,7 @@ const PATH_KINDS: Record<
   "failures-touching": async (trace, filePath) => ({
     failures: await trace.failuresTouching(filePath),
   }),
+  graph: (trace, filePath) => trace.graph(filePath),
 };
 
 export function traceRoute(): ServerRoute {

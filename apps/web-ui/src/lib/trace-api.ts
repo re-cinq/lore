@@ -87,9 +87,17 @@ export async function fetchTraceSource(
   );
 }
 
-/** The repo's spec force-graph for the Graph tab. */
-export async function fetchTraceGraph(repo: string): Promise<SpecGraph> {
-  return (await traceGet<SpecGraph>(repo, "graph")) ?? { nodes: [], links: [] };
+/** One spec's force-graph for the Graph tab. */
+export async function fetchTraceGraph(
+  repo: string,
+  filePath: string,
+): Promise<SpecGraph> {
+  return (
+    (await traceGet<SpecGraph>(
+      repo,
+      `graph?path=${encodeURIComponent(filePath)}`,
+    )) ?? { nodes: [], links: [] }
+  );
 }
 
 /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */

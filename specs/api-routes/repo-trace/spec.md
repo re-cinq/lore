@@ -33,7 +33,7 @@ graph stays the single source of truth and the UI never couples to storage.
   `/trace/`, and the override list is deliberately explicit so trace reads do
   not inherit the dark-factory `admin` scope).
 - **Rate bucket**: `default` (200/min).
-- **Query**: `?path=<file>` — required for `document`, `source`, `ring`.
+- **Query**: `?path=<file>` — required for `graph`, `document`, `source`, `ring`.
 
 ### Kinds and responses
 
@@ -43,7 +43,7 @@ graph stays the single source of truth and the UI never couples to storage.
 | `spec-summaries` | — | `{ summaries: SpecSummary[] }` |
 | `adrs` | — | `{ adrs: string[] }` |
 | `adr-summaries` | — | `{ summaries: AdrSummary[] }` |
-| `graph` | — | `SpecGraph` (`{ nodes, links }`) |
+| `graph` | `path` | `SpecGraph` (`{ nodes, links }`) |
 | `document` | `path` | `TraceDocument` (ordered sections + statements + coverage) |
 | `source` | `path` | `{ source: string \| null }` (byte-exact reassembly) |
 | `ring` | `path` | `SpecRing` (sections + per-statement coverage) |
@@ -68,11 +68,11 @@ graph stays the single source of truth and the UI never couples to storage.
    2. `spec-summaries` → `{ summaries: await trace.specSummaries() }`.
    3. `adrs` → `{ adrs: await trace.adrs() }`.
    4. `adr-summaries` → `{ summaries: await trace.adrSummaries() }`.
-   5. `graph` → `await trace.graph()`.
-   6. `callers` → `{ callers: await trace.callers(symbol, direction) }`, `400` without `?symbol=`.
-   7. **path-required gate** — if `!filePath`, write
+   5. `callers` → `{ callers: await trace.callers(symbol, direction) }`, `400` without `?symbol=`.
+   6. **path-required gate** — if `!filePath`, write
       `400 { error: "path query param required" }` and return. This runs after
-      the no-path kinds, so `document`/`source`/`ring`/`failures-touching` reach it.
+      the no-path kinds, so `graph`/`document`/`source`/`ring`/`failures-touching` reach it.
+   7. `graph` → `await trace.graph(filePath)`.
    8. `document` → `await trace.document(filePath)`.
    9. `ring` → `await trace.ring(filePath)`.
    10. `failures-touching` → `{ failures: await trace.failuresTouching(filePath) }`.
@@ -88,7 +88,7 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 | Condition | Status | Body |
 |-----------|--------|------|
 | Unknown kind / malformed URL | 404 | `{ "error": "not found" }` |
-| `document`/`source`/`ring` without `?path=` | 400 | `{ "error": "path query param required" }` |
+| `graph`/`document`/`source`/`ring` without `?path=` | 400 | `{ "error": "path query param required" }` |
 | Graph read (live Dgraph) | 200 | per-kind body above |
 | Dgraph unset → stub throws / query error | 500 | `{ "error": "<message>" }` |
 | No bearer token | 401 | `{ "error": "unauthorized" }` (dispatcher) |
@@ -110,10 +110,12 @@ A matched trace kind passes the read-scope auth gate (no 401/403). ([validated b
 
 A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts@76c916f9`](apps/lore-api/src/transport/routes/trace/trace.test.ts#L47))
 
-The `document`/`source`/`ring` `400 "path query param required"` gate is reached
+The `graph`/`document`/`source`/`ring` `400 "path query param required"` gate is reached
 only after a successful `projectFor`; the unit harness reaches it by seeding
 the server-core pool singleton so `projectFor` resolves against the no-op
-Dgraph stub. ([validated by `dispatches specs and surfaces the no-op Dgraph failure as 500` @8e172adf](apps/lore-api/src/transport/routes/trace/trace.test.ts#L98), [`dispatches spec-summaries and surfaces the no-op Dgraph failure as 500` @f5fe8303](apps/lore-api/src/transport/routes/trace/trace.test.ts#L105), [`dispatches adrs and surfaces the no-op Dgraph failure as 500` @046a7608](apps/lore-api/src/transport/routes/trace/trace.test.ts#L112), [`dispatches adr-summaries and surfaces the no-op Dgraph failure as 500` @47a368aa](apps/lore-api/src/transport/routes/trace/trace.test.ts#L119), [`dispatches graph, with a clean project.features.list() read, and surfaces the no-op Dgraph failure as 500` @67b35def](apps/lore-api/src/transport/routes/trace/trace.test.ts#L126), [`returns 400 when document is requested without a path` @177fbdda](apps/lore-api/src/transport/routes/trace/trace.test.ts#L133), [`dispatches document with a path and surfaces the no-op Dgraph failure as 500` @bfb59eea](apps/lore-api/src/transport/routes/trace/trace.test.ts#L140), [`returns 400 when ring is requested without a path` @0fd77393](apps/lore-api/src/transport/routes/trace/trace.test.ts#L150), [`dispatches ring with a path and surfaces the no-op Dgraph failure as 500` @227d8c7f](apps/lore-api/src/transport/routes/trace/trace.test.ts#L157), [`returns 400 when source is requested without a path` @493e267b](apps/lore-api/src/transport/routes/trace/trace.test.ts#L164), [`dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500` @fa6fae17](apps/lore-api/src/transport/routes/trace/trace.test.ts#L171))
+Dgraph stub. ([validated by `dispatches specs and surfaces the no-op Dgraph failure as 500` @8e172adf](apps/lore-api/src/transport/routes/trace/trace.test.ts#L98), [`dispatches spec-summaries and surfaces the no-op Dgraph failure as 500` @f5fe8303](apps/lore-api/src/transport/routes/trace/trace.test.ts#L105), [`dispatches adrs and surfaces the no-op Dgraph failure as 500` @046a7608](apps/lore-api/src/transport/routes/trace/trace.test.ts#L112), [`dispatches adr-summaries and surfaces the no-op Dgraph failure as 500` @47a368aa](apps/lore-api/src/transport/routes/trace/trace.test.ts#L119), [validated by dispatches graph with a path and surfaces the no-op Dgraph failure as 500 @40a3df1c](apps/lore-api/src/transport/routes/trace/trace.test.ts#L126), [`returns 400 when document is requested without a path` @177fbdda](apps/lore-api/src/transport/routes/trace/trace.test.ts#L136), [`dispatches document with a path and surfaces the no-op Dgraph failure as 500` @bfb59eea](apps/lore-api/src/transport/routes/trace/trace.test.ts#L143), [`returns 400 when ring is requested without a path` @0fd77393](apps/lore-api/src/transport/routes/trace/trace.test.ts#L153), [`dispatches ring with a path and surfaces the no-op Dgraph failure as 500` @227d8c7f](apps/lore-api/src/transport/routes/trace/trace.test.ts#L160), [`returns 400 when source is requested without a path` @493e267b](apps/lore-api/src/transport/routes/trace/trace.test.ts#L167), [`dispatches source (the default kind) with a path and surfaces the no-op Dgraph failure as 500` @fa6fae17](apps/lore-api/src/transport/routes/trace/trace.test.ts#L174))
+
+`GET /trace/graph` without a `?path=` query returns `400` to refuse an unbounded read of the whole repository, and forwards `?path=` to `trace.graph(filePath)`; the web UI's `fetchTraceGraph` and `RepoGraphPage` request the bounded graph for the selected or first spec with `?path=`. ([validated by returns 400 to refuse an unbounded read of a whole repository @2b7c6a79](apps/lore-api/src/transport/routes/trace/trace-graph.acceptance.test.ts#L35), [validated by forwards the requested path to trace.graph @ae45f813](apps/lore-api/src/transport/routes/trace/trace-graph.acceptance.test.ts#L45), [validated by requests the spec's bounded force-graph via ?path= and falls back to an empty graph @9ff6ce5a](apps/web-ui/src/lib/trace-api.test.ts#L13), [validated by fetches the first spec's bounded graph when no path query param is given @b028eaa5](apps/web-ui/src/app/repos/[owner]/[repo]/graph/page.test.tsx#L34), [validated by fetches the requested spec's bounded graph when path matches a repo spec @69b2a9ae](apps/web-ui/src/app/repos/[owner]/[repo]/graph/page.test.tsx#L54), [validated by renders the empty state without calling fetchTraceGraph when the repo has no specs @07921e3a](apps/web-ui/src/app/repos/[owner]/[repo]/graph/page.test.tsx#L74), [validated by passes search queries and reset signals to SpecGraphD3 and clears the saved layout @a4b78b1d](apps/web-ui/src/app/repos/[owner]/[repo]/graph/GraphView.test.tsx#L31))
 
 *(Still untested: the `specs`/`adrs`/`graph`/`document`/`ring` success bodies need a populated graph via a live Dgraph.)*
 
