@@ -41,9 +41,9 @@ export interface RepoOverviewViewProps {
   /** The 10 most recent event-bus rows for this repo (newest first). */
   latestEvents: RepoEvent[];
   /** Server action wired to the enrollment re-onboard button ("actions up"). */
-  reonboardAction: () => Promise<void>;
+  reonboardAction: () => Promise<{ error?: string } | void>;
   /** Server action wired to the enrollment webhook "set up" button. */
-  setupWebhookAction: () => Promise<void>;
+  setupWebhookAction: () => Promise<{ error?: string } | void>;
 }
 
 /** Repo overview: pure render with reonboardAction callback (no data access). */

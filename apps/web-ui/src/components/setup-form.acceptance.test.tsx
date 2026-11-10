@@ -16,12 +16,7 @@ describe("Setup forms against FR-4.4 (Acceptance)", () => {
       return { error: "Onboarding refused: duplicate task" };
     });
 
-    render(
-      <ReonboardButton
-        action={failingAction as any}
-        text="Open enrolment PR"
-      />,
-    );
+    render(<ReonboardButton action={failingAction} text="Open enrolment PR" />);
 
     const button = screen.getByRole("button", { name: "Open enrolment PR" });
     const form = button.closest("form");
@@ -66,7 +61,7 @@ describe("Setup forms against FR-4.4 (Acceptance)", () => {
       return { error: "Webhook setup failed" };
     });
 
-    render(<SetupWebhookButton action={failingAction as any} text="set up" />);
+    render(<SetupWebhookButton action={failingAction} text="set up" />);
 
     const button = screen.getByRole("button", { name: "set up" });
     const form = button.closest("form");

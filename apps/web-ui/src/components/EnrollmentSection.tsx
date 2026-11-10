@@ -23,8 +23,8 @@ const STATUS: Record<CheckStatus, { icon: IconName; color: string }> = {
 
 interface EnrollmentSectionProps {
   checks: Check[];
-  reonboardAction?: () => Promise<void>;
-  setupWebhookAction?: () => Promise<void>;
+  reonboardAction?: () => Promise<{ error?: string } | void>;
+  setupWebhookAction?: () => Promise<{ error?: string } | void>;
 }
 
 export default function EnrollmentSection(props: EnrollmentSectionProps) {
@@ -98,7 +98,7 @@ function CheckRows({
 
 interface CheckRowProps {
   check: Check;
-  setupWebhookAction?: () => Promise<void>;
+  setupWebhookAction?: () => Promise<{ error?: string } | void>;
 }
 
 function CheckRow(props: CheckRowProps) {
@@ -179,7 +179,7 @@ function SetupWebhookAction({
   setupWebhookAction,
 }: {
   check: Check;
-  setupWebhookAction?: () => Promise<void>;
+  setupWebhookAction?: () => Promise<{ error?: string } | void>;
 }) {
   if (check.action?.kind !== "setup-webhook" || !setupWebhookAction) {
     return null;
