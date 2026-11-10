@@ -95,11 +95,7 @@ export function searchMemory(
   q: string,
   repo?: string,
 ): Promise<ApiResult<{ results: Record<string, unknown>[] }>> {
-  const params = new URLSearchParams({ q });
+  const qs = `q=${encodeURIComponent(q)}${repo ? `&repo=${encodeURIComponent(repo)}` : ""}`;
 
-  if (repo) {
-    params.set("repo", repo);
-  }
-
-  return apiFetch("lore-api", `/api/memory-search?${params}`);
+  return apiFetch("lore-api", `/api/memory-search?${qs}`);
 }
