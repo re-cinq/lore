@@ -6,16 +6,16 @@
 
 ## Done when these pass
 
-- [ ] **returns the seed failure and creates nothing else when seeding the plan fails** — the action returns the failure instead of proceeding to redirect
+- [x] **returns the seed failure and creates nothing else when seeding the plan fails** — the action returns the failure instead of proceeding to redirect
   `apps/web-ui/src/app/repos/[owner]/[repo]/plans/new/actions.acceptance.test.ts`
-- [ ] **returns the drafting start failure and creates nothing else when starting the draft fails** — the action returns the failure instead of proceeding to redirect
+- [x] **returns the drafting start failure and creates nothing else when starting the draft fails** — the action returns the failure instead of proceeding to redirect
   `apps/web-ui/src/app/repos/[owner]/[repo]/plans/new/actions.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Change `seedIntent` to return its `ApiResult` instead of `void`
-- [ ] Check `seedIntent` return value and return error if failed
-- [ ] Check `startDrafting` return value and return error if failed
+- [x] Change `seedIntent` to return its `ApiResult` instead of `void`
+- [x] Check `seedIntent` return value and return error if failed
+- [x] Check `startDrafting` return value and return error if failed
 
 ## Out of scope
 

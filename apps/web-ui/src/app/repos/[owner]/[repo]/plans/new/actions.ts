@@ -40,6 +40,25 @@ async function createSeededPlan(
   fullName: string,
   { input, user }: { input: NewPlanInput; user: PlanUser },
 ): Promise<{ id: string } | { error: string }> {
+  const init = await initAndSeedPlan(fullName, input, user);
+
+  if ("error" in init) {return init;}
+  const drafted = await startDrafting(
+    fullName,
+    init.id,
+    draftingRequestOf(input, user),
+  );
+
+  if (drafted.status !== "ok") {return { error: failureOf(drafted) };}
+
+  return init;
+}
+
+async function initAndSeedPlan(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string }> {
   const created = await createPlan({
     repo: fullName,
     title: input.title,
@@ -47,13 +66,11 @@ async function createSeededPlan(
     createdBy: user.id,
   });
 
-  if (created.status !== "ok") {
-    return { error: failureOf(created) };
-  }
+  if (created.status !== "ok") {return { error: failureOf(created) };}
   const { id } = created.data.meta;
+  const seeded = await seedIntent(id, user.id, input.description);
 
-  await seedIntent(id, user.id, input.description);
-  await startDrafting(fullName, id, draftingRequestOf(input, user));
+  if (seeded.status !== "ok") {return { error: failureOf(seeded) };}
 
   return { id };
 }
@@ -89,10 +106,12 @@ async function seedIntent(
   planId: string,
   actor: string,
   description: string,
-): Promise<void> {
+): Promise<ApiResult<unknown>> {
   if (description) {
-    await seedPlan(planId, actor, [description]);
+    return seedPlan(planId, actor, [description]);
   }
+
+  return { status: "ok", data: undefined };
 }
 
 function failureOf(
