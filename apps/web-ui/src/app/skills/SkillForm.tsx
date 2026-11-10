@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { KNOWN_MODELS } from "@/lib/agents-mirror";
 import Link from "next/link";
+import PromptEditor from "@/components/prompt-editor/PromptEditor";
 import { FormError } from "@/components/FormError";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { SkillFormState, SkillFormValues } from "./actions";
@@ -44,7 +45,7 @@ export function SkillForm({ skill, action }: SkillFormProps) {
         <IdentityFields isNew={!skill} initial={initial} />
         <ModelSelect initialModel={initial.model} />
         <ContentField initialContent={initial.content} />
-        <EnabledCheckbox initialEnabled={initial.enabled} />
+        <EnabledSelect initialEnabled={initial.enabled} />
         <FormFooter isNew={!skill} error={state.error} />
       </form>
     </div>
@@ -90,14 +91,9 @@ function ModelSelect({ initialModel }: { initialModel: string }) {
 function ContentField({ initialContent }: { initialContent: string }) {
   return (
     <div>
-      <label htmlFor="skill-content">Content (SKILL.md)</label>
-      <textarea
-        id="skill-content"
-        name="content"
-        defaultValue={initialContent}
-        aria-describedby="skill-content-hint"
-      />
-      <p id="skill-content-hint">
+      <span>Content (SKILL.md)</span>
+      <PromptEditor name="content" defaultValue={initialContent} verbatim />
+      <p>
         The Help block between the lore-help markers needs a line starting with{" "}
         <code>**Summary.**</code> and a line starting with{" "}
         <code>**Usage:**</code>.
@@ -106,16 +102,23 @@ function ContentField({ initialContent }: { initialContent: string }) {
   );
 }
 
-function EnabledCheckbox({ initialEnabled }: { initialEnabled: boolean }) {
+function EnabledSelect({ initialEnabled }: { initialEnabled: boolean }) {
   return (
     <div>
       <label htmlFor="skill-enabled">Enabled</label>
-      <input
+      <select
         id="skill-enabled"
         name="enabled"
-        type="checkbox"
-        defaultChecked={initialEnabled}
-      />
+        defaultValue={initialEnabled ? "yes" : "no"}
+        aria-describedby="skill-enabled-hint"
+      >
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+      <p id="skill-enabled-hint">
+        Yes installs this skill into every developer&apos;s ~/.claude/skills
+        through the Lore MCP server; No removes it there.
+      </p>
     </div>
   );
 }

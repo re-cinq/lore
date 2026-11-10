@@ -14,13 +14,13 @@ let fetchMock: ReturnType<typeof vi.fn>;
 const answer = (status: number, body: unknown) =>
   fetchMock.mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
-const skillForm = (content: string) => {
+const skillForm = (content: string, enabled = "yes") => {
   const form = new FormData();
 
   form.set("name", "ghost");
   form.set("title", "Ghost");
   form.set("content", content);
-  form.set("enabled", "on");
+  form.set("enabled", enabled);
 
   return form;
 };
@@ -99,6 +99,18 @@ describe("updateSkill request", () => {
       model: null,
       content: "## Help",
       enabled: true,
+    });
+  });
+});
+
+describe("updateSkill enabled field", () => {
+  it("sends enabled false when the form says no", async () => {
+    answer(200, { ok: true });
+
+    await updateSkill("ghost", {}, skillForm("## Help", "no"));
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      enabled: false,
     });
   });
 });
