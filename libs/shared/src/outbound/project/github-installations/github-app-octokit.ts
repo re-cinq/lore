@@ -2,6 +2,7 @@ import type { Octokit } from "octokit";
 import type { GithubInstallationPayload } from "../../../domain/github-installation/installation-from-github.js";
 import type { GithubApp } from "./github-app-port.js";
 import { enforceTrue } from "../../../lib/enforce.js";
+import { withoutBlindRetryOnCreates } from "../lib/octokit-retry-policy.js";
 
 /** The App's own identity: its id and private key, with no installation pinned — which is what lets it ask about any installation of this App. */
 export interface GithubAppCredentials {
@@ -52,7 +53,9 @@ async function appOctokit(credentials: GithubAppCredentials): Promise<Octokit> {
   const { Octokit } = await import("octokit");
   const { createAppAuth } = await import("@octokit/auth-app");
 
-  return new Octokit({ authStrategy: createAppAuth, auth: credentials });
+  return withoutBlindRetryOnCreates(
+    new Octokit({ authStrategy: createAppAuth, auth: credentials }),
+  );
 }
 
 /** The fields Lore records. An account without a login or type (an enterprise installation) comes through empty, so the mapper's enum parse refuses it loudly rather than recording a guess. */
