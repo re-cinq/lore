@@ -20,6 +20,7 @@ export const navGroups: NavGroup[] = [
       { href: "/", label: "Repos", icon: "navRepos" },
       { href: "/assembly-runs", label: "Assembly runs", icon: "navRuns" },
       { href: "/agents", label: "Agents", icon: "navAgents" },
+      { href: "/skills", label: "Skills", icon: "navAgents" },
     ],
   },
   {

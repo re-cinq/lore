@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 import SkillsPage from "./page";
 
 describe("Skills Management UI", () => {
+  beforeEach(() => {
+    process.env.LORE_API_URL = "http://api:3000";
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     cleanup();
@@ -25,10 +29,7 @@ describe("Skills Management UI", () => {
       }),
     } as Response);
 
-    const Component = SkillsPage as unknown as (
-      props: any,
-    ) => Promise<JSX.Element> | JSX.Element;
-    const ui = await Component({ searchParams: Promise.resolve({}) });
+    const ui = await SkillsPage({ searchParams: Promise.resolve({}) });
 
     render(ui);
 
@@ -40,10 +41,11 @@ describe("Skills Management UI", () => {
   });
 
   it("Skill definitions offer options for setting models, titles, and content", async () => {
-    const Component = SkillsPage as unknown as (
-      props: any,
-    ) => Promise<JSX.Element> | JSX.Element;
-    const ui = await Component({ searchParams: Promise.resolve({}) });
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ skills: [] })),
+    );
+
+    const ui = await SkillsPage({ searchParams: Promise.resolve({}) });
 
     render(ui);
 
