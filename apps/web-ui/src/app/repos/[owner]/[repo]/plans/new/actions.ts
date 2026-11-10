@@ -42,14 +42,18 @@ async function createSeededPlan(
 ): Promise<{ id: string } | { error: string }> {
   const init = await initAndSeedPlan(fullName, input, user);
 
-  if ("error" in init) {return init;}
+  if ("error" in init) {
+    return init;
+  }
   const drafted = await startDrafting(
     fullName,
     init.id,
     draftingRequestOf(input, user),
   );
 
-  if (drafted.status !== "ok") {return { error: failureOf(drafted) };}
+  if (drafted.status !== "ok") {
+    return { error: failureOf(drafted) };
+  }
 
   return init;
 }
@@ -66,11 +70,15 @@ async function initAndSeedPlan(
     createdBy: user.id,
   });
 
-  if (created.status !== "ok") {return { error: failureOf(created) };}
+  if (created.status !== "ok") {
+    return { error: failureOf(created) };
+  }
   const { id } = created.data.meta;
   const seeded = await seedIntent(id, user.id, input.description);
 
-  if (seeded.status !== "ok") {return { error: failureOf(seeded) };}
+  if (seeded.status !== "ok") {
+    return { error: failureOf(seeded) };
+  }
 
   return { id };
 }
