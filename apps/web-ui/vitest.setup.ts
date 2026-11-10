@@ -6,11 +6,6 @@ vi.mock("@/lib/session-token", () => ({
   sessionToken: vi.fn(async () => "session-token"),
 }));
 
-// Default so Icon renders without ThemeProvider; Icon.test.tsx overrides this.
-vi.mock("@/lib/theme/ThemeProvider", () => ({
-  useTheme: () => ({ family: "elegant" }),
-}));
-
 // jsdom has no modal dialogs; opening one is all a component test needs of it.
 if (typeof HTMLDialogElement !== "undefined") {
   HTMLDialogElement.prototype.showModal ??= function showModal(

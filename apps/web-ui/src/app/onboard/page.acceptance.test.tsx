@@ -11,6 +11,7 @@ const redirect = vi.fn((url: string) => {
   throw new Error(`NEXT_REDIRECT:${url}`);
 });
 
+vi.mock("@/components/Icon", () => ({ default: () => null }));
 vi.mock("@/lib/api/repos", () => ({
   listAllRepos,
   reposOrThrow: (result: { data: unknown }) => result.data,
