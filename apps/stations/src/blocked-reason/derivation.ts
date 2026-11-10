@@ -82,7 +82,7 @@ const PRECEDENCE: ReasonRule[] = [
   needsCodeOwner,
   needsApproval,
   ({ blockingDependencyPr: dep }) =>
-    dep != null ? blocked("blocked_by_pr", `#${dep}`) : null,
+    dep != null ? blocked("blocked_by_pr", String(dep)) : null,
 ];
 
 export function deriveBlockedReason(state: PullState): BlockedReason | null {
