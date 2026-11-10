@@ -153,7 +153,7 @@ describe("Blocked Reason Acceptance Tests", () => {
   });
 
   it("keeps blocked_by_pr when a dependency PR is closed without merging", async () => {
-    const w = world([pr(7, { state: "closed", mergedAt: null }), pr(8)]);
+    const w = world([pr(7, { state: "closed" }), pr(8)]);
 
     w.taskGroups.set(8, { task_group_id: "group-1", depends_on: [7] });
 
