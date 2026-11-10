@@ -9,6 +9,10 @@ import type { PrBlockedReasonsPort } from "@re-cinq/lore-shared/project/pr-block
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { RepoFiles } from "@re-cinq/lore-shared/project/repo/repo-files.js";
+import {
+  blockingDependencyPrOpt,
+  type PullReader,
+} from "../outbound/task-ordering.js";
 import { syncReasonComment, type CommentThread } from "./comment.js";
 import {
   approvalCount,
@@ -54,6 +58,10 @@ export interface BlockedReasonProject {
   taskGroup?(prNumber: number): Promise<TaskGroupRef | undefined>;
   /** True when a person requested a re-review on a head that was already approved, holding auto-merge until the new review lands. */
   hasReviewInFlight?(prNumber: number): Promise<boolean>;
+  /** Task IDs this task depends on (same task group); present when dependency ordering is configured. */
+  getTaskDependsOn?(taskId: string): Promise<string[]>;
+  /** The PR number for a given task ID, or null when the task has no PR. */
+  getTaskPr?(taskId: string): Promise<number | null>;
 }
 
 export interface BlockedReasonDeps {
@@ -233,6 +241,7 @@ async function applyReason(
   if (sameReason(current, blocked)) {
     return `#${pr.number} unchanged`;
   }
+
   await persist(scope, pr.number, blocked);
   await project.audit.write({
     event_type: "pr_blocked_reason",
@@ -292,7 +301,12 @@ async function resolveBlockedReason(
     return { reason: "review_in_flight", detail: null };
   }
 
-  return deriveBlockedReason(await pullState(project.pulls, pr));
+  const [state, blockingDep] = await Promise.all([
+    pullState(project.pulls, pr),
+    depBlocker(project, pr),
+  ]);
+
+  return deriveBlockedReason({ ...state, blockingDependencyPr: blockingDep });
 }
 
 const isUnmergedPr = (p: PullRef | null): p is PullRef =>
@@ -336,6 +350,18 @@ async function pullState(pulls: ReasonPulls, pr: PullRef): Promise<PullState> {
   const approvals = approvalCount(reviews);
 
   return { base, mergeability, rule, checks, ci, approvals };
+}
+
+function depBlocker(
+  project: BlockedReasonProject,
+  pr: PullRef,
+): Promise<number | null> {
+  return blockingDependencyPrOpt(
+    project,
+    project.pulls as PullReader,
+    pr.number,
+    pr.body,
+  );
 }
 
 const sameReason = (

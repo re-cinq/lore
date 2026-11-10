@@ -13,9 +13,9 @@
 
 ## Facets
 
-- [ ] Add dependency resolution logic to the project port so `runBlockedReason` can fetch `taskGroupId` and `depends_on`.
-- [ ] Add `dependency-aware` blocked reason rule in `blocked-reason/derivation.ts`.
-- [ ] Add dependency check guard in `approve-merge.ts` before arming or merging.
+- [x] Add dependency resolution logic to the project port so `runBlockedReason` can fetch `taskGroupId` and `depends_on`.
+- [x] Add `dependency-aware` blocked reason rule in `blocked-reason/derivation.ts`.
+- [x] Add dependency check guard in `approve-merge.ts` before arming or merging.
 - [ ] Re-evaluate dependent PRs upon their dependency's closure.
 
 ## Out of scope
