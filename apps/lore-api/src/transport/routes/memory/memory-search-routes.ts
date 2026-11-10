@@ -5,6 +5,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
+import { REF_REPO_PATTERN } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -22,7 +23,7 @@ import { withPool } from "../with-pool.js";
 const MEMORY_MATCH_SQL = `SELECT key, substring(value, 1, 300) as value, agent_id,
                 ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
                 'memory' as source,
-                NULL as repo
+                repo
            FROM memory.memories
           WHERE is_deleted = FALSE
             AND (expires_at IS NULL OR expires_at > now())
@@ -36,7 +37,7 @@ const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref
                 COALESCE(m.agent_id, e.agent_id) as agent_id,
                 ts_rank(to_tsvector('english', f.fact_text), plainto_tsquery($1)) as score,
                 CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
-                NULL as repo
+                COALESCE(m.repo, substring(e.ref from '${REF_REPO_PATTERN}')) as repo
            FROM memory.facts f
            LEFT JOIN memory.memories m ON m.id = f.memory_id
            LEFT JOIN memory.episodes e ON e.id = f.episode_id

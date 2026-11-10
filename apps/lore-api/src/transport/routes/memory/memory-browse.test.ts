@@ -176,14 +176,18 @@ describe("memory browse reads", () => {
       });
     });
 
-    it("binds the query text to both searches", async () => {
+    it("binds the query text to both searches and selects repo attribution", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [] });
       await get("/api/memory-search?q=cache", pool);
 
-      expect(pool.query.mock.calls[0][1]).toEqual(["cache"]);
-      expect(pool.query.mock.calls[1][1]).toEqual(["cache"]);
+      expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([
+        ["cache"],
+        ["cache"],
+      ]);
+      expect(pool.query.mock.calls[0][0]).not.toContain("NULL as repo");
+      expect(pool.query.mock.calls[1][0]).toContain("COALESCE(m.repo,");
     });
 
     it("requires a query", async () => {
