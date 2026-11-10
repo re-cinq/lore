@@ -5,6 +5,7 @@ import http from "http";
 describe("SearchPage memory retrieval", () => {
   let server: http.Server;
   let requests: { url: string }[] = [];
+  const originalLoreApiUrl = process.env.LORE_API_URL;
 
   beforeAll(async () => {
     return new Promise((resolve) => {
@@ -22,9 +23,7 @@ describe("SearchPage memory retrieval", () => {
         }
 
         if (!req.url?.includes("/api/repos")) {
-          res.end(
-            JSON.stringify({ status: "ok", data: { results: [], chunks: [] } }),
-          );
+          res.end(JSON.stringify({ results: [], chunks: [] }));
         }
       });
       server.listen(0, () => {
@@ -35,6 +34,13 @@ describe("SearchPage memory retrieval", () => {
   });
 
   afterAll(() => {
+    if (originalLoreApiUrl === undefined) {
+      delete process.env.LORE_API_URL;
+    }
+
+    if (originalLoreApiUrl !== undefined) {
+      process.env.LORE_API_URL = originalLoreApiUrl;
+    }
     server.close();
   });
 
@@ -43,13 +49,9 @@ describe("SearchPage memory retrieval", () => {
 
     requests = [];
 
-    try {
-      await SearchPage({
-        searchParams: Promise.resolve({ q: "deploy", repo: "re-cinq/lore" }),
-      });
-    } catch (_e: any) {
-      void _e;
-    }
+    await SearchPage({
+      searchParams: Promise.resolve({ q: "deploy", repo: "re-cinq/lore" }),
+    });
 
     const memorySearchReq = requests.find((r) =>
       r.url.includes("/api/memory-search"),
