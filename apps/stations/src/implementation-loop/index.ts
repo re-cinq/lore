@@ -44,7 +44,7 @@ export function startLoopProgressStation(): RunningStation {
   const floor = floorIfConfigured();
 
   if (!floor) {
-    return { stop: () => Promise.resolve() };
+    return { once: () => Promise.resolve(0), stop: () => Promise.resolve() };
   }
 
   return startLoopProgressWatch({
@@ -62,6 +62,7 @@ export function startLoopProgressWatch(
   void consumeWatch(deps, watch);
 
   return {
+    once: () => Promise.resolve(0),
     stop: () => {
       watch.stop();
 

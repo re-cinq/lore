@@ -196,10 +196,7 @@ function loopRun(overrides: Partial<LoopRunView> = {}): LoopRunView {
 function publishScene(opts: { liveHeadSha: string | null }) {
   const checks: CheckRunInput[] = [];
   const run = loopRun();
-  const visits: LoopVisitView[] = [
-    openPrVisit(),
-    { ...planVisit("tdd-round"), report: null },
-  ];
+  const visits: LoopVisitView[] = [openPrVisit(), planVisit("tdd-round", null)];
   const deps: LoopProgressDeps = {
     run: () => Promise.resolve(run),
     visits: () => Promise.resolve(visits),

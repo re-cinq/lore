@@ -18,9 +18,10 @@ type Floor = ReturnType<typeof floorClient>;
 export type LoopRunView = Awaited<
   ReturnType<Floor["runs"]["list"]>
 >["items"][number] & { args?: Record<string, unknown> };
-export type LoopVisitView = Awaited<
-  ReturnType<Floor["stationRuns"]["list"]>
->[number];
+export type LoopVisitView = Pick<
+  Awaited<ReturnType<Floor["stationRuns"]["list"]>>[number],
+  "nodeId" | "iteration" | "report"
+>;
 
 const SYNC_DESC =
   "Checks whether the branch lacks commits of the default branch. A branch on current main goes straight on; a clean pull request GitHub calls behind is rebased by GitHub here; a conflict goes to the sync round.";
