@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -17,7 +18,7 @@ const DEFAULT_INTERVAL_MS = 5 * 60_000;
 
 const SkillsListBody = z.object({ skills: z.array(SkillDefinitionSchema) });
 
-/** A directory already under ~/.claude/skills, and whether this loop wrote it. */
+/** An entry already under ~/.claude/skills, and whether this loop owns it: only a real directory with a regular marker file and no symlinked SKILL.md. */
 export interface LocalSkillDir {
   name: string;
   managed: boolean;
@@ -79,12 +80,19 @@ export async function readLocalSkillDirs(
   const entries = await fs.readdir(dir, { withFileTypes: true });
 
   return Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => ({
-        name: entry.name,
-        managed: await exists(path.join(dir, entry.name, MARKER)),
-      })),
+    entries.map(async (entry) => ({
+      name: entry.name,
+      managed: entry.isDirectory() && (await isOwnedSkillDir(dir, entry.name)),
+    })),
+  );
+}
+
+async function isOwnedSkillDir(dir: string, name: string): Promise<boolean> {
+  const skillDir = path.join(dir, name);
+
+  return (
+    (await isRegularFile(path.join(skillDir, MARKER))) &&
+    (await isAbsentOrRegularFile(path.join(skillDir, "SKILL.md")))
   );
 }
 
@@ -116,11 +124,18 @@ async function writeSkill(dir: string, skill: SkillDefinition): Promise<void> {
   await fs.writeFile(path.join(skillDir, "SKILL.md"), skill.content);
 }
 
-function exists(file: string): Promise<boolean> {
-  return fs.access(file).then(
-    () => true,
-    () => false,
-  );
+async function isRegularFile(file: string): Promise<boolean> {
+  return (await lstatOrNull(file))?.isFile() ?? false;
+}
+
+async function isAbsentOrRegularFile(file: string): Promise<boolean> {
+  const stat = await lstatOrNull(file);
+
+  return stat === null || stat.isFile();
+}
+
+function lstatOrNull(file: string): Promise<Stats | null> {
+  return fs.lstat(file).catch(() => null);
 }
 
 function skillsDir(): string {
