@@ -5,7 +5,7 @@ import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
 import type { SkillDefinition } from "@re-cinq/lore-shared/models/skill-definition.js";
-import { handleSkillsRequest } from "./skills-registry.js";
+import { handleSkillsRequest, isForwardedByProxy } from "./skills-registry.js";
 
 const skillsRoot = resolve(import.meta.dirname, "../../agent-skills");
 
@@ -34,8 +34,8 @@ function mockRes() {
   return { res: res as unknown as ServerResponse, captured, body };
 }
 
-const req = (method: string, url: string) =>
-  ({ method, url }) as IncomingMessage;
+const req = (method: string, url: string, headers = {}) =>
+  ({ method, url, headers }) as IncomingMessage;
 
 describe("handleSkillsRequest", () => {
   it("returns false for a non-skills path so the caller falls through to MCP", async () => {
@@ -152,11 +152,11 @@ function catalogueSkill(
   };
 }
 
-async function skillsGet(url: string) {
+async function skillsGet(url: string, headers = {}) {
   const { res, captured, body } = mockRes();
   const done = body();
 
-  await handleSkillsRequest(req("GET", url), res, skillsRoot);
+  await handleSkillsRequest(req("GET", url, headers), res, skillsRoot);
 
   return {
     status: captured.status,
@@ -233,5 +233,41 @@ describe("handleSkillsRequest catalogue fallback", () => {
     });
 
     expect((await skillsGet("/skills/cli-design.tar.gz")).status).toBe(502);
+  });
+
+  it("answers 404 for cli-design to a request forwarded from 203.0.113.7 and never fetches the catalogue", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ skills: [catalogueSkill("cli-design")] }),
+    });
+
+    const { status } = await skillsGet("/skills/cli-design.tar.gz", {
+      "x-forwarded-for": "203.0.113.7",
+    });
+
+    expect({ status, catalogueCalls: fetchMock.mock.calls.length }).toEqual({
+      status: 404,
+      catalogueCalls: 0,
+    });
+  });
+
+  it("still serves the baked lore-context to a request forwarded from 203.0.113.7", async () => {
+    const { status, body } = await skillsGet("/skills/lore-context.tar.gz", {
+      "x-forwarded-for": "203.0.113.7",
+    });
+
+    expect({ status, gzip: [body[0], body[1]] }).toEqual({
+      status: 200,
+      gzip: [0x1f, 0x8b],
+    });
+  });
+});
+
+describe("isForwardedByProxy", () => {
+  it("is true with x-forwarded-for 203.0.113.7 and false without it", () => {
+    expect([
+      isForwardedByProxy({ "x-forwarded-for": "203.0.113.7" }),
+      isForwardedByProxy({ host: "lore-mcp" }),
+    ]).toEqual([true, false]);
   });
 });

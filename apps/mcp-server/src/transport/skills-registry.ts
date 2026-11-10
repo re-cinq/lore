@@ -9,7 +9,11 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type {
+  IncomingHttpHeaders,
+  IncomingMessage,
+  ServerResponse,
+} from "node:http";
 import type { SkillDefinition } from "@re-cinq/lore-shared/models/skill-definition.js";
 import { enabledSkillNamed, readCatalogue } from "./catalogue-skills.js";
 
@@ -28,13 +32,14 @@ export async function handleSkillsRequest(
     return false;
   }
 
-  await serveSkillsPath(res, skillsRoot, path);
+  await serveSkillsPath(req, res, skillsRoot, path);
 
   return true;
 }
 
 // The flat settings.json, a per-vendor hook bundle, or a skill tarball, most specific first.
 async function serveSkillsPath(
+  req: IncomingMessage,
   res: ServerResponse,
   skillsRoot: string,
   path: string,
@@ -53,7 +58,7 @@ async function serveSkillsPath(
     return;
   }
 
-  await serveNamedTarball(res, skillsRoot, path);
+  await serveNamedTarball(req, res, skillsRoot, path);
 }
 
 // The `/skills/<name>` suffix, GET-only; null when this request doesn't own a skills path at all.
@@ -70,6 +75,7 @@ function skillsSubpath(req: IncomingMessage): string | null {
 }
 
 async function serveNamedTarball(
+  req: IncomingMessage,
   res: ServerResponse,
   skillsRoot: string,
   path: string,
@@ -85,6 +91,25 @@ async function serveNamedTarball(
 
   if (await isServableDir(bakedParent, name)) {
     await serveTarball(res, bakedParent, name, "named");
+
+    return;
+  }
+
+  await serveCatalogueToCluster(req, res, name);
+}
+
+// Every ingress controller sets x-forwarded-for and a client cannot remove it; a pod's direct in-cluster request has none.
+export function isForwardedByProxy(headers: IncomingHttpHeaders): boolean {
+  return headers["x-forwarded-for"] !== undefined;
+}
+
+async function serveCatalogueToCluster(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string,
+): Promise<void> {
+  if (isForwardedByProxy(req.headers)) {
+    res.writeHead(404).end();
 
     return;
   }
