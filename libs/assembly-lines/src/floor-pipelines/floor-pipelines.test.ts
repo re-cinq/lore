@@ -177,6 +177,45 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
+  it("hands the lines spec-tickets-load settles at the merge to decompose as a file its prompt names, and to verify, both optional", () => {
+    const { stations } = pipelineOf("spec-tickets");
+    const load = stations["spec-tickets-load"];
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      merge: needOf(load, "merge_sha"),
+      listed: load.produces,
+      decompose: needOf(
+        stations["spec-tickets-decompose"],
+        "settled_statements",
+      ),
+      verify: needOf(stations["spec-tickets-verify"], "settled_statements"),
+      named: prompt.includes("/workspace/settled-statements.json"),
+    }).toEqual({
+      merge: { name: "merge_sha", kind: "value" },
+      listed: [
+        {
+          name: "existing_tickets",
+          kind: "file",
+          path: "existing-tickets.json",
+        },
+        {
+          name: "settled_statements",
+          kind: "file",
+          path: "settled-statements.json",
+        },
+      ],
+      decompose: {
+        name: "settled_statements",
+        kind: "file",
+        path: "settled-statements.json",
+        optional: true,
+      },
+      verify: { name: "settled_statements", kind: "file", optional: true },
+      named: true,
+    });
+  });
+
   it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
     const { settings } =
       pipelineOf("spec-tickets").agent_definitions!["spec-tickets-decompose"]!;

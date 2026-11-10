@@ -7,12 +7,21 @@ import {
   type RunningStation,
 } from "@re-cinq/floor-station";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import {
+  parseDecomposition,
+  type StatementAssessment,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import {
   assessImplementation,
+  cachedRead,
   type ImplementationAssessment,
 } from "@re-cinq/lore-shared/spec-tickets/implementation-assessment.js";
+import {
+  listedLines,
+  settledOn,
+  type CitedSpec,
+} from "@re-cinq/lore-shared/spec-tickets/settled-statements.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   coverageDeps,
@@ -36,24 +45,46 @@ async function assessVisit(
   { needs }: Brief,
   tools: Tools,
 ): Promise<ImplementationAssessment> {
+  const cited = await citedSpecAt(deps, needs);
+  const raw = (await tools.read("decomposition")).toString("utf8");
+  const decomposition = parseDecomposition(parseModelJson(raw));
+
+  return assessImplementation(decomposition, {
+    ...cited,
+    settled: await settledFor(cited, needs, tools),
+  });
+}
+
+/** The spec and the repository it cites as the merge holds them, each file read once. */
+async function citedSpecAt(
+  deps: CoverageDeps,
+  needs: Brief["needs"],
+): Promise<CitedSpec & { commit: string }> {
   const { repo } = parseGitRef(needs.target);
   const commit = needs.merge_sha;
 
   enforceTrue(commit, Error, "merge_sha is required");
   const spec = await deps.readSpec(repo, needs.spec_path, commit);
-
   const message = `spec ${needs.spec_path} does not exist at ${commit}`;
 
   enforceTrue(spec !== null, Error, message);
-  const raw = (await tools.read("decomposition")).toString("utf8");
-  const decomposition = parseDecomposition(parseModelJson(raw));
+  const read = cachedRead((path) => deps.readSpec(repo, path, commit));
 
-  return assessImplementation(decomposition, {
-    spec,
-    specPath: needs.spec_path,
-    commit,
-    read: (path) => deps.readSpec(repo, path, commit),
-  });
+  return { spec, specPath: needs.spec_path, commit, read };
+}
+
+// The load step's listing names lines only; their evidence is derived again from the links at the merge (specs/spec-tickets FR25).
+async function settledFor(
+  cited: CitedSpec,
+  needs: Brief["needs"],
+  tools: Tools,
+): Promise<StatementAssessment[] | undefined> {
+  if (!("settled_statements" in needs)) {
+    return undefined;
+  }
+  const listing = (await tools.read("settled_statements")).toString("utf8");
+
+  return settledOn(cited, listedLines(listing));
 }
 
 async function reportAssessment(

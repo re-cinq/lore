@@ -212,6 +212,16 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
 }
 
+/** The test links in a statement's trailing link group that can be checked against a checkout, resolved to repo paths. */
+export function checkableTestLinks(
+  statement: string,
+  docPath: string,
+): TestLinkRef[] {
+  return parseTestLinksInStatement(statement)
+    .filter((link) => !NON_REPO_PATH_RE.test(link.path))
+    .map((link) => ({ ...link, path: resolveLinkPath(link.path, docPath) }));
+}
+
 /** Every href in the statement's trailing link group, as written — a plan block's `#<id>` included, which the `#Lnn` line-anchor read would cut. */
 export function trailingLinkHrefs(statement: string): string[] {
   return trailingLinkMatches(statement).map((match) => match[2].trim());
