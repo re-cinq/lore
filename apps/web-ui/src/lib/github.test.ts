@@ -90,7 +90,17 @@ describe("computeStatus", () => {
     expect(
       computeStatus(
         open,
-        [{ conclusion: "action_required" }],
+        [{ status: "queued", conclusion: null }],
+        [{ state: "APPROVED" }],
+      ),
+    ).toBe("open");
+  });
+
+  it("returns open when approved but a check is in_progress with null conclusion", () => {
+    expect(
+      computeStatus(
+        open,
+        [{ status: "in_progress", conclusion: null }],
         [{ state: "APPROVED" }],
       ),
     ).toBe("open");
