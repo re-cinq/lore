@@ -1,83 +1,113 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { components } from "@/lib/api/schema";
 
-interface BlockedReason {
-  label: string;
-}
+type BlockedReason = Pick<components["schemas"]["BlockedReason"], "label">;
+
+type BlockedReasonState =
+  | { status: "idle" }
+  | { status: "ready"; label: string }
+  | { status: "unavailable" };
 
 export interface BlockedReasonBannerProps {
   repo: string;
   prNumber: number | null;
   runStatus: string;
+  refreshKey?: string;
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
+const REFRESH_INTERVAL_MS = 15_000;
+const UNAVAILABLE_MESSAGE = "Blocked reason unavailable.";
 
-export default function BlockedReasonBanner({
-  repo,
-  prNumber,
-  runStatus,
-}: BlockedReasonBannerProps) {
-  const reason = useBlockedReason(repo, prNumber, runStatus);
+export default function BlockedReasonBanner(props: BlockedReasonBannerProps) {
+  const state = useBlockedReason(props);
 
-  if (!reason) {
+  if (state.status === "idle") {
     return null;
   }
 
-  return <p>{reason.label}</p>;
+  return (
+    <div role="status">
+      {state.status === "unavailable" ? UNAVAILABLE_MESSAGE : state.label}
+    </div>
+  );
 }
 
-function useBlockedReason(
-  repo: string,
-  prNumber: number | null,
-  runStatus: string,
-): BlockedReason | null {
-  const [reason, setReason] = useState<BlockedReason | null>(null);
+function useBlockedReason({
+  repo,
+  prNumber,
+  runStatus,
+  refreshKey,
+}: BlockedReasonBannerProps): BlockedReasonState {
+  const [state, setState] = useState<BlockedReasonState>({ status: "idle" });
 
   useEffect(() => {
-    if (runStatus !== "settled" || prNumber === null) {
+    if (!prNumber || runStatus !== "finished") {
       return;
     }
 
-    return loadBlockedReason(repo, prNumber, setReason);
-  }, [repo, prNumber, runStatus]);
+    return watchBlockedReason(repo, prNumber, setState);
+  }, [repo, prNumber, runStatus, refreshKey]);
 
-  return reason;
+  return prNumber && runStatus === "finished" ? state : { status: "idle" };
+}
+
+function watchBlockedReason(
+  repo: string,
+  prNumber: number,
+  onState: (state: BlockedReasonState) => void,
+) {
+  let stopLoad = loadBlockedReason(repo, prNumber, onState);
+  const timer = setInterval(() => {
+    stopLoad();
+    stopLoad = loadBlockedReason(repo, prNumber, onState);
+  }, REFRESH_INTERVAL_MS);
+
+  return () => {
+    clearInterval(timer);
+    stopLoad();
+  };
 }
 
 function loadBlockedReason(
   repo: string,
   prNumber: number,
-  onLoaded: (reason: BlockedReason) => void,
-): () => void {
-  let disposed = false;
+  onState: (state: BlockedReasonState) => void,
+) {
+  let cancelled = false;
+  const apply = (next: BlockedReasonState) => {
+    if (!cancelled) {
+      onState(next);
+    }
+  };
 
   readBlockedReason(repo, prNumber)
-    .then((next) => {
-      if (!disposed && next !== null) {
-        onLoaded(next);
-      }
-    })
-    .catch(() => {});
+    .then(apply)
+    .catch(() => apply({ status: "unavailable" }));
 
   return () => {
-    disposed = true;
+    cancelled = true;
   };
 }
 
 async function readBlockedReason(
   repo: string,
   prNumber: number,
-): Promise<BlockedReason | null> {
+): Promise<BlockedReasonState> {
   const res = await fetch(
     `/api/repos/${repo}/pulls/${prNumber}/blocked-reason`,
     { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
   );
 
   if (!res.ok) {
-    return null;
+    return { status: "unavailable" };
   }
 
-  return (await res.json()) as BlockedReason;
+  const reason = (await res.json()) as BlockedReason;
+
+  return reason.label
+    ? { status: "ready", label: reason.label }
+    : { status: "idle" };
 }

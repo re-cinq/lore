@@ -15,7 +15,7 @@ describe("RunPage Blocked Reason", () => {
     vi.restoreAllMocks();
   });
 
-  it("queries the blocked-reason API and displays it for a settled run with a PR", async () => {
+  it("queries the blocked-reason API and displays it for a finished run with a PR", async () => {
     global.fetch = vi.fn(async (url: string | Request | URL) => {
       if (
         url
@@ -46,7 +46,7 @@ describe("RunPage Blocked Reason", () => {
       taskId: "task-1",
       repo: "re-cinq/lore",
       branch: "feat/x",
-      status: "settled",
+      status: "finished",
       outcome: "success",
       reason: null,
       createdAt: "2026-09-09T10:00:00.000Z",
@@ -62,7 +62,7 @@ describe("RunPage Blocked Reason", () => {
     };
 
     render(
-      <LiveSocketProvider createSocket={() => new FakeWebSocket("wss://fake")}>
+      <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
         <RunLiveShell
           run={run}
           nodes={[]}

@@ -119,6 +119,7 @@ function RunDetails({ props, run, live }: PanelSources) {
         repo={run.repo}
         prNumber={run.prNumber}
         runStatus={run.status}
+        refreshKey={dodRefreshKey(live)}
       />
       <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
     </>
