@@ -2,21 +2,17 @@ import type { Stats } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
 import { runPollLoop } from "@re-cinq/lore-shared/lib/backoff.js";
 import {
-  SkillDefinitionSchema,
+  SKILL_NAME,
   type SkillDefinition,
 } from "@re-cinq/lore-shared/models/skill-definition.js";
-import { proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
+import { readCatalogue } from "./catalogue-skills.js";
 
 // Installs the org's skills into ~/.claude/skills (specs/org-skills FR-004); it only ever touches a directory carrying its marker.
 
 const MARKER = ".lore-managed";
-const SAFE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const DEFAULT_INTERVAL_MS = 5 * 60_000;
-
-const SkillsListBody = z.object({ skills: z.array(SkillDefinitionSchema) });
 
 /** An entry already under ~/.claude/skills, and whether this loop owns it: only a real directory with a regular marker file and no symlinked SKILL.md. */
 export interface LocalSkillDir {
@@ -46,7 +42,7 @@ export function planSkillSync(
   local: LocalSkillDir[],
 ): SkillSyncPlan {
   const wanted = remote.filter(
-    (skill) => skill.enabled && SAFE_NAME.test(skill.name),
+    (skill) => skill.enabled && SKILL_NAME.test(skill.name),
   );
   const wantedNames = new Set(wanted.map((skill) => skill.name));
   const handInstalled = new Set(
@@ -103,12 +99,11 @@ async function syncSkillsLogged(dir: string): Promise<void> {
 }
 
 async function syncSkills(dir: string): Promise<void> {
-  const res = await proxyGetApi("/api/skill-definitions");
+  const skills = await readCatalogue();
 
-  if (!res.ok) {
+  if (!skills) {
     return;
   }
-  const { skills } = SkillsListBody.parse(JSON.parse(res.body));
 
   await applySkillSync(
     dir,

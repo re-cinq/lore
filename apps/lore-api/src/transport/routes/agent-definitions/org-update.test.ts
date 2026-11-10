@@ -138,6 +138,36 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
+  it("replaces fix-ci's skills lore-context with cli-design", async () => {
+    const floor = await floorWithFixCi();
+
+    await put(await server(floor), { name: "fix-ci", skills: ["cli-design"] });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      skills: ["cli-design"],
+    });
+  });
+
+  it("removes fix-ci's skills when skills is an empty list", async () => {
+    const floor = await floorWithFixCi();
+
+    await put(await server(floor), { name: "fix-ci", skills: [] });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toBeUndefined();
+  });
+
+  it("sets fix-ci's skills_source to LORE_SKILLS_URL when cli-design is added and it has none", async () => {
+    process.env.LORE_SKILLS_URL = "https://skills.test";
+    const floor = await floorWithFixCi();
+
+    await put(await server(floor), { name: "fix-ci", skills: ["cli-design"] });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      skills: ["cli-design"],
+      skills_source: "https://skills.test",
+    });
+  });
+
   it("answers 400 invalid_agent for an http MCP server with no url", async () => {
     const res = await put(await server(await floorWithFixCi()), {
       name: "fix-ci",

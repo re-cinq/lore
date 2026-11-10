@@ -16,6 +16,7 @@ import {
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
+import { skillsSourceWrite } from "./agent-common.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
 // Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
@@ -126,36 +127,40 @@ function writeOrgPatch(
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
-  const { pod_resources, mcp_servers, ...fields } = patch;
+  const { pod_resources, mcp_servers, skills, ...fields } = patch;
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
     withoutClearedRequired(fields),
-    orgConfigWrite({ pod_resources, mcp_servers }),
+    orgConfigWrite({ pod_resources, mcp_servers, skills }),
   );
 }
 
-/** Replaces the org default's pod resources and MCP servers whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
+/** Replaces the org default's pod resources, MCP servers and skills whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
 function orgConfigWrite(
-  owned: Pick<AgentPatch, "pod_resources" | "mcp_servers">,
+  owned: Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
 ) {
-  const keys = withoutEmptyServers(configKeysOf(owned));
+  const keys = withoutEmptyLists(configKeysOf(owned));
 
   return Object.keys(keys).length > 0
-    ? { ...keys, inheritedConfig: null }
+    ? { ...keys, ...skillsSourceWrite(), inheritedConfig: null }
     : undefined;
 }
 
-// The org default inherits from nothing, so an empty list of servers is no key at all.
-function withoutEmptyServers(
+// The org default inherits from nothing, so an empty list of servers or skills is no key at all.
+function withoutEmptyLists(
   keys: ReturnType<typeof configKeysOf>,
 ): ReturnType<typeof configKeysOf> {
-  return keys.mcpServers?.length === 0 ? { ...keys, mcpServers: null } : keys;
+  return {
+    ...keys,
+    ...(keys.mcpServers?.length === 0 ? { mcpServers: null } : {}),
+    ...(keys.skills?.length === 0 ? { skills: null } : {}),
+  };
 }
 
 function withoutClearedRequired(
-  fields: Omit<AgentPatch, "pod_resources" | "mcp_servers">,
-): Omit<AgentPatch, "pod_resources" | "mcp_servers"> {
+  fields: Omit<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
+): Omit<AgentPatch, "pod_resources" | "mcp_servers" | "skills"> {
   return Object.fromEntries(
     Object.entries(fields).filter(
       ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),

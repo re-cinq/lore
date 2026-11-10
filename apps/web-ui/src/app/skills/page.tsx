@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { Alert } from "@/components/Alert";
 import { deleteSkill } from "./actions";
 import { DeleteSkillButton } from "./DeleteSkillButton";
-import { fetchSkills, type LoadedSkills } from "./fetch-skills";
-import type { SkillDefinition } from "./skill-definition";
+import { fetchSkills, type LoadedSkills } from "@/lib/fetch-skills";
+import type { SkillDefinition } from "@/lib/skill-definition";
 import styles from "./skills.module.css";
 
 export const dynamic = "force-dynamic";

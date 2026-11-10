@@ -7,10 +7,13 @@ export type AgentDefinition = ResolvedAgentDefinition;
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;
 
-/** A write to the config keys the Agents UI owns (pod_resources, mcp_servers): a value sets the key, null removes it, an absent one keeps it. Merged over the layer's own config with inheritedConfig as fallback since config is whole-object across layers. */
+/** A write to the config keys the Agents UI owns (pod_resources, mcp_servers, skills): a value sets the key, null removes it, an absent one keeps it. Merged over the layer's own config with inheritedConfig as fallback since config is whole-object across layers. */
 export interface ConfigWrite {
   podResources?: Record<string, unknown> | null;
   mcpServers?: Record<string, unknown>[] | null;
+  skills?: string[] | null;
+  /** Where pods fetch skills from, written only with a non-empty skills list when neither the layer's config nor inheritedConfig names one. */
+  skillsSource?: string;
   inheritedConfig: Record<string, unknown> | null;
 }
 

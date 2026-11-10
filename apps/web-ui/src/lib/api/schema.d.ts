@@ -6268,6 +6268,7 @@ export interface operations {
                 }[];
               }[]
             | null;
+          skills?: string[] | null;
         };
       };
     };
@@ -8479,6 +8480,7 @@ export interface operations {
                 }[];
               }[]
             | null;
+          skills?: string[] | null;
         };
       };
     };
@@ -8583,6 +8585,7 @@ export interface operations {
                 }[];
               }[]
             | null;
+          skills?: string[] | null;
         };
       };
     };

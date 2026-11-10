@@ -12,6 +12,7 @@ import { hasValidHelpBlock } from "@re-cinq/lore-shared/agent-defaults/skill-hel
 import {
   SKILL_DEFINITION_COLUMNS,
   SKILL_DEFINITION_TABLE,
+  SKILL_NAME,
   SkillDefinitionSchema,
   type SkillDefinition,
 } from "@re-cinq/lore-shared/models/skill-definition.js";
@@ -36,7 +37,7 @@ const SkillBody = z.object({
 });
 
 const SkillCreateBody = SkillBody.extend({
-  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  name: z.string().regex(SKILL_NAME),
 });
 
 type SkillWrite = z.infer<typeof SkillCreateBody>;

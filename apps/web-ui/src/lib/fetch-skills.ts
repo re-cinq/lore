@@ -1,7 +1,7 @@
 import { apiFetch } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
-import { failureMessage } from "./failure-message";
-import type { SkillDefinition } from "./skill-definition";
+import { failureMessage } from "@/lib/failure-message";
+import type { SkillDefinition } from "@/lib/skill-definition";
 
 const READ_TIMEOUT_MS = 5000;
 

@@ -183,6 +183,7 @@ URL; the ai-agent-subsystem init **fetches** and knows nothing of the registry.
 - **Lore is the registry.** The `lore-mcp` gateway serves the curated agent skill bundles +
   `settings.json` (baked into *its* image — Lore content in a Lore service, never the subsystem);
   `agentDefToCrds` renders `skills_source: <gateway>/skills` + the per-task-type skill names.
+- **Amended 2026-11-10: the registry also serves the org catalogue.** A name that is not a baked folder is looked up in `lore.skill_definitions` through lore-api and served as `<name>/SKILL.md` (a baked skill wins), to pods inside the cluster only (a request through the ingress gets the baked skills alone), so the skills picked on an agent's form (`config.skills`) reach its pod without an image build (`specs/org-skills` FR-021, `specs/lore-agents` FR-SKILLS).
 - **Why fetch, not baked or inline.** Baking Lore skills into the subsystem image would make it
   Lore-aware; inlining content bloats the CR and can't carry multi-file skills. A name + URL keeps the
   subsystem agnostic and is exactly the "define in Lore, referenced by name" model.
