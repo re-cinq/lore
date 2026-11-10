@@ -63,6 +63,25 @@ async function initAndSeedPlan(
   input: NewPlanInput,
   user: PlanUser,
 ): Promise<{ id: string } | { error: string }> {
+  const record = await planRecord(fullName, input, user);
+
+  if ("error" in record) {
+    return record;
+  }
+  const seeded = await seedIntent(record.id, user.id, input.description);
+
+  if (seeded.status !== "ok") {
+    return { error: failureOf(seeded) };
+  }
+
+  return record;
+}
+
+async function planRecord(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string }> {
   const created = await createPlan({
     repo: fullName,
     title: input.title,
@@ -73,12 +92,8 @@ async function initAndSeedPlan(
   if (created.status !== "ok") {
     return { error: failureOf(created) };
   }
-  const { id } = created.data.meta;
-  const seeded = await seedIntent(id, user.id, input.description);
 
-  if (seeded.status !== "ok") {
-    return { error: failureOf(seeded) };
-  }
+  const { id } = created.data.meta;
 
   return { id };
 }
