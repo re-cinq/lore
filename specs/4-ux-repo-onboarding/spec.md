@@ -226,13 +226,13 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
 - The merge-check sweep reads owner, repository and PR number from an onboarding GitHub pull URL; an empty URL or a repository URL without a pull request yields no PR to check. ([validated by reads owner, repo, and PR number from a github.com pull URL @41c33764](apps/stations/src/work/merge-check/merge-check.test.ts#L5), [validated by returns null for a URL that carries no pull request @5ef710ec](apps/stations/src/work/merge-check/merge-check.test.ts#L11), [validated by returns null for an empty string @1c6a1a84](apps/stations/src/work/merge-check/merge-check.test.ts#L15))
 - FR-2.6: After merge, the merge-check station flips the repo to onboarded
   and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
-  redirects to its run (or back to the repo when none is
+  redirects to its run (or returns the refusal error when none is
   created), from a trigger drawn as a plain button rather than a link, and the fix-ingest control re-triggers ingestion for
   misaligned repos with a singular/plural PR label plus a failure count
   and per-repo reasons when some PRs could not be opened; a re-onboard
   raised while the previous pass is still running lands on that in-flight
   task's run instead of
-  queueing a duplicate. ([validated by is the plain global button, not the link-styled one @b7b2cfb8](apps/web-ui/src/components/ReonboardButton.test.tsx#L17), [`actions.test.ts@373f8726`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts@7472fa61`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts@852b5432`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx@a467387d`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx@238c230a`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx@599181b5`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx@59172195`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
+  queueing a duplicate. ([validated by is the plain global button, not the link-styled one @b7b2cfb8](apps/web-ui/src/components/ReonboardButton.test.tsx#L17), [`actions.test.ts@373f8726`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L32), [`actions.test.ts@7472fa61`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L43), [`actions.test.ts`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L56), [`FixIngestButton.test.tsx@a467387d`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx@238c230a`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx@599181b5`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx@59172195`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
 - FR-2.6.1 *(added 2026-09-22, #2027)*: Flipping the repo to onboarded does
   not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
   on merge although nothing had read the repo, which silenced the
@@ -475,7 +475,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-4.4: Forms have proper labels, validation, and error states; the
   shared submit button shows its idle label while enabled and swaps to
   the pending label and disables while the form is pending (keeping its
-  children as the label when no pendingLabel is given). ([validated by `SubmitButton.test.tsx@7885d4ae`](apps/web-ui/src/components/SubmitButton.test.tsx#L18), [`SubmitButton.test.tsx@4ac988c2`](apps/web-ui/src/components/SubmitButton.test.tsx#L27), [`SubmitButton.test.tsx@4dbedf74`](apps/web-ui/src/components/SubmitButton.test.tsx#L36))
+  children as the label when no pendingLabel is given). ([validated by `SubmitButton.test.tsx@7885d4ae`](apps/web-ui/src/components/SubmitButton.test.tsx#L18), [`SubmitButton.test.tsx@4ac988c2`](apps/web-ui/src/components/SubmitButton.test.tsx#L27), [`SubmitButton.test.tsx@4dbedf74`](apps/web-ui/src/components/SubmitButton.test.tsx#L36), [validated by `setup-form.acceptance.test.tsx@c5baa93e`](apps/web-ui/src/components/setup-form.acceptance.test.tsx#L8), [validated by `setup-form.acceptance.test.tsx@a4977c43`](apps/web-ui/src/components/setup-form.acceptance.test.tsx#L53), [`actions.test.ts@7548be14`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L72), [`actions.test.ts@5e6befe5`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L81))
 
 ### FR-5: Onboarding PR Content
 

@@ -1,17 +1,18 @@
 "use client";
 
-import PendingActionButton from "@/components/PendingActionButton";
+import ActionForm from "@/components/ActionForm";
 
-/** The re-onboarding instance, kept as its own component for existing callers. */
-export default function ReonboardButton(props: {
-  action: () => Promise<void>;
+/** The re-onboarding form, kept as its own component for existing callers. Surfaces errors returned by the action. */
+export default function ReonboardButton({
+  action,
+  text,
+}: {
+  action: () => Promise<{ error?: string } | void>;
   text: string;
 }) {
   return (
-    <PendingActionButton
-      {...props}
-      pendingText="starting the run…"
-      className=""
-    />
+    <ActionForm action={action} pendingLabel="starting the run…">
+      {text}
+    </ActionForm>
   );
 }
