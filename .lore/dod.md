@@ -12,6 +12,7 @@
 ## Facets
 
 - [x] Add `getChangedFiles` to `PlatformGitHub` and `GitHubPort` pointing to the paginated file list logic.
+- [x] Fix TypeScript build regression: add `getChangedFiles` to `PullRequestsPort` mock objects in `workspace.test.ts` and `pull-requests.test.ts`.
 - [ ] Remove or migrate internal usage of `listFiles` in `blocked-reason` if necessary.
 
 ## Out of scope
