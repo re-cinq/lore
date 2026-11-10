@@ -238,7 +238,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   on merge although nothing had read the repo, which silenced the
   seven-day staleness warning on a repo no ingest had reached.
   ([validated by marks repo-42's onboarding merged without stamping last_ingested_at @b3fdadf8](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L79),
-  [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset @156757e1](libs/shared/src/outbound/project/settings/settings.test.ts#L70))
+  [validated by marks the onboarding merged and leaves a never-ingested repo's last_ingested_at unset @156757e1](libs/shared/src/outbound/project/settings/settings.test.ts#L70), [validated by records last_ingested_at only after a successful write @1ba55c92](apps/lore-api/src/transport/routes/ingest/ingest.acceptance.test.ts#L40), [validated by does not record last_ingested_at when no files landed @3fd83a2d](apps/lore-api/src/transport/routes/ingest/ingest.acceptance.test.ts#L63))
 - FR-2.7: When enrolment leaves gaps — a file that could not be committed,
   a callback value that could not be set — the onboarding still proceeds and
   the gaps are COMMENTED ON THE TICKET, the human surface an onboarding has
