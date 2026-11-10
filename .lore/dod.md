@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Update FR-3.2 in `specs/4-ux-repo-onboarding/spec.md` to list the current tabs: Overview, Context, Assembled, Specs, Plans, Changelog, Loops, ADRs, Graph, Agents, Settings.
-- [ ] Run formatter and spec linter to update links.
+- [x] Update FR-3.2 in `specs/4-ux-repo-onboarding/spec.md` to list the current tabs: Overview, Context, Assembled, Specs, Plans, Changelog, Loops, ADRs, Graph, Agents, Settings.
+- [x] Run formatter and spec linter to update links.
 
 ## Out of scope
 
