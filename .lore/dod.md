@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Update `detectCurrentRepo` state to distinguish between "not yet evaluated" and "evaluated to null"
-- [ ] Ensure `resetRepoCache` resets this updated state correctly
+- [x] Update `detectCurrentRepo` state to distinguish between "not yet evaluated" and "evaluated to null"
+- [x] Ensure `resetRepoCache` resets this updated state correctly
 
 ## Out of scope
 

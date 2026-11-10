@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
 
-let cachedRepo: string | null = null;
+let cachedRepo: string | null | undefined = undefined;
 
 export function detectCurrentRepo(): string | null {
-  if (cachedRepo) {
+  if (cachedRepo !== undefined) {
     return cachedRepo;
   }
 
@@ -15,20 +15,16 @@ export function detectCurrentRepo(): string | null {
     // Parse SSH or HTTPS remote URLs to extract owner/repo.
     const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
 
-    if (match) {
-      cachedRepo = match[1];
-
-      return cachedRepo;
-    }
+    cachedRepo = match ? match[1] : null;
   } catch {
-    // ignore; treat as not detected
+    cachedRepo = null;
   }
 
-  return null;
+  return cachedRepo;
 }
 
 export function resetRepoCache(): void {
-  cachedRepo = null;
+  cachedRepo = undefined;
 }
 
 /** What git prints for a detached HEAD: no branch, so nothing CI could have judged under a name. */
