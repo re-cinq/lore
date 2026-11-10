@@ -403,9 +403,9 @@ values file.
 ## Repo Onboarding
 
 Add a repo to Lore via the UI (/onboard) or MCP tool (lore_onboard_repo).
-Creates a PR on the target repo with CLAUDE.md, AGENTS.md, PR
-template, and CI workflows. After merge, nightly ingestion picks
-up the repo's content. Repos table: lore.repos.
+Creates a PR on the target repo with AGENTS.md, PR
+template, and CI workflows (the owner authors CLAUDE.md). After merge,
+incremental ingestion runs on every push to main via a pipeline task. Repos table: lore.repos.
 
 ## Task Pipeline
 
