@@ -110,16 +110,11 @@ export function configuredServers(config: unknown): McpServer[] {
   return servers ?? [];
 }
 
-/** The form's `mcp_servers` field: absent while the servers are untouched (the save keeps the stored list), null for an emptied list (the save clears it). */
-export function parseMcpServers(
-  form: FormData,
-): McpServer[] | null | undefined {
+/** The form's `mcp_servers` field: absent while the servers are untouched (the save keeps the stored list), an empty list once every server was removed (a repo then runs none of the org default's). */
+export function parseMcpServers(form: FormData): McpServer[] | undefined {
   const field = form.get("mcp_servers");
 
-  if (typeof field !== "string") {
-    return undefined;
-  }
-  const servers = JSON.parse(field) as McpServer[];
-
-  return servers.length > 0 ? servers : null;
+  return typeof field === "string"
+    ? (JSON.parse(field) as McpServer[])
+    : undefined;
 }

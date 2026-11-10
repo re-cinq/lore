@@ -118,7 +118,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
-  it("removes fix-ci's MCP servers when mcp_servers is null", async () => {
+  it("removes fix-ci's MCP servers when mcp_servers is an empty list", async () => {
     const floor = new InMemoryAgentDefinitions();
 
     await floor.put("fix-ci", {
@@ -131,7 +131,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
       },
     });
 
-    await put(await server(floor), { name: "fix-ci", mcp_servers: null });
+    await put(await server(floor), { name: "fix-ci", mcp_servers: [] });
 
     expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
       skills: ["lore-context"],

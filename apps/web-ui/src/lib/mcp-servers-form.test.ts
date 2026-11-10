@@ -115,8 +115,8 @@ describe("parseMcpServers", () => {
     expect(parseMcpServers(fd({}))).toBeUndefined();
   });
 
-  it("returns null for an emptied list, so a save clears the stored one", () => {
-    expect(parseMcpServers(fd({ mcp_servers: "[]" }))).toBeNull();
+  it("returns an empty list for an emptied one, so a repo's save runs none of the org's servers", () => {
+    expect(parseMcpServers(fd({ mcp_servers: "[]" }))).toEqual([]);
   });
 
   it("returns the files server the field holds as JSON", () => {

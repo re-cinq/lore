@@ -97,7 +97,7 @@ export type AgentPatch = Partial<AgentDefinitionInput> & {
   mcp_servers?: McpServer[] | null;
 };
 
-/** The config keys a patch names, under the adapter's names; an empty list of servers is none. */
+/** The config keys a patch names, under the adapter's names. An empty list of servers stays a list: in a repo's variant it means "none", where null means "the org default's". */
 export function configKeysOf(
   patch: Pick<AgentPatch, "pod_resources" | "mcp_servers">,
 ): { podResources?: PodResources | null; mcpServers?: McpServer[] | null } {
@@ -105,9 +105,7 @@ export function configKeysOf(
 
   return {
     ...(podResources === undefined ? {} : { podResources }),
-    ...(mcpServers === undefined
-      ? {}
-      : { mcpServers: mcpServers?.length ? mcpServers : null }),
+    ...(mcpServers === undefined ? {} : { mcpServers }),
   };
 }
 

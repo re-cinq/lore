@@ -139,11 +139,18 @@ function writeOrgPatch(
 function orgConfigWrite(
   owned: Pick<AgentPatch, "pod_resources" | "mcp_servers">,
 ) {
-  const keys = configKeysOf(owned);
+  const keys = withoutEmptyServers(configKeysOf(owned));
 
   return Object.keys(keys).length > 0
     ? { ...keys, inheritedConfig: null }
     : undefined;
+}
+
+// The org default inherits from nothing, so an empty list of servers is no key at all.
+function withoutEmptyServers(
+  keys: ReturnType<typeof configKeysOf>,
+): ReturnType<typeof configKeysOf> {
+  return keys.mcpServers?.length === 0 ? { ...keys, mcpServers: null } : keys;
 }
 
 function withoutClearedRequired(

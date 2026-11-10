@@ -16,8 +16,8 @@ export interface ParsedAgentForm {
   def: Omit<AgentDefinition, "project_id"> & {
     /** null clears a previously saved value — the API treats absence as "leave". */
     pod_resources: PodResources | null;
-    /** Absent while the form's servers are untouched; null clears a saved list. */
-    mcp_servers?: McpServer[] | null;
+    /** Absent while the form's servers are untouched; an empty list means none. */
+    mcp_servers?: McpServer[];
   };
   approvalPr?: string;
 }
@@ -79,7 +79,7 @@ function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
   };
 }
 
-function mcpServersOf(fd: FormData): { mcp_servers?: McpServer[] | null } {
+function mcpServersOf(fd: FormData): { mcp_servers?: McpServer[] } {
   const servers = parseMcpServers(fd);
 
   return servers === undefined ? {} : { mcp_servers: servers };

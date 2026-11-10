@@ -372,6 +372,19 @@ describe("routes — agents", () => {
       );
     });
 
+    it("an update with an empty mcp_servers hands the adapter the empty list, so the repo runs none of the org's servers", async () => {
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { mcp_servers: [] });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { mcpServers: [], inheritedConfig: null },
+      );
+    });
+
     it("a create with mcp_servers writes the list over the inherited config", async () => {
       fakeAgents.resolve.mockResolvedValue({
         ...def,
