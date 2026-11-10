@@ -14,9 +14,9 @@
 ## Facets
 
 - [ ] Expose `getAvailableRepos` as an endpoint in `lore-api` (e.g. `/api/repos/available`).
-- [ ] Update `listAllRepos` or create a new fetcher in `web-ui` to call this endpoint.
-- [ ] Update `apps/web-ui/src/app/api/repos/route.ts` to use the new fetcher instead of hardcoding the available list.
-- [ ] Ensure any upstream errors are caught and surfaced via `upstreamError`.
+- [x] Update `listAllRepos` or create a new fetcher in `web-ui` to call this endpoint.
+- [x] Update `apps/web-ui/src/app/api/repos/route.ts` to use the new fetcher instead of hardcoding the available list.
+- [x] Ensure any upstream errors are caught and surfaced via `upstreamError`.
 
 ## Out of scope
 
