@@ -10,7 +10,9 @@ export class PgPrBlockedReasons
   extends PrBlockedReasonsBase
   implements PrBlockedReasonsPort
 {
-  constructor(private readonly pool: PgPool) {}
+  constructor(private readonly pool: PgPool) {
+    super();
+  }
 
   async current(repo: string, prNumber: number): Promise<BlockedReason | null> {
     const { rows } = await this.pool.query<BlockedReason>(
