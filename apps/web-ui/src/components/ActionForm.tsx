@@ -16,7 +16,7 @@ export default function ActionForm({ action, pendingLabel, children }: Props) {
 
   return (
     <form onSubmit={onSubmit}>
-      {error && <p>{error}</p>}
+      {error && <p role="alert">{error}</p>}
       <SubmitButton className="" pending={pending} pendingLabel={pendingLabel}>
         {children}
       </SubmitButton>
