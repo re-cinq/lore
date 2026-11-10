@@ -44,33 +44,32 @@ function world(pulls: PullRef[]) {
   const deps: BlockedReasonDeps = {
     appLogin: async () => LORE,
     reasons,
-    project: async (repo) =>
-      ({
-        pulls: {
-          get: async (number: number) =>
-            pulls.find((p) => p.number === number) ?? null,
-          list: async () => pulls,
-          getMergeability: async (number: number) =>
-            mergeability.get(number) ?? { mergeable: true, state: "clean" },
-          getBranchRule: async () => ({
-            requiredApprovals: 0,
-            codeOwnersReview: false,
-            requiredChecks: [],
-          }),
-          listChecks: async () => [],
-          ciConclusion: async () => "success",
-          listReviews: async (number: number) => reviews.get(number) ?? [],
-          listFiles: async () => [],
-        } as any,
-        repo: { read: async () => null },
-        issues: thread,
-        audit: new Audit(repo, audit),
-        taskIssue: async () => null,
-        autoMergeOn: async () => true,
-        taskGroup: async (number: number) => taskGroups.get(number),
-        hasReviewInFlight: async (number: number) =>
-          reviewsInFlight.get(number) === "yes",
-      }) as any,
+    project: async (repo) => ({
+      pulls: {
+        get: async (number: number) =>
+          pulls.find((p) => p.number === number) ?? null,
+        list: async () => pulls,
+        getMergeability: async (number: number) =>
+          mergeability.get(number) ?? { mergeable: true, state: "clean" },
+        getBranchRule: async () => ({
+          requiredApprovals: 0,
+          codeOwnersReview: false,
+          requiredChecks: [],
+        }),
+        listChecks: async () => [],
+        ciConclusion: async () => "success",
+        listReviews: async (number: number) => reviews.get(number) ?? [],
+        listFiles: async () => [],
+      },
+      repo: { read: async () => null },
+      issues: thread,
+      audit: new Audit(repo, audit),
+      taskIssue: async () => null,
+      autoMergeOn: async () => true,
+      taskGroup: async (number: number) => taskGroups.get(number),
+      hasReviewInFlight: async (number: number) =>
+        reviewsInFlight.get(number) === "yes",
+    }),
   };
 
   return {
@@ -136,6 +135,25 @@ describe("Blocked Reason Acceptance Tests", () => {
 
   it("assigns blocked_by_pr when a dependency PR in the same task group is unmerged", async () => {
     const w = world([pr(7), pr(8)]);
+
+    w.taskGroups.set(8, { task_group_id: "group-1", depends_on: [7] });
+
+    await runBlockedReason(
+      {
+        name: "github.pull_request.opened",
+        params: { repo: REPO, pr_number: 8 },
+      },
+      w.deps,
+    );
+
+    expect(await w.reasons.current(REPO, 8)).toEqual({
+      reason: "blocked_by_pr",
+      detail: "7",
+    });
+  });
+
+  it("keeps blocked_by_pr when a dependency PR is closed without merging", async () => {
+    const w = world([pr(7, { state: "closed", mergedAt: null }), pr(8)]);
 
     w.taskGroups.set(8, { task_group_id: "group-1", depends_on: [7] });
 

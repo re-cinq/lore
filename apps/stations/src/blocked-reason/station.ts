@@ -34,6 +34,11 @@ type ReasonPulls = Pick<
   | "listFiles"
 >;
 
+export interface TaskGroupRef {
+  task_group_id: string;
+  depends_on?: number[];
+}
+
 export interface BlockedReasonProject {
   pulls: ReasonPulls;
   /** The PR's conversation and its backlog issue's: both are issue comments on GitHub. */
@@ -46,9 +51,7 @@ export interface BlockedReasonProject {
   /** The repository's auto-merge loop is on: then every open PR is the loop's to work, whoever opened it. */
   autoMergeOn(): Promise<boolean>;
   /** The PR's task-group membership and its `depends_on` list; undefined when the PR has no task group. */
-  taskGroup?(
-    prNumber: number,
-  ): Promise<{ task_group_id: string; depends_on?: number[] } | undefined>;
+  taskGroup?(prNumber: number): Promise<TaskGroupRef | undefined>;
   /** True when a person requested a re-review on a head that was already approved, holding auto-merge until the new review lands. */
   hasReviewInFlight?(prNumber: number): Promise<boolean>;
 }
@@ -292,8 +295,8 @@ async function resolveBlockedReason(
   return deriveBlockedReason(await pullState(project.pulls, pr));
 }
 
-const isOpenPr = (p: PullRef | null): p is PullRef =>
-  p !== null && p.state === "open";
+const isUnmergedPr = (p: PullRef | null): p is PullRef =>
+  p !== null && !p.mergedAt;
 
 async function blockingDependency(
   project: BlockedReasonProject,
@@ -303,7 +306,7 @@ async function blockingDependency(
   const numbers = tg?.depends_on ?? [];
   const prs = await Promise.all(numbers.map((n) => project.pulls.get(n)));
 
-  return prs.find(isOpenPr)?.number ?? null;
+  return prs.find(isUnmergedPr)?.number ?? null;
 }
 
 const codeOf = (blocked: BlockedReason | null) => blocked?.reason ?? null;
