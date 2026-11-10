@@ -97,7 +97,7 @@ function readValues(formData: FormData): SkillFormValues {
     description: text("description"),
     model: text("model"),
     content: text("content"),
-    enabled: formData.get("enabled") === "on",
+    enabled: formData.get("enabled") === "yes",
   };
 }
 

@@ -31,6 +31,7 @@ export type IconName =
   | "navRepos"
   | "navRuns"
   | "navAgents"
+  | "navSkills"
   | "navSpecs"
   | "navAdrs"
   | "navGraph"
@@ -81,6 +82,7 @@ const PIXELART: Record<IconName, string> = {
   navRepos: "pixelarticons:folder",
   navRuns: "pixelarticons:git-branch",
   navAgents: "pixelarticons:android",
+  navSkills: "pixelarticons:wand",
   navSpecs: "pixelarticons:file",
   navAdrs: "pixelarticons:file-alt",
   navGraph: "pixelarticons:flatten",
@@ -132,6 +134,7 @@ const LUCIDE: Record<IconName, string> = {
   navRepos: "lucide:folder-git-2",
   navRuns: "lucide:workflow",
   navAgents: "lucide:bot",
+  navSkills: "lucide:wand-sparkles",
   navSpecs: "lucide:file-text",
   navAdrs: "lucide:file-check",
   navGraph: "lucide:network",

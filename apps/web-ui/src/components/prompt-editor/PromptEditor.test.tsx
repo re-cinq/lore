@@ -24,6 +24,17 @@ describe("PromptEditor", () => {
     expect(submittedPrompt(container.querySelector("form")!)).toBe(PROMPT);
   });
 
+  it("submits wrapped lines with their line breaks when verbatim", () => {
+    const wrapped = "<!-- begin -->\n**Summary.** a\n**Usage:** b\n";
+    const { container } = render(
+      <form>
+        <PromptEditor name="prompt" defaultValue={wrapped} verbatim />
+      </form>,
+    );
+
+    expect(submittedPrompt(container.querySelector("form")!)).toBe(wrapped);
+  });
+
   it("submits 'Read the ticket' after it is typed into an empty editor", () => {
     const { container } = render(
       <form>
