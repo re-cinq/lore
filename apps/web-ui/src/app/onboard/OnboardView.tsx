@@ -11,6 +11,8 @@ export type OnboardState = { error?: string; fullName?: string } | null;
 export interface OnboardViewProps {
   /** Already-onboarded repos, used for the "Already onboarded: …" hint. */
   onboarded: { full_name: string }[];
+  /** Repos from the GitHub App installation not yet onboarded; populate the picker. */
+  available?: { full_name: string }[];
   /** Server action wired to the onboard form ("actions up"). */
   onboardRepoAction: (
     prev: OnboardState,
@@ -31,19 +33,43 @@ const ONBOARD_LEDE =
 /** Onboarding view; pure render with onboardRepoAction callback (no data access). */
 export default function OnboardView({
   onboarded,
+  available = [],
   onboardRepoAction,
 }: OnboardViewProps) {
   const [state, formAction] = useActionState(onboardRepoAction, null);
 
   return (
+    <OnboardBody
+      state={state}
+      formAction={formAction}
+      onboarded={onboarded}
+      available={available}
+    />
+  );
+}
+
+interface OnboardBodyProps {
+  state: OnboardState;
+  formAction: (payload: FormData) => void;
+  onboarded: { full_name: string }[];
+  available: { full_name: string }[];
+}
+
+function OnboardBody({
+  state,
+  formAction,
+  onboarded,
+  available,
+}: OnboardBodyProps) {
+  const lede = ONBOARD_LEDE;
+  const dflt = state?.fullName ?? "";
+  const err = state?.error;
+
+  return (
     <div className={styles.page}>
-      <SettingsHeader
-        eyebrow="{work}"
-        title="Add a repository"
-        lede={ONBOARD_LEDE}
-      />
+      <SettingsHeader eyebrow="{work}" title="Add a repository" lede={lede} />
       <form action={formAction} className={`task-form ${styles.card}`}>
-        <RepoField defaultValue={state?.fullName ?? ""} error={state?.error} />
+        <RepoField defaultValue={dflt} error={err} available={available} />
         <PrFiles />
         <FormFooter onboarded={onboarded} />
       </form>
@@ -54,10 +80,11 @@ export default function OnboardView({
 interface RepoFieldProps {
   defaultValue: string;
   error?: string;
+  available: { full_name: string }[];
 }
 
 /** The one thing this form asks for. Refills itself from the rejected value so a typo is corrected rather than retyped. */
-function RepoField({ defaultValue, error }: RepoFieldProps) {
+function RepoField({ defaultValue, error, available }: RepoFieldProps) {
   return (
     <div className={styles.field}>
       <label htmlFor="full_name">Repository</label>
@@ -66,6 +93,11 @@ function RepoField({ defaultValue, error }: RepoFieldProps) {
       >
         <Icon name="github" size={18} className={styles.inputIcon} />
         <RepoInput defaultValue={defaultValue} invalid={Boolean(error)} />
+        <datalist id="repos-list">
+          {available.map((repo) => (
+            <option key={repo.full_name} value={repo.full_name} />
+          ))}
+        </datalist>
       </span>
       {error ? <RepoError message={error} /> : <RepoHint />}
     </div>
@@ -83,6 +115,7 @@ function RepoInput({ defaultValue, invalid }: RepoInputProps) {
       id="full_name"
       type="text"
       name="full_name"
+      list="repos-list"
       required
       placeholder="re-cinq/my-service"
       pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"

@@ -14,7 +14,13 @@ export default async function OnboardPage() {
     full_name: repo.full_name,
   }));
 
-  return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
+  return (
+    <OnboardView
+      onboarded={onboarded}
+      available={[]}
+      onboardRepoAction={onboardRepo}
+    />
+  );
 }
 
 async function onboardRepo(
