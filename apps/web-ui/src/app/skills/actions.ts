@@ -23,12 +23,16 @@ export interface SkillFormState {
   values?: SkillFormValues;
 }
 
-export async function deleteSkill(
-  name: string,
-  _prev: SkillFormState,
-  _formData: FormData,
-): Promise<SkillFormState> {
-  return settle(await writeSkill("DELETE", `/${encodeURIComponent(name)}`));
+export async function deleteSkill(name: string): Promise<{ error?: string }> {
+  const result = await writeSkill("DELETE", `/${encodeURIComponent(name)}`);
+
+  if (result.status !== "ok") {
+    return { error: failureMessage(result) };
+  }
+
+  revalidatePath("/skills");
+
+  return {};
 }
 
 export async function createSkill(
@@ -37,7 +41,13 @@ export async function createSkill(
 ): Promise<SkillFormState> {
   const values = readValues(formData);
 
-  return settle(await writeSkill("POST", "", values), values);
+  return settle(
+    await writeSkill("POST", "", {
+      name: values.name,
+      ...toRequestBody(values),
+    }),
+    values,
+  );
 }
 
 export async function updateSkill(
@@ -48,7 +58,11 @@ export async function updateSkill(
   const values = readValues(formData);
 
   return settle(
-    await writeSkill("PUT", `/${encodeURIComponent(name)}`, values),
+    await writeSkill(
+      "PUT",
+      `/${encodeURIComponent(name)}`,
+      toRequestBody(values),
+    ),
     values,
   );
 }
@@ -56,11 +70,11 @@ export async function updateSkill(
 function writeSkill(
   method: "POST" | "PUT" | "DELETE",
   suffix: string,
-  values?: SkillFormValues,
+  body?: object,
 ): Promise<ApiResult> {
   return apiFetch("lore-api", `/api/skill-definitions${suffix}`, {
     method,
-    body: values && toRequestBody(values),
+    body,
     timeoutMs: WRITE_TIMEOUT_MS,
   });
 }
@@ -87,7 +101,7 @@ function readValues(formData: FormData): SkillFormValues {
   };
 }
 
-function toRequestBody(values: SkillFormValues) {
+function toRequestBody({ name: _name, ...values }: SkillFormValues) {
   return {
     ...values,
     description: values.description || undefined,

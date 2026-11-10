@@ -1,43 +1,39 @@
-import { apiFetch } from "@/lib/api/client";
-import type { components } from "@/lib/api/schema";
-import { createSkill, deleteSkill, updateSkill } from "./actions";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Alert } from "@/components/Alert";
+import { deleteSkill } from "./actions";
 import { DeleteSkillButton } from "./DeleteSkillButton";
-import { failureMessage } from "./failure-message";
-import { SkillForm } from "./SkillForm";
+import { fetchSkills, type LoadedSkills } from "./fetch-skills";
 import type { SkillDefinition } from "./skill-definition";
+import styles from "./skills.module.css";
 
 export const dynamic = "force-dynamic";
-
-const READ_TIMEOUT_MS = 5000;
 
 export default async function SkillsPage(props: {
   searchParams: Promise<{ edit?: string }>;
 }) {
   const { edit } = await props.searchParams;
-  const loaded = await fetchSkills();
-  const skills = loaded.status === "ok" ? loaded.skills : [];
+
+  if (edit) {
+    redirect(`/skills/${encodeURIComponent(edit)}`);
+  }
 
   return (
     <div>
       <h1>Skills</h1>
-      {loaded.status === "failed" && (
-        <p role="alert">Skills could not be loaded: {loaded.message}</p>
-      )}
-      <SkillsList skills={skills} />
-      <SkillEditor skill={skills.find((s) => s.name === edit)} />
+      <p>
+        <Link href="/skills/new">Add skill</Link>
+      </p>
+      <LoadedSkillsList loaded={await fetchSkills()} />
     </div>
   );
 }
 
-function SkillEditor({ skill }: { skill: SkillDefinition | undefined }) {
-  return skill ? (
-    <SkillForm
-      key={skill.name}
-      skill={skill}
-      action={updateSkill.bind(null, skill.name)}
-    />
+function LoadedSkillsList({ loaded }: { loaded: LoadedSkills }) {
+  return loaded.status === "failed" ? (
+    <Alert>Skills could not be loaded: {loaded.message}</Alert>
   ) : (
-    <SkillForm skill={null} action={createSkill} />
+    <SkillsList skills={loaded.skills} />
   );
 }
 
@@ -49,7 +45,8 @@ function SkillsList({ skills }: { skills: SkillDefinition[] }) {
           <th>Name</th>
           <th>Title</th>
           <th>Model</th>
-          <th>Actions</th>
+          <th>Edit</th>
+          <th className={styles.dangerCell}>Delete</th>
         </tr>
       </thead>
       <tbody>
@@ -68,27 +65,14 @@ function SkillRow({ skill }: { skill: SkillDefinition }) {
       <td>{skill.title}</td>
       <td>{skill.model ?? "(Inherit)"}</td>
       <td>
-        <a href={`?edit=${encodeURIComponent(skill.name)}`}>Edit</a>{" "}
-        <DeleteSkillButton action={deleteSkill.bind(null, skill.name)} />
+        <Link href={`/skills/${encodeURIComponent(skill.name)}`}>Edit</Link>
+      </td>
+      <td className={styles.dangerCell}>
+        <DeleteSkillButton
+          name={skill.name}
+          remove={deleteSkill.bind(null, skill.name)}
+        />
       </td>
     </tr>
   );
-}
-
-type LoadedSkills =
-  | { status: "ok"; skills: SkillDefinition[] }
-  | { status: "failed"; message: string };
-
-async function fetchSkills(): Promise<LoadedSkills> {
-  const result = await apiFetch<components["schemas"]["SkillDefinitionsList"]>(
-    "lore-api",
-    "/api/skill-definitions",
-    { timeoutMs: READ_TIMEOUT_MS },
-  );
-
-  if (result.status === "ok") {
-    return { status: "ok", skills: result.data.skills };
-  }
-
-  return { status: "failed", message: failureMessage(result) };
 }
