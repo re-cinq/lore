@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Implement `filterCrossRepoMemories` to drop hits where `repo` does not match `selectedRepo`.
+- [x] Implement `filterCrossRepoMemories` to drop hits where `repo` does not match `selectedRepo`.
 - [ ] Wire up `filterCrossRepoMemories` in `runSearch` within `apps/web-ui/src/app/search/page.tsx`.
 - [ ] Fix the backend `memory-search-routes.ts` to return actual `repo` instead of `NULL as repo` so the filter can see it.
 

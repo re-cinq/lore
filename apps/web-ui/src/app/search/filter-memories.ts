@@ -2,7 +2,11 @@ import { type SearchResult } from "./SearchView";
 
 export function filterCrossRepoMemories(
   results: SearchResult[],
-  _selectedRepo?: string,
+  selectedRepo?: string,
 ): SearchResult[] {
-  return results;
+  if (!selectedRepo) {
+    return results;
+  }
+
+  return results.filter((r) => r.repo === null || r.repo === selectedRepo);
 }
