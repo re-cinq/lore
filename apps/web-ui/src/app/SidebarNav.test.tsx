@@ -28,6 +28,7 @@ const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly runs" },
   { href: "/agents", label: "Agents" },
+  { href: "/skills", label: "Skills" },
   { href: "/search", label: "Search" },
   { href: "/specs", label: "Specs" },
   { href: "/adrs", label: "ADRs" },
