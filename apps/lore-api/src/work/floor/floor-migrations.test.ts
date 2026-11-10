@@ -105,7 +105,7 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001 to floor/0005, whose every prompt and timeout comes from a shipped agent file", async () => {
+  it("names floor/0001 to floor/0006, whose every prompt and timeout comes from a shipped agent file", async () => {
     const shipped = shippedFloorAgents();
     const written = await everyWrite();
 
@@ -121,6 +121,7 @@ describe("readFloorMigrations", () => {
         "floor/0003_spec_links_carry_content_hash",
         "floor/0004_spec_tickets_tested_missing_reason",
         "floor/0005_spec_write_timeout",
+        "floor/0006_spec_tickets_settled_statements",
       ],
       unshipped: [],
     });

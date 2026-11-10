@@ -897,6 +897,28 @@ describe("the planning recipes check a plan against what the platform has (issue
     });
   });
 
+  it("has spec-tickets-decompose leave settled lines to verification, name only lines still to build, and keep a task whose lines are all settled", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      listing: prompt.includes("`/workspace/settled-statements.json`"),
+      noEntry: prompt.includes("A settled line needs no `statements` entry"),
+      overrule: prompt.includes(
+        "keep it `missing` with a `reason`, or claim it `partial` with evidence",
+      ),
+      toBuild: prompt.includes("a task names only lines still to build"),
+      completed: prompt.includes(
+        "keep an existing task whose lines are all settled",
+      ),
+    }).toEqual({
+      listing: true,
+      noEntry: true,
+      overrule: true,
+      toBuild: true,
+      completed: true,
+    });
+  });
+
   it("lists remove-section in the plan-analyze op catalogue, only on a person's ask or an empty template section, never for intent or success criteria", () => {
     const prompt = promptOnOneLine("plan-analyze");
 
