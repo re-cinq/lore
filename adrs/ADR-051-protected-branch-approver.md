@@ -1,7 +1,7 @@
 ---
 adr_number: 51
 title: "Protected-branch approver: lore-reviewer as a second GitHub App"
-status: accepted
+status: draft
 demo_date: 2026-10-09
 date: 2026-10-07
 deciders: ["Platform Engineering"]
