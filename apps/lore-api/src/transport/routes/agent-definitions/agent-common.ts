@@ -5,11 +5,11 @@ import type { Pool } from "pg";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 import { z } from "zod";
-import type { PodResourcesWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
+import type { ConfigWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
 import {
-  parseAgentInput,
-  parseAgentPatch,
+  configKeysOf,
   configWithPodResources,
+  type AgentPatch,
   type PodResources,
 } from "../../../work/agents/agents-schema.js";
 
@@ -70,40 +70,69 @@ function ceremonyFrom(gate: ApprovalOutcome | null): Ceremony {
     : { tier: "admin" };
 }
 
-export async function createFieldsWithPodResources(
+type OwnedConfig = Pick<AgentPatch, "pod_resources" | "mcp_servers">;
+
+/** A new override's config: the inherited one with the pod resources and MCP servers the create names. */
+export async function createFieldsWithConfig<Fields extends { name: string }>(
   agentDefs: AgentDefsFacade,
-  fields: Omit<ReturnType<typeof parseAgentInput>, "pod_resources">,
-  podResources: ReturnType<typeof parseAgentInput>["pod_resources"],
-): Promise<typeof fields> {
-  if (!podResources) {
+  fields: Fields,
+  owned: OwnedConfig,
+): Promise<Fields> {
+  if (!owned.pod_resources && !owned.mcp_servers) {
     return fields;
   }
   const inherited = await agentDefs.resolve(fields.name);
 
   return {
     ...fields,
-    config: configWithPodResources(inherited?.config ?? null, podResources),
+    config: configWithOwned(inherited?.config ?? null, owned),
   };
 }
 
-export async function resolvePodResourcesUpdate(
+function configWithOwned(
+  inherited: Record<string, unknown> | null,
+  owned: OwnedConfig,
+): Record<string, unknown> | null {
+  const config = owned.pod_resources
+    ? configWithPodResources(inherited, owned.pod_resources)
+    : inherited;
+
+  return owned.mcp_servers
+    ? { ...config, mcp_servers: owned.mcp_servers }
+    : config;
+}
+
+/** What an update writes to config: pod resources merged per key over the stored ones, MCP servers as the list sent. */
+export async function resolveConfigUpdate(
   agentDefs: AgentDefsFacade,
   name: string,
-  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
-): Promise<PodResourcesWrite | undefined> {
-  if (podResources === undefined) {
+  owned: OwnedConfig,
+): Promise<ConfigWrite | undefined> {
+  const keys = configKeysOf(owned);
+
+  if (Object.keys(keys).length === 0) {
     return undefined;
   }
-
   const resolved = await agentDefs.resolve(name);
   const storedConfig = resolved?.config ?? null;
-  const storedPodResources = storedConfig?.pod_resources as
-    PodResources | null | undefined;
 
   return {
-    podResources: patchPodResources(storedPodResources, podResources),
+    ...keys,
+    ...mergedPodResources(storedConfig, keys.podResources),
     inheritedConfig: storedConfig,
   };
+}
+
+function mergedPodResources(
+  storedConfig: Record<string, unknown> | null,
+  patch: PodResources | null | undefined,
+): Pick<ConfigWrite, "podResources"> {
+  if (patch === undefined) {
+    return {};
+  }
+  const stored = storedConfig?.pod_resources as PodResources | null | undefined;
+
+  return { podResources: patchPodResources(stored, patch) };
 }
 
 function patchPodResources(

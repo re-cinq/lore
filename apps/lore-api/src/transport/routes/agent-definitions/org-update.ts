@@ -10,6 +10,7 @@ import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
+  configKeysOf,
   parseAgentPatch,
   type AgentPatch,
 } from "../../../work/agents/agents-schema.js";
@@ -125,25 +126,36 @@ function writeOrgPatch(
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
-  const { pod_resources, ...fields } = patch;
+  const { pod_resources, mcp_servers, ...fields } = patch;
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
     withoutClearedRequired(fields),
-    orgPodResourcesWrite(pod_resources),
+    orgConfigWrite({ pod_resources, mcp_servers }),
   );
 }
 
-/** Replaces the org default's pod resources whole: the form sends every quantity, so a blank one is cleared; the org default inherits from nothing. */
-function orgPodResourcesWrite(podResources: AgentPatch["pod_resources"]) {
-  return podResources === undefined
-    ? undefined
-    : { podResources, inheritedConfig: null };
+/** Replaces the org default's pod resources and MCP servers whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
+function orgConfigWrite(
+  owned: Pick<AgentPatch, "pod_resources" | "mcp_servers">,
+) {
+  const keys = withoutEmptyServers(configKeysOf(owned));
+
+  return Object.keys(keys).length > 0
+    ? { ...keys, inheritedConfig: null }
+    : undefined;
+}
+
+// The org default inherits from nothing, so an empty list of servers is no key at all.
+function withoutEmptyServers(
+  keys: ReturnType<typeof configKeysOf>,
+): ReturnType<typeof configKeysOf> {
+  return keys.mcpServers?.length === 0 ? { ...keys, mcpServers: null } : keys;
 }
 
 function withoutClearedRequired(
-  fields: Omit<AgentPatch, "pod_resources">,
-): Omit<AgentPatch, "pod_resources"> {
+  fields: Omit<AgentPatch, "pod_resources" | "mcp_servers">,
+): Omit<AgentPatch, "pod_resources" | "mcp_servers"> {
   return Object.fromEntries(
     Object.entries(fields).filter(
       ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),

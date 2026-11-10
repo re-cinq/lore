@@ -322,9 +322,24 @@ function genericSaveError(
   status: number,
   body: Record<string, unknown>,
 ): AgentSaveResult {
-  return { status: "error", message: String(body.error ?? `HTTP ${status}`) };
+  return {
+    status: "error",
+    message: `${String(body.error ?? `HTTP ${status}`)}${firstIssue(body.issues)}`,
+  };
 }
 
 function stringField(value: unknown, fallback = ""): string {
   return String(value ?? fallback);
+}
+
+/** The first validation issue of a refused write, as `: path: message`, so the form says which field was wrong. */
+function firstIssue(issues: unknown): string {
+  const listed = Array.isArray(issues)
+    ? (issues as { path?: unknown[]; message?: string }[])
+    : [];
+  const issue = listed.at(0);
+
+  return issue?.message
+    ? `: ${(issue.path ?? []).join(".")}: ${issue.message}`
+    : "";
 }

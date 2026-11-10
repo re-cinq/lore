@@ -7,9 +7,10 @@ export type AgentDefinition = ResolvedAgentDefinition;
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;
 
-/** A write touching config.pod_resources (the one key the Agents UI owns); merged over the layer's own config with inheritedConfig as fallback since config is whole-object across layers. */
-export interface PodResourcesWrite {
-  podResources: Record<string, unknown> | null;
+/** A write to the config keys the Agents UI owns (pod_resources, mcp_servers): a value sets the key, null removes it, an absent one keeps it. Merged over the layer's own config with inheritedConfig as fallback since config is whole-object across layers. */
+export interface ConfigWrite {
+  podResources?: Record<string, unknown> | null;
+  mcpServers?: Record<string, unknown>[] | null;
   inheritedConfig: Record<string, unknown> | null;
 }
 
@@ -28,7 +29,7 @@ export interface AgentDefsWritePort extends AgentDefsReadPort {
     repo: string,
     name: string,
     patch: Partial<AgentDefinitionInput>,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition>;
   delete(repo: string, name: string): Promise<void>;
 }

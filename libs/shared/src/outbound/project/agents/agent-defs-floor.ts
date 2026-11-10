@@ -10,7 +10,7 @@ import type {
   AgentDefinition,
   AgentDefinitionInput,
   AgentDefsWritePort,
-  PodResourcesWrite,
+  ConfigWrite,
 } from "./agent-defs-port.js";
 
 type Variant = Partial<AgentSettings>;
@@ -66,7 +66,7 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     repo: string,
     name: string,
     patch: Patch,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition> {
     const body = await this.bodyOf(name);
     const variant = variantEntry(body, repo)?.variant ?? {};
@@ -87,7 +87,7 @@ export class FloorAgentDefs implements AgentDefsWritePort {
   async updateOrg(
     name: string,
     patch: Patch,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition> {
     enforceKeepsRequired(name, patch);
     const body = await this.bodyOf(name);
@@ -224,14 +224,14 @@ function variantKey(repo: string): string {
 function patched(
   target: Variant,
   patch: Patch,
-  podResources: PodResourcesWrite | undefined,
+  podResources: ConfigWrite | undefined,
 ): Variant {
   const fields = Object.entries(FLOOR_FIELDS).reduce(
     (next, [field, key]) => withField(next, key, patch[field as keyof Patch]),
     target,
   );
 
-  return podResources ? withPodResources(fields, podResources) : fields;
+  return podResources ? withConfigKeys(fields, podResources) : fields;
 }
 
 function withField<Target extends object>(
@@ -249,11 +249,11 @@ function withField<Target extends object>(
   return value === null ? rest : { ...rest, [key]: value };
 }
 
-function withPodResources(target: Variant, write: PodResourcesWrite): Variant {
+function withConfigKeys(target: Variant, write: ConfigWrite): Variant {
   const config = withField(
-    target.config ?? {},
-    "pod_resources",
-    write.podResources,
+    withField(target.config ?? {}, "pod_resources", write.podResources),
+    "mcp_servers",
+    write.mcpServers,
   );
 
   return withField(

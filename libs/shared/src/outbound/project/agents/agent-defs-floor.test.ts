@@ -168,6 +168,25 @@ describe("FloorAgentDefs", () => {
     ).toEqual({ test_policy: "none", pod_resources: podResources });
   });
 
+  it("sets the search MCP server inside the otto variant's config, keeping test_policy", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+    const mcpServers = [
+      { name: "search", transport: "http", url: "https://search.test/mcp" },
+    ];
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      { mcpServers, inheritedConfig: null },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", mcp_servers: mcpServers });
+  });
+
   it("creates a github.com/re-cinq/lore variant of loop-tdd with model claude-sonnet-4-6", async () => {
     const { defs } = await floorWith({ "loop-tdd": LOOP_TDD });
 
