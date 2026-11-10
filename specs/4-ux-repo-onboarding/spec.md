@@ -475,7 +475,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-4.4: Forms have proper labels, validation, and error states; the
   shared submit button shows its idle label while enabled and swaps to
   the pending label and disables while the form is pending (keeping its
-  children as the label when no pendingLabel is given). ([validated by `SubmitButton.test.tsx@7885d4ae`](apps/web-ui/src/components/SubmitButton.test.tsx#L18), [`SubmitButton.test.tsx@4ac988c2`](apps/web-ui/src/components/SubmitButton.test.tsx#L27), [`SubmitButton.test.tsx@4dbedf74`](apps/web-ui/src/components/SubmitButton.test.tsx#L36))
+  children as the label when no pendingLabel is given). ([validated by `SubmitButton.test.tsx@7885d4ae`](apps/web-ui/src/components/SubmitButton.test.tsx#L18), [`SubmitButton.test.tsx@4ac988c2`](apps/web-ui/src/components/SubmitButton.test.tsx#L27), [`SubmitButton.test.tsx@4dbedf74`](apps/web-ui/src/components/SubmitButton.test.tsx#L36), [validated by `setup-form.acceptance.test.tsx@c5baa93e`](apps/web-ui/src/components/setup-form.acceptance.test.tsx#L8), [validated by `setup-form.acceptance.test.tsx@a4977c43`](apps/web-ui/src/components/setup-form.acceptance.test.tsx#L58))
 
 ### FR-5: Onboarding PR Content
 
