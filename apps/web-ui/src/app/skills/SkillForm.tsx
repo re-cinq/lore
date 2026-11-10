@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import type { SkillFormState, SkillFormValues } from "./actions";
 import { HELP_BLOCK_TEMPLATE } from "./help-template";
 import { splitSkillContent } from "./skill-content";
-import type { SkillDefinition } from "./skill-definition";
+import type { SkillDefinition } from "@/lib/skill-definition";
 
 export type SkillFormAction = (
   prev: SkillFormState,

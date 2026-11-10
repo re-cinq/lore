@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/Alert";
 import { updateSkill } from "../actions";
-import { fetchSkills } from "../fetch-skills";
+import { fetchSkills } from "@/lib/fetch-skills";
 import { SkillForm } from "../SkillForm";
 
 export const dynamic = "force-dynamic";

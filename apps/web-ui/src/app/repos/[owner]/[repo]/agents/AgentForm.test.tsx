@@ -285,6 +285,62 @@ describe("AgentForm", () => {
     ).toBe("[]");
   });
 
+  it("shows the inherited skills lore-context on a repo's agent without writing them", () => {
+    const { container, getByText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    expect({
+      listed: getByText("lore-context") !== null,
+      written: container.querySelector('input[name="skills"]') !== null,
+    }).toEqual({ listed: true, written: false });
+  });
+
+  it("submits cli-design beside lore-context after cli-design is picked from the catalogue", () => {
+    const { container, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+        skills={{ options: [{ name: "cli-design", title: "CLI design" }] }}
+      />,
+    );
+
+    fireEvent.change(getByLabelText("Add skill"), {
+      target: { value: "cli-design" },
+    });
+
+    expect(
+      JSON.parse(
+        container.querySelector<HTMLInputElement>('input[name="skills"]')!
+          .value,
+      ),
+    ).toEqual(["lore-context", "cli-design"]);
+  });
+
+  it("submits an empty list after the only skill is removed on a repo's agent", () => {
+    const { container, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByLabelText("Remove skill lore-context"));
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="skills"]')?.value,
+    ).toBe("[]");
+  });
+
   it("offers Command and Arguments instead of a URL once the transport is stdio", () => {
     const { getByText, getByLabelText, queryByLabelText } = render(
       <AgentForm

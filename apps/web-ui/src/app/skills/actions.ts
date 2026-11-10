@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
 import type { ApiResult } from "@/lib/api/result";
-import { failureMessage } from "./failure-message";
+import { failureMessage } from "@/lib/failure-message";
 import { composeSkillContent } from "./skill-content";
 
 const WRITE_TIMEOUT_MS = 5000;

@@ -47,6 +47,17 @@ describe("parseAgentForm", () => {
     }).toEqual({ sent: [files], untouched: false });
   });
 
+  it("carries the skills cli-design from the skills field and omits the key when the field is absent", () => {
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(
+        fd({ ...base, skills: JSON.stringify(["cli-design"]) }),
+      ).def.skills,
+      untouched: "skills" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: ["cli-design"], untouched: false });
+  });
+
   it("collects the six pod-resource inputs into pod_resources", () => {
     const p = parseAgentForm(
       fd({

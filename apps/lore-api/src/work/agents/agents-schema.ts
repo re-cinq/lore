@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AgentDefinitionInput } from "@re-cinq/lore-shared";
+import { SKILL_NAME } from "@re-cinq/lore-shared/models/skill-definition.js";
 
 // Agents API validation; image is two-key-gated (imageFieldTouched flag).
 
@@ -56,21 +57,24 @@ export const AgentInputSchema = z.object({
   review_required: z.boolean().default(false), // eslint-disable-line re-lint/no-flag-params -- a zod default VALUE, not a flag argument
   pod_resources: PodResourcesSchema.nullish(),
   mcp_servers: z.array(McpServerSchema).max(32).nullish(),
+  skills: z.array(z.string().regex(SKILL_NAME)).max(32).nullish(),
 });
 
 // POST body: row fields + pod_resources; route merges over inherited config (org → yaml).
 export type AgentCreate = AgentDefinitionInput & {
   pod_resources?: PodResources;
   mcp_servers?: McpServer[];
+  skills?: string[];
 };
 
 // Only what the create names: an absent or empty value is left to the inherited config.
 function ownedConfigOf(
   p: z.infer<typeof AgentInputSchema>,
-): Pick<AgentCreate, "pod_resources" | "mcp_servers"> {
+): Pick<AgentCreate, "pod_resources" | "mcp_servers" | "skills"> {
   return {
     ...(p.pod_resources ? { pod_resources: p.pod_resources } : {}),
     ...(p.mcp_servers?.length ? { mcp_servers: p.mcp_servers } : {}),
+    ...(p.skills?.length ? { skills: p.skills } : {}),
   };
 }
 
@@ -95,17 +99,27 @@ export function parseAgentInput(body: unknown): AgentCreate {
 export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
   mcp_servers?: McpServer[] | null;
+  skills?: string[] | null;
 };
 
-/** The config keys a patch names, under the adapter's names. An empty list of servers stays a list: in a repo's variant it means "none", where null means "the org default's". */
+/** The config keys a patch names, under the adapter's names. An empty list stays a list: in a repo's variant it means "none", where null means "the org default's". */
 export function configKeysOf(
-  patch: Pick<AgentPatch, "pod_resources" | "mcp_servers">,
-): { podResources?: PodResources | null; mcpServers?: McpServer[] | null } {
-  const { pod_resources: podResources, mcp_servers: mcpServers } = patch;
+  patch: Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
+): {
+  podResources?: PodResources | null;
+  mcpServers?: McpServer[] | null;
+  skills?: string[] | null;
+} {
+  const {
+    pod_resources: podResources,
+    mcp_servers: mcpServers,
+    skills,
+  } = patch;
 
   return {
     ...(podResources === undefined ? {} : { podResources }),
     ...(mcpServers === undefined ? {} : { mcpServers }),
+    ...(skills === undefined ? {} : { skills }),
   };
 }
 
@@ -148,6 +162,9 @@ const podResourcesField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
 const mcpServersField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
   p.mcp_servers !== undefined ? { mcp_servers: p.mcp_servers ?? null } : {};
 
+const skillsField = (p: ParsedAgentPatch): Partial<AgentPatch> =>
+  p.skills !== undefined ? { skills: p.skills ?? null } : {};
+
 export function parseAgentPatch(body: unknown): AgentPatch {
   const parsed = AgentPatchSchema.parse(body);
 
@@ -161,6 +178,7 @@ export function parseAgentPatch(body: unknown): AgentPatch {
     ...reviewRequiredField(parsed),
     ...podResourcesField(parsed),
     ...mcpServersField(parsed),
+    ...skillsField(parsed),
   };
 }
 

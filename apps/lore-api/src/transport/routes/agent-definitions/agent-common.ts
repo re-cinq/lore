@@ -70,7 +70,17 @@ function ceremonyFrom(gate: ApprovalOutcome | null): Ceremony {
     : { tier: "admin" };
 }
 
-type OwnedConfig = Pick<AgentPatch, "pod_resources" | "mcp_servers">;
+/** Where pods fetch skills from: the value shipped agents get for ${"$"}{LORE_SKILLS_URL} at seed (seed-floor-pipelines.ts withEnvironment). */
+const skillsSourceDefault = (): string | undefined =>
+  process.env.LORE_SKILLS_URL || undefined;
+
+export const skillsSourceWrite = (): Pick<ConfigWrite, "skillsSource"> => {
+  const skillsSource = skillsSourceDefault();
+
+  return skillsSource ? { skillsSource } : {};
+};
+
+type OwnedConfig = Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">;
 
 /** A new override's config: the inherited one with the pod resources and MCP servers the create names. */
 export async function createFieldsWithConfig<Fields extends { name: string }>(
@@ -78,7 +88,7 @@ export async function createFieldsWithConfig<Fields extends { name: string }>(
   fields: Fields,
   owned: OwnedConfig,
 ): Promise<Fields> {
-  if (!owned.pod_resources && !owned.mcp_servers) {
+  if (!owned.pod_resources && !owned.mcp_servers && !owned.skills) {
     return fields;
   }
   const inherited = await agentDefs.resolve(fields.name);
@@ -96,10 +106,19 @@ function configWithOwned(
   const config = owned.pod_resources
     ? configWithPodResources(inherited, owned.pod_resources)
     : inherited;
-
-  return owned.mcp_servers
+  const withServers = owned.mcp_servers
     ? { ...config, mcp_servers: owned.mcp_servers }
     : config;
+
+  return owned.skills
+    ? {
+        ...(skillsSourceDefault()
+          ? { skills_source: skillsSourceDefault() }
+          : {}),
+        ...withServers,
+        skills: owned.skills,
+      }
+    : withServers;
 }
 
 /** What an update writes to config: pod resources merged per key over the stored ones, MCP servers as the list sent. */
@@ -118,6 +137,7 @@ export async function resolveConfigUpdate(
 
   return {
     ...keys,
+    ...(keys.skills?.length ? skillsSourceWrite() : {}),
     ...mergedPodResources(storedConfig, keys.podResources),
     inheritedConfig: storedConfig,
   };

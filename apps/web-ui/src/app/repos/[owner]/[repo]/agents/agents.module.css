@@ -156,3 +156,21 @@
   gap: var(--space-3);
   align-items: center;
 }
+
+.skillRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.skillRow .formNote {
+  margin: 0;
+  flex: 1;
+}
+
+.skillRow button {
+  margin-left: auto;
+}

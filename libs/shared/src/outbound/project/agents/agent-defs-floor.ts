@@ -250,10 +250,17 @@ function withField<Target extends object>(
 }
 
 function withConfigKeys(target: Variant, write: ConfigWrite): Variant {
-  const config = withField(
-    withField(target.config ?? {}, "pod_resources", write.podResources),
-    "mcp_servers",
-    write.mcpServers,
+  const config = withSkillsSource(
+    withField(
+      withField(
+        withField(target.config ?? {}, "pod_resources", write.podResources),
+        "mcp_servers",
+        write.mcpServers,
+      ),
+      "skills",
+      write.skills,
+    ),
+    write,
   );
 
   return withField(
@@ -261,6 +268,18 @@ function withConfigKeys(target: Variant, write: ConfigWrite): Variant {
     "config",
     Object.keys(config).length > 0 ? config : null,
   );
+}
+
+function withSkillsSource(
+  config: Record<string, unknown>,
+  write: ConfigWrite,
+): Record<string, unknown> {
+  const sourceKnown =
+    config.skills_source ?? write.inheritedConfig?.skills_source;
+
+  return write.skills?.length && !sourceKnown
+    ? withField(config, "skills_source", write.skillsSource)
+    : config;
 }
 
 function renamedVariant(

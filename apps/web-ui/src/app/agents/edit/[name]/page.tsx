@@ -8,7 +8,7 @@ import {
   saveResultToState,
   type AgentFormState,
 } from "@/lib/agents-form";
-import AgentForm from "../../../repos/[owner]/[repo]/agents/AgentForm";
+import AgentForm from "../../../repos/[owner]/[repo]/agents/AgentFormWithSkills";
 
 // Edits the ORG-DEFAULT definition every repo without its own override inherits, image included; the two-key approval PR is repo-scoped, so it has no field here.
 export default async function EditOrgAgent({

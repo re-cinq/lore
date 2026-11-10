@@ -499,6 +499,21 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["name"],
@@ -5267,6 +5282,21 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["name"],
@@ -5590,6 +5620,21 @@
                           },
                           "required": ["name", "transport"],
                           "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
                         }
                       },
                       {
