@@ -15,7 +15,7 @@
 
 ## Facets
 
-- [ ] Update `serveHealthz` to include `health.reason` in the response body when `status` is `"error"`
+- [x] Update `serveHealthz` to include `health.reason` in the response body when `status` is `"error"`
 - [ ] Ensure reader authentication logic continues to function for `tasks` and `embeddings` stats
 
 ## Out of scope
