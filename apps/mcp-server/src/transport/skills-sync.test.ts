@@ -108,3 +108,103 @@ describe("applySkillSync", () => {
     });
   });
 });
+
+describe("symlinks under the skills directory", () => {
+  let dir: string;
+  let outside: string;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), "skills-sync-"));
+    outside = await fs.mkdtemp(path.join(os.tmpdir(), "skills-outside-"));
+  });
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+    await fs.rm(outside, { recursive: true, force: true });
+  });
+
+  async function fillOutsideWithManagedSkill(): Promise<void> {
+    await fs.writeFile(path.join(outside, ".lore-managed"), "");
+    await fs.writeFile(path.join(outside, "SKILL.md"), "# mine");
+  }
+
+  it("reports a tdd-loop symlink to an outside directory as unmanaged", async () => {
+    await fillOutsideWithManagedSkill();
+    await fs.symlink(outside, path.join(dir, "tdd-loop"));
+
+    expect(await readLocalSkillDirs(dir)).toEqual([
+      { name: "tdd-loop", managed: false },
+    ]);
+  });
+
+  it("reports a tdd-loop directory whose SKILL.md is a symlink as unmanaged", async () => {
+    await fillOutsideWithManagedSkill();
+    await fs.mkdir(path.join(dir, "tdd-loop"));
+    await fs.writeFile(path.join(dir, "tdd-loop", ".lore-managed"), "");
+    await fs.symlink(
+      path.join(outside, "SKILL.md"),
+      path.join(dir, "tdd-loop", "SKILL.md"),
+    );
+
+    expect(await readLocalSkillDirs(dir)).toEqual([
+      { name: "tdd-loop", managed: false },
+    ]);
+  });
+
+  it("reports a tdd-loop directory whose marker is a symlink as unmanaged", async () => {
+    await fillOutsideWithManagedSkill();
+    await fs.mkdir(path.join(dir, "tdd-loop"));
+    await fs.symlink(
+      path.join(outside, ".lore-managed"),
+      path.join(dir, "tdd-loop", ".lore-managed"),
+    );
+
+    expect(await readLocalSkillDirs(dir)).toEqual([
+      { name: "tdd-loop", managed: false },
+    ]);
+  });
+
+  it("leaves the outside directory untouched when tdd-loop is a symlink to it", async () => {
+    await fillOutsideWithManagedSkill();
+    await fs.symlink(outside, path.join(dir, "tdd-loop"));
+
+    await applySkillSync(
+      dir,
+      planSkillSync([skill("tdd-loop")], await readLocalSkillDirs(dir)),
+    );
+
+    expect({
+      outsideContent: await fs.readFile(path.join(outside, "SKILL.md"), "utf8"),
+      link: await fs.readlink(path.join(dir, "tdd-loop")),
+    }).toEqual({ outsideContent: "# mine", link: outside });
+  });
+
+  it("keeps a managed-looking symlink old-skill when the skill is deleted upstream", async () => {
+    await fillOutsideWithManagedSkill();
+    await fs.symlink(outside, path.join(dir, "old-skill"));
+
+    await applySkillSync(dir, planSkillSync([], await readLocalSkillDirs(dir)));
+
+    expect({
+      link: await fs.readlink(path.join(dir, "old-skill")),
+      outsideEntries: (await fs.readdir(outside)).sort(),
+    }).toEqual({
+      link: outside,
+      outsideEntries: [".lore-managed", "SKILL.md"],
+    });
+  });
+
+  it("overwrites a managed tdd-loop's SKILL.md with the new content", async () => {
+    await fs.mkdir(path.join(dir, "tdd-loop"));
+    await fs.writeFile(path.join(dir, "tdd-loop", ".lore-managed"), "");
+    await fs.writeFile(path.join(dir, "tdd-loop", "SKILL.md"), "# stale");
+
+    await applySkillSync(
+      dir,
+      planSkillSync([skill("tdd-loop")], await readLocalSkillDirs(dir)),
+    );
+
+    expect(
+      await fs.readFile(path.join(dir, "tdd-loop", "SKILL.md"), "utf8"),
+    ).toEqual("# tdd-loop");
+  });
+});
