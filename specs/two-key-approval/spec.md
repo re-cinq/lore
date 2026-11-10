@@ -27,7 +27,7 @@ A gated write passes with the approval evidence after a passing CODEOWNERS appro
 
 A failed CODEOWNERS check is refused `403 { error: "codeowners_check_failed", code, detail }`. ([validated by returns 403 codeowners_check_failed on a TwoKeyError @2cf78ba7](apps/lore-api/src/transport/routes/two-key.test.ts#L88))
 
-A GitHub failure that is not a `TwoKeyError` answers `503 { error: "github_api_unavailable" }`. ([validated by returns 503 github_api_unavailable on a non-TwoKey error @8924c455](apps/lore-api/src/transport/routes/two-key.test.ts#L111))
+A GitHub failure that is not a `TwoKeyError` answers `503 { error: "github_api_unavailable" }`. ([validated by returns 503 github_api_unavailable on a non-TwoKey error @8924c455](apps/lore-api/src/transport/routes/two-key.test.ts#L111), [validated by yields HTTP 503 github_api_unavailable on a GitHub API outage through verifyApproval @3822468a](apps/lore-api/src/transport/routes/two-key.acceptance.test.ts#L10))
 
 ## Verification (`verifyApproval`)
 
