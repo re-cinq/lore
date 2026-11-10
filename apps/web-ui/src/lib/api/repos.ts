@@ -97,6 +97,13 @@ export function onboardRepo(
   });
 }
 
+/** Repos the GitHub App installation has access to that aren't onboarded yet; empty when GitHub is not configured. */
+export function listAvailableRepos(): Promise<
+  ApiResult<{ full_name: string }[]>
+> {
+  return apiFetch("lore-api", "/api/repos/available");
+}
+
 /** Org-wide `lore.settings` plus the repo count the settings page shows. */
 export function getOrgSettings(): Promise<
   ApiResult<{

@@ -17,8 +17,8 @@ This pod cannot run the UI tests because of missing vite plugins; the red bar is
 
 ## Facets
 
-- [ ] Replace the text input in `OnboardView` with a list/picker of available repositories from the GitHub App installation.
-- [ ] Update `OnboardPage` to fetch the available repositories and supply them to `OnboardView`.
+- [x] Replace the text input in `OnboardView` with a list/picker of available repositories from the GitHub App installation.
+- [x] Update `OnboardPage` to fetch the available repositories and supply them to `OnboardView`.
 
 ## Out of scope
 
