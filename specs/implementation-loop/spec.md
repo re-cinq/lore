@@ -337,9 +337,9 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - A loop run publishes nothing while its pull request's head is unknown.
 - The check's details link opens the run page, `/assembly-runs/<id>`, on the Lore UI.
 - While the run is in flight the check's title is the description of the step in flight, and its summary names that step and its visit, so the PR's checks list reads as the run's progress.
-- A finished run's check is green when the run completed, even though its rounds recorded `changes_requested` on the way — for the loop that outcome means "another round", not a review verdict.
-- The walk refreshes the check as the run enters each step and once more when the winning finisher closes it, so a run the reaper or a sweep finishes updates its check too.
-- When the head moves, the check left on the previous head is closed as neutral `Superseded` before the running check is published on the new head, so earlier commits do not carry a check in progress forever; the head last published to is kept in the run's args as `pr_check_sha`.
+- A finished run's check is green when the run completed, even though its rounds recorded `changes_requested` on the way — for the loop that outcome means "another round", not a review verdict. ([validated by `loop-progress.acceptance.test.ts@939e2753`](../../apps/stations/src/events/loop-progress.acceptance.test.ts#L17))
+- The walk refreshes the check as the run enters each step and once more when the winning finisher closes it, so a run the reaper or a sweep finishes updates its check too. ([validated by `loop-progress.acceptance.test.ts@950ac5ea`](../../apps/stations/src/events/loop-progress.acceptance.test.ts#L6))
+- When the head moves, the check left on the previous head is closed as neutral `Superseded` before the running check is published on the new head, so earlier commits do not carry a check in progress forever; the head last published to is kept in the run's args as `pr_check_sha`. ([validated by `loop-progress.acceptance.test.ts@31a7ce72`](../../apps/stations/src/events/loop-progress.acceptance.test.ts#L29))
 - The end-of-line `await-pr` wait ignores the loop's own check, which is in progress for as long as the run is — counting it would make the run wait on itself. ([validated by `pr-ready-check.test.ts@0bd4c2af`](../../apps/stations/src/work/pr-ready-check/pr-ready-check.test.ts#L395))
 
 ## FR18 — A dispatch that never reaches the floor is reaped
