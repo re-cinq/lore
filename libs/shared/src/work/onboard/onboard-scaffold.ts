@@ -56,6 +56,10 @@ export function decideScaffoldCommit(
   file: Pick<ScaffoldFile, "owner" | "content">,
   current: string | null,
 ): boolean {
+  if (file.owner === "lore") {
+    return current !== file.content;
+  }
+
   return current === null;
 }
 
@@ -87,7 +91,7 @@ async function commitScaffoldFile(
   const current = await repo.read(file.path, branch);
 
   if (!decideScaffoldCommit(file, current)) {
-    return handleScaffoldSkip(file, current, result);
+    return;
   }
   await repo.commitFile(
     branch,
@@ -96,17 +100,4 @@ async function commitScaffoldFile(
     `lore: update ${file.path}`,
   );
   result.committed.push(file.path);
-}
-
-function handleScaffoldSkip(
-  file: ScaffoldFile,
-  current: string | null,
-  result: OnboardScaffoldResult,
-): void {
-  if (current !== null && current !== file.content) {
-    result.failures.push({
-      step: file.path,
-      error: "drifted from canonical template",
-    });
-  }
 }

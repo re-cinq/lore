@@ -107,7 +107,7 @@ describe("enrolRepo", () => {
     ]);
   });
 
-  it("reports a divergence and skips committing when a scaffold file already exists but differs", async () => {
+  it("commits a drifted Lore-owned scaffold file back to canonical", async () => {
     const { deps, commits } = scene({
       repo: {
         read: (path) =>
@@ -124,15 +124,11 @@ describe("enrolRepo", () => {
 
     const { attention, committed } = await enrolRepo(deps, TARGET);
 
-    expect({ commits, committed }).toMatchObject({
-      commits: expect.not.arrayContaining([
-        `lore/onboard/1234abcd ${LORE_INGEST_WORKFLOW_PATH}`,
-      ]),
-      committed: expect.not.arrayContaining([LORE_INGEST_WORKFLOW_PATH]),
-    });
-    expect(attention).toContain(
-      "## Needs attention\n\nThese files could not be committed:\n\n- `.github/workflows/lore-ingest.yml` — drifted from canonical template",
+    expect(commits).toContain(
+      `lore/onboard/1234abcd ${LORE_INGEST_WORKFLOW_PATH}`,
     );
+    expect(committed).toContain(LORE_INGEST_WORKFLOW_PATH);
+    expect(attention).toBe("");
   });
 
   it("hands back a needs-attention section naming the file that could not be committed, and audits it against task-1", async () => {

@@ -202,13 +202,14 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   today's requirements itself, by one rule for a first onboarding and an
   update alike: a LORE-owned file — the ingest and spec-impact workflows, the
   three `lore-*.yml` issue templates — is committed whenever the branch's copy
-  differs from the canonical content, and a REPO-owned one
-  (`.claude/settings.json`, `ISSUE_TEMPLATE/config.yml`) only when absent, so a
+  differs from the canonical content.
+  A REPO-owned one (`.claude/settings.json`, `ISSUE_TEMPLATE/config.yml`) is only committed when absent, so a
   repo's own settings are never overwritten. A file already at its canonical
-  content is never committed: GitHub's contents API makes a commit even for
+  content is never committed.
+  GitHub's contents API makes a commit even for
   identical bytes, and an up-to-date repo would get an empty pull request.
   Paths are read exactly, so a repo with a `.github/` directory still receives
-  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197))
+  its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197), [validated by commits a Lore-owned file when the branch's copy differs from the canonical content @0146fe34](../../libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts#L10), [validated by returns true for a lore-owned file when it differs from canonical content @fd674110](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L14), [validated by returns true for any file when it is absent @efd56338](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L23), [validated by returns false for a lore-owned file when it matches canonical content @9d1a4a59](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   reporting each repo where no PR was opened with its reason (a thrown
@@ -492,7 +493,7 @@ The onboarding PR carries deterministic files committed verbatim by the Floor pl
 - FR-5.4: The onboarding PR commits static scaffolding verbatim —
   `.claude/settings.json` carrying a `SessionStart` hook that tells every
   session to call `lore_assemble_context` first, and the
-  four `.github/ISSUE_TEMPLATE/*.yml` task templates; a repo-owned file the repo already holds with different content is left as it is. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first @82ba590c](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim @1c17610e](libs/shared/src/work/onboard-content.test.ts#L45), [validated by returns false when current !== null and current !== file.content @7ac3a244](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates; a repo-owned file the repo already holds with different content is left as it is. ([validated by commits .claude/settings.json whose SessionStart hook tells the session to call lore_assemble_context first @82ba590c](libs/shared/src/work/onboard-content.test.ts#L23), [validated by commits the four .github/ISSUE_TEMPLATE task templates verbatim @1c17610e](libs/shared/src/work/onboard-content.test.ts#L45), [validated by returns false for a repo-owned file when it already exists @2c334e60](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L29))
 - FR-5.5: The ticket owes `AGENTS.md`, the PR template, the pr-description-check
   workflow, and `.specify/spec.md` from fixed prompts — the AGENTS.md prompt
   targets the repo's own stack and the PR-template prompt names the five
