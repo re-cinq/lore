@@ -28,9 +28,10 @@ describe("commitOnboardScaffold", () => {
       },
     };
 
-    await commitOnboardScaffold(repo, "main");
+    const result = await commitOnboardScaffold(repo, "main");
 
     expect(commits).toContain(LORE_INGEST_WORKFLOW_PATH);
     expect(commits).not.toContain(TRACE_IMPACT_WORKFLOW_PATH);
+    expect(result.failures).toEqual([]);
   });
 });
