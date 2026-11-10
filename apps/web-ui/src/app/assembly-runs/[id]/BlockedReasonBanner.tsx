@@ -40,22 +40,30 @@ function useBlockedReason(
       return;
     }
 
-    let disposed = false;
-
-    readBlockedReason(repo, prNumber)
-      .then((next) => {
-        if (!disposed && next !== null) {
-          setReason(next);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      disposed = true;
-    };
+    return loadBlockedReason(repo, prNumber, setReason);
   }, [repo, prNumber, runStatus]);
 
   return reason;
+}
+
+function loadBlockedReason(
+  repo: string,
+  prNumber: number,
+  onLoaded: (reason: BlockedReason) => void,
+): () => void {
+  let disposed = false;
+
+  readBlockedReason(repo, prNumber)
+    .then((next) => {
+      if (!disposed && next !== null) {
+        onLoaded(next);
+      }
+    })
+    .catch(() => {});
+
+  return () => {
+    disposed = true;
+  };
 }
 
 async function readBlockedReason(

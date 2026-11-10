@@ -12,7 +12,7 @@ vi.mock("./live-actions", () => ({
 
 describe("RunPage Blocked Reason", () => {
   afterEach(() => {
-    oreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("queries the blocked-reason API and displays it for a settled run with a PR", async () => {
