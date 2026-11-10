@@ -149,7 +149,11 @@ function FormFooter({ isNew, error }: FormFooterProps) {
   );
 }
 
-function DescriptionField({ initialDescription }: { initialDescription: string }) {
+function DescriptionField({
+  initialDescription,
+}: {
+  initialDescription: string;
+}) {
   return (
     <div>
       <label htmlFor="skill-description">{LABELS.description}</label>

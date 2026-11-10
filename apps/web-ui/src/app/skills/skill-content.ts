@@ -49,7 +49,9 @@ function extraKeys(frontmatter: string): string {
 
     keeping = key === undefined ? keeping : !FIELD_KEYS.has(key);
 
-    if (keeping) {extraLines.push(line);}
+    if (keeping) {
+      extraLines.push(line);
+    }
   }
 
   return extraLines.join("\n");
@@ -59,7 +61,10 @@ function withoutTitleHeading(text: string): string {
   const lines = text.replace(/^\s*\n/, "").split("\n");
 
   return lines[0].startsWith("# ")
-    ? lines.slice(1).join("\n").replace(/^\s*\n/, "")
+    ? lines
+        .slice(1)
+        .join("\n")
+        .replace(/^\s*\n/, "")
     : lines.join("\n");
 }
 
