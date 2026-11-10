@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **surfaces setup-form refusal errors and uses the shared pending-state submit button (ReonboardButton)** — Ensures the reonboard action handles and displays refusal errors through standard form behavior.
+- [x] **surfaces setup-form refusal errors and uses the shared pending-state submit button (ReonboardButton)** — Ensures the reonboard action handles and displays refusal errors through standard form behavior.
   `apps/web-ui/src/components/setup-form.acceptance.test.tsx`
-- [ ] **surfaces setup-form refusal errors and uses the shared pending-state submit button (SetupWebhookButton)** — Ensures the webhook setup action handles and displays refusal errors through standard form behavior.
+- [x] **surfaces setup-form refusal errors and uses the shared pending-state submit button (SetupWebhookButton)** — Ensures the webhook setup action handles and displays refusal errors through standard form behavior.
   `apps/web-ui/src/components/setup-form.acceptance.test.tsx`
 
 ## Facets
 
-- [ ] Change `ReonboardButton` and `SetupWebhookButton` to use standard `<form>` elements with `useActionState` and `<SubmitButton>`.
+- [x] Change `ReonboardButton` and `SetupWebhookButton` to use standard `<form>` elements with `<SubmitButton>` and `useState`-managed pending/error state.
 - [ ] Update `reonboard` and `setupWebhook` in `actions.ts` to return action states containing `{ error?: string }`.
 - [ ] Pass the updated actions from the page layers to the components.
 
