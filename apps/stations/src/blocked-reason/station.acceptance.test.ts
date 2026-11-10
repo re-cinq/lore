@@ -8,6 +8,7 @@ import type {
   Mergeability,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { InMemoryCommentThread } from "./comment-thread-memory.js";
+import { blockedReasonComment } from "./comment.js";
 import { runBlockedReason, type BlockedReasonDeps } from "./station.js";
 
 const REPO = "re-cinq/lore";
@@ -86,22 +87,30 @@ function world(pulls: PullRef[]) {
 describe("Blocked Reason Acceptance Tests", () => {
   it("reports first named refusal", async () => {
     const w = world([pr(7)]);
-
-    await runBlockedReason(
-      {
-        name: "lore.pull_request.merge_refused",
-        params: {
-          repo: REPO,
-          pr_number: 7,
-          message: "Pull request is not mergeable",
-        },
+    const event = {
+      name: "lore.pull_request.merge_refused",
+      params: {
+        repo: REPO,
+        pr_number: 7,
+        message: "Pull request is not mergeable",
       },
-      w.deps,
-    );
-
-    expect(await w.reasons.current(REPO, 7)).toEqual({
-      reason: "github_refused",
+    };
+    const expected = {
+      reason: "github_refused" as const,
       detail: "Pull request is not mergeable",
+    };
+
+    await runBlockedReason(event, w.deps);
+    await runBlockedReason(event, w.deps);
+
+    expect({
+      current: await w.reasons.current(REPO, 7),
+      audited: w.audit.entries.length,
+      comments: w.thread.comments,
+    }).toEqual({
+      current: expected,
+      audited: 1,
+      comments: [{ number: 7, id: 1, body: blockedReasonComment(expected) }],
     });
   });
 
