@@ -50,8 +50,17 @@ function statusRules(
     [!!pr.draft, "draft"],
     [hasFailingChecks(checks), "checks-failing"],
     [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
+    [
+      reviews.some((r) => r.state === "APPROVED") &&
+        checks.some(isPendingCheck),
+      "open",
+    ],
     [isApprovedAndPassing(reviews, checks), "approved"],
   ];
+}
+
+function isPendingCheck(check: CheckSignal) {
+  return check.status === "queued" || check.status === "in_progress";
 }
 
 function hasFailingChecks(checks: Array<CheckSignal>) {
@@ -68,11 +77,10 @@ function isApprovedAndPassing(
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
       (c) =>
-        c.conclusion === "success" ||
-        c.conclusion === "skipped" ||
-        (c.conclusion === null &&
-          c.status !== "in_progress" &&
-          c.status !== "queued"),
+        !isPendingCheck(c) &&
+        (c.conclusion === "success" ||
+          c.conclusion === "skipped" ||
+          c.conclusion === null),
     )
   );
 }
