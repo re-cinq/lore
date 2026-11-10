@@ -3,8 +3,11 @@ import {
   createFloorClient,
   serviceToken,
   type FloorClient,
+  type RunView,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../lib/enforce.js";
+
+export type { RunView };
 
 export type FloorEnv = Partial<
   Record<"FLOOR_API_URL" | "FLOOR_SERVICE_TOKEN", string>
