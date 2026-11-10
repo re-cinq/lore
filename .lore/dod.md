@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] `/api/ingest` calls `markIngested` when `anyFileLanded` is true.
+- [x] `/api/ingest` calls `markIngested` when `anyFileLanded` is true.
 
 ## Out of scope
 
