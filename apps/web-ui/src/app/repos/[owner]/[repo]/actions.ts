@@ -11,7 +11,7 @@ export async function reonboard(
 ): Promise<{ error?: string } | void> {
   const result = await createOnboardTask(fullName, { reonboard: true });
 
-  if (result.taskId) {
+  if (result.ok || result.taskId) {
     redirect(`/assembly-runs/${result.taskId}`);
   }
 
