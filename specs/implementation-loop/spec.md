@@ -85,14 +85,14 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
   the run now fails once, naming the cluster that was switched off.
 - A node dispatched after a failure is TOLD what failed. The retried agent
   receives the failing step's name and its own output appended to the prompt,
-  under a heading naming it as the previous step's failure. ([validated by appends the failing step's name and its own output to the prompt @e9246ac4](../../libs/shared/src/domain/agents/node-retry-feedback.acceptance.test.ts#L5)) Without it the
+  under a heading naming it as the previous step's failure. Without it the
   loop could not converge and never did: `implement` succeeded, `validate`
   failed, and the retry was dispatched with a byte-identical prompt — three
   live runs exhausted `iteration_max` this way (2026-08-26). `priorOutcomeOf`
   cannot supply this, because it answers for ONE node and so told `implement`
   about its own last visit, which was `success` every time; the feedback comes
   from the most recently recorded visit instead, whichever node produced it.
-  A verdict (`changes_requested`) is not a failure and carries no such block.
+  A verdict (`changes_requested`) is not a failure and carries no such block. ([validated by appends the failing step's name and its own output to the prompt (spec: specs/implementation-loop/spec.md#L86) @04983fcd](../../libs/shared/src/domain/agents/node-retry-feedback.acceptance.test.ts#L5))
 - The `validate` station reports the failing commands' OWN OUTPUT, not just
   their names. `Lore-Validation-Failed: "lint,build"` says where to look; the
   compiler errors say what to fix, and the agent sent back to fix them is the

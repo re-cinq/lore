@@ -6,7 +6,7 @@
 
 ## Done when these pass
 
-- [ ] **appends the failing step's name and its own output to the prompt**
+- [x] **appends the failing step's name and its own output to the prompt**
   `libs/shared/src/domain/agents/node-retry-feedback.acceptance.test.ts`
 
 ## Facets
