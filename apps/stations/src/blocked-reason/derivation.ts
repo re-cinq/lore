@@ -20,6 +20,8 @@ export interface PullState {
   ci: CiConclusion;
   /** Reviewers whose latest verdict is an approval. */
   approvals: number;
+  /** PR number of an unmerged dependency in the same task group, when one exists. */
+  blockingDependencyPr?: number | null;
 }
 
 type ReasonRule = (state: PullState) => BlockedReason | null;
@@ -79,6 +81,8 @@ const PRECEDENCE: ReasonRule[] = [
   waitingOnCi,
   needsCodeOwner,
   needsApproval,
+  ({ blockingDependencyPr: dep }) =>
+    dep != null ? blocked("blocked_by_pr", String(dep)) : null,
 ];
 
 export function deriveBlockedReason(state: PullState): BlockedReason | null {

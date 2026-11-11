@@ -1,5 +1,6 @@
 // The one comment on a PR, and on its backlog issue, that says why the PR is not merging yet; found again by its marker, so it is edited in place and never posted twice.
 
+import { loreTaskIdOf } from "@re-cinq/lore-shared";
 import {
   labelForReason,
   type BlockedReason,
@@ -40,5 +41,23 @@ export async function syncReasonComment(
 
   if (blocked) {
     await thread.comment(number, body);
+  }
+}
+
+/** The PR's comment first, then the backlog issue's, when the PR names a task that has one. */
+export async function announceReason(
+  project: {
+    issues: CommentThread;
+    taskIssue(taskId: string): Promise<number | null>;
+  },
+  pr: { number: number; body?: string | null },
+  blocked: BlockedReason | null,
+): Promise<void> {
+  await syncReasonComment(project.issues, pr.number, blocked);
+  const taskId = loreTaskIdOf(pr.body);
+  const issue = taskId ? await project.taskIssue(taskId) : null;
+
+  if (issue) {
+    await syncReasonComment(project.issues, issue, blocked);
   }
 }

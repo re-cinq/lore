@@ -10,7 +10,8 @@ import type { TaskList } from "@re-cinq/lore-shared/project/tasks/task-list.js";
 import { openFloorReviewCount } from "@re-cinq/lore-shared/review/floor-review-runs.js";
 import { isReviewDefinition } from "@re-cinq/lore-shared/review/review-definitions.js";
 import { projectFor } from "../outbound/project-boot.js";
-import { pipeline } from "../outbound/queues.js";
+import { pipeline, taskStore } from "../outbound/queues.js";
+import { createDependencyPort } from "../outbound/task-ordering.js";
 import type {
   BlockedReasonDeps,
   BlockedReasonProject,
@@ -19,14 +20,19 @@ import type {
 
 /** Called on each delivery, after the pool exists. */
 export function productionDeps(): BlockedReasonDeps {
+  const ordering = createDependencyPort(taskStore(), pipeline().taskQueue);
+
   return {
     appLogin: loreAppLogin,
     reasons: pipeline().prBlockedReasons,
-    project: buildProject,
+    project: (repo) => buildProject(repo, ordering),
   };
 }
 
-async function buildProject(repo: string): Promise<BlockedReasonProject> {
+async function buildProject(
+  repo: string,
+  ordering: ReturnType<typeof createDependencyPort>,
+): Promise<BlockedReasonProject> {
   const project = await projectFor(repo);
   const { tasks } = project;
 
@@ -41,6 +47,7 @@ async function buildProject(repo: string): Promise<BlockedReasonProject> {
       autoMergeEnabled(await project.settings.rawSettings()),
     taskGroup: (prNumber) => readTaskGroup(repo, prNumber, tasks),
     hasReviewInFlight: (prNumber) => reviewInFlight(repo, prNumber),
+    ...ordering,
   };
 }
 
