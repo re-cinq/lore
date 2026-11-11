@@ -3,54 +3,92 @@ import pg from "pg";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const APP_USER = process.env.LORE_DB_USER || "lore";
-const APP_PASSWORD = process.env.LORE_DB_PASSWORD || "lore";
-
 const MIGRATOR_USER = "lore_hippo_test_migrator";
 const MIGRATOR_PASSWORD = "hippo_migrator_test";
 
-const MIGRATIONS_DIR = join(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "..",
-  "deploy",
-  "chart",
-  "charts",
-  "ui-helm",
-  "migrations",
-);
+const REQUIRED_HIPPO_SCHEMA = {
+  factsColumns: [
+    "confidence",
+    "half_life_days",
+    "last_retrieved_at",
+    "retrieval_count",
+  ],
+  memoriesColumns: ["half_life_days", "last_retrieved_at", "retrieval_count"],
+  confidenceCheckTiers: ["inferred", "observed", "stale", "verified"],
+  tables: ["memory.fact_conflicts", "pipeline.audit_log"],
+};
 
-async function setupSuperuserDb(dbName: string, superuserPool: pg.Pool) {
+describe("hippo-memory and audit_log migrations (T010)", () => {
+  let superuserPool: pg.Pool;
+
+  beforeAll(async () => {
+    superuserPool = makeSuperuserPool("postgres");
+  });
+
+  afterAll(async () => {
+    if (superuserPool) {
+      await superuserPool.end();
+    }
+  });
+
+  it("applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema", async () => {
+    const dbName = "lore_test_legacy_hippo";
+
+    await setupSuperuserDb(dbName, superuserPool);
+    await setupLegacyPartiallyMigratedSchema(dbName, superuserPool);
+    await runMigrations(dbName);
+
+    expect(await readHippoSchemaState(dbName)).toEqual(REQUIRED_HIPPO_SCHEMA);
+  });
+
+  it("applies migration sequence twice on an empty database and leaves the required schema", async () => {
+    const dbName = "lore_test_empty_hippo";
+
+    await setupSuperuserDb(dbName, superuserPool);
+    await setupEmptyBootstrapSchema(dbName, superuserPool);
+    await runMigrations(dbName);
+
+    expect(await readHippoSchemaState(dbName)).toEqual(REQUIRED_HIPPO_SCHEMA);
+  });
+
+  it("distinguishes a non-owner privilege skip on memory tables from a converged schema until ownership is reconciled", async () => {
+    const dbName = "lore_test_privilege_skip_hippo";
+
+    await setupSuperuserDb(dbName, superuserPool);
+    await setupPrivilegeGuardedSchema(dbName, superuserPool);
+    await runMigrations(dbName, MIGRATOR_USER, MIGRATOR_PASSWORD);
+
+    expect(await readHippoSchemaState(dbName)).toEqual({
+      factsColumns: [],
+      memoriesColumns: [],
+      confidenceCheckTiers: [],
+      tables: ["pipeline.audit_log"],
+    });
+
+    await reconcileMemoryOwnership(dbName);
+    await runMigrations(dbName, MIGRATOR_USER, MIGRATOR_PASSWORD);
+
+    expect(await readHippoSchemaState(dbName)).toEqual(REQUIRED_HIPPO_SCHEMA);
+  });
+});
+
+async function setupSuperuserDb(
+  dbName: string,
+  superuserPool: pg.Pool,
+): Promise<void> {
   await superuserPool.query(`DROP DATABASE IF EXISTS ${dbName}`);
   await superuserPool.query(`CREATE DATABASE ${dbName}`);
 }
 
-async function setupLegacySchema(
+const APP_USER = process.env.LORE_DB_USER || "lore";
+const APP_PASSWORD = process.env.LORE_DB_PASSWORD || "lore";
+
+async function setupLegacyPartiallyMigratedSchema(
   dbName: string,
   superuserPool: pg.Pool,
 ): Promise<void> {
-  await superuserPool.query(`
-    DO $$ BEGIN
-      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${APP_USER}') THEN
-        CREATE ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
-      ELSE
-        ALTER ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
-      END IF;
-    END $$;
-  `);
-  await superuserPool.query(
-    `GRANT CREATE ON DATABASE "${dbName}" TO ${APP_USER}`,
-  );
-
-  const lorePool = new pg.Pool({
-    host: process.env.LORE_DB_HOST || "localhost",
-    port: parseInt(process.env.LORE_DB_PORT || "5432"),
-    database: dbName,
-    user: APP_USER,
-    password: APP_PASSWORD,
-  });
+  await ensureAppRoleAndGrantCreate(dbName, superuserPool);
+  const lorePool = makeUserPool(dbName, APP_USER, APP_PASSWORD);
 
   try {
     await lorePool.query(`
@@ -68,6 +106,7 @@ async function setupLegacySchema(
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         memory_id UUID REFERENCES memory.memories(id),
         fact_text TEXT NOT NULL,
+        retrieval_count INT DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE SCHEMA IF NOT EXISTS pipeline;
@@ -77,6 +116,56 @@ async function setupLegacySchema(
   }
 }
 
+async function setupEmptyBootstrapSchema(
+  dbName: string,
+  superuserPool: pg.Pool,
+): Promise<void> {
+  await ensureAppRoleAndGrantCreate(dbName, superuserPool);
+  const lorePool = makeUserPool(dbName, APP_USER, APP_PASSWORD);
+
+  try {
+    await lorePool.query(`
+      CREATE SCHEMA memory;
+      CREATE TABLE memory.memories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE memory.facts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        memory_id UUID REFERENCES memory.memories(id),
+        fact_text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE SCHEMA pipeline;
+    `);
+  } finally {
+    await lorePool.end();
+  }
+}
+
+async function ensureAppRoleAndGrantCreate(
+  dbName: string,
+  superuserPool: pg.Pool,
+): Promise<void> {
+  await superuserPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${APP_USER}') THEN
+        CREATE ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
+      ELSE
+        ALTER ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
+      END IF;
+    END $$;
+  `);
+  await superuserPool.query(
+    `GRANT CREATE ON DATABASE "${dbName}" TO ${APP_USER}`,
+  );
+}
+
 async function setupPrivilegeGuardedSchema(
   dbName: string,
   superuserPool: pg.Pool,
@@ -84,20 +173,14 @@ async function setupPrivilegeGuardedSchema(
   await superuserPool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${MIGRATOR_USER}') THEN
-        CREATE ROLE ${MIGRATOR_USER} LOGIN PASSWORD '${MIGRATOR_PASSWORD}';
+        CREATE ROLE ${MIGRATOR_USER} NOSUPERUSER LOGIN PASSWORD '${MIGRATOR_PASSWORD}';
       ELSE
         ALTER ROLE ${MIGRATOR_USER} NOSUPERUSER LOGIN PASSWORD '${MIGRATOR_PASSWORD}';
       END IF;
     END $$;
   `);
 
-  const pool = new pg.Pool({
-    host: process.env.LORE_DB_HOST || "localhost",
-    port: parseInt(process.env.LORE_DB_PORT || "5432"),
-    database: dbName,
-    user: process.env.LORE_DB_SUPERUSER || "postgres",
-    password: process.env.LORE_DB_PASSWORD || "lore",
-  });
+  const pool = makeSuperuserPool(dbName);
 
   try {
     await pool.query(`
@@ -129,18 +212,39 @@ async function setupPrivilegeGuardedSchema(
   }
 }
 
+async function reconcileMemoryOwnership(dbName: string): Promise<void> {
+  const pool = makeSuperuserPool(dbName);
+
+  try {
+    await pool.query(`
+      GRANT CREATE ON SCHEMA memory TO ${MIGRATOR_USER};
+      ALTER TABLE memory.memories OWNER TO ${MIGRATOR_USER};
+      ALTER TABLE memory.facts OWNER TO ${MIGRATOR_USER};
+    `);
+  } finally {
+    await pool.end();
+  }
+}
+
+const MIGRATIONS_DIR = join(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "..",
+  "deploy",
+  "chart",
+  "charts",
+  "ui-helm",
+  "migrations",
+);
+
 async function runMigrations(
   dbName: string,
   user = APP_USER,
   password = APP_PASSWORD,
-) {
-  const lorePool = new pg.Pool({
-    host: process.env.LORE_DB_HOST || "localhost",
-    port: parseInt(process.env.LORE_DB_PORT || "5432"),
-    database: dbName,
-    user,
-    password,
-  });
+): Promise<void> {
+  const lorePool = makeUserPool(dbName, user, password);
   const mig13 = readFileSync(
     join(MIGRATIONS_DIR, "0013_memory_hippo_columns.sql"),
     "utf-8",
@@ -150,100 +254,88 @@ async function runMigrations(
     "utf-8",
   );
 
-  await lorePool.query(mig13);
-  await lorePool.query(mig14);
-
-  await lorePool.query(mig13);
-  await lorePool.query(mig14);
-  await lorePool.end();
+  try {
+    await lorePool.query(mig13);
+    await lorePool.query(mig14);
+    await lorePool.query(mig13);
+    await lorePool.query(mig14);
+  } finally {
+    await lorePool.end();
+  }
 }
 
-describe("hippo-memory and audit_log migrations (T010)", () => {
-  let superuserPool: pg.Pool;
+async function readHippoSchemaState(dbName: string) {
+  const verifyPool = makeSuperuserPool(dbName);
 
-  beforeAll(async () => {
-    superuserPool = new pg.Pool({
-      host: process.env.LORE_DB_HOST || "localhost",
-      port: parseInt(process.env.LORE_DB_PORT || "5432"),
-      database: "postgres",
-      user: process.env.LORE_DB_SUPERUSER || "postgres",
-      password: process.env.LORE_DB_PASSWORD || "lore",
-    });
+  try {
+    const factsRes = await verifyPool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'memory'
+        AND table_name = 'facts'
+        AND column_name IN ('confidence', 'retrieval_count', 'last_retrieved_at', 'half_life_days')
+      ORDER BY column_name
+    `);
+    const memoriesRes = await verifyPool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'memory'
+        AND table_name = 'memories'
+        AND column_name IN ('retrieval_count', 'last_retrieved_at', 'half_life_days')
+      ORDER BY column_name
+    `);
+    const checkRes = await verifyPool.query(`
+      SELECT pg_get_constraintdef(c.oid) AS def
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE n.nspname = 'memory'
+        AND t.relname = 'facts'
+        AND c.conname = 'facts_confidence_check'
+    `);
+    const tablesRes = await verifyPool.query(`
+      SELECT table_schema || '.' || table_name AS full_name
+      FROM information_schema.tables
+      WHERE (table_schema = 'memory' AND table_name = 'fact_conflicts')
+         OR (table_schema = 'pipeline' AND table_name = 'audit_log')
+      ORDER BY full_name
+    `);
+    const constraintDef = String(checkRes.rows[0]?.def ?? "");
+
+    return {
+      factsColumns: factsRes.rows.map((row) => String(row.column_name)),
+      memoriesColumns: memoriesRes.rows.map((row) => String(row.column_name)),
+      confidenceCheckTiers: [
+        "inferred",
+        "observed",
+        "stale",
+        "verified",
+      ].filter((tier) => constraintDef.includes(`'${tier}'`)),
+      tables: tablesRes.rows.map((row) => String(row.full_name)),
+    };
+  } finally {
+    await verifyPool.end();
+  }
+}
+
+function makeSuperuserPool(database: string): pg.Pool {
+  return makeUserPool(
+    database,
+    process.env.LORE_DB_SUPERUSER || "postgres",
+    process.env.LORE_DB_PASSWORD || "lore",
+  );
+}
+
+function makeUserPool(
+  database: string,
+  user: string,
+  password: string,
+): pg.Pool {
+  return new pg.Pool({
+    host: process.env.LORE_DB_HOST || "localhost",
+    port: parseInt(process.env.LORE_DB_PORT || "5432"),
+    database,
+    user,
+    password,
   });
-
-  afterAll(async () => {
-    if (superuserPool) {
-      await superuserPool.end();
-    }
-  });
-
-  it("applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema", async () => {
-    const dbName = "lore_test_legacy_hippo";
-
-    await setupSuperuserDb(dbName, superuserPool);
-    await setupLegacySchema(dbName, superuserPool);
-    await runMigrations(dbName);
-
-    const verifyPool = new pg.Pool({
-      host: process.env.LORE_DB_HOST || "localhost",
-      port: parseInt(process.env.LORE_DB_PORT || "5432"),
-      database: dbName,
-      user: process.env.LORE_DB_SUPERUSER || "postgres",
-      password: process.env.LORE_DB_PASSWORD || "lore",
-    });
-
-    try {
-      const columnsRes = await verifyPool.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
-      `);
-
-      expect(columnsRes.rowCount).toBeGreaterThan(0);
-
-      const auditLogRes = await verifyPool.query(`
-        SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'pipeline' AND table_name = 'audit_log'
-      `);
-
-      expect(auditLogRes.rowCount).toBeGreaterThan(0);
-    } finally {
-      await verifyPool.end();
-    }
-  });
-
-  it("applies migration sequence twice on an empty database and leaves the required schema", async () => {
-    const dbName = "lore_test_empty_hippo";
-
-    await setupSuperuserDb(dbName, superuserPool);
-    await setupPrivilegeGuardedSchema(dbName, superuserPool);
-    await runMigrations(dbName, MIGRATOR_USER, MIGRATOR_PASSWORD);
-
-    const verifyPool = new pg.Pool({
-      host: process.env.LORE_DB_HOST || "localhost",
-      port: parseInt(process.env.LORE_DB_PORT || "5432"),
-      database: dbName,
-      user: process.env.LORE_DB_SUPERUSER || "postgres",
-      password: process.env.LORE_DB_PASSWORD || "lore",
-    });
-
-    try {
-      const auditLogRes = await verifyPool.query(`
-        SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'pipeline' AND table_name = 'audit_log'
-      `);
-
-      expect(auditLogRes.rowCount).toBeGreaterThan(0);
-
-      const confidenceRes = await verifyPool.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
-      `);
-
-      expect(confidenceRes.rowCount).toEqual(0);
-    } finally {
-      await verifyPool.end();
-    }
-  });
-});
+}
