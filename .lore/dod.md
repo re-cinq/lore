@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **finds a task's run on page eleven of the line, walking past the first ten pages, asking no run by id** — Verifies that `taskRunContexts` continues the walk up to page 11 (bypassing the hard 10-page limit) and finds the task's run without reverting to per-task queries.
+- [x] **finds a task's run on page eleven of the line, walking past the first ten pages, asking no run by id** — Verifies that `taskRunContexts` continues the walk up to page 11 (bypassing the hard 10-page limit) and finds the task's run without reverting to per-task queries.
   `apps/lore-api/src/work/floor/floor-task-runs.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Update `newestRunPerTask` in `apps/lore-api/src/work/floor/floor-task-runs.ts` to remove `MAX_PAGES` truncation and walk until all tasks are found or `nextCursor` is exhausted.
+- [x] Update `newestRunPerTask` in `apps/lore-api/src/work/floor/floor-task-runs.ts` to remove `MAX_PAGES` truncation and walk until all tasks are found or `nextCursor` is exhausted.
 
 ## Out of scope
 
