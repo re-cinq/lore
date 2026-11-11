@@ -78,11 +78,14 @@ function waitingOnPersonFor(
   nodeToStation: Map<string, string>,
 ): (nodeId: string) => boolean {
   return (nodeId) => {
-    if (SWEEP_NODE_IDS.has(nodeId)) {return false;}
+    if (SWEEP_NODE_IDS.has(nodeId)) {
+      return false;
+    }
     const stationName = nodeToStation.get(nodeId);
 
-    if (stationName === undefined || !(stationName in stationKinds))
-      {return false;}
+    if (stationName === undefined || !(stationName in stationKinds)) {
+      return false;
+    }
 
     return stationKinds[stationName].kind === "human";
   };
