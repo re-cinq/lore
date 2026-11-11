@@ -1,12 +1,13 @@
 import type { StatementInfo } from "./trace-types";
 import type { TraceLinkRef, TraceStatementState } from "@/lib/trace-types";
 
-/** Graph statement with TraceLinkRef/state + parser-supplied kind/testability. */
+/** Graph statement with TraceLinkRef/state + parser-supplied kind/testability/category. */
 export interface GraphStatement {
   ordinal: number;
   text: string;
   kind?: string;
   testability?: string;
+  category?: string;
   state: TraceStatementState;
   links: TraceLinkRef[];
   drifted?: boolean;
@@ -30,7 +31,7 @@ function statementInfo(statement: GraphStatement): StatementInfo {
     kind: statement.kind ?? "",
     state: statement.state,
     drifted: Boolean(statement.drifted || statement.violated),
-    category: statement.testability ?? null,
+    category: statement.category ?? null,
     testLinks: testLinks.map((link) => ({
       label: link.label,
       path: link.path ?? "",

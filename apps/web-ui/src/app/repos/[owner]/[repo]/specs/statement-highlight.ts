@@ -147,9 +147,6 @@ function overrideIfTestLinked(
   return s;
 }
 
-const TEST_HREF_RE =
-  /\.test\.|\.spec\.|_test\.(go|rs)$|Tests?\.(java|kt|cs)$|_spec\.rb$|Test\.php$|__tests__\//;
-
 /** True when the element or any descendant `<a>` carries a test-file href. */
 function elementHasTestLink(node: Element): boolean {
   for (const child of node.children) {
@@ -175,7 +172,17 @@ function anchorHasTestHref(el: Element): boolean {
   }
   const href = String((el.properties as Record<string, unknown>).href ?? "");
 
-  return TEST_HREF_RE.test(href);
+  return isTestHref(href);
+}
+
+const TEST_HREF_RE =
+  /\.test\.|\.spec\.|_test\.|(^|\/)__tests__\/|_test\.(go|rs)$|(^|\/)test_[^/]*\.py$|Tests?\.(java|kt|cs)$|_spec\.rb$|Test\.php$/;
+
+/** True when `href` points at a test file, ignoring any `#L<line>` or query suffix. */
+export function isTestHref(href: string): boolean {
+  const path = href.replace(/[?#].*$/, "");
+
+  return TEST_HREF_RE.test(path);
 }
 
 /** Appends `child` to `out`, replaced by its marked-up parts when a statement claims its text; says whether it was replaced. */

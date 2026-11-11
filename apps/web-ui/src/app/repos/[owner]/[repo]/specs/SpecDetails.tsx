@@ -6,12 +6,16 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
-import { type StatementInfo, type StatementState } from "@/lib/trace-types";
+import {
+  type StatementInfo,
+  type StatementState,
+  type TestLinkRef,
+} from "@/lib/trace-types";
 
 export type { StatementInfo, StatementState };
 import { resolveHref } from "@/lib/github-links";
 import { useResolvedMarkdownLinks } from "@/app/repos/[owner]/[repo]/useResolvedMarkdownLinks";
-import { buildHighlighter } from "./statement-highlight";
+import { buildHighlighter, isTestHref } from "./statement-highlight";
 import readme from "../ReadmeBox.module.css";
 import styles from "./SpecDetails.module.css";
 import { StatementPopover } from "./StatementPopover";
@@ -139,7 +143,7 @@ function useHoveredStatement(
 
   return {
     hover,
-    hovered: hover ? statementsByOrdinal.get(hover.ordinal) : null,
+    hovered: hover ? hoveredStatement(statementsByOrdinal, hover) : null,
     rehypePlugins,
     handlers,
   };
@@ -147,8 +151,26 @@ function useHoveredStatement(
 
 interface HoverPoint {
   ordinal: number;
+  state?: StatementState;
   x: number;
   y: number;
+}
+
+function hoveredStatement(
+  statementsByOrdinal: Map<number, StatementInfo>,
+  hover: HoverPoint,
+): StatementInfo | null {
+  const statement = statementsByOrdinal.get(hover.ordinal);
+
+  if (!statement) {
+    return null;
+  }
+
+  if (hover.state && hover.state !== statement.state) {
+    return { ...statement, state: hover.state };
+  }
+
+  return statement;
 }
 
 /** Which highlighted statement the pointer is over, and where to put its tooltip — measured against the wrapper, so the popover sits with the text rather than the viewport. */
@@ -188,9 +210,10 @@ function hoverPoint(
   if (!Number.isFinite(ordinal)) {
     return null;
   }
+  const state = target.dataset.state as StatementState | undefined;
   const { left, top } = tooltipPosition(target, wrapperRef);
 
-  return { ordinal, x: left, y: top };
+  return { ordinal, state, x: left, y: top };
 }
 
 /** Tooltip anchor for `target`, measured against the wrapper so the popover sits with the text rather than the viewport. */
@@ -232,11 +255,70 @@ function useStatementsByOrdinal(statements: StatementInfo[]) {
     const byOrdinal = new Map<number, StatementInfo>();
 
     for (const statement of statements) {
-      byOrdinal.set(statement.ordinal, statement);
+      byOrdinal.set(statement.ordinal, withInlineTestOverride(statement));
     }
 
     return byOrdinal;
   }, [statements]);
+}
+
+function withInlineTestOverride(statement: StatementInfo): StatementInfo {
+  if (statement.state !== "untested") {
+    return statement;
+  }
+  const links = inlineTestLinks(statement.text);
+
+  if (links.length === 0) {
+    return statement;
+  }
+
+  return {
+    ...statement,
+    state: "tested",
+    testLinks: statement.testLinks.length > 0 ? statement.testLinks : links,
+  };
+}
+
+const INLINE_LINK_RE = /\[([^\]]+)\]\(([^)]+)\)/g;
+
+function inlineTestLinks(text: string): TestLinkRef[] {
+  const links: TestLinkRef[] = [];
+
+  for (const match of text.matchAll(INLINE_LINK_RE)) {
+    const link = toTestLinkRef(match[1], match[2].trim());
+
+    if (link) {
+      links.push(link);
+    }
+  }
+
+  return links;
+}
+
+const HASHED_LABEL_RE = /@([0-9a-f]{8})`?$/;
+
+function toTestLinkRef(rawLabel: string, href: string): TestLinkRef | null {
+  if (!isTestHref(href)) {
+    return null;
+  }
+  const [rawPath, anchor] = href.split("#", 2);
+  const label = rawLabel.replace(/\s+/g, " ").trim();
+
+  return {
+    label,
+    path: rawPath.replace(/^\/+/, ""),
+    line: parseAnchorLine(anchor),
+    hash: HASHED_LABEL_RE.exec(label)?.[1] ?? null,
+  };
+}
+
+function parseAnchorLine(anchor: string | undefined): number | null {
+  if (!anchor?.startsWith("L")) {
+    return null;
+  }
+  const line = Number(anchor.slice(1));
+
+  return Number.isFinite(line) ? line : null;
 }
 
 /** Only the facets the highlighter matches on — the rest of a statement is irrelevant to where the `<mark>` goes. */

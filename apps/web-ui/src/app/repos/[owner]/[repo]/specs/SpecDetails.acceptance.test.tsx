@@ -11,11 +11,11 @@ const REPO = "re-cinq/lore";
 
 describe("T104: Rewrite rehype highlighter", () => {
   it("determines a statement is tested by finding a test link mid-statement, overriding a graph state of untested", () => {
-    const md = "## Features\n\nIt [does it](src/a.test.ts#L1) well.\n";
+    const md = "## Features\n\nIt [does it](src/a_test.go#L1) well.\n";
     const graphStatements: GraphStatement[] = [
       {
         ordinal: 1,
-        text: "It [does it](src/a.test.ts#L1) well.",
+        text: "It [does it](src/a_test.go#L1) well.",
         state: "untested",
         links: [],
       },
@@ -29,6 +29,11 @@ describe("T104: Rewrite rehype highlighter", () => {
 
     expect(mark?.className).toContain("stmt-tested");
     expect(mark?.getAttribute("data-state")).toBe("tested");
+
+    fireEvent.mouseOver(mark!);
+    const tooltip = screen.getByRole("tooltip");
+
+    expect(tooltip.textContent).toContain("1 test validates this");
   });
 
   it("surfaces the narrative section category in the hover popover", () => {
@@ -38,7 +43,8 @@ describe("T104: Rewrite rehype highlighter", () => {
         ordinal: 1,
         text: "We need this.",
         state: "narrative",
-        testability: "background",
+        testability: "untestable",
+        category: "background",
         links: [],
       },
     ];

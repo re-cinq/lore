@@ -276,7 +276,7 @@ parsing the spec markdown, not from a DB query.
   because nothing was inferred).
 - Red statements are visible gaps. No popover, just colour.
 - Grey statements (narrative) hover reveals the section category
-  (intro / vision / limitation / etc.). ([validated by surfaces the narrative section category in the hover popover @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L34))
+  (intro / vision / limitation / etc.). ([validated by surfaces the narrative section category in the hover popover @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L39))
 
 ### Cron diagnostics
 
@@ -417,7 +417,7 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 2. A statement carrying ≥1 test link counts as `covered` in the `CoverageBar`; the headline percentage is `covered / (covered + uncovered)`, with `narrative` excluded from the denominator (same formula as v2). ([validated by `SpecCard.test.tsx@d5943b85`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.test.tsx#L23))
 
-3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `SpecDetails.test.tsx@6489ee5f`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L99), [validated by @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L34))
+3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `SpecDetails.test.tsx@6489ee5f`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L99), [validated by @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L39))
 
 4. A testable statement with no test link renders red and counts toward `uncovered`. ([validated by `SpecDetails.test.tsx@d2f6c3e0`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L83))
 
