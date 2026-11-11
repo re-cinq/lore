@@ -27,8 +27,11 @@ curl -fsS -H "authorization: Bearer $TOKEN" \
   "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions"
 ```
 Each entry has `name, model, timeout_minutes, prompt, image, execution_mode,
-review_required, project_id`. `project_id: null` means the value is inherited
+review_required, adjust_skill_models, project_id`. `project_id: null` means the value is inherited
 (no repo variant yet); otherwise it names the repo's variant key.
+`adjust_skill_models` (default true) lets the skills registry drop a skill's `model:` line
+when that model's CLI differs from the agent's; false stores `config.skills_source` with a
+`/verbatim` suffix and serves skills unchanged. Send it on create and update.
 
 **Resolve one** agent (what a runner would fetch):
 ```

@@ -260,6 +260,84 @@ describe("handleSkillsRequest catalogue fallback", () => {
   });
 });
 
+describe("handleSkillsRequest model adjustment", () => {
+  const fetchMock = vi.fn();
+  const sonnetSkill = catalogueSkill("cli-design", {
+    content:
+      "---\nname: cli-design\nmodel: claude-sonnet-4-6\n---\n\n# cli-design\n",
+  });
+  const skillMdOf = (body: Buffer) =>
+    execFileSync("tar", ["-xzOf", "-", "cli-design/SKILL.md"], {
+      input: body,
+    }).toString();
+
+  beforeEach(() => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ skills: [sonnetSkill] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("serves cli-design without its model line when x-agent-model is gemini-4-argon", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz", {
+      "x-agent-model": "gemini-4-argon",
+    });
+
+    expect(skillMdOf(body)).toEqual(
+      "---\nname: cli-design\n---\n\n# cli-design\n",
+    );
+  });
+
+  it("serves cli-design with its model line when x-agent-model is claude-sonnet-4-6", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz", {
+      "x-agent-model": "claude-sonnet-4-6",
+    });
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves cli-design with its model line when no x-agent-model is sent", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz");
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves cli-design with its model line from /skills/verbatim/ when x-agent-model is gemini-4-argon", async () => {
+    const { body } = await skillsGet("/skills/verbatim/cli-design.tar.gz", {
+      "x-agent-model": "gemini-4-argon",
+    });
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves /skills/verbatim/settings.json equal to /skills/settings.json", async () => {
+    const plain = await skillsGet("/skills/settings.json");
+    const verbatim = await skillsGet("/skills/verbatim/settings.json");
+
+    expect(verbatim).toEqual(plain);
+    expect(verbatim.status).toBe(200);
+  });
+
+  it("serves a hook bundle from /skills/verbatim/hooks/claude.tar.gz as a gzip tarball", async () => {
+    const { status, body } = await skillsGet(
+      "/skills/verbatim/hooks/claude.tar.gz",
+    );
+
+    expect({ status, magic: [body[0], body[1]] }).toEqual({
+      status: 200,
+      magic: [0x1f, 0x8b],
+    });
+  });
+});
+
 describe("isForwardedByProxy", () => {
   it("is true with x-forwarded-for 203.0.113.7 and false without it", () => {
     expect([

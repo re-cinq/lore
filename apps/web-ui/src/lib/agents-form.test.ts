@@ -58,6 +58,16 @@ describe("parseAgentForm", () => {
     }).toEqual({ sent: ["cli-design"], untouched: false });
   });
 
+  it("carries adjust_skill_models false from the 0 field and omits the key when the field is absent", () => {
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(fd({ ...base, adjust_skill_models: "0" })).def
+        .adjust_skill_models,
+      untouched: "adjust_skill_models" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: false, untouched: false });
+  });
+
   it("collects the six pod-resource inputs into pod_resources", () => {
     const p = parseAgentForm(
       fd({

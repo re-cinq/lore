@@ -432,6 +432,40 @@ describe("routes — agents", () => {
       );
     });
 
+    it("an update with adjust_skill_models false hands the adapter the flag and the LORE_SKILLS_URL default", async () => {
+      process.env.LORE_SKILLS_URL = "https://skills.test";
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { adjust_skill_models: false });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        {
+          adjustSkillModels: false,
+          skillsSource: "https://skills.test",
+          inheritedConfig: null,
+        },
+      );
+    });
+
+    it("a create with adjust_skill_models false stores the inherited https://org.skills as https://org.skills/verbatim", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills_source: "https://org.skills" },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+
+      await call(BASE, "POST", { name: "general", adjust_skill_models: false });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: { skills_source: "https://org.skills/verbatim" },
+        }),
+      );
+    });
+
     it("answers 400 for the skill name Cli Design on a PUT", async () => {
       const { res } = await call(`${BASE}/general`, "PUT", {
         skills: ["Cli Design"],

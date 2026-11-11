@@ -1,3 +1,5 @@
+import { adjustsSkillModels } from "@re-cinq/lore-shared/agents/skills-source.js";
+
 // The skills of an agent definition as the form edits them: a list of skill names (`config.skills`).
 
 /** The skills an agent's resolved config holds. */
@@ -12,4 +14,18 @@ export function parseSkills(form: FormData): string[] | undefined {
   return typeof field === "string"
     ? (JSON.parse(field) as string[])
     : undefined;
+}
+
+/** Whether the agent's pods adjust a skill's model to the agent's: stored in the skills source, as a trailing /verbatim when off. */
+export function configuredAdjustSkillModels(config: unknown): boolean {
+  return adjustsSkillModels(
+    (config as { skills_source?: string } | null)?.skills_source,
+  );
+}
+
+/** The form's `adjust_skill_models` field: absent while the checkbox is untouched (the save keeps the stored source). */
+export function parseAdjustSkillModels(form: FormData): boolean | undefined {
+  const field = form.get("adjust_skill_models");
+
+  return field === null ? undefined : field === "1";
 }

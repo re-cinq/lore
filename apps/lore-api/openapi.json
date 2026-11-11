@@ -514,6 +514,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
@@ -5297,6 +5300,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
@@ -5641,6 +5647,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
