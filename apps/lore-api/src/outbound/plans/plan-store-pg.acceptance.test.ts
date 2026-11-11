@@ -40,7 +40,6 @@ describe("plan-store-pg cross-repository retrieval", () => {
 
     await store.updateMeta(plan2.id, { status: "in-review" });
 
-    // @ts-expect-error function not implemented yet
     const results = await listCrossRepoPlanMetas(
       () => pool,
       ["acme/repo1", "acme/repo2"],

@@ -87,7 +87,7 @@ decided by what the step waits on, never by a run being open.
   run has an open `author` visit (`waiting_since` is that visit's `openedAt`),
   or a plan whose status is `in-review` (`waiting_since` is the plan's
   `updated_at`). This needs a cross-repo plan query; the store gains one
-  beside `listPlanMetas`. ([validated by returns eligible plans across the given authorized repositories @a99ab792](apps/lore-api/src/outbound/plans/plan-store-pg.acceptance.test.ts#L23)) `open_url` is `/repos/{owner}/{repo}/plans/{id}`.
+  beside `listPlanMetas`. `open_url` is `/repos/{owner}/{repo}/plans/{id}`. ([validated by returns eligible plans across the given authorized repositories @a99ab792](apps/lore-api/src/outbound/plans/plan-store-pg.acceptance.test.ts#L23))
 - FR2.2 `spec_pr`: a feature-planning run with an open visit on its `merged`
   node (`spec-pr-merged` station). `waiting_since` is that visit's `openedAt`;
   `open_url` is resolved from the visit's `pr_url` need with `resolveRoute`
