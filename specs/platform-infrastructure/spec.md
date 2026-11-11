@@ -83,7 +83,7 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 `half_life_days`) and the three `memory.memories` decay columns are added
 `if not exists`, the `confidence` CHECK constraint guards the four tiers
 (`verified`/`observed`/`inferred`/`stale`), and both `memory.fact_conflicts` and
-`pipeline.audit_log` are created `if not exists`. ([validated by applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema @5c27ddd2](apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts#L159), [validated by applies migration sequence twice on an empty database and leaves the required schema @07aff98e](apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts#L194))
+`pipeline.audit_log` are created `if not exists`. ([validated by applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema @5c27ddd2](apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts#L180), [validated by applies migration sequence twice on an empty database and leaves the required schema @07aff98e](apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts#L215))
 
 ### Route plumbing
 
