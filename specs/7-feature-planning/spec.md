@@ -267,7 +267,7 @@ conversation continuity, the shared view components — still runs, now for plan
 
 ### FR-13: Failure Visibility
 
-- FR-13.1: A planning round is finished only when its GapResult actually landed. A line that ends without one — whatever its outcome — marks the iteration `failed` and restores the feature per the same rule the synchronous path uses, instead of leaving the round `running` and the wizard spinning forever. A round that did post its result is left untouched.
+- FR-13.1: **A line that fails to deliver its artifact is blocked, not silent.** *(amended 2026-11-11)* The live-plan findings contract replaces the obsolete GapResult wizard criterion: a `validate` visit that ends without delivering its findings file — whatever its outcome — marks the plan with a fresh `f-validation-missing` blocker (FR-19), instead of leaving the plan looking clean and its people waiting for a result that will never arrive. ([validated by fails and puts a fresh, unresolved blocker on the plan's first section when the validate visit delivered no findings file @a8b3d81b](../../apps/stations/src/planning/plan-findings/station.test.ts#L133))
 - FR-13.4: A per-task GitHub token that mints empty MUST fail at the mint, naming the repo and the App variables to check. An empty token writes a present-but-useless Secret key, so the pod starts and then dies in its init container on `git clone` with GitHub's deliberately uninformative "Repository not found" — a cause visible only in pod logs.
 
 ### FR-24: Staged plan-to-spec writing *(added 2026-10-08)*
