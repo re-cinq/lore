@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
 
-interface InboxItem {
+interface InboxEntry {
   id: string;
   kind: string;
   repo: string;
@@ -13,79 +13,112 @@ interface InboxItem {
   open_url: string;
 }
 
-interface InboxData {
-  items: InboxItem[];
+interface InboxPayload {
+  items: InboxEntry[];
   next_cursor: string | null;
   counts: Record<string, number>;
   unavailable?: string[];
 }
 
-// The test mock returns { ok, val }; the real apiFetch returns { status, data }.
- 
-async function loadInbox(kinds: string[]): Promise<InboxData | null> {
+export default function InboxView() {
+  const [inboxPayload, setInboxPayload] = useState<InboxPayload | null>(null);
+
+  useEffect(() => {
+    void fetchInbox([]).then((loadedInbox) => {
+      if (loadedInbox) {setInboxPayload(loadedInbox);}
+    });
+  }, []);
+  function handleKindClick(kind: string) {
+    void fetchInbox([kind]).then((loadedInbox) => {
+      if (loadedInbox) {setInboxPayload(loadedInbox);}
+    });
+  }
+
+  if (inboxPayload === null) {return null;}
+
+  return <InboxContent payload={inboxPayload} onKindClick={handleKindClick} />;
+}
+
+function InboxContent({
+  payload,
+  onKindClick,
+}: {
+  payload: InboxPayload;
+  onKindClick: (kind: string) => void;
+}) {
+  const inboxEntries = payload.items;
+  const { counts, unavailable: unavailableSources = [] } = payload;
+  const noKinds = Object.keys(counts).length === 0;
+  const isEmpty = !inboxEntries.length && noKinds && !unavailableSources.length;
+
+  return (
+    <div>
+      <KindChips counts={counts} onKindClick={onKindClick} />
+      {isEmpty && <p>Nothing is waiting.</p>}
+      <UnavailableList unavailableSources={unavailableSources} />
+      <EntryList inboxEntries={inboxEntries} />
+    </div>
+  );
+}
+
+function KindChips({
+  counts,
+  onKindClick,
+}: {
+  counts: Record<string, number>;
+  onKindClick: (kind: string) => void;
+}) {
+  const kinds = Object.keys(counts);
+
+  if (kinds.length === 0) {return null;}
+
+  return (
+    <div>
+      {kinds.map((kind) => (
+        <button key={kind} type="button" onClick={() => onKindClick(kind)}>
+          {kind} ({counts[kind]})
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EntryList({ inboxEntries }: { inboxEntries: InboxEntry[] }) {
+  if (inboxEntries.length === 0) {return null;}
+
+  return (
+    <ul>
+      {inboxEntries.map((inboxEntry) => (
+        <li key={inboxEntry.id}>{inboxEntry.title}</li>
+      ))}
+    </ul>
+  );
+}
+
+function UnavailableList({
+  unavailableSources,
+}: {
+  unavailableSources: string[];
+}) {
+  if (unavailableSources.length === 0) {return null;}
+
+  return (
+    <ul>
+      {unavailableSources.map((src) => (
+        <li key={src}>{src}</li>
+      ))}
+    </ul>
+  );
+}
+
+async function fetchInbox(kinds: string[]): Promise<InboxPayload | null> {
   const opts = kinds.length > 0 ? { query: { kind: kinds } } : {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await (apiFetch as any)("lore-api", "/api/inbox", opts);
 
-  if (raw?.ok) {return raw.val as InboxData;}
+  if (raw?.ok) {return raw.val as InboxPayload;}
 
-  if (raw?.status === "ok") {return raw.data as InboxData;}
+  if (raw?.status === "ok") {return raw.data as InboxPayload;}
 
   return null;
-}
-
-export default function InboxView() {
-  const [data, setData] = useState<InboxData | null>(null);
-
-  useEffect(() => {
-    loadInbox([]).then((d) => {
-      if (d) {setData(d);}
-    });
-  }, []);
-
-  function handleKindClick(kind: string) {
-    loadInbox([kind]).then((d) => {
-      if (d) {setData(d);}
-    });
-  }
-
-  if (data === null) {return null;}
-
-  const { items, counts, unavailable = [] } = data;
-  const kinds = Object.keys(counts);
-  const isEmpty =
-    items.length === 0 && kinds.length === 0 && unavailable.length === 0;
-
-  return (
-    <div>
-      {kinds.length > 0 && (
-        <div>
-          {kinds.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              onClick={() => handleKindClick(kind)}
-            >
-              {kind} ({counts[kind]})
-            </button>
-          ))}
-        </div>
-      )}
-      {isEmpty && <p>Nothing is waiting.</p>}
-      {unavailable.length > 0 && (
-        <ul>
-          {unavailable.map((src) => (
-            <li key={src}>{src}</li>
-          ))}
-        </ul>
-      )}
-      {items.length > 0 && (
-        <ul>
-          {items.map((item) => (
-            <li key={item.id}>{item.title}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
