@@ -15,7 +15,7 @@
 
 ## Facets
 
-- [ ] Update `specs/7-feature-planning/spec.md` L155 to say the run reports stalled rather than opening a PR.
+- [x] Update `specs/7-feature-planning/spec.md` L155 to say the run reports stalled rather than opening a PR.
 
 ## Out of scope
 
