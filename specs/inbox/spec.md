@@ -141,7 +141,7 @@ decided by what the step waits on, never by a run being open.
   convention) in a new file this change adds,
   `libs/shared/src/domain/models/inbox-item-state.ts`.
 - FR3.2: `PUT /api/inbox/items/{item_id}/state` (scope `write`) sets
-  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L36))
+  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L36), [validated by preserves handled_at when only snoozed_until is updated @ebc0d7ee](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L58), [validated by rejects an empty person or a non-ISO snoozed_until with 400 @b2676350](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L81))
 - FR3.3: The caller is the signed-in person's GitHub login. The web tier
   passes it as it already passes identity for plans and runs (`approvedBy`,
   `requested_by`, from `planUserOf(session)`): as `person` in the request
