@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
@@ -180,17 +180,17 @@ new way to change a run or a plan.
 
 - FR5.1: `/inbox` in the web UI, first link of the sidebar's top group
   (`apps/web-ui/src/app/SidebarNav.tsx`), with the count of open items as a
-  badge.
+  badge. ([validated by shows Inbox as the first link of the top group carrying a badge of open items @ab0dde46](apps/web-ui/src/app/SidebarNav.acceptance.test.tsx#L26))
 - FR5.2: Filter chips per kind with their counts (FR1.5), a list ordered by
   `waiting_since` (longest wait first), and the selected item's detail beside
-  the list on wide screens.
+  the list on wide screens. ([validated by renders list ordered by wait time @e08301ca](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L14), [validated by filters items by kind chip @0fcc64f5](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L42))
 - FR5.3: Keyboard: `j`/`k` move the selection, `Enter` opens it, `e` marks it
   handled, `s` snoozes it until tomorrow 09:00 in the person's time zone.
   Keys typed into a field are left to the field.
 - FR5.4: A "Handled this session" list holds what the person handled since
   the page loaded, each with Undo (FR3.2 with `handled: false`).
 - FR5.5: An empty inbox says nothing is waiting. A source in `unavailable`
-  is named on the page rather than hidden.
+  is named on the page rather than hidden. ([validated by states nothing is waiting when empty @c9d607d2](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L67), [validated by names unavailable sources on the page @0d9e3acc](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L82))
 - FR5.6: The page reads through a typed client in `apps/web-ui/src/lib/api/`
   over the generated `schema.d.ts`, like every other page; it holds no data
   logic of its own.
