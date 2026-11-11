@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **GitHub API outage yields 503** — A GitHub outage causes `verifyApproval` to fail, yielding a 503 response through the middleware.
+- [x] **GitHub API outage yields 503** — A GitHub outage causes `verifyApproval` to fail, yielding a 503 response through the middleware.
   `apps/lore-api/src/transport/routes/two-key.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Change `approvalFailure` to return a 503 when the error is a `TwoKeyError` with code `github_api`.
+- [x] Change `approvalFailure` to return a 503 when the error is a `TwoKeyError` with code `github_api`.
 
 ## Out of scope
 
