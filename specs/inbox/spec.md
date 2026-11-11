@@ -132,13 +132,13 @@ decided by what the step waits on, never by a run being open.
 
 ## FR3 — Per-person state: handled and snoozed
 
-- FR3.1: State is kept per person and item in a new table
+- FR3.1: State is kept per person and item in a new table ([validated by @89e6adfa](apps/lore-api/src/integration-tests/inbox-item-state-migration.acceptance.test.ts#L23))
   `lore.inbox_item_state` (`person`, `item_id`, `handled_at`,
   `snoozed_until`, `updated_at`; primary key `(person, item_id)`), added by
   migration `0111_inbox_item_state.sql` (idempotent, `GRANT` to `lore`) in
   `deploy/chart/charts/ui-helm/migrations/`,
   with its domain model (schema, type and `ColumnMap`, per the models
-  convention) in a new file this change adds,
+  convention) ([validated by @c5aaeda3](libs/shared/src/domain/models/inbox-item-state.acceptance.test.ts#L4)) in a new file this change adds,
   `libs/shared/src/domain/models/inbox-item-state.ts`.
 - FR3.2: `PUT /api/inbox/items/{item_id}/state` (scope `write`) sets
   `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller.
