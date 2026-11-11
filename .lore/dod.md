@@ -13,9 +13,9 @@
 
 ## Facets
 
-- [ ] Delete regex tests from `migrations.test.ts`.
-- [ ] Implement database integration tests simulating empty and legacy schemas.
-- [ ] Update `specs/platform-infrastructure/spec.md` with new test linkages.
+- [x] Delete regex tests from `migrations.test.ts`.
+- [x] Implement database integration tests simulating empty and legacy schemas.
+- [x] Update `specs/platform-infrastructure/spec.md` with new test linkages.
 
 ## Out of scope
 

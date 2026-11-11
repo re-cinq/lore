@@ -20,49 +20,53 @@ async function setupSuperuserDb(dbName: string, superuserPool: pg.Pool) {
   await superuserPool.query(`CREATE DATABASE ${dbName}`);
 }
 
-async function setupLegacySchema(dbName: string) {
-  const pool = new pg.Pool({
-    host: process.env.LORE_DB_HOST || "localhost",
-    port: parseInt(process.env.LORE_DB_PORT || "5432"),
-    database: dbName,
-    user: process.env.LORE_DB_SUPERUSER || "postgres",
-    password: process.env.LORE_DB_PASSWORD || "lore",
-  });
-
-  await pool.query(`
-    CREATE SCHEMA IF NOT EXISTS memory;
-    CREATE TABLE IF NOT EXISTS memory.memories (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      agent_id TEXT NOT NULL,
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      version INTEGER NOT NULL DEFAULT 1,
-      is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS memory.facts (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      memory_id UUID REFERENCES memory.memories(id),
-      fact_text TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-
-    CREATE SCHEMA IF NOT EXISTS pipeline;
-
+async function setupLegacySchema(
+  dbName: string,
+  superuserPool: pg.Pool,
+): Promise<void> {
+  await superuserPool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
         CREATE ROLE lore LOGIN PASSWORD 'lore';
       END IF;
     END $$;
-
-    GRANT USAGE ON SCHEMA memory TO lore;
-    GRANT ALL ON ALL TABLES IN SCHEMA memory TO lore;
-    GRANT USAGE, CREATE ON SCHEMA pipeline TO lore;
   `);
-  await pool.end();
+  await superuserPool.query(`GRANT CREATE ON DATABASE "${dbName}" TO lore`);
+
+  const lorePool = new pg.Pool({
+    host: process.env.LORE_DB_HOST || "localhost",
+    port: parseInt(process.env.LORE_DB_PORT || "5432"),
+    database: dbName,
+    user: "lore",
+    password: "lore",
+  });
+
+  try {
+    await lorePool.query(`
+      CREATE SCHEMA IF NOT EXISTS memory;
+      CREATE TABLE IF NOT EXISTS memory.memories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS memory.facts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        memory_id UUID REFERENCES memory.memories(id),
+        fact_text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE SCHEMA IF NOT EXISTS pipeline;
+    `);
+  } finally {
+    await lorePool.end();
+  }
 }
 
-async function setupEmptySchema(dbName: string) {
+async function setupPrivilegeGuardedSchema(dbName: string): Promise<void> {
   const pool = new pg.Pool({
     host: process.env.LORE_DB_HOST || "localhost",
     port: parseInt(process.env.LORE_DB_PORT || "5432"),
@@ -71,16 +75,40 @@ async function setupEmptySchema(dbName: string) {
     password: process.env.LORE_DB_PASSWORD || "lore",
   });
 
-  await pool.query(`
-    CREATE SCHEMA IF NOT EXISTS pipeline;
-    DO $$ BEGIN
-      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
-        CREATE ROLE lore LOGIN PASSWORD 'lore';
-      END IF;
-    END $$;
-    GRANT USAGE, CREATE ON SCHEMA pipeline TO lore;
-  `);
-  await pool.end();
+  try {
+    await pool.query(`
+      CREATE SCHEMA IF NOT EXISTS memory;
+      CREATE TABLE IF NOT EXISTS memory.memories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS memory.facts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        memory_id UUID REFERENCES memory.memories(id),
+        fact_text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE SCHEMA IF NOT EXISTS pipeline;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
+          CREATE ROLE lore LOGIN PASSWORD 'lore';
+        END IF;
+      END $$;
+
+      GRANT USAGE ON SCHEMA memory TO lore;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA memory TO lore;
+      GRANT USAGE, CREATE ON SCHEMA pipeline TO lore;
+    `);
+  } finally {
+    await pool.end();
+  }
 }
 
 async function runMigrations(dbName: string) {
@@ -131,7 +159,7 @@ describe("hippo-memory and audit_log migrations (T010)", () => {
     const dbName = "lore_test_legacy_hippo";
 
     await setupSuperuserDb(dbName, superuserPool);
-    await setupLegacySchema(dbName);
+    await setupLegacySchema(dbName, superuserPool);
     await runMigrations(dbName);
 
     const verifyPool = new pg.Pool({
@@ -142,29 +170,31 @@ describe("hippo-memory and audit_log migrations (T010)", () => {
       password: process.env.LORE_DB_PASSWORD || "lore",
     });
 
-    const columnsRes = await verifyPool.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
-    `);
+    try {
+      const columnsRes = await verifyPool.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
+      `);
 
-    expect(columnsRes.rowCount).toBeGreaterThan(0);
+      expect(columnsRes.rowCount).toBeGreaterThan(0);
 
-    const auditLogRes = await verifyPool.query(`
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'pipeline' AND table_name = 'audit_log'
-    `);
+      const auditLogRes = await verifyPool.query(`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'pipeline' AND table_name = 'audit_log'
+      `);
 
-    expect(auditLogRes.rowCount).toBeGreaterThan(0);
-    await verifyPool.end();
+      expect(auditLogRes.rowCount).toBeGreaterThan(0);
+    } finally {
+      await verifyPool.end();
+    }
   });
 
   it("applies migration sequence twice on an empty database and leaves the required schema", async () => {
     const dbName = "lore_test_empty_hippo";
 
     await setupSuperuserDb(dbName, superuserPool);
-    await setupEmptySchema(dbName);
-
+    await setupPrivilegeGuardedSchema(dbName);
     await runMigrations(dbName);
 
     const verifyPool = new pg.Pool({
@@ -175,13 +205,23 @@ describe("hippo-memory and audit_log migrations (T010)", () => {
       password: process.env.LORE_DB_PASSWORD || "lore",
     });
 
-    const columnsRes = await verifyPool.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
-    `);
+    try {
+      const auditLogRes = await verifyPool.query(`
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'pipeline' AND table_name = 'audit_log'
+      `);
 
-    expect(columnsRes.rowCount).toBeGreaterThan(0);
-    await verifyPool.end();
+      expect(auditLogRes.rowCount).toBeGreaterThan(0);
+
+      const confidenceRes = await verifyPool.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'memory' AND table_name = 'facts' AND column_name = 'confidence'
+      `);
+
+      expect(confidenceRes.rowCount).toEqual(0);
+    } finally {
+      await verifyPool.end();
+    }
   });
 });
