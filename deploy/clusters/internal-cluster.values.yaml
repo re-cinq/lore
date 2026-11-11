@@ -207,7 +207,7 @@ lore-api:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: 97d12c1
+    tag: "8e530f0"
   env:
     PORT: "3000"
     CONTEXT_PATH: /context
@@ -251,13 +251,13 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: 97d12c1
+    tag: 3f47a25
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
-    tag: "97d12c1"
+    tag: "54e90d9"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
@@ -285,7 +285,7 @@ lore-db-helm:
 lore-stations:
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: 97d12c1
+    tag: 7966bd8
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com

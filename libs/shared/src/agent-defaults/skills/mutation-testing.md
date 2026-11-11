@@ -218,6 +218,10 @@ If Stryker is unavailable or cannot target the code under review, manually apply
 - A test that doesn't make assertions can't kill mutants
 - Boundary values, mixed boolean cases, non-identity values, and observable side effects kill many common mutants
 
+## Attribution
+
+Adapted from the `mutation-testing` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/mutation-testing), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

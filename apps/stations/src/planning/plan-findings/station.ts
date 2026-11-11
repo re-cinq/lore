@@ -1,4 +1,4 @@
-// The plan validator's findings, delivered where they belong: the plan, for its people to see (specs/7-feature-planning FR-19). Every validate visit settles here: a pass REPLACES the plan's unresolved findings, and a visit that delivered nothing puts a blocker on the plan rather than leaving it looking clean.
+// The plan validator's findings, delivered where they belong: the plan, for its people to see (specs/7-feature-planning FR-19). Every validate visit settles here: a pass REPLACES the plan's unresolved findings, and a visit that delivered nothing puts a blocker on the plan rather than leaving it looking clean (FR-13.1).
 
 import {
   defineStation,

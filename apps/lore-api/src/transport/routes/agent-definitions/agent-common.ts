@@ -9,12 +9,14 @@ import {
   skillsSourceDefault,
   skillsSourceWrite,
 } from "../../../work/agents/skills-source.js";
+import { skillsSourceWith } from "@re-cinq/lore-shared/agents/skills-source.js";
 import type { ConfigWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
 import {
   configKeysOf,
   configWithPodResources,
   type AgentPatch,
   type PodResources,
+  type OwnedConfigKey,
 } from "../../../work/agents/agents-schema.js";
 
 /** The definitions surface of one repo's project facade — the thing every write here goes through. */
@@ -75,7 +77,7 @@ function ceremonyFrom(gate: ApprovalOutcome | null): Ceremony {
 }
 
 /** Where pods fetch skills from: the value shipped agents get for ${"$"}{LORE_SKILLS_URL} at seed (seed-floor-pipelines.ts withEnvironment). */
-type OwnedConfig = Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">;
+type OwnedConfig = Pick<AgentPatch, OwnedConfigKey>;
 
 /** A new override's config: the inherited one with the pod resources and MCP servers the create names. */
 export async function createFieldsWithConfig<Fields extends { name: string }>(
@@ -83,7 +85,7 @@ export async function createFieldsWithConfig<Fields extends { name: string }>(
   fields: Fields,
   owned: OwnedConfig,
 ): Promise<Fields> {
-  if (!owned.pod_resources && !owned.mcp_servers && !owned.skills) {
+  if (Object.keys(configKeysOf(owned)).length === 0) {
     return fields;
   }
   const inherited = await agentDefs.resolve(fields.name);
@@ -105,15 +107,34 @@ function configWithOwned(
     ? { ...config, mcp_servers: owned.mcp_servers }
     : config;
 
-  return owned.skills
+  return withAdjustedSource(withSkills(withServers, owned.skills), owned);
+}
+
+function withSkills(
+  config: Record<string, unknown> | null,
+  skills: string[] | null | undefined,
+): Record<string, unknown> | null {
+  return skills
     ? {
         ...(skillsSourceDefault()
           ? { skills_source: skillsSourceDefault() }
           : {}),
-        ...withServers,
-        skills: owned.skills,
+        ...config,
+        skills,
       }
-    : withServers;
+    : config;
+}
+
+function withAdjustedSource(
+  config: Record<string, unknown> | null,
+  owned: OwnedConfig,
+): Record<string, unknown> | null {
+  const source = config?.skills_source ?? skillsSourceDefault();
+  const adjust = owned.adjust_skill_models;
+
+  return adjust === undefined || typeof source !== "string"
+    ? config
+    : { ...config, skills_source: skillsSourceWith(source, { adjust }) };
 }
 
 /** What an update writes to config: pod resources merged per key over the stored ones, MCP servers as the list sent. */
@@ -132,10 +153,14 @@ export async function resolveConfigUpdate(
 
   return {
     ...keys,
-    ...(keys.skills?.length ? skillsSourceWrite() : {}),
+    ...(needsSkillsSource(keys) ? skillsSourceWrite() : {}),
     ...mergedPodResources(storedConfig, keys.podResources),
     inheritedConfig: storedConfig,
   };
+}
+
+function needsSkillsSource(keys: ReturnType<typeof configKeysOf>): boolean {
+  return Boolean(keys.skills?.length) || keys.adjustSkillModels !== undefined;
 }
 
 function mergedPodResources(

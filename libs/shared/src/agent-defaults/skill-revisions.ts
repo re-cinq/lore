@@ -32,6 +32,28 @@ export const SKILL_REVISIONS: SkillRevision[] = [
       "ubiquitous-language",
     ],
   },
+  {
+    version: "skills/0002_open_source_attribution",
+    names: [
+      "api-design",
+      "cli-design",
+      "domain-driven-design",
+      "event-sourcing",
+      "front-end-testing",
+      "functional",
+      "hexagonal-architecture",
+      "improve-codebase-architecture",
+      "mutation-testing",
+      "observability",
+      "react-testing",
+      "structure-codebase",
+      "test-design-reviewer",
+      "testing",
+      "twelve-factor",
+      "typescript-strict",
+      "ubiquitous-language",
+    ],
+  },
 ];
 
 const RECORDED_VERSIONS_SQL =

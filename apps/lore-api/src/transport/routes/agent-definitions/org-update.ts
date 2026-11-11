@@ -13,6 +13,7 @@ import {
   configKeysOf,
   parseAgentPatch,
   type AgentPatch,
+  type OwnedConfigKey,
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
@@ -127,19 +128,18 @@ function writeOrgPatch(
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
-  const { pod_resources, mcp_servers, skills, ...fields } = patch;
+  const { pod_resources, mcp_servers, skills, adjust_skill_models, ...fields } =
+    patch;
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
     withoutClearedRequired(fields),
-    orgConfigWrite({ pod_resources, mcp_servers, skills }),
+    orgConfigWrite({ pod_resources, mcp_servers, skills, adjust_skill_models }),
   );
 }
 
 /** Replaces the org default's pod resources, MCP servers and skills whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
-function orgConfigWrite(
-  owned: Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
-) {
+function orgConfigWrite(owned: Pick<AgentPatch, OwnedConfigKey>) {
   const keys = withoutEmptyLists(configKeysOf(owned));
 
   return Object.keys(keys).length > 0
@@ -159,8 +159,8 @@ function withoutEmptyLists(
 }
 
 function withoutClearedRequired(
-  fields: Omit<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
-): Omit<AgentPatch, "pod_resources" | "mcp_servers" | "skills"> {
+  fields: Omit<AgentPatch, OwnedConfigKey>,
+): Omit<AgentPatch, OwnedConfigKey> {
   return Object.fromEntries(
     Object.entries(fields).filter(
       ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),

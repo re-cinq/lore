@@ -30,7 +30,7 @@ function statementInfo(statement: GraphStatement): StatementInfo {
     kind: statement.kind ?? "",
     state: statement.state,
     drifted: Boolean(statement.drifted || statement.violated),
-    category: null, // Placeholder; later cycles fill it in.
+    category: statement.testability ?? null,
     testLinks: testLinks.map((link) => ({
       label: link.label,
       path: link.path ?? "",

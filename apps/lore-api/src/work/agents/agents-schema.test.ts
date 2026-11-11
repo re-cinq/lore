@@ -3,6 +3,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   imageFieldTouched,
+  configKeysOf,
   configWithPodResources,
 } from "./agents-schema.js";
 
@@ -36,6 +37,16 @@ describe("parseAgentInput", () => {
     ]);
     expect(parseAgentInput({ name: "fix-ci", skills: [] })).not.toHaveProperty(
       "skills",
+    );
+  });
+
+  it("keeps adjust_skill_models false on create and leaves it out when absent", () => {
+    expect([
+      parseAgentInput({ name: "fix-ci", adjust_skill_models: false }),
+      parseAgentInput({ name: "fix-ci" }),
+    ]).toMatchObject([{ adjust_skill_models: false }, { config: null }]);
+    expect(parseAgentInput({ name: "fix-ci" })).not.toHaveProperty(
+      "adjust_skill_models",
     );
   });
 
@@ -127,6 +138,20 @@ describe("parseAgentPatch", () => {
 
   it("rejects the skill name Cli Design that is not kebab-case", () => {
     expect(() => parseAgentPatch({ skills: ["Cli Design"] })).toThrow();
+  });
+
+  it("carries adjust_skill_models false as sent and omits it when absent or null", () => {
+    expect([
+      parseAgentPatch({ adjust_skill_models: false }),
+      parseAgentPatch({ adjust_skill_models: null }),
+      parseAgentPatch({}),
+    ]).toEqual([{ adjust_skill_models: false }, {}, {}]);
+  });
+
+  it("names the adapter key adjustSkillModels for a patch with adjust_skill_models true", () => {
+    expect(configKeysOf({ adjust_skill_models: true })).toEqual({
+      adjustSkillModels: true,
+    });
   });
 
   it("omits skills when the body never mentions it", () => {

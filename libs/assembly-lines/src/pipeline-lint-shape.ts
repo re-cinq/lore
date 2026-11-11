@@ -12,10 +12,12 @@ export type PipelineRule =
   | "undeclared-bag"
   | "outcome-without-edge"
   | "undeclared-outcome"
+  | "unbounded-retry"
   | "unkeyed-line"
   | "unreachable"
   | "unseeded-need"
-  | "unsupplied-input";
+  | "unsupplied-input"
+  | "unresolvable-conversation-key";
 
 export interface PipelineProblem {
   line: string;
@@ -40,6 +42,8 @@ const stationSchema = z
     outcomes: z.array(z.string()).default([]),
     needs: z.array(bagItemSchema).optional(),
     produces: z.array(bagItemSchema).optional(),
+    conversation: z.string().optional(),
+    conversation_key: z.string().optional(),
   })
   .loose();
 
@@ -84,6 +88,7 @@ const pipelineSchema = z
                 from: z.string(),
                 to: z.string().default(""),
                 on: z.string().optional(),
+                iteration_max: z.number().optional(),
               })
               .loose(),
           )

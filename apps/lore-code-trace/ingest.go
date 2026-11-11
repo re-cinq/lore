@@ -58,12 +58,7 @@ func (e *staleStateError) Error() string {
 	return fmt.Sprintf("ingest state is stale: server is at %s", shortSHA(e.Current))
 }
 
-// errIngestRouteAbsent marks a lore-api that predates the incremental routes;
-// the caller falls back to the chunked webhook rather than failing CI.
-var (
-	errIngestRouteAbsent = errors.New("incremental ingest route not served by this lore-api")
-	errRetryExhausted    = errors.New("retryable ingest request exhausted")
-)
+var errRetryExhausted = errors.New("retryable ingest request exhausted")
 
 type retryExhaustedError struct{ cause error }
 
@@ -136,8 +131,9 @@ func fetchIngestState(ctx context.Context, apiBase, token, repo, kind string, cl
 // transport error, a 5xx or a 429 earns another attempt with the same backoff
 // (ingest is idempotent, so a re-send is always safe), while a 409 comes back
 // typed at once — a lost CAS can only lose again with the same base, the flow
-// re-diffs instead — and a 404 comes back as errIngestRouteAbsent so the caller
-// can fall back. Any other 4xx is a real client error and aborts immediately.
+// re-diffs instead — and a 404 fails the step outright (the route is now fully
+// deployed; a missing route is a configuration error). Any other 4xx is a real
+// client error and aborts immediately.
 //
 // The bootstrap full ingests on 2026-09-03 (26-40 chunks each) died mid-sequence
 // on exactly the transients this covers — a 502 during a deploy, a connection
@@ -206,7 +202,7 @@ func sendIngestDelta(ctx context.Context, apiBase, token, repo string, body []by
 		return nil, false
 	case resp.StatusCode == http.StatusNotFound:
 		io.Copy(io.Discard, resp.Body)
-		return errIngestRouteAbsent, false
+		return fmt.Errorf("incremental ingest route not found: lore-api does not serve /api/repos/.../ingest"), false
 	case resp.StatusCode == http.StatusConflict:
 		var conflict struct {
 			Commit string `json:"commit"`

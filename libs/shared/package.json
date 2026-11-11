@@ -1,6 +1,7 @@
 {
   "name": "@re-cinq/lore-shared",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -13,6 +14,10 @@
     "./agent-defaults/*.js": {
       "types": "./dist/agent-defaults/*.d.ts",
       "default": "./dist/agent-defaults/*.js"
+    },
+    "./agents/*.js": {
+      "types": "./dist/domain/agents/*.d.ts",
+      "default": "./dist/domain/agents/*.js"
     },
     "./project/*.js": {
       "types": "./dist/outbound/project/*.d.ts",

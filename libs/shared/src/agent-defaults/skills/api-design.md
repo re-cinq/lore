@@ -389,6 +389,10 @@ After designing an API:
 - [ ] Browser security headers on all responses (`X-Content-Type-Options: nosniff`, `CSP: default-src 'none'`, `Referrer-Policy: no-referrer`)
 - [ ] Caching strategy defined (explicit `Cache-Control`, ETags for revalidation, `Vary` where needed)
 
+## Attribution
+
+Adapted from the `api-design` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/api-design), which adapts the skill `api-and-interface-design` in [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills). Copyright (c) 2025 Addy Osmani, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

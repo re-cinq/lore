@@ -87,6 +87,7 @@ import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
+import { planLifecycleRoutes } from "./routes/plans/plan-lifecycle.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
@@ -119,6 +120,7 @@ import { githubInstallationsRoute } from "./routes/github-installations/record-i
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 import { skillDefinitionsRoutes } from "./routes/skill-definitions/skills.js";
 import { inboxItemStatePutRoute } from "./routes/inbox/inbox-item-state-put.js";
+import { inboxRoute } from "./routes/inbox/inbox.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -141,6 +143,7 @@ export function routeList(
     ...skillDefinitionsRoutes(getPool),
     ...analyticsRoutes(getPool),
     ...traceRoutes(getPool),
+    inboxRoute(getPool),
   ];
 }
 
@@ -238,6 +241,7 @@ function backlogRoutes(
     taskLogsPostRoute(),
     taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),
+    ...planLifecycleRoutes({ ...plans, service: plans.service!, getPool }),
     ...implementationLoopRoutes(getPool),
     ...loopsRoutes(getPool),
     changelogRoute(getPool),

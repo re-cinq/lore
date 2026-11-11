@@ -18,6 +18,7 @@ export const blockedReason: SweepStationModule = {
           "github.pull_request_review.submitted",
           "github.check_suite.completed",
           "github.push",
+          "lore.pull_request.merge_refused",
         ],
       },
     ],
