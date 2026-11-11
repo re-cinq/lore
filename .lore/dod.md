@@ -6,14 +6,14 @@
 
 ## Done when these pass
 
-- [ ] **Logs the resolved template used after unknown-name fallback** — Assert that the audit log outputs the resolved template string rather than the invalid requested name.
+- [x] **Logs the resolved template used after unknown-name fallback** — Assert that the audit log outputs the resolved template string rather than the invalid requested name.
   `apps/mcp-server/src/transport/tools/context/assemble-context-fallback.acceptance.test.ts`
 
 ## Facets
 
 - [ ] Add the resolved template to the API response.
-- [ ] Read the resolved template from the proxy response in the MCP tool.
-- [ ] Pass the resolved template to the logging function.
+- [x] Read the resolved template from the proxy response in the MCP tool.
+- [x] Pass the resolved template to the logging function.
 
 ## Out of scope
 
