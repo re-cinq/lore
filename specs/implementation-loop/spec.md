@@ -92,7 +92,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
   cannot supply this, because it answers for ONE node and so told `implement`
   about its own last visit, which was `success` every time; the feedback comes
   from the most recently recorded visit instead, whichever node produced it.
-  A verdict (`changes_requested`) is not a failure and carries no such block.
+  A verdict (`changes_requested`) is not a failure and carries no such block. ([validated by appends the failing step's name and its own output to the prompt (spec: specs/implementation-loop/spec.md#L86) @04983fcd](../../libs/shared/src/domain/agents/node-retry-feedback.acceptance.test.ts#L5))
 - The `validate` station reports the failing commands' OWN OUTPUT, not just
   their names. `Lore-Validation-Failed: "lint,build"` says where to look; the
   compiler errors say what to fix, and the agent sent back to fix them is the
