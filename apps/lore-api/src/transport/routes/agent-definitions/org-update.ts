@@ -16,7 +16,7 @@ import {
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
-import { skillsSourceWrite } from "./agent-common.js";
+import { skillsSourceWrite } from "../../../work/agents/skills-source.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
 // Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.

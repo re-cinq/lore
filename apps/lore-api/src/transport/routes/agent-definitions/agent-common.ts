@@ -5,6 +5,10 @@ import type { Pool } from "pg";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 import { z } from "zod";
+import {
+  skillsSourceDefault,
+  skillsSourceWrite,
+} from "../../../work/agents/skills-source.js";
 import type { ConfigWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
 import {
   configKeysOf,
@@ -71,15 +75,6 @@ function ceremonyFrom(gate: ApprovalOutcome | null): Ceremony {
 }
 
 /** Where pods fetch skills from: the value shipped agents get for ${"$"}{LORE_SKILLS_URL} at seed (seed-floor-pipelines.ts withEnvironment). */
-const skillsSourceDefault = (): string | undefined =>
-  process.env.LORE_SKILLS_URL || undefined;
-
-export const skillsSourceWrite = (): Pick<ConfigWrite, "skillsSource"> => {
-  const skillsSource = skillsSourceDefault();
-
-  return skillsSource ? { skillsSource } : {};
-};
-
 type OwnedConfig = Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">;
 
 /** A new override's config: the inherited one with the pod resources and MCP servers the create names. */

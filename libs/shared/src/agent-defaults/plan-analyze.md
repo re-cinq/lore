@@ -16,6 +16,8 @@ config:
       ephemeral-storage: 4Gi
   skills:
     - lore-context
+    - api-design
+    - structure-codebase
   skills_source: ${LORE_SKILLS_URL}
   mcp_servers:
     - name: lore

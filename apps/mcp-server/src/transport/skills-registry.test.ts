@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
+import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import type { SkillDefinition } from "@re-cinq/lore-shared/models/skill-definition.js";
 import { handleSkillsRequest, isForwardedByProxy } from "./skills-registry.js";
 
@@ -109,31 +110,6 @@ describe("handleSkillsRequest", () => {
 
     expect([buf[0], buf[1]]).toEqual([0x1f, 0x8b]);
   });
-
-  it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
-    const recipes = loadAgentDefaults();
-    const declared = [
-      ...new Set(recipes.flatMap((r) => r.config?.skills ?? [])),
-    ].sort();
-
-    const served = await Promise.all(
-      declared.map(async (name) => {
-        const { res, captured, body } = mockRes();
-        const done = body();
-
-        await handleSkillsRequest(
-          req("GET", `/skills/${name}.tar.gz`),
-          res,
-          skillsRoot,
-        );
-        await done;
-
-        return { name, status: captured.status };
-      }),
-    );
-
-    expect(served).toEqual(declared.map((name) => ({ name, status: 200 })));
-  });
 });
 
 function catalogueSkill(
@@ -192,6 +168,27 @@ describe("handleSkillsRequest catalogue fallback", () => {
         input: body,
       }).toString(),
     }).toEqual({ status: 200, skillMd: "# cli-design\n\nbody" });
+  });
+
+  it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        skills: loadSkillDefaults().map((skill) => catalogueSkill(skill.name)),
+      }),
+    });
+    const declared = [
+      ...new Set(loadAgentDefaults().flatMap((r) => r.config?.skills ?? [])),
+    ].sort();
+
+    const served = await Promise.all(
+      declared.map(async (name) => ({
+        name,
+        status: (await skillsGet(`/skills/${name}.tar.gz`)).status,
+      })),
+    );
+
+    expect(served).toEqual(declared.map((name) => ({ name, status: 200 })));
   });
 
   it("serves the baked lore-context without asking the catalogue, whatever the catalogue holds under that name", async () => {

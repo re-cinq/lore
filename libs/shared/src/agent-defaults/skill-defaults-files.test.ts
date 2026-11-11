@@ -3,6 +3,9 @@ import {
   loadSkillDefaults,
   SHIPPED_SKILLS_DIR,
 } from "./skill-defaults-files.js";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { readAgentDefaultFile } from "../domain/agent-defaults/agent-default-file.js";
 import { hasValidHelpBlock } from "./skill-help-block.js";
 import { referencedSkillNames } from "./skill-references.js";
 
@@ -84,4 +87,37 @@ describe("loadSkillDefaults", () => {
 
     expect(unknownReferences).toEqual([]);
   });
+
+  it("returns agent files whose config.skills name only shipped or gateway-baked skills", () => {
+    const existing = new Set([
+      ...SHIPPED_SKILL_NAMES,
+      ...GATEWAY_BAKED_SKILL_NAMES,
+    ]);
+    const unknownSkills = shippedAgentFiles().flatMap((file) =>
+      skillsNamedBy(file.written)
+        .filter((name) => !existing.has(name))
+        .map((name) => `${file.name} -> ${name}`),
+    );
+
+    expect(unknownSkills).toEqual([]);
+  });
 });
+
+function skillsNamedBy(written: Record<string, unknown>): string[] {
+  const config = written.config as { skills?: string[] } | undefined;
+
+  return config?.skills ?? [];
+}
+
+function shippedAgentFiles() {
+  const dir = fileURLToPath(new URL("./", import.meta.url));
+
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".md"))
+    .map((file) =>
+      readAgentDefaultFile(
+        file.replace(/\.md$/, ""),
+        readFileSync(`${dir}${file}`, "utf-8"),
+      ),
+    );
+}
