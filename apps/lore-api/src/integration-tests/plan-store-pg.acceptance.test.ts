@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
-import { pgPlanStore, listCrossRepoPlanMetas } from "./plan-store-pg.js";
+import {
+  pgPlanStore,
+  listCrossRepoPlanMetas,
+} from "../outbound/plans/plan-store-pg.js";
 
 describe("plan-store-pg cross-repository retrieval", () => {
   let pool: pg.Pool;

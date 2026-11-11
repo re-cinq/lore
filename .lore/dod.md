@@ -7,7 +7,7 @@
 ## Done when these pass
 
 - [ ] **plan-store-pg cross-repository retrieval > returns eligible plans across the given authorized repositories** — The query returns plans from multiple repositories.
-  `apps/lore-api/src/outbound/plans/plan-store-pg.acceptance.test.ts`
+  `apps/lore-api/src/integration-tests/plan-store-pg.acceptance.test.ts`
 
 ## Facets
 
