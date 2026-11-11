@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **OpenAPI generation for plan lifecycle routes includes dynamically registered planning lifecycle routes in the generated document** — Ensures the plan approval endpoint is present in the generated schema.
+- [x] **OpenAPI generation for plan lifecycle routes includes dynamically registered planning lifecycle routes in the generated document** — Ensures the plan approval endpoint is present in the generated schema.
   `apps/lore-api/src/transport/openapi/gen-openapi.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Incorporate plan lifecycle routes into `routeList` so the generator can discover them.
-- [ ] Wire the dependencies correctly for `routeList` to evaluate lifecycle route definitions.
+- [x] Incorporate plan lifecycle routes into `routeList` so the generator can discover them.
+- [x] Wire the dependencies correctly for `routeList` to evaluate lifecycle route definitions.
 
 ## Out of scope
 
