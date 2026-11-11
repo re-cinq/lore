@@ -115,14 +115,14 @@ decided by what the step waits on, never by a run being open.
   (`FLOOR_CI_WAIT_LINES`' `await-ci` and `await-pr`,
   `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) are never inbox
   items, even though they are `human` stations. The rule lives in one shared
-  predicate, so the run page and the inbox cannot disagree.
+  predicate, so the run page and the inbox cannot disagree. ([validated by excludes await-ci from actionable human waiting items @ac84bb62](apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts#L52))
 - FR2.7: The station kind is read from the station body the line version names
   (`readLineFacts`, `apps/lore-api/src/work/floor/floor-line-facts.ts`), not
   inferred from the node type. Today `factsOf` turns every `human` station
   that `produces` into `author` → `feature_review`, so an open `await-ci`
   (`loop-await-ci` produces `ci_feedback_sha`) is drawn as `running` rather
   than `waiting` on the run list. Fixing that
-  classification is in scope, because FR2.6 depends on it.
+  classification is in scope, because FR2.6 depends on it. ([validated by reads the station kind from the station body the line version names @fc90431b](apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts#L41))
 - FR2.8: Reading the waiting visits must not cost one floor call per run per
   request. lore-api lists open runs of the lines that have person-waiting
   stations (`feature-planning`, `issue-triage`) with `runs.list({line,

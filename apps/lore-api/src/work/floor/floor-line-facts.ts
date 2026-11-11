@@ -17,13 +17,20 @@ export interface LineFacts {
   routes: Record<string, string>;
   /** nodeId → the event that starts it: its `start:`, else `node.<id>.start`. */
   startEvents: Record<string, string>;
+  /** station name → its raw kind from the floor station body, for Inbox eligibility. */
+  stations?: Record<string, { kind: string }>;
+  /** Returns true when the node is a human station the Inbox may surface as actionable. */
+  isWaitingOnPerson?: (nodeId: string) => boolean;
 }
 
 interface StationFacts {
   kind: StationKindName;
+  rawKind: "agent" | "service" | "human";
   route?: string;
   description?: string;
 }
+
+const SWEEP_NODE_IDS = new Set(["await-ci", "await-pr"]);
 
 export async function readLineFacts(
   floor: LineSource,
@@ -32,6 +39,7 @@ export async function readLineFacts(
   const version = await floor.lines.version(run.lineId, run.lineHash);
   const body: LineBody = version?.body ?? emptyLine();
   const stations = await stationFactsOf(floor, body);
+  const stationKinds = stationKindsOf(stations);
 
   return {
     graph: describedGraph(
@@ -41,6 +49,45 @@ export async function readLineFacts(
     ),
     routes: routesOf(body, stations),
     startEvents: startEventsOf(body),
+    stations: stationKinds,
+    isWaitingOnPerson: waitingOnPersonFor(stationKinds, nodeToStationMap(body)),
+  };
+}
+
+function stationKindsOf(
+  stations: Record<string, StationFacts>,
+): Record<string, { kind: string }> {
+  return Object.fromEntries(
+    Object.entries(stations).map(([name, facts]) => [
+      name,
+      { kind: facts.rawKind },
+    ]),
+  );
+}
+
+function nodeToStationMap(body: LineBody): Map<string, string> {
+  return new Map(
+    body.nodes.flatMap((n) =>
+      n.station ? [[n.id, stationNameOf(n.station)]] : [],
+    ),
+  );
+}
+
+function waitingOnPersonFor(
+  stationKinds: Record<string, { kind: string }>,
+  nodeToStation: Map<string, string>,
+): (nodeId: string) => boolean {
+  return (nodeId) => {
+    if (SWEEP_NODE_IDS.has(nodeId)) {
+      return false;
+    }
+    const stationName = nodeToStation.get(nodeId);
+
+    if (stationName === undefined || !(stationName in stationKinds)) {
+      return false;
+    }
+
+    return stationKinds[stationName].kind === "human";
   };
 }
 
@@ -134,6 +181,7 @@ function factsOf(body: {
 
   return {
     kind,
+    rawKind: body.kind,
     ...definedOf({ route: body.route, description: body.description }),
   };
 }
