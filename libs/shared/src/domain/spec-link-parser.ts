@@ -304,19 +304,33 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
   return { label, path, line, hash: splitHashedLabel(label).hash };
 }
 
-// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
+// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`). When depth reaches 0 at a `(` preceded by `]`, we matched the URL paren of a `](url)` markdown link in an unbalanced group — reset and keep scanning for the real outer `(`. In that case the last `)` is the URL close, so `innerEnd` grows to include it.
 function matchingOpenParen(s: string, end: number): ParenSpan | null {
   let depth = 1;
+  let skippedUrlParen = false;
 
   for (let i = end - 2; i >= 0; i--) {
     depth = depthAfterScanningBack(s[i], depth);
 
+    if (depth === 0 && isUrlOpenParen(s, i)) {
+      depth = 1;
+      skippedUrlParen = true;
+      continue;
+    }
+
     if (depth === 0) {
-      return { open: i, innerStart: i + 1, innerEnd: end - 1 };
+      const innerEnd = skippedUrlParen ? end : end - 1;
+
+      return { open: i, innerStart: i + 1, innerEnd };
     }
   }
 
   return null;
+}
+
+// True when position i holds the `(` that opens a markdown link URL `](url)` — the char before it is `]`.
+function isUrlOpenParen(s: string, i: number): boolean {
+  return i > 0 && s[i - 1] === "]";
 }
 
 function trimTrailingSpaceAndPeriod(s: string): number {
