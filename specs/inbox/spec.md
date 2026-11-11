@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
@@ -141,7 +141,7 @@ decided by what the step waits on, never by a run being open.
   convention) in a new file this change adds,
   `libs/shared/src/domain/models/inbox-item-state.ts`.
 - FR3.2: `PUT /api/inbox/items/{item_id}/state` (scope `write`) sets
-  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller.
+  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L36))
 - FR3.3: The caller is the signed-in person's GitHub login. The web tier
   passes it as it already passes identity for plans and runs (`approvedBy`,
   `requested_by`, from `planUserOf(session)`): as `person` in the request
@@ -203,7 +203,7 @@ new way to change a run or a plan.
   issue-triage run at `human-gate` always does, with the time it reached the
   gate.
 - SC3 — Marking an item handled removes it for that person only; another
-  person still sees it.
+  person still sees it. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L36))
 - SC4 — With the floor unreachable, the inbox still lists plans and
   onboarding pull requests and names the floor as unavailable.
 - SC5 — `GET /api/inbox` answers in under 500 ms at p95 for an org with 50
