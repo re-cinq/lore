@@ -8,7 +8,9 @@ describe("InboxItemState domain model", () => {
       mod = await import("./inbox-item-state.js");
     } catch (e: any) {
       if (e.message.includes("Cannot find module")) {
-        expect.fail("The model libs/shared/src/domain/models/inbox-item-state.ts is missing.");
+        expect.fail(
+          "The model libs/shared/src/domain/models/inbox-item-state.ts is missing.",
+        );
       }
       throw e;
     }

@@ -37,8 +37,8 @@ describe("lore.inbox_item_state table structure", () => {
       WHERE  i.indrelid = 'lore.inbox_item_state'::regclass
       AND    i.indisprimary;
     `);
-    
-    const pkColumns = pkRes.rows.map(r => r.attname);
+
+    const pkColumns = pkRes.rows.map((r) => r.attname);
 
     expect({ columns, pkColumns }).toEqual({
       columns: expect.arrayContaining([
