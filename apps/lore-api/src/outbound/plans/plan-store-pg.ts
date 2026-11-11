@@ -91,6 +91,22 @@ export async function listPlanMetas(db: Db, repo: string): Promise<PlanMeta[]> {
   return (await rows(db, SELECT_REPO_PLANS, [repo])).map(metaOf);
 }
 
+/** The plans across the given authorized repositories, most recently changed first. */
+export async function listCrossRepoPlanMetas(
+  db: Db,
+  repos: string[],
+): Promise<PlanMeta[]> {
+  if (repos.length === 0) {
+    return [];
+  }
+  const result = await db().query<DbRow>(
+    `SELECT ${PLAN_SELECT} FROM ${PLAN_TABLE} WHERE repo = ANY($1) ORDER BY updated_at DESC`,
+    [repos],
+  );
+
+  return result.rows.map(metaOf);
+}
+
 /** Removes the plan for good; its state, versions and collab tokens go with it (ON DELETE CASCADE). */
 export async function deletePlan(db: Db, planId: string): Promise<void> {
   await planRows(db, planId, DELETE_PLAN);
