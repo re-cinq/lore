@@ -1,9 +1,5 @@
 # Feature Specification: Autonomous Review Loop
 
-> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** The review-loop
-> behavior is unchanged, but it now runs as `github_action` + agent nodes in the Floor-side
-> workflow graph rather than chained `LoreTask` CRs — read the `LoreTask`-specific mechanics
-> here in the past tense.
 
 > **Widened to all open PRs — the `code-review` assembly line ([ADR-012](../../adrs/ADR-012-autonomous-review-loop.md)).**
 > The loop below closes on Lore's **own** implementation PRs. The `code-review` assembly
@@ -20,8 +16,8 @@
 > - **PR closed** → cancel any open code-review run for that PR.
 >
 > An assembly line runs once to completion, so "engaged as long as the PR is open" is the
-> **choreography re-invoking the line per webhook**, not one long-lived line. Bot-authored
-> PRs and bot comments are skipped (loop guard). Handlers: `libs/shared/src/work/review/floor-review-start.ts`
+> choreography re-invoking the line per webhook**, not one long-lived line. Bot-authored
+> PRs (except Lore's own App login) and bot comments are skipped (loop guard). Handlers: `libs/shared/src/work/review/floor-review-start.ts`
 > and `apps/stations/src/events/floor-review-handlers.ts`.
 
 | Field          | Value                                    |
@@ -37,21 +33,21 @@ The Autonomous Review Loop closes the loop on agent-authored PRs: after an imple
 
 ## Problem Statement
 
-When an implementation task creates a PR via the LoreTask CRD, the PR
+When an implementation task creates a PR via the external floor, the PR
 sits waiting for a human developer to review. The agent did the work
 but the loop is open — no one validates the output against the spec,
 conventions, or code quality until a human gets to it.
 
-## Solution: Close the Loop via CRD
+## Solution: Close the Loop via Assembly Line
 
-Every step runs as an ephemeral Job pod via the LoreTask CRD.
+Every step runs on the external floor as an assembly line.
 No in-process LLM calls in the agent.
 
 ```
                     ┌─────────────────────────────┐
                     │                             │
                     ▼                             │
-Implementation → LoreTask CR → Job → PR created  │
+Implementation → Assembly Line → PR created      │
                                         │        │
                                         ▼        │
                             auto_review enabled?  │
@@ -59,9 +55,9 @@ Implementation → LoreTask CR → Job → PR created  │
                              no          yes      │
                               │           │       │
                               ▼           ▼       │
-                          hand to    Watcher creates│
-                          human      review LoreTask│
-                                     CR (Job pod)  │
+                          hand to    Starts       │
+                          human      review line  │
+                                     (floor run)  │
                                         │         │
                                         ▼         │
                               Claude Code reviews  │
@@ -92,180 +88,10 @@ Implementation → LoreTask CR → Job → PR created  │
                                           │
                                           └───────┘
                                     new implementation
-                                    LoreTask CR with
+                                    task with
                                     review feedback
 ```
 
-### How the Review Job Works
-
-The review task runs as a LoreTask CR with `taskType: review`.
-The claude-runner Job pod:
-
-1. Clones the repo (same branch as the PR)
-2. Claude Code reads the spec file, PR diff, CLAUDE.md, ADRs
-3. Claude Code posts review comments on the PR via `gh` CLI or
-   the GitHub API
-4. Claude Code writes a structured result:
-   - `REVIEW_APPROVED` — code meets spec and conventions
-   - `REVIEW_CHANGES_REQUESTED: <feedback>` — specific issues found
-
-The entrypoint.sh detects `taskType=review` and runs a different
-flow: no commit/push, just review and output the result.
-
-### Review Entrypoint Flow
-
-```bash
-if [ "$TASK_TYPE" = "review" ]; then
-  # Clone the PR branch
-  git clone ... && cd repo && git checkout $BRANCH_NAME
-  
-  # Run Claude Code to review
-  claude --print --dangerously-skip-permissions --model $MODEL \
-    -- "Review PR #$PR_NUMBER on this branch. Read the spec at 
-        specs/... and check the changes against conventions in 
-        CLAUDE.md and adrs/. Post review comments on the PR using 
-        gh pr review. Output REVIEW_APPROVED or 
-        REVIEW_CHANGES_REQUESTED: <feedback>"
-  
-  # No git add/commit/push — review doesn't change files
-  # Exit code based on review result
-fi
-```
-
-### What Changes
-
-**1. claude-runner entrypoint.sh — review mode**
-
-When `TASK_TYPE=review`, the entrypoint:
-- Clones the PR branch (not main)
-- Installs `gh` CLI for posting review comments
-- Runs Claude Code with review prompt
-- Captures stdout, looks for `REVIEW_APPROVED` or `REVIEW_CHANGES_REQUESTED`
-- Writes result to a known file for the controller to read
-- Does NOT commit/push (no file changes expected)
-- Exits 0 on approved, exits 0 on changes-requested (both are valid outcomes)
-
-**2. claude-runner Dockerfile — add gh CLI**
-
-Add GitHub CLI to the runner image for posting PR reviews. ([validated by agent-image.acceptance.test.ts:5 @be4c0e83](apps/agent-image/agent-image.acceptance.test.ts#L5))
-
-**3. loretask-watcher.ts — trigger review after PR creation**
-
-After creating a PR for a Succeeded implementation task:
-```typescript
-if (shouldAutoReview(targetRepo)) {
-  const reviewCR = {
-    spec: {
-      taskId: newReviewTaskId,
-      taskType: "review",
-      targetRepo,
-      branch: lt.spec.branch,
-      prompt: `Review PR #${pr.number}. Read specs/ for the feature spec. 
-               Check changes against CLAUDE.md and adrs/. Post review 
-               comments via gh pr review. Output REVIEW_APPROVED or 
-               REVIEW_CHANGES_REQUESTED: <specific feedback>`,
-      model: "claude-sonnet-4-6",
-      timeoutMinutes: 10,
-    },
-  };
-  // Create review pipeline task + LoreTask CR
-}
-```
-
-**4. Controller — handle review task completion**
-
-When a review LoreTask succeeds, the controller:
-- Reads Job pod stdout for `REVIEW_APPROVED` or `REVIEW_CHANGES_REQUESTED`
-- Sets LoreTask status with `reviewResult: "approved" | "changes-requested"`
-- Sets `output` to the full review text
-
-**5. loretask-watcher.ts — handle review results**
-
-When a review LoreTask has phase=Succeeded:
-- If `reviewResult === "approved"`:
-  - Update parent implementation task: status=`review`, review_result=`approved`
-  - Comment on GitHub Issue: "Agent review passed"
-  - If `auto_merge` enabled: merge the PR
-- If `reviewResult === "changes-requested"`:
-  - Check iteration count on parent task
-  - If < 2: create new implementation LoreTask CR with feedback as prompt context, same branch
-  - If >= 2: escalate — add `needs-human-review` label, comment on Issue
-
-**6. Auto-review configuration**
-
-Per-repo setting in `lore.repos.settings` JSONB:
-```json
-{ "auto_review": true, "auto_merge": false }
-```
-
-- `auto_review: true` — create review LoreTask after implementation PR
-- `auto_merge: true` — merge PR after agent approval (Phase 2)
-
-Default: `auto_review: false` (opt-in).
-
-**7. LoreTask CRD — add review fields to status**
-
-```yaml
-status:
-  # existing fields...
-  reviewResult: ""        # "approved" | "changes-requested" | ""
-  parentTaskId: ""        # links review back to implementation task
-```
-
-**8. task-types.yaml — review uses CRD**
-
-```yaml
-review:
-  prompt_template: |
-    Review PR #{pr_number} on this branch. Check the code against:
-    1. The spec in specs/ directory
-    2. Conventions in CLAUDE.md and ADRs in adrs/
-    3. Code quality, type safety, security
-    
-    Post specific review comments on the PR using gh pr review.
-    Then output exactly one of:
-    - REVIEW_APPROVED (if code meets all criteria)
-    - REVIEW_CHANGES_REQUESTED: <specific actionable feedback>
-    
-    PR: {description}
-  timeout_minutes: 10
-  review_required: false
-  execution_mode: claude-code
-```
-
-## File Changes
-
-| File | Change |
-|------|--------|
-| `docker/claude-runner/Dockerfile` | Add `gh` CLI |
-| `docker/claude-runner/entrypoint.sh` | Add review mode: no commit/push, capture result |
-| `agent/src/jobs/loretask-watcher.ts` | Trigger review LoreTask after implementation PR |
-| `agent/src/jobs/loretask-watcher.ts` | Handle review LoreTask completion (approve/iterate/escalate) |
-| `agent/src/loretask-controller.ts` | Parse review result from Job logs |
-| `terraform/modules/gke-mcp/loretask-crd/crd.yaml` | Add reviewResult, parentTaskId to status |
-| `scripts/task-types.yaml` | Update review type with execution_mode: claude-code |
-
-## Out of Scope
-
-1. **Auto-merge** — Phase 2. PR stays open after approval.
-2. **Multi-reviewer** — Single agent review, no consensus.
-3. **Security review** — Separate specialized review type.
-4. **Test execution** — CI handles tests, not the review agent.
-5. **Partial approval** — All or nothing.
-
-## Acceptance Criteria
-
-1. Implementation PR → review LoreTask CR created automatically (when auto_review enabled)
-2. Review Job pod clones repo, reads spec + diff, posts PR comments
-3. Approved: parent task marked as `review/approved`. _(Retired 2026-10-02 with criteria 4 and 5: the review-result handler that recorded a verdict on the task and queued a follow-up task had no caller left and is deleted. The `code-review` line reviews every pull request and `code-review-reply` answers a request for changes on it; see `specs/external-floor`.)_
-4. Changes requested (iteration < 2): new task with the feedback, same branch. _(Retired.)_
-5. Changes requested (iteration >= 2): escalate with `needs-human-review` label. _(Retired.)_
-6. Review completes in <5 min
-7. Review result visible in pipeline UI
-8. Auto-review is opt-in per repo
-9. All steps run as ephemeral Job pods — no in-process LLM calls
-
-## Code-review assembly line — validated behavior
 
 These statements pin the `code-review` choreography (`libs/shared/src/work/review/floor-review-start.ts`)
 and the webhook/verdict plumbing it rides on.
@@ -276,8 +102,7 @@ and the webhook/verdict plumbing it rides on.
 
 1a. **The code-review loop on the Loops tab** *(added 2026-10-23)*. Code review is the `review` entry of the loop registry (`libs/shared/src/domain/loops/loop-kinds.ts`, specs/implementation-loop FR7), with the top-level `auto_review` flag as its switch, so the repo's Loops tab (`/repos/{owner}/{repo}/loops?loop=review`) shows it beside the implementation loop and issue triage with the same pill and the same On/Off button; `PUT /api/repos/{owner}/{repo}/loops/review` flips the flag and the Settings tab no longer carries an auto-review switch. The page reads `GET /api/repos/{owner}/{repo}/code-review`, which lists the repo's open pull requests and the newest thirty runs of each review line (`code-review`, `code-review-recheck`, `code-review-reply`, read as the run list reads them through a `line` filter on the floor run pages, so each row carries its Stages); an open pull request none of those runs names is asked for by its review's subject, `pr_url:<url>`, so a review older than the window still places it *(amended 2026-10-27: on a busy repository the thirty newest reviews reach back a day, and every pull request reviewed before that read as unreviewed)* and answers the Loops tab's shared sections *(amended 2026-10-23; it answered Current, Open pull requests and Recently reviewed)*: **Current**, the pull requests a review run is working now; **Backlog**, open pull requests no review has looked at (`unreviewed`, or `draft` for a draft, which the gate skips); **Parked**, open pull requests whose newest review did not pass (changes requested, or the run failed); **Awaiting merge**, open pull requests whose newest review passed; **Recently addressed**, the newest ten settled runs, named by number when their pull request is no longer open. A repo that is not onboarded is a 404 before any GitHub read. ([validated by answers review from the top-level auto_review flag, off by default @b2658bfd](libs/shared/src/domain/loops/loop-enabled.test.ts#L37), [validated by lists implementation, review, merge, triage, upkeep, digest then tickets with their full names @d15715c2](libs/shared/src/domain/loops/loop-enabled.test.ts#L91), [validated by GET lists implementation, review, merge and digest off and triage, upkeep and tickets on for a repo with empty settings @edeff4cd](apps/lore-api/src/transport/routes/loops/loops.test.ts#L70), [validated by PUT review on writes the top-level auto_review flag @f38c8e8b](apps/lore-api/src/transport/routes/loops/loops.test.ts#L253), [validated by reads the open pull requests and thirty runs of each review line, and answers the queues @668285e9](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L67), [validated by answers 404 for a repo that is not onboarded without reading pull requests @3ae21882](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L141), [validated by puts #3449, reviewed before the thirty newest runs, under awaiting merge and keeps the never-reviewed #3279 in the backlog @5efb0370](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L121), [validated by parks open #8 whose newest review requested changes and open #9 whose review failed @3ac80e0d](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L94), [validated by puts #7 with a running review under current and the unreviewed #8 and draft #9 in the backlog @e68d1ec5](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L46), [validated by puts open #8 whose newest review passed under awaiting merge, and lists it under recent too @fd3f8706](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L66), [validated by names a settled run's pull request from its number when it is no longer open, and keeps recent to ten @9d0cb5dc](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L115), [validated by asks for the code-review runs of re-cinq/lore when the query names a line @f91e5007](apps/lore-api/src/transport/routes/floor/floor-runs.test.ts#L37), [validated by narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running, one pull request's by subject @bb6ea4c7](apps/lore-api/src/work/floor/floor-run-query.test.ts#L120), [validated by ?loop=review shows the code-review switch and the board of code review alone @29868834](apps/web-ui/src/app/repos/[owner]/[repo]/loops/LoopsPage.test.tsx#L115), [validated by reads code review through its client and names it when lore-api answers HTTP 502 @a565aef0](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/read-loop.test.ts#L23), [validated by shows Parked and Awaiting merge only when a loop has a row there @65939989](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L107), [validated by says above the Backlog which shown loops are switched off, and what fills an empty backlog for each @9dedbeb0](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L153), [validated by reads /api/repos/re-cinq/lore/code-review from lore-api @1a888477](apps/web-ui/src/lib/api/code-review.test.ts#L22), [validated by draws a review row as its pull request, tagged with its review line, and a triage row as its issue with its label as the state @9b854598](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L168))
 
-2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (Lore
-   never double-reviews its own PRs) and the bot's own comment or review never starts a pass. ([validated by starts nothing when the lore bot comments @lore review @e9774299](apps/stations/src/events/floor-review-handlers.test.ts#L159), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554))
+2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (except for Lore's own App login, which receives a review) and the bot's own comment or review never starts a pass. ([validated by starts nothing when the lore bot comments @lore review @e9774299](apps/stations/src/events/floor-review-handlers.test.ts#L159), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554))
 
 3. On PR open/reopen/ready: the stations service starts a `code-review` run on the external floor only
    for an open, non-draft PR with auto-review on (an automatic start skips a draft; a review asked for by hand does not), and posts a started-comment linking the
