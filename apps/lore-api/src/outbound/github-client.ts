@@ -138,19 +138,23 @@ export async function fetchPrStatus(
 }
 
 // Fetch live PR state via raw REST; returns null if GitHub not configured
-/** The PR, its two verdicts and its open review threads. Reviews and threads are fetched alongside the PR and their failure swallowed — a PR nobody has reviewed yet is the normal case, and it must not cost the checks. The check runs need the head SHA, so they follow rather than join the trio. */
+/** The PR, its two verdicts and its open review threads. Reviews and threads are fetched alongside the PR; check-runs start as soon as the PR resolves so they run concurrently with reviews and threads. */
 async function readPr(token: string, repo: string, prNumber: number) {
-  const [pr, rawReviews, unresolvedThreads] = await Promise.all([
-    ghFetch(token, `/repos/${repo}/pulls/${prNumber}`),
+  const prFetch = ghFetch(token, `/repos/${repo}/pulls/${prNumber}`);
+  const checksFetch = prFetch.then((pr) =>
+    fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
+  );
+
+  const [pr, rawReviews, unresolvedThreads, rawChecks] = await Promise.all([
+    prFetch,
     ghFetch(token, `/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
     countUnresolvedThreads(token, repo, prNumber),
+    checksFetch,
   ]);
 
   return {
     pr,
-    checks: normalizeChecks(
-      await fetchCheckRuns(token, repo, (pr.head as { sha: string }).sha),
-    ),
+    checks: normalizeChecks(rawChecks),
     reviewList: normalizeReviews(rawReviews),
     unresolvedThreads,
   };
