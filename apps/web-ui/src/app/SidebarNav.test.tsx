@@ -25,9 +25,9 @@ vi.mock("@/components/Icon", () => ({
 import SidebarNav from "./SidebarNav";
 
 const PRIMARY_LINKS = [
-  { href: "/inbox", label: "Inbox" },
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly runs" },
+  { href: "/inbox", label: "Inbox" },
   { href: "/agents", label: "Agents" },
   { href: "/skills", label: "Skills" },
   { href: "/search", label: "Search" },
