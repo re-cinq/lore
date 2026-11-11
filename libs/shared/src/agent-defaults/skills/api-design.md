@@ -1,11 +1,11 @@
 ---
 name: api-design
-description: Stable consumer-facing API and interface design patterns. Use when designing REST endpoints, reusable component prop interfaces, cross-team boundaries, or any externally consumed or versioned contract. Covers contract-first development, error semantics (RFC 9457), REST conventions, pagination, idempotency, rate limiting, and backward compatibility. For an in-process feature or module's coherent responsibility and interface depth, use codebase-design. For TypeScript type patterns and trust-boundary validation, see typescript-strict.
+description: Stable consumer-facing API and interface design patterns. Use when designing REST endpoints, reusable component prop interfaces, cross-team boundaries, or any externally consumed or versioned contract. Covers contract-first development, error semantics (RFC 9457), REST conventions, pagination, idempotency, rate limiting, and backward compatibility. For TypeScript type patterns and trust-boundary validation, see typescript-strict.
 ---
 
 # API and Interface Design
 
-Use this skill for consumer compatibility and protocol semantics. For an in-process module's responsibility, full caller burden, information hiding, and depth, load `codebase-design`; use both when an internal module also exposes a public or cross-team contract. Use `evaluate-existing-solutions` only when a material gateway, framework, SDK, provider, or protocol-implementation choice remains unresolved; API semantics and compatibility stay here.
+Use this skill for consumer compatibility and protocol semantics.
 
 For TypeScript type patterns (branded types, discriminated unions, schema-first), see the `typescript-strict` skill. For immutability patterns, see the `functional` skill. For testing API behavior, see the `testing` skill. OAuth 2.0 and OpenID Connect are not an ordinary API-key decision: use the identity provider's flows and the repo's existing auth library.
 

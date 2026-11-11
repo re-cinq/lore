@@ -1,6 +1,6 @@
 ---
 name: observability
-description: Observability as an engineering discipline — wide events / canonical log lines, OpenTelemetry instrumentation (traces, metrics, context propagation, sampling, Collector), SLIs/SLOs/error budgets, symptom-based alerting with burn rates, telemetry hygiene, and testing instrumentation as behavior. Use when instrumenting a service, designing SLOs or alerts, choosing what to log/trace/measure, investigating production unknowns, or reviewing telemetry cost and cardinality. For log transport and shape (stdout, JSON, levels, timestamps) see twelve-factor; for CI failure diagnosis see ci-debugging; for where instrumentation lives in ports-and-adapters codebases see hexagonal-architecture; for environment drift see production-parity-skill-builder; for HTTP error response shape see api-design.
+description: Observability as an engineering discipline — wide events / canonical log lines, OpenTelemetry instrumentation (traces, metrics, context propagation, sampling, Collector), SLIs/SLOs/error budgets, symptom-based alerting with burn rates, telemetry hygiene, and testing instrumentation as behavior. Use when instrumenting a service, designing SLOs or alerts, choosing what to log/trace/measure, investigating production unknowns, or reviewing telemetry cost and cardinality. For log transport and shape (stdout, JSON, levels, timestamps) see twelve-factor; for where instrumentation lives in ports-and-adapters codebases see hexagonal-architecture; for HTTP error response shape see api-design.
 ---
 
 # Observability
@@ -20,7 +20,7 @@ This skill covers what goes *into* telemetry and how it is consumed. The `twelve
 - "We can't see what production is doing" — debugging unknown-unknowns
 - Reviewing telemetry spend, metric cardinality, or sampling strategy
 
-**Not this skill:** diagnosing a failing CI run (`ci-debugging`), local-vs-production drift (`production-parity-skill-builder`).
+**Not this skill:** diagnosing a failing CI run, or local-versus-production drift.
 
 ---
 
@@ -213,12 +213,9 @@ Browser observability is RUM (real-user monitoring) with Core Web Vitals as the 
 |---------|-------|
 | Log transport, stdout, JSON shape, levels exist, timestamps | `twelve-factor` |
 | What goes IN telemetry; wide events, traces, SLOs, alerts | this skill |
-| Diagnosing a failing CI run | `ci-debugging` |
 | Telemetry ports, Domain Probes, four-tier placement detail | `hexagonal-architecture` |
-| Environment drift (works locally, not in prod) | `production-parity-skill-builder` |
 | HTTP error response bodies (RFC 9457) | `api-design` |
 | CLI usage telemetry consent | `cli-design` |
-| Core Web Vitals / frontend RUM | `core-web-vitals` (external, where installed) |
 
 ---
 

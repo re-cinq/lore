@@ -11,7 +11,7 @@ For domain modeling (entities, value objects, aggregates, ubiquitous language), 
 
 Use the `structure-codebase` skill when designing or changing the physical source tree. For an opted-in hexagonal backend it makes the entire provider-free inside visible under `hexagon/`, keeps concrete driving/driven technology and reusable test interactors outside, and defines proportional package/import enforcement. If physical restructuring is not requested, preserve the repo's existing layout while enforcing the dependency direction described here.
 
-Use `codebase-design` for the coherent responsibility and full caller burden behind a port or in-process module. Not every module interface or test seam is a hexagonal port, and intentionally thin driving/driven adapters should remain thin.
+Not every module interface or test seam is a hexagonal port, and intentionally thin driving/driven adapters should remain thin.
 
 
 ---

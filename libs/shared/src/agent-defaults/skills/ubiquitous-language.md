@@ -1,6 +1,6 @@
 ---
 name: ubiquitous-language
-description: "One ubiquitous language per bounded context — mechanically enforced, evolving only by decision. Per-context Contextive-format glossaries reconciled against code by lint; the five-step language protocol (detect, propose, decide, record, rename) for every new or changed domain term; glossary-driven identifier and test-title checking. Use when naming domain concepts, when a term is missing from or fights the glossary, when spotting synonyms or near-duplicates, when bootstrapping a glossary, or when renaming across a bounded context. For DDD building blocks see domain-driven-design; for acceptance-DSL vocabulary see acceptance-testing."
+description: "One ubiquitous language per bounded context — mechanically enforced, evolving only by decision. Per-context Contextive-format glossaries reconciled against code by lint; the five-step language protocol (detect, propose, decide, record, rename) for every new or changed domain term; glossary-driven identifier and test-title checking. Use when naming domain concepts, when a term is missing from or fights the glossary, when spotting synonyms or near-duplicates, when bootstrapping a glossary, or when renaming across a bounded context. For DDD building blocks see domain-driven-design."
 ---
 
 # Ubiquitous Language: Evolution by Decision, Never Drift
@@ -74,9 +74,6 @@ Where a mechanical enforcement layer is installed (lint rules generated from the
 |-----------|-------|
 | Value objects, entities, aggregates, bounded contexts | `domain-driven-design` |
 | Ports/adapters structure the arch rules enforce | `hexagonal-architecture` |
-| DSL and test-title vocabulary in the outer loop | `acceptance-testing` |
-| Recording a model-changing rename | `adr` agent (Y-statement template) |
-| Naming questions during authoring-loop interrogation | `grill-me` (A3) |
 
 ## Verification Checklist
 

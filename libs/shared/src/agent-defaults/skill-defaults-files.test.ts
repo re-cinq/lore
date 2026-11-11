@@ -53,6 +53,32 @@ const CONVENTIONAL_REPO_FILES = [
 ];
 const FILES_A_SKILL_HAS_THE_READER_CREATE = ["characterization_test_plan.md"];
 
+const UNSHIPPED_SKILL_NAMES = [
+  "codebase-design",
+  "reduce-system-complexity",
+  "evaluate-existing-solutions",
+  "ci-debugging",
+  "production-parity-skill-builder",
+  "acceptance-testing",
+  "grill-me",
+  "core-web-vitals",
+  "story-splitting",
+  "find-gaps",
+  "double-check",
+  "secure-oauth-oidc",
+  "finding-seams",
+  "characterisation-tests",
+];
+const UNSHIPPED_PLAIN_WORD_SKILL_NAMES = [
+  "planning",
+  "diagrams",
+  "refactoring",
+  "performance",
+  "specification",
+  "tdd",
+  "adr",
+];
+
 describe("loadSkillDefaults", () => {
   const skills = loadSkillDefaults();
 
@@ -99,6 +125,22 @@ describe("loadSkillDefaults", () => {
     );
 
     expect(unshippedFiles).toEqual([]);
+  });
+
+  it("returns skills that never mention a skill that exists in no catalogue", () => {
+    const named = [
+      ...UNSHIPPED_SKILL_NAMES.map((name) => new RegExp(`\\b${name}\\b`)),
+      ...UNSHIPPED_PLAIN_WORD_SKILL_NAMES.map(
+        (name) => new RegExp(`\`${name}\``),
+      ),
+    ];
+    const offenders = skills.flatMap((skill) =>
+      named
+        .filter((pattern) => pattern.test(skill.content))
+        .map((pattern) => `${skill.name} -> ${pattern.source}`),
+    );
+
+    expect(offenders).toEqual([]);
   });
 
   it("returns skills that only name shipped or gateway-baked skills", () => {
