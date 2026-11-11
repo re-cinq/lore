@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
@@ -57,7 +57,7 @@ folder, `apps/lore-api/src/transport/routes/inbox/`, registered in
 - FR1.1: The response is a page of items, newest wait last, with a cursor:
   `{items: InboxItem[], next_cursor: string | null}`, `limit` at most 100.
   Every source contributes to every page; no source is truncated to its own
-  first page.
+  first page. ([validated by successfully returns 200 and mapped Plan and Onboarding PR items @fa9c427a](../../apps/lore-api/src/transport/routes/inbox/inbox.acceptance.test.ts#L24))
 - FR1.2: An `InboxItem` carries `id` (stable per source object, e.g.
   `plan:<plan id>`, `visit:<floor visit id>`, `onboarding:<owner/repo>`,
   `run:<floor run id>`), `kind`, `repo`, `title`, `detail`, `waiting_since`
