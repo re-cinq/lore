@@ -959,6 +959,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/inbox": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/inbox */
+    get: operations["get_api_inbox"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/ingest": {
     parameters: {
       query?: never;
@@ -3916,6 +3933,21 @@ export interface components {
           | null;
         unblocks_count?: number;
       }[];
+    };
+    InboxPage: {
+      items: {
+        id: string;
+        /** @enum {string} */
+        kind:
+          "plan_review" | "spec_pr" | "triage" | "onboarding_pr" | "failed_run";
+        repo: string;
+        title: string;
+        detail?: string;
+        waiting_since: string;
+        open_url?: string | null;
+        state?: string;
+      }[];
+      next_cursor: string | null;
     };
     IncidentRecorded: {
       /** @constant */
@@ -7827,6 +7859,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["GraphBrowse"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_inbox: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of inbox items aggregated from plan and onboarding sources */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InboxPage"];
         };
       };
       401: components["responses"]["Unauthorized"];

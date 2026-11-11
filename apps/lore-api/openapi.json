@@ -3798,6 +3798,44 @@
         ]
       }
     },
+    "/api/inbox": {
+      "get": {
+        "operationId": "get_api_inbox",
+        "summary": "GET /api/inbox",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A page of inbox items aggregated from plan and onboarding sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/ingest": {
       "post": {
         "operationId": "post_api_ingest",
@@ -16610,6 +16648,57 @@
           "recent",
           "awaiting_merge"
         ],
+        "additionalProperties": false
+      },
+      "InboxPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "plan_review",
+                    "spec_pr",
+                    "triage",
+                    "onboarding_pr",
+                    "failed_run"
+                  ]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "waiting_since": {
+                  "type": "string"
+                },
+                "open_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "kind", "repo", "title", "waiting_since"],
+              "additionalProperties": false
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["items", "next_cursor"],
         "additionalProperties": false
       },
       "IncidentRecorded": {
