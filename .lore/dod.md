@@ -13,8 +13,8 @@
 
 ## Facets
 
-- [ ] Update `trace-statement-info.ts` to map `GraphStatement.testability` to `StatementInfo.category`.
-- [ ] Refactor `statement-highlight.ts` and `SpecDetails` rehype pipeline to evaluate `stmt-tested` state dynamically by locating test links in the markdown.
+- [x] Update `trace-statement-info.ts` to map `GraphStatement.testability` to `StatementInfo.category`.
+- [x] Refactor `statement-highlight.ts` and `SpecDetails` rehype pipeline to evaluate `stmt-tested` state dynamically by locating test links in the markdown.
 
 ## Out of scope
 
