@@ -38,20 +38,26 @@ const floor: LineSource = {
 };
 
 describe("Inbox eligibility", () => {
-  it.extend({ spec: "specs/inbox/spec.md#FR2.7" })("reads the station kind from the station body the line version names", async () => {
-    const run = { lineId: "line-1", lineHash: "hash-1" } as any;
-    const facts = await readLineFacts(floor, run);
+  it.extend({ spec: "specs/inbox/spec.md#FR2.7" })(
+    "reads the station kind from the station body the line version names",
+    async () => {
+      const run = { lineId: "line-1", lineHash: "hash-1" } as any;
+      const facts = await readLineFacts(floor, run);
 
-    expect((facts as any).stations["loop-await-ci"].kind).toBe("human");
-    expect((facts as any).stations["plan-analyze"].kind).toBe("agent");
-  });
+      expect((facts as any).stations["loop-await-ci"].kind).toBe("human");
+      expect((facts as any).stations["plan-analyze"].kind).toBe("agent");
+    },
+  );
 
-  it.extend({ spec: "specs/inbox/spec.md#FR2.6" })("excludes await-ci from actionable human waiting items", async () => {
-    const run = { lineId: "line-1", lineHash: "hash-1" } as any;
-    const facts = await readLineFacts(floor, run);
+  it.extend({ spec: "specs/inbox/spec.md#FR2.6" })(
+    "excludes await-ci from actionable human waiting items",
+    async () => {
+      const run = { lineId: "line-1", lineHash: "hash-1" } as any;
+      const facts = await readLineFacts(floor, run);
 
-    expect((facts as any).isWaitingOnPerson?.("await-ci")).toBe(false);
-    expect((facts as any).isWaitingOnPerson?.("pr-review")).toBe(true);
-    expect((facts as any).isWaitingOnPerson?.("analyze")).toBe(false);
-  });
+      expect((facts as any).isWaitingOnPerson?.("await-ci")).toBe(false);
+      expect((facts as any).isWaitingOnPerson?.("pr-review")).toBe(true);
+      expect((facts as any).isWaitingOnPerson?.("analyze")).toBe(false);
+    },
+  );
 });
