@@ -6,9 +6,9 @@
 
 ## Done when these pass
 
-- [ ] **applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema** — Verifies `0013` and `0014` idempotency, convergence, and ownership guards on a legacy DB.
+- [x] **applies migration sequence twice on a legacy (partially migrated) database and leaves the required schema** — Verifies `0013` and `0014` idempotency, convergence, and ownership guards on a legacy DB.
   `apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts`
-- [ ] **applies migration sequence twice on an empty database and leaves the required schema** — Verifies the migrations complete successfully without throwing on a fresh database.
+- [x] **applies migration sequence twice on an empty database and leaves the required schema** — Verifies the migrations complete successfully without throwing on a fresh database.
   `apps/lore-api/src/integration-tests/hippo-migrations.acceptance.test.ts`
 
 ## Facets
@@ -16,6 +16,7 @@
 - [x] Delete regex tests from `migrations.test.ts`.
 - [x] Implement database integration tests simulating empty and legacy schemas.
 - [x] Update `specs/platform-infrastructure/spec.md` with new test linkages.
+- [x] Fix CI auth: use LORE_DB_USER/LORE_DB_PASSWORD env vars for app-user pools; introduce dedicated non-superuser migrator role for privilege-guarded scenario.
 
 ## Out of scope
 
