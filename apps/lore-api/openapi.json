@@ -56,6 +56,10 @@
       "description": "Scoped API token management, and the web sign-in that mints a person's session token."
     },
     {
+      "name": "Inbox",
+      "description": "Per-person inbox items and their read/handled state."
+    },
+    {
       "name": "Meta",
       "description": "The OpenAPI document and its reference UI."
     }
@@ -3802,7 +3806,7 @@
       "put": {
         "operationId": "put_api_inbox_items_item_id_state",
         "summary": "PUT /api/inbox/items/{item_id}/state",
-        "tags": ["Other"],
+        "tags": ["Inbox"],
         "security": [
           {
             "bearerAuth": []
