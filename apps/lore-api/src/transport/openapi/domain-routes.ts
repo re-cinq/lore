@@ -54,6 +54,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/utopia/memory",
   // The session to end is the bearer token the request carries.
   "POST /api/auth/logout",
+  // The plan and its current status are the path param; the route reopens it only when approved.
+  "POST /api/repos/{owner}/{repo}/plans/{id}/author-waiting",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

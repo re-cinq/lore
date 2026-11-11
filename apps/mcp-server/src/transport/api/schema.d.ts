@@ -1884,6 +1884,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/approve */
+    post: operations["post_api_repos_owner_repo_plans_id_approve"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/author-waiting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/author-waiting */
+    post: operations["post_api_repos_owner_repo_plans_id_author-waiting"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
     parameters: {
       query?: never;
@@ -1929,6 +1963,74 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/plans/{id}/refine */
     post: operations["post_api_repos_owner_repo_plans_id_refine"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/reopen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/reopen */
+    post: operations["post_api_repos_owner_repo_plans_id_reopen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/spec-rework": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/spec-rework */
+    post: operations["post_api_repos_owner_repo_plans_id_spec-rework"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/spec-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/spec-work */
+    post: operations["post_api_repos_owner_repo_plans_id_spec-work"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/validate */
+    post: operations["post_api_repos_owner_repo_plans_id_validate"];
     delete?: never;
     options?: never;
     head?: never;
@@ -4600,6 +4702,35 @@ export interface components {
     PipelineAnalytics: {
       [key: string]: unknown;
     };
+    PlanApproved: {
+      /** @constant */
+      schemaVersion: 1;
+      id: string;
+      repo: string;
+      /** @enum {string} */
+      type:
+        | "feature"
+        | "ui-change"
+        | "performance"
+        | "refactor"
+        | "incident-response";
+      templateVersion: number;
+      title: string;
+      /** @enum {string} */
+      status: "draft" | "in-review" | "approved" | "superseded";
+      approval: {
+        /** @enum {string} */
+        mode: "manual" | "automatic";
+        approvedBy: string;
+        /** Format: date-time */
+        approvedAt: string;
+        version: number;
+      } | null;
+      version: number;
+      createdBy: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
     PlanCollabToken: {
       token: string;
       documentName: string;
@@ -4621,8 +4752,49 @@ export interface components {
         updatedAt: string;
       }[];
     };
+    PlanOpenedForAuthor: {
+      reopened: boolean;
+    };
     PlanRefineAsked: {
       slot: string;
+    };
+    PlanReopened: {
+      /** @constant */
+      schemaVersion: 1;
+      id: string;
+      repo: string;
+      /** @enum {string} */
+      type:
+        | "feature"
+        | "ui-change"
+        | "performance"
+        | "refactor"
+        | "incident-response";
+      templateVersion: number;
+      title: string;
+      /** @enum {string} */
+      status: "draft" | "in-review" | "approved" | "superseded";
+      approval: {
+        /** @enum {string} */
+        mode: "manual" | "automatic";
+        approvedBy: string;
+        /** Format: date-time */
+        approvedAt: string;
+        version: number;
+      } | null;
+      version: number;
+      createdBy: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    PlanSpecReworkStarted: {
+      run_id: string;
+    };
+    PlanSpecWorkStarted: {
+      task_id: string;
+    };
+    PlanValidateStarted: {
+      run_id: string;
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -9760,6 +9932,75 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  post_api_repos_owner_repo_plans_id_approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          approvedBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The plan is approved and its planning line moves on to the spec work; refused while the planning agent is still writing it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanApproved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_author-waiting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The planning line parked on the plan's author: an approved plan is reopened so its people can answer; any other plan is left as it is */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanOpenedForAuthor"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_repos_owner_repo_plans_id_collab-token": {
     parameters: {
       query?: never;
@@ -9873,6 +10114,159 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PlanRefineAsked"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_reopen: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reopenedBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The approved plan is open for writing again; an open spec PR is sent back to the author */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanReopened"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_spec-rework": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The spec writer runs again in the same line with the spec PR's unresolved review: the specs are amended on the PR's branch, and whatever contradicts the plan comes back to it as questions */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanSpecReworkStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_spec-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          createdBy: string;
+          storyIssue?: number;
+        };
+      };
+    };
+    responses: {
+      /** @description A fresh spec pass for an approved plan whose line is not running: after a failed pass, or to revise merged specs */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanSpecWorkStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_validate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Runs the plan validator over a draft plan parked on its author; findings land in the plan */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanValidateStarted"];
         };
       };
       400: components["responses"]["BadRequest"];
