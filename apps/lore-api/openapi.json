@@ -3815,7 +3815,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The per-person inbox item state was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxItemStateSaved"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -16694,6 +16701,17 @@
           "recent",
           "awaiting_merge"
         ],
+        "additionalProperties": false
+      },
+      "InboxItemStateSaved": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
         "additionalProperties": false
       },
       "IncidentRecorded": {

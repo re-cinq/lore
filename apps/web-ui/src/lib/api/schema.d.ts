@@ -3934,6 +3934,10 @@ export interface components {
         unblocks_count?: number;
       }[];
     };
+    InboxItemStateSaved: {
+      /** @constant */
+      ok: true;
+    };
     IncidentRecorded: {
       /** @constant */
       ok: true;
@@ -7871,12 +7875,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The per-person inbox item state was saved */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["InboxItemStateSaved"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];

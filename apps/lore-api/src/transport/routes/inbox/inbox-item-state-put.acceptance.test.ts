@@ -21,13 +21,18 @@ describe("PUT /api/inbox/items/{item_id}/state", () => {
     vi.clearAllMocks();
   });
 
-  function putState(itemId: string, body: unknown, pool: unknown = makePool()) {
+  function putState(
+    itemId: string,
+    body: unknown,
+    pool: unknown = makePool(),
+    headers: Record<string, string> = AUTH,
+  ) {
     const payload = typeof body === "string" ? body : JSON.stringify(body);
 
     return buildServer(() => pool as any).inject({
       method: "PUT",
       url: `/api/inbox/items/${encodeURIComponent(itemId)}/state`,
-      headers: AUTH,
+      headers,
       payload,
     });
   }
@@ -44,13 +49,14 @@ describe("PUT /api/inbox/items/{item_id}/state", () => {
     );
 
     expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ ok: true });
 
     const call = pool.query.mock.calls.find(([querySql]) =>
       String(querySql).includes("INSERT INTO lore.inbox_item_state"),
     );
 
     expect(call).toMatchObject([
-      expect.stringContaining("ON CONFLICT"),
+      expect.stringContaining("ON CONFLICT (person, item_id)"),
       ["octocat", "plan:123", expect.any(Date), null, true, false],
     ]);
   });
@@ -76,6 +82,56 @@ describe("PUT /api/inbox/items/{item_id}/state", () => {
       expect.stringContaining("CASE WHEN $5"),
       ["octocat", "plan:123", null, "2026-11-12T09:00:00Z", false, true],
     ]);
+  });
+
+  it("clears handled_at when handled is false and snoozed_until when null", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rowCount: 1 });
+
+    const unhandled = await putState(
+      "plan:123",
+      { handled: false, person: "octocat" },
+      pool,
+    );
+    const unsnoozed = await putState(
+      "plan:123",
+      { snoozed_until: null, person: "octocat" },
+      pool,
+    );
+
+    const writes = pool.query.mock.calls
+      .filter(([querySql]) =>
+        String(querySql).includes("INSERT INTO lore.inbox_item_state"),
+      )
+      .map(([, params]) => params);
+
+    expect(unhandled.statusCode).toBe(200);
+    expect(unsnoozed.statusCode).toBe(200);
+    expect(writes).toEqual([
+      ["octocat", "plan:123", null, null, true, false],
+      ["octocat", "plan:123", null, null, false, true],
+    ]);
+  });
+
+  it("rejects a read-only token with 403 and writes nothing", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
+
+    const res = await putState(
+      "plan:123",
+      { handled: true, person: "octocat" },
+      pool,
+      { authorization: "Bearer read-only" },
+    );
+
+    const writes = pool.query.mock.calls.filter(([querySql]) =>
+      String(querySql).includes("INSERT INTO lore.inbox_item_state"),
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(writes).toEqual([]);
   });
 
   it("rejects an empty person or a non-ISO snoozed_until with 400", async () => {

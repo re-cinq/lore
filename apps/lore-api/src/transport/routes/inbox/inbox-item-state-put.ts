@@ -7,6 +7,8 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { OkSchema } from "../../http/ok-schema.js";
+import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 
@@ -26,12 +28,17 @@ export function inboxItemStatePutRoute(
   return {
     method: "PUT",
     path: "/api/inbox/items/{item_id}/state",
-    options: {
-      ...bearerScope("write"),
-      validate: {
-        payload: zodValidate(InboxItemStateBody),
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(InboxItemStateBody) },
       },
-    },
+      OkSchema,
+      {
+        name: "InboxItemStateSaved",
+        description: "The per-person inbox item state was saved",
+      },
+    ),
     handler: withPool(getPool, serveInboxItemStatePut),
   };
 }
