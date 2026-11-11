@@ -17,6 +17,7 @@ import {
   gohu,
 } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
+import { getInbox, openInboxCount } from "@/lib/api/inbox";
 import { getSession } from "@/lib/session";
 import "./theme.css";
 import "highlight.js/styles/github.css";
@@ -60,17 +61,15 @@ export default function RootLayout({ children }: RootLayoutProps) {
 }
 
 /** Brand and the rail toggle, the palette's search pill, the nav, and at the foot the signed-in user beside the deployed build (what someone reads when working out whether what they see is what was merged). */
-function Sidebar() {
+async function Sidebar() {
+  const inboxCount = await readOpenInboxCount();
+
   return (
     <>
-      <div className="sidebar-head">
-        <Link href="/" className="sidebar-brand" aria-label="Lore home">
-          <BrandLockup />
-        </Link>
-        <RailToggle />
-      </div>
+      <SidebarHead />
       <SidebarSearch />
       <SidebarNav
+        inboxCount={inboxCount}
         headlampUrl={headlampUrl(process.env)}
         grafanaUrl={grafanaUrl(process.env)}
         utopiaUrl={utopiaUrl(process.env)}
@@ -78,6 +77,24 @@ function Sidebar() {
       <SidebarFoot />
     </>
   );
+}
+
+function SidebarHead() {
+  return (
+    <div className="sidebar-head">
+      <Link href="/" className="sidebar-brand" aria-label="Lore home">
+        <BrandLockup />
+      </Link>
+      <RailToggle />
+    </div>
+  );
+}
+
+/** Count of open inbox items for the `/inbox` sidebar badge; zero when lore-api is unreachable. */
+async function readOpenInboxCount(): Promise<number> {
+  const inbox = await getInbox();
+
+  return inbox.status === "ok" ? openInboxCount(inbox.data.counts) : 0;
 }
 
 /** The signed-in person beside the deployed build; read here so the rest of the sidebar renders without waiting for lore-api to name them. */

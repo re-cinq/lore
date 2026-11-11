@@ -1,141 +1,242 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api/client";
+import { useState } from "react";
+import Link from "next/link";
+import ScreenHeader from "@/components/ScreenHeader";
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatEnumLabel } from "@/lib/enum-label";
+import type { InboxEntry, InboxKind } from "@/lib/api/inbox";
+import styles from "./InboxView.module.css";
 
-interface InboxEntry {
-  id: string;
-  kind: string;
-  repo: string;
-  title: string;
-  detail?: string;
-  waiting_since: string;
-  open_url: string;
-}
+const LEDE =
+  "Everything across your repos that has stopped and is waiting for a person.";
 
-interface InboxPayload {
-  items: InboxEntry[];
-  next_cursor: string | null;
-  counts: Record<string, number>;
+export interface InboxViewProps {
+  entries: InboxEntry[];
+  counts: Partial<Record<InboxKind, number>>;
   unavailable?: string[];
+  selectedKinds?: InboxKind[];
 }
 
-export default function InboxView() {
-  const [inboxPayload, setInboxPayload] = useState<InboxPayload | null>(null);
-
-  useEffect(() => {
-    loadKind([], setInboxPayload);
-  }, []);
-
-  if (inboxPayload === null) {
-    return null;
-  }
-
-  return (
-    <InboxContent
-      payload={inboxPayload}
-      onKindClick={(kind) => loadKind([kind], setInboxPayload)}
-    />
-  );
-}
-
-function InboxContent({
-  payload,
-  onKindClick,
-}: {
-  payload: InboxPayload;
-  onKindClick: (kind: string) => void;
-}) {
-  const inboxEntries = payload.items;
-  const { counts, unavailable: unavailableSources = [] } = payload;
-  const noKinds = Object.keys(counts).length === 0;
-  const isEmpty = !inboxEntries.length && noKinds && !unavailableSources.length;
+export default function InboxView(props: InboxViewProps) {
+  const { entries, counts, unavailable = [], selectedKinds = [] } = props;
+  const selection = useInboxSelection(entries, selectedKinds);
 
   return (
     <div>
-      <KindChips counts={counts} onKindClick={onKindClick} />
-      {isEmpty && <p>Nothing is waiting.</p>}
-      <UnavailableList unavailableSources={unavailableSources} />
-      <EntryList inboxEntries={inboxEntries} />
+      <ScreenHeader group="work" title="Inbox" lede={LEDE} />
+      <KindChips
+        counts={counts}
+        activeKinds={selection.activeKinds}
+        onToggle={selection.onToggle}
+      />
+      <UnavailableNotice sources={unavailable} />
+      <InboxSplit
+        entries={selection.visible}
+        selected={selection.selected}
+        onSelect={selection.setSelectedId}
+      />
     </div>
   );
 }
 
-interface KindChipsProps {
-  counts: Record<string, number>;
-  onKindClick: (kind: string) => void;
+function useInboxSelection(entries: InboxEntry[], selectedKinds: InboxKind[]) {
+  const [activeKinds, setActiveKinds] = useState<InboxKind[]>(selectedKinds);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const visible = sortedByWait(filterByKinds(entries, activeKinds));
+  const selected = resolveSelected(visible, selectedId);
+  const onToggle = (kind: InboxKind) =>
+    setActiveKinds((cur) => toggleKind(cur, kind));
+
+  return { activeKinds, visible, selected, onToggle, setSelectedId };
 }
 
-function KindChips({ counts, onKindClick }: KindChipsProps) {
-  const kinds = Object.keys(counts);
+function filterByKinds(
+  entries: InboxEntry[],
+  kinds: readonly InboxKind[],
+): InboxEntry[] {
+  return kinds.length === 0
+    ? entries
+    : entries.filter((entry) => kinds.includes(entry.kind));
+}
+
+/** Longest wait first (`waiting_since` ascending, specs/inbox FR1.6 & FR5.2). */
+function sortedByWait(entries: InboxEntry[]): InboxEntry[] {
+  return [...entries].sort(
+    (a, b) => Date.parse(a.waiting_since) - Date.parse(b.waiting_since),
+  );
+}
+
+function resolveSelected(
+  entries: InboxEntry[],
+  selectedId: string | null,
+): InboxEntry | null {
+  return (
+    entries.find((entry) => entry.id === selectedId) ?? entries.at(0) ?? null
+  );
+}
+
+function toggleKind(current: InboxKind[], kind: InboxKind): InboxKind[] {
+  return current.includes(kind)
+    ? current.filter((existing) => existing !== kind)
+    : [...current, kind];
+}
+
+interface KindChipsProps {
+  counts: Partial<Record<InboxKind, number>>;
+  activeKinds: readonly InboxKind[];
+  onToggle: (kind: InboxKind) => void;
+}
+
+function KindChips({ counts, activeKinds, onToggle }: KindChipsProps) {
+  const kinds = Object.keys(counts) as InboxKind[];
 
   if (kinds.length === 0) {
     return null;
   }
 
   return (
-    <div>
+    <div className={styles.chips} role="group" aria-label="Filter by kind">
       {kinds.map((kind) => (
-        <button key={kind} type="button" onClick={() => onKindClick(kind)}>
-          {kind} ({counts[kind]})
-        </button>
+        <KindChip
+          key={kind}
+          kind={kind}
+          count={counts[kind] ?? 0}
+          active={activeKinds.includes(kind)}
+          onToggle={onToggle}
+        />
       ))}
     </div>
   );
 }
 
-function EntryList({ inboxEntries }: { inboxEntries: InboxEntry[] }) {
-  if (inboxEntries.length === 0) {
+interface KindChipProps {
+  kind: InboxKind;
+  count: number;
+  active: boolean;
+  onToggle: (kind: InboxKind) => void;
+}
+
+function KindChip({ kind, count, active, onToggle }: KindChipProps) {
+  return (
+    <button
+      type="button"
+      className={styles.chip}
+      aria-pressed={active}
+      onClick={() => onToggle(kind)}
+    >
+      <span>{formatEnumLabel(kind)}</span>
+      <span className={styles.chipCount}>{count}</span>
+    </button>
+  );
+}
+
+function UnavailableNotice({ sources }: { sources: string[] }) {
+  if (sources.length === 0) {
     return null;
   }
 
   return (
-    <ul>
-      {inboxEntries.map((inboxEntry) => (
-        <li key={inboxEntry.id}>{inboxEntry.title}</li>
+    <p role="status" className={styles.unavailable}>
+      Unavailable sources: {sources.join(", ")}
+    </p>
+  );
+}
+
+interface InboxSplitProps {
+  entries: InboxEntry[];
+  selected: InboxEntry | null;
+  onSelect: (id: string) => void;
+}
+
+function InboxSplit({ entries, selected, onSelect }: InboxSplitProps) {
+  if (entries.length === 0) {
+    return <p className={styles.empty}>Nothing is waiting.</p>;
+  }
+
+  return (
+    <div className={styles.split}>
+      <EntryList
+        entries={entries}
+        selectedId={selected?.id ?? null}
+        onSelect={onSelect}
+      />
+      {selected && <DetailPane entry={selected} />}
+    </div>
+  );
+}
+
+interface EntryListProps {
+  entries: InboxEntry[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+function EntryList({ entries, selectedId, onSelect }: EntryListProps) {
+  return (
+    <ul className={styles.list} aria-label="Inbox items">
+      {entries.map((entry) => (
+        <EntryRow
+          key={entry.id}
+          entry={entry}
+          selected={entry.id === selectedId}
+          onSelect={onSelect}
+        />
       ))}
     </ul>
   );
 }
 
-function UnavailableList({
-  unavailableSources,
-}: {
-  unavailableSources: string[];
-}) {
-  if (unavailableSources.length === 0) {
-    return null;
-  }
+interface EntryRowProps {
+  entry: InboxEntry;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}
 
+function EntryRow({ entry, selected, onSelect }: EntryRowProps) {
   return (
-    <ul>
-      {unavailableSources.map((src) => (
-        <li key={src}>{src}</li>
-      ))}
-    </ul>
+    <li className={styles.rowItem}>
+      <button
+        type="button"
+        className={styles.rowButton}
+        aria-current={selected ? "true" : undefined}
+        onClick={() => onSelect(entry.id)}
+      >
+        <EntryRowHead entry={entry} />
+        <strong className={styles.rowTitle}>{entry.title}</strong>
+        <span className={styles.rowDetail}>{entry.detail}</span>
+      </button>
+    </li>
   );
 }
 
-function loadKind(kinds: string[], set: (p: InboxPayload) => void) {
-  void fetchInbox(kinds).then((p) => {
-    if (p) {
-      set(p);
-    }
-  });
+function EntryRowHead({ entry }: { entry: InboxEntry }) {
+  return (
+    <span className={styles.rowHead}>
+      <span className={styles.kindBadge}>{formatEnumLabel(entry.kind)}</span>
+      <span className={styles.repo}>{entry.repo}</span>
+      <span className={styles.wait}>
+        <TimeAgo date={entry.waiting_since} inline />
+      </span>
+    </span>
+  );
 }
 
-async function fetchInbox(kinds: string[]): Promise<InboxPayload | null> {
-  const opts = kinds.length > 0 ? { query: { kind: kinds } } : {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await (apiFetch as any)("lore-api", "/api/inbox", opts);
-
-  if (raw?.ok) {
-    return raw.val as InboxPayload;
-  }
-
-  if (raw?.status === "ok") {
-    return raw.data as InboxPayload;
-  }
-
-  return null;
+function DetailPane({ entry }: { entry: InboxEntry }) {
+  return (
+    <aside className={styles.detail} aria-label="Selected item detail">
+      <header className={styles.detailHead}>
+        <span className={styles.kindBadge}>{formatEnumLabel(entry.kind)}</span>
+        <span className={styles.repo}>{entry.repo}</span>
+      </header>
+      <h2 className={styles.detailTitle}>{entry.title}</h2>
+      <p className={styles.detailBody}>{entry.detail}</p>
+      <p className={styles.detailWait}>
+        Waiting since <TimeAgo date={entry.waiting_since} inline />
+      </p>
+      <Link href={entry.open_url} className={styles.openLink}>
+        Open {formatEnumLabel(entry.kind)}
+      </Link>
+    </aside>
+  );
 }
