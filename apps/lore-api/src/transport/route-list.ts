@@ -118,6 +118,7 @@ import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 import { skillDefinitionsRoutes } from "./routes/skill-definitions/skills.js";
+import { inboxItemStatePutRoute } from "./routes/inbox/inbox-item-state-put.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -130,6 +131,7 @@ export function routeList(
     ...platformRoutes(getPool),
     ...authRoutes(getPool),
     ...repoRoutes(getPool),
+    inboxItemStatePutRoute(getPool),
     ...taskRoutes(getPool, plans),
     ...memoryRoutes(getPool),
     ...ingestRoutes(getPool),

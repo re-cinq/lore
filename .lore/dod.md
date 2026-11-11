@@ -8,14 +8,14 @@
 
 ## Done when these pass
 
-- [ ] **updates the DB for the calling user when marked handled** — Validates that a PUT to the route with a valid body upserts the state for the specified person.
+- [x] **updates the DB for the calling user when marked handled** — Validates that a PUT to the route with a valid body upserts the state for the specified person.
   `apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Add the PUT route in `apps/lore-api/src/transport/routes/inbox/`
-- [ ] Export and register it in `route-list.ts`
-- [ ] Connect the payload schema in `domain-routes.ts`
+- [x] Add the PUT route in `apps/lore-api/src/transport/routes/inbox/`
+- [x] Export and register it in `route-list.ts`
+- [x] Connect the payload schema in `domain-routes.ts`
 
 ## Out of scope
 
