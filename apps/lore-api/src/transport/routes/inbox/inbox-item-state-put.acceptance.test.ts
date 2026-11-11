@@ -51,7 +51,7 @@ describe("PUT /api/inbox/items/{item_id}/state", () => {
 
     expect(call).toMatchObject([
       expect.stringContaining("ON CONFLICT"),
-      expect.arrayContaining(["octocat", "plan:123"])
+      expect.arrayContaining(["octocat", "plan:123"]),
     ]);
   });
 });
