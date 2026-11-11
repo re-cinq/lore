@@ -4459,6 +4459,15 @@
               "minLength": 1,
               "maxLength": 500
             }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
           }
         ]
       }

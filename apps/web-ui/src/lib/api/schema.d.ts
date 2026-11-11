@@ -8110,6 +8110,7 @@ export interface operations {
     parameters: {
       query: {
         q: string;
+        repo?: string;
       };
       header?: never;
       path?: never;
