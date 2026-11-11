@@ -24,25 +24,19 @@ export default function InboxView() {
   const [inboxPayload, setInboxPayload] = useState<InboxPayload | null>(null);
 
   useEffect(() => {
-    void fetchInbox([]).then((loadedInbox) => {
-      if (loadedInbox) {
-        setInboxPayload(loadedInbox);
-      }
-    });
+    loadKind([], setInboxPayload);
   }, []);
-  function handleKindClick(kind: string) {
-    void fetchInbox([kind]).then((loadedInbox) => {
-      if (loadedInbox) {
-        setInboxPayload(loadedInbox);
-      }
-    });
-  }
 
   if (inboxPayload === null) {
     return null;
   }
 
-  return <InboxContent payload={inboxPayload} onKindClick={handleKindClick} />;
+  return (
+    <InboxContent
+      payload={inboxPayload}
+      onKindClick={(kind) => loadKind([kind], setInboxPayload)}
+    />
+  );
 }
 
 function InboxContent({
@@ -67,13 +61,12 @@ function InboxContent({
   );
 }
 
-function KindChips({
-  counts,
-  onKindClick,
-}: {
+interface KindChipsProps {
   counts: Record<string, number>;
   onKindClick: (kind: string) => void;
-}) {
+}
+
+function KindChips({ counts, onKindClick }: KindChipsProps) {
   const kinds = Object.keys(counts);
 
   if (kinds.length === 0) {
@@ -121,6 +114,12 @@ function UnavailableList({
       ))}
     </ul>
   );
+}
+
+function loadKind(kinds: string[], set: (p: InboxPayload) => void) {
+  void fetchInbox(kinds).then((p) => {
+    if (p) {set(p);}
+  });
 }
 
 async function fetchInbox(kinds: string[]): Promise<InboxPayload | null> {
