@@ -9,13 +9,7 @@ Design the source tree as a truthful map of meaning, ownership, runtime boundari
 
 Use this skill for physical placement and dependency enforcement, including audits specifically about source trees, folders, packages, exports, or import direction. Load `codebase-design` when the question is which coherent responsibility and caller-facing contract a module should own; load `improve-codebase-architecture` when the unresolved question is which broader architecture investment is worth making and why now. Load `reduce-system-complexity` when a flatter tree is intended to support an evidence-backed claim that real dependencies, hops, states, or operational mechanism disappeared—a physical move alone is not reduction. Load `evaluate-existing-solutions` only when monorepo, build, workspace, or boundary-enforcement tooling is materially unresolved. Load `hexagonal-architecture` for port and adapter implementation, and `domain-driven-design` for domain modeling. Those patterns are independent; never infer that using one requires the other.
 
-Read the relevant reference before producing a target tree:
 
-- Read [`references/visible-hexagon.md`](references/visible-hexagon.md) for a ports-and-adapters backend, DDD plus hexagonal architecture, or questions about ports, test actors, read models, and package isolation.
-- Read [`references/backend-patterns.md`](references/backend-patterns.md) for a BFF, ordinary feature-first service, framework-constrained backend, operational tool, CLI, or small package.
-- Read [`references/frontend-patterns.md`](references/frontend-patterns.md) for a frontend, design system, client-side feature architecture, meta-framework UI, or full-stack request.
-- Read [`references/enforcement-and-migration.md`](references/enforcement-and-migration.md) before moving existing code, changing package depth, or designing import/package enforcement.
-- Read [`references/research-notes.md`](references/research-notes.md) when explaining named approaches or source rationale.
 
 ## Core Model
 
@@ -149,7 +143,7 @@ Load `domain-driven-design` instead of duplicating aggregate, entity, value-obje
 
 ## Frontend Structure
 
-Treat frontend architecture as a first-class mode. Read `references/frontend-patterns.md` and classify route ownership, product-feature cohesion, UI reuse level, state/data ownership, runtime boundaries, and package ownership before choosing a tree. Preserve an established frontend only when the requested scope or evidence supports preservation; redesign it when that is the task. Do not project backend `hexagon/`, ports, adapters, DDD entities, or composition-root vocabulary onto client code unless the frontend explicitly adopts those patterns for a real boundary. In a full-stack repository, classify client and server modules independently and enforce the framework's client/server graph.
+Treat frontend architecture as a first-class mode. Classify route ownership, product-feature cohesion, UI reuse level, state/data ownership, runtime boundaries, and package ownership before choosing a tree. Preserve an established frontend only when the requested scope or evidence supports preservation; redesign it when that is the task. Do not project backend `hexagon/`, ports, adapters, DDD entities, or composition-root vocabulary onto client code unless the frontend explicitly adopts those patterns for a real boundary. In a full-stack repository, classify client and server modules independently and enforce the framework's client/server graph.
 
 ## Composition Roots
 
@@ -177,7 +171,6 @@ Only executable applications have composition roots. Keep concrete selection nea
 - For a large/deep workspace, derive rules from physical roles or a small package-role registry instead of hand-maintained package allowlists.
 - Test recursive discovery at the deepest proposed path before moving packages there.
 
-Read `references/enforcement-and-migration.md` for the dependency matrix and migration gates.
 
 ## Anti-Patterns
 

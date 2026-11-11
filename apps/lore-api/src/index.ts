@@ -11,6 +11,7 @@ import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { seedFloor, migrateFloor } from "./app/seed-floor.js";
 import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
+import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
 
@@ -60,11 +61,26 @@ function connectDatabase(dbHost: string): Pool {
 }
 
 async function seedShippedSkills(pool: Pool): Promise<void> {
+  const skills = loadSkillDefaults();
+
   try {
-    await seedSkillDefaults(pool, loadSkillDefaults());
+    await seedSkillDefaults(pool, skills);
     console.error(`[lore-api] skill defaults seeded`);
   } catch (err) {
     console.error(`[lore-api] failed to seed skill defaults:`, err);
+  }
+
+  try {
+    const revised = await applySkillRevisions(pool, skills);
+
+    console.error(
+      `[lore-api] skill revisions applied: ${revised.join(", ") || "none"}`,
+    );
+  } catch (err) {
+    console.error(
+      `[lore-api] failed to apply skill revisions, they run again next boot:`,
+      err,
+    );
   }
 }
 

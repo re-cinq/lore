@@ -9,10 +9,24 @@ A change in the language **is** a change to the model (Evans). One ubiquitous la
 
 The documented agent failure mode this kills: terminology drift — `processUserData` vs `processUserInfo` near-duplicates, "booking" quietly becoming "reservation" mid-feature. Prompt-level glossaries steer; deterministic gates enforce.
 
-| Resource | Load when... |
-|----------|-------------|
-| `resources/language-protocol.md` | A term is missing, awkward, or duplicated — running the five steps, writing Y-statement micro-ADRs |
-| `resources/glossary-format.md` | Creating or editing a glossary — Contextive YAML format, context scoping, aliases, bootstrap paths |
+## Glossary Format
+
+One `<context>.glossary.yml` per bounded context, in Contextive format, in the context's folder:
+
+```yaml
+contexts:
+  - name: Billing
+    terms:
+      - name: Invoice
+        definition: A request for payment issued to a customer for delivered goods.
+        examples:
+          - "An invoice is issued when an order ships."
+      - name: Receipt
+        aliases: [PaymentConfirmation]
+        definition: Proof that an invoice was paid.
+```
+
+A replaced term stays as an alias so lints can name its replacement. Bootstrap a glossary from the identifiers and test titles already in the context's code, then trim to the words the domain experts use.
 
 ---
 
@@ -26,7 +40,7 @@ Team speech and **the model in the code** are the only guaranteed-current denota
 
 ## The Language Protocol (the centrepiece)
 
-Silent evolution is forbidden. Every new, changed, or suspect domain term runs five steps — full guidance in `resources/language-protocol.md`:
+Silent evolution is forbidden. Every new, changed, or suspect domain term runs five steps:
 
 1. **DETECT** — you need a term the glossary lacks; you spot a synonym or near-duplicate (one word per concept; two phrases must mean two concepts); a term feels awkward in conversation; or the identifier lint fails on an unknown domain word.
 2. **PROPOSE — never adopt.** STOP and present to the human: the term, a proposed definition, the bounded context, an example sentence, and the alternatives considered. Use the harness's question mechanism with a recommendation attached. An agent never coins a domain term silently.

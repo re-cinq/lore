@@ -4,6 +4,7 @@ import {
   SHIPPED_SKILLS_DIR,
 } from "./skill-defaults-files.js";
 import { hasValidHelpBlock } from "./skill-help-block.js";
+import { referencedSkillNames } from "./skill-references.js";
 
 const SHIPPED_SKILL_NAMES = [
   "api-design",
@@ -30,6 +31,12 @@ const SHIPPED_SKILL_NAMES = [
   "ubiquitous-language",
 ];
 
+const GATEWAY_BAKED_SKILL_NAMES = [
+  "lore-context",
+  "tdd-loop",
+  "legacy-characterize",
+];
+
 describe("loadSkillDefaults", () => {
   const skills = loadSkillDefaults();
 
@@ -54,5 +61,27 @@ describe("loadSkillDefaults", () => {
   it("reads the skills from inside libs/shared, never apps/mcp-server", () => {
     expect(SHIPPED_SKILLS_DIR).toMatch(/libs\/shared\/.*\/skills\/$/);
     expect(SHIPPED_SKILLS_DIR).not.toContain("apps/mcp-server");
+  });
+
+  it("returns skills that never mention resources/", () => {
+    expect(
+      skills
+        .filter((skill) => skill.content.includes("resources/"))
+        .map((skill) => skill.name),
+    ).toEqual([]);
+  });
+
+  it("returns skills that only name shipped or gateway-baked skills", () => {
+    const existing = new Set([
+      ...SHIPPED_SKILL_NAMES,
+      ...GATEWAY_BAKED_SKILL_NAMES,
+    ]);
+    const unknownReferences = skills.flatMap((skill) =>
+      referencedSkillNames(skill.content)
+        .filter((name) => !existing.has(name))
+        .map((name) => `${skill.name} -> ${name}`),
+    );
+
+    expect(unknownReferences).toEqual([]);
   });
 });

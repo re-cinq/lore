@@ -6,119 +6,17 @@ model: claude-haiku-4-5-20251001
 context: fork
 ---
 
-# Check Tests Skill
+# Check Tests
 
 Run tests only for files that changed in the current branch.
 
-## Usage
-```
-/check-tests [base-branch]
-```
+Usage: `/check-tests [base-branch]`; the base defaults to the repository's default branch.
 
-Arguments:
-- `base-branch` (optional): The branch to compare against. Defaults to `develop`.
-
-## Instructions
-
-### Step 1: Identify Changed Files
-
-```bash
-# Get list of changed TypeScript/JavaScript files
-git diff --name-only develop...HEAD 2>/dev/null || git diff --name-only main...HEAD
-```
-
-### Step 2: Categorize Files by Project
-
-Separate the changed files into:
-- **Frontend files**: Files in `frontend/src/`
-- **Backend files**: Files in `node-backend/src/`
-- **E2E files**: Files in `e2e/`
-
-### Step 3: Find Related Test Files
-
-For each changed source file, identify related test files:
-
-**Pattern mapping:**
-| Source File | Test File Patterns |
-|-------------|-------------------|
-| `src/components/Foo.tsx` | `Foo.test.tsx`, `Foo.spec.tsx` |
-| `src/utils/bar.ts` | `bar.test.ts`, `bar.spec.ts` |
-| `src/services/Baz.ts` | `Baz.spec.ts`, `Baz.test.ts` |
-
-```bash
-# Find test files for changed files (frontend)
-cd frontend && for file in <changed-frontend-files>; do
-  basename="${file%.ts*}"
-  find src -name "${basename}.test.ts*" -o -name "${basename}.spec.ts*" 2>/dev/null
-done
-
-# Find test files for changed files (backend)
-cd node-backend && for file in <changed-backend-files>; do
-  basename="${file%.ts}"
-  find src -name "${basename}.spec.ts" -o -name "${basename}.test.ts" 2>/dev/null
-done
-```
-
-### Step 4: Run Tests
-
-**Frontend Tests:**
-```bash
-cd frontend
-yarn test --findRelatedTests <list-of-changed-files> --passWithNoTests
-```
-
-**Backend Tests:**
-```bash
-cd node-backend
-yarn test --findRelatedTests <list-of-changed-files> --passWithNoTests
-```
-
-If `--findRelatedTests` doesn't work well, fall back to:
-```bash
-# Frontend - run specific test files
-cd frontend && yarn test <test-file-1> <test-file-2> --passWithNoTests
-
-# Backend - run specific test files
-cd node-backend && yarn test <test-file-1> <test-file-2> --passWithNoTests
-```
-
-### Step 5: Report Results
-
-Output a summary:
-
-```
-## Test Results for Branch: <branch-name>
-
-### Files Changed
-- <list of source files changed>
-
-### Tests Executed
-
-#### Frontend
-- Files tested: <count>
-- Tests: <passed>/<total>
-- Status: PASS/FAIL
-
-#### Backend
-- Files tested: <count>
-- Tests: <passed>/<total>
-- Status: PASS/FAIL
-
-### Coverage Gaps
-<list any changed files that don't have corresponding tests>
-
-### Failed Tests
-<details of any failures>
-
-### Overall: PASS/FAIL
-```
-
-### Notes
-
-- If a changed file has no tests, flag it as a coverage gap
-- If tests fail, show the failure details
-- Consider running tests in parallel for frontend and backend
-- Use `--passWithNoTests` to avoid failures when no tests match
+1. List the changed files: `git diff --name-only <base>...HEAD`.
+2. Detect the repo's test runner from its manifest (`package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, `pom.xml`, `Gemfile`, `mix.exs`) and its config. Use that runner; never install another.
+3. Find the tests related to the changed files, using the runner's own mechanism (for example `vitest related`, `jest --findRelatedTests`, `go test` on the changed packages, `pytest` on the matching test files) or, failing that, the test files that sit beside the changed files or import them. Include changed test files themselves.
+4. Run only those tests, never the whole suite.
+5. Report the branch name, the changed files, passed and failed counts with the failure details, and every changed source file that has no test.
 
 ## Help
 

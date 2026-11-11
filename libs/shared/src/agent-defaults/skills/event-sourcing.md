@@ -10,25 +10,10 @@ Event sourcing stores every change to application state as an immutable, append-
 This skill applies only to projects — or the specific bounded contexts within them — that have deliberately opted in to event sourcing. **It is the top of the complexity ladder, not a default.** Read "When to Use Event Sourcing" first; most features should stop at explicit returns, an audit table, or the outbox pattern.
 
 **This skill builds on three others — load them alongside it:**
-- `domain-driven-design` — the **Decider** (`decide`/`evolve`/`initialState`) is defined in its `resources/domain-events.md`. Event sourcing *persists and replays* that same decider. This skill assumes you have read it.
-- `hexagonal-architecture` — the event store is a **driven port** with an adapter; the domain stays pure. Reads use the **CQRS-lite** split (`resources/cqrs-lite.md`).
+- `domain-driven-design` — the **Decider** (`decide`/`evolve`/`initialState`) is described in its domain-events section. Event sourcing *persists and replays* that same decider. This skill assumes you have read it.
+- `hexagonal-architecture` — the event store is a **driven port** with an adapter; the domain stays pure. Reads use the **CQRS-lite** split.
 - `typescript-strict` — events cross a trust boundary on the way out of and back into storage, so they are **schema-first** with branded IDs.
 
-**Deep-dive resources** are in `resources/`. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `when-to-use-event-sourcing.md` | Deciding whether to adopt it; comparing against CQRS, event-driven architecture, streaming, and audit logs |
-| `modelling-events.md` | Discovering and naming events (EventStorming), event granularity, what data belongs in an event |
-| `decider-and-rehydration.md` | Writing the decide/evolve pair, rehydration, the command handler loop, decider composition |
-| `event-store.md` | Designing the EventStore port, the Postgres schema, optimistic concurrency, the event envelope, the TS/Node tooling landscape |
-| `projections-and-read-models.md` | Building read models, inline vs async projections, rebuilds, checkpoints, eventual consistency |
-| `event-versioning.md` | Evolving event schemas — upcasting, tolerant readers, weak schema, stream copy-transform |
-| `testing-event-sourced-systems.md` | Testing deciders, projections, and upcasters as behaviour, not with a given-when-then DSL |
-| `production-concerns.md` | Snapshots, GDPR/crypto-shredding, idempotent delivery, operability, the anti-patterns catalog |
-| `references.md` | Checking the rationale and primary sources behind this guidance |
-
-For authoritative sources, see `claude/.claude/skills/REFERENCES.md` in the source repo (https://github.com/citypaul/.dotfiles) — that file is not bundled when this skill is installed standalone.
 
 ---
 
@@ -45,10 +30,10 @@ Event sourcing earns its considerable complexity only when **the history of chan
 **Do NOT use event sourcing when:**
 - The domain is **CRUD** — forms over data with no meaningful history. Store the current state.
 - You only need an **audit log** — add an append-only history table next to your current-state table. Far cheaper.
-- You only need **cross-aggregate side effects** — use domain events with the **outbox pattern** (see `domain-driven-design/resources/domain-events.md`). That is event-*driven*, not event-*sourced*.
+- You only need **cross-aggregate side effects** — use domain events with the **outbox pattern**. That is event-*driven*, not event-*sourced*.
 - The team has **no experience with it** and the domain does not demand it. The failure mode is a half-built event store with no versioning strategy that becomes impossible to change.
 
-**The complexity ladder** (from the DDD `domain-events.md`, extended): explicit return values → in-process domain events → outbox pattern → **event sourcing**. Climb one rung at a time, and only when the current rung cannot express what you need. Event sourcing is the last rung; step onto it deliberately, and usually for **one bounded context**, not the whole system.
+**The complexity ladder** (from the `domain-driven-design` skill, extended): explicit return values → in-process domain events → outbox pattern → **event sourcing**. Climb one rung at a time, and only when the current rung cannot express what you need. Event sourcing is the last rung; step onto it deliberately, and usually for **one bounded context**, not the whole system.
 
 **Event sourcing is not CQRS.** They are orthogonal. CQRS separates the write model from read models; event sourcing chooses events as the write model's storage. You can do CQRS without event sourcing (that is the hexagonal skill's CQRS-lite) and — rarely — event sourcing without CQRS. In practice event sourcing almost always drives CQRS, because the stored events are a poor shape for queries, so you project them into read models. See `when-to-use-event-sourcing.md` for the full comparison against event-driven architecture, streaming (Kafka), and audit logs.
 

@@ -13,11 +13,9 @@ Keep this skill distinct from:
 - `structure-codebase`, which owns physical trees, package boundaries, import direction, enforcement, and folder migration;
 - `reduce-system-complexity`, which conserves behavior while gathering same-scope evidence for a calibrated claim that total mechanism fell in an already-selected path;
 - `evaluate-existing-solutions`, which compares current external and built-in implementation options after the job and constraints are selected;
-- `refactoring`, which implements behavior-preserving improvements after the safety net is trustworthy.
 
 A request specifically to review a source tree, folder scheme, package split, or import enforcement belongs directly to `structure-codebase`. Use this skill when the unresolved question is **which architecture investment is worth making and why now**. On an ambiguous “architecture refactor” request, audit and select first; do not start this and `refactoring` as concurrent workflows.
 
-Read [`references/html-report.md`](references/html-report.md) before creating the report. Read [`references/source-notes.md`](references/source-notes.md) when explaining provenance or comparing this adaptation with its upstream source.
 
 ## Operating Contract
 
@@ -113,7 +111,7 @@ If no candidate rises above speculative, recommend **no architecture investment 
 
 ### 6. Produce the HTML architecture report
 
-Create the visual report as a first-class deliverable using [`references/html-report.md`](references/html-report.md).
+Create the visual report as a first-class deliverable.
 
 - Default to a fresh timestamped file under the OS temp directory so an exploratory audit does not dirty the repository.
 - Use a durable project path only when the user requests it or the project already defines an architecture-review artifact location.
@@ -142,8 +140,8 @@ For the selected candidate:
 
 Only implement when requested:
 
-- Untested or untestable existing behavior: `finding-seams` as needed, then `characterisation-tests` and `mutation-testing` over the change area.
-- Behavior-preserving restructuring with a trustworthy safety net: `refactoring`, keeping observable behavior stable.
+- Untested or untestable existing behavior: `legacy-characterize` (pod skill) or `legacy-add-tests`, then `mutation-testing` over the change area.
+- Behavior-preserving restructuring with a trustworthy safety net: the refactor phase of `tdd-loop`, keeping observable behavior stable.
 - Selected whole-path subtraction with a trustworthy safety net: `reduce-system-complexity`, preserving behavior while applying the behavior gate on every slice and the mechanism gate at terminal reduction.
 - New or changed behavior: `tdd`, `testing`, `mutation-testing`, and `refactoring`.
 - Public compatibility: `api-design`.
@@ -183,7 +181,7 @@ Every reported candidate must contain:
 
 ## Attribution
 
-Adapted from Matt Pocock's MIT-licensed `improve-codebase-architecture` skill and HTML report resource, with its deep-module lens supplied by the attributed `codebase-design` sibling. See [`references/source-notes.md`](references/source-notes.md) and [`LICENSE`](LICENSE) for pinned provenance and license terms.
+Adapted from Matt Pocock's MIT-licensed `improve-codebase-architecture` skill and HTML report resource, with its deep-module lens supplied by the attributed `codebase-design` sibling.
 
 ## Help
 
