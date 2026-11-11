@@ -41,7 +41,7 @@ describe("splitSkillContent", () => {
     const { body } = splitSkillContent(content);
 
     expect(content.endsWith(body)).toBe(true);
-    expect(body.startsWith("You are an expert Test Design Review Agent")).toBe(
+    expect(body.startsWith("Review the given tests against Dave Farley")).toBe(
       true,
     );
   });

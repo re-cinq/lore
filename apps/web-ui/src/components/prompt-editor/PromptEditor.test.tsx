@@ -276,9 +276,19 @@ describe("PromptEditor", () => {
       </form>,
     );
 
+    const fromFirstTable = render(
+      <PromptEditor
+        name="prompt"
+        defaultValue={body.slice(body.indexOf("\n| "))}
+        verbatim
+      />,
+    );
+
     expect({
       submitted: submittedPrompt(container.querySelector("form")!),
-      tables: container.querySelectorAll("table.cm-prompt-table").length > 0,
+      tables:
+        fromFirstTable.container.querySelectorAll("table.cm-prompt-table")
+          .length > 0,
     }).toEqual({ submitted: body, tables: true });
   });
 

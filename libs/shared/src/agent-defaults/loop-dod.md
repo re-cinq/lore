@@ -26,6 +26,7 @@ config:
     - lore-context
     - tdd-loop
     - legacy-characterize
+    - testing
   skills_source: ${LORE_SKILLS_URL}
   mcp_servers:
     - name: lore

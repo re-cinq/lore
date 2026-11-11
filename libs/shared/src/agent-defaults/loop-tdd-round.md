@@ -19,6 +19,11 @@ config:
   skills:
     - lore-context
     - tdd-loop
+    - legacy-characterize
+    - testing
+    - front-end-testing
+    - react-testing
+    - typescript-strict
   skills_source: ${LORE_SKILLS_URL}
   mcp_servers:
     - name: lore
