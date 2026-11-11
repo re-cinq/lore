@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
@@ -174,7 +174,7 @@ new way to change a run or a plan.
 - FR4.5: The plan lifecycle routes are registered outside `routeList`
   (`apps/lore-api/src/app/register-planning.ts`) and so are missing from
   `apps/lore-api/openapi.json`. The ones the inbox calls are added to the
-  OpenAPI document so the web UI's generated types cover them.
+  OpenAPI document so the web UI's generated types cover them. ([validated by includes dynamically registered planning lifecycle routes in the generated document @754c60e3](apps/lore-api/src/transport/openapi/gen-openapi.acceptance.test.ts#L6))
 
 ## FR5 — The Inbox screen
 
