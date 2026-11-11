@@ -24,7 +24,7 @@ export * from "./work/chunker-symbols.js";
 export * from "./work/chunker-ast.js";
 export * from "./work/chunk-primitives.js";
 export { redactSecrets } from "./lib/redact.js";
-export { CONTEXT_BOOTSTRAP } from "./domain/agents/recipe-prompt.js";
+export * from "./domain/agents/index.js";
 export {
   writeEpisode,
   writeEpisodeWithCuration,
