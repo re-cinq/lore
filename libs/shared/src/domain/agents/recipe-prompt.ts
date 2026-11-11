@@ -20,37 +20,49 @@ export interface RuntimeContextArgs {
   [key: string]: unknown;
 }
 
-/** Appends CI verdict, node-failure, and previous-round blocks; skipped when reported_changes is false and no node_failure is present, or when failed_checks is empty and no node_failure is present. */
+/** Appends node-failure (when not reported_changes) or previous-round and CI-verdict blocks (when reported_changes has failed_checks). */
 export function appendRuntimeContext(
   basePrompt: string,
   args: RuntimeContextArgs,
 ): string {
-  const { reported_changes, node_failure, ci_verdict } = args;
-  const hasCiFailures =
-    ci_verdict != null && ci_verdict.failed_checks.length > 0;
+  const blocks = buildContextBlocks(args);
 
-  if (!reported_changes || (!node_failure && !hasCiFailures)) {
+  if (blocks.length === 0) {
     return basePrompt;
   }
 
-  return [basePrompt, ...buildContextBlocks(args)].join("\n\n");
+  return [basePrompt, ...blocks].join("\n\n");
 }
 
 function buildContextBlocks(args: RuntimeContextArgs): string[] {
-  const { previous_round_report, node_failure, ci_verdict } = args;
+  if (!args.reported_changes) {
+    return args.node_failure ? [buildNodeFailureBlock(args.node_failure)] : [];
+  }
+
+  return buildCiVerdictBlocks(args);
+}
+
+function buildNodeFailureBlock(failure: {
+  name: string;
+  output: string;
+}): string {
+  return [`## The previous step ${failure.name} failed`, failure.output].join(
+    "\n",
+  );
+}
+
+function buildCiVerdictBlocks(args: RuntimeContextArgs): string[] {
+  const { previous_round_report, ci_verdict } = args;
+
+  if (!ci_verdict || ci_verdict.failed_checks.length === 0) {
+    return [];
+  }
   const blocks: string[] = [];
 
   if (previous_round_report) {
     blocks.push(buildPreviousRoundBlock(previous_round_report));
   }
-
-  if (node_failure) {
-    blocks.push(buildNodeFailureBlock(node_failure));
-  }
-
-  if (ci_verdict && ci_verdict.failed_checks.length > 0) {
-    blocks.push(buildCiBlock(ci_verdict));
-  }
+  blocks.push(buildCiBlock(ci_verdict));
 
   return blocks;
 }
@@ -70,15 +82,6 @@ function buildPreviousRoundBlock(report: {
   }
 
   return lines.join("\n");
-}
-
-function buildNodeFailureBlock(failure: {
-  name: string;
-  output: string;
-}): string {
-  return [`## The previous step ${failure.name} failed`, failure.output].join(
-    "\n",
-  );
 }
 
 function buildCiBlock(verdict: CiVerdict): string {
