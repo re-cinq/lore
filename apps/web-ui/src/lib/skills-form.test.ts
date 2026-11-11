@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { configuredSkills, parseSkills } from "./skills-form";
+import {
+  configuredAdjustSkillModels,
+  configuredSkills,
+  parseAdjustSkillModels,
+  parseSkills,
+} from "./skills-form";
 
 function fd(entries: Record<string, string>): FormData {
   const form = new FormData();
@@ -29,5 +34,27 @@ describe("configuredSkills", () => {
       configuredSkills(null),
       configuredSkills({ test_policy: "none" }),
     ]).toEqual([["lore-context"], [], []]);
+  });
+});
+
+describe("parseAdjustSkillModels", () => {
+  it("reads 1 as true, 0 as false and an absent field as undefined", () => {
+    expect([
+      parseAdjustSkillModels(fd({ adjust_skill_models: "1" })),
+      parseAdjustSkillModels(fd({ adjust_skill_models: "0" })),
+      parseAdjustSkillModels(fd({})),
+    ]).toEqual([true, false, undefined]);
+  });
+});
+
+describe("configuredAdjustSkillModels", () => {
+  it("is off only for the skills_source https://gw/skills/verbatim", () => {
+    expect([
+      configuredAdjustSkillModels({ skills_source: "https://gw/skills" }),
+      configuredAdjustSkillModels({
+        skills_source: "https://gw/skills/verbatim",
+      }),
+      configuredAdjustSkillModels(null),
+    ]).toEqual([true, false, true]);
   });
 });

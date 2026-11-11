@@ -5,16 +5,10 @@ description: Functional programming patterns with immutable data. Use when writi
 
 # Functional Patterns
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `immutability-catalog.md` | Fixing mutation bugs, applying `readonly`/`ReadonlyArray` types, or looking up the immutable alternative to an array/object mutation |
-| `composition-patterns.md` | Composing small functions into pipelines, refactoring monolithic logic, or flattening deeply nested code |
 
 ---
 
-Small pure functions are an implementation technique, not a mandate to publish one function per module. Keep related helpers private and colocated when they compose into one coherent responsibility; use `codebase-design` when choosing the stable caller-facing contract.
+Small pure functions are an implementation technique, not a mandate to publish one function per module. Keep related helpers private and colocated when they compose into one coherent responsibility.
 
 ## Core Principles
 
@@ -43,7 +37,7 @@ console.log(user.permissions); // ['read'] - original unchanged
 console.log(updatedUser.permissions); // ['read', 'write'] - new version
 ```
 
-Use `readonly` on all data structure properties and `ReadonlyArray<T>` for arrays so the compiler enforces this. For the full catalog of mutations and their immutable alternatives, load `resources/immutability-catalog.md`.
+Use `readonly` on all data structure properties and `ReadonlyArray<T>` for arrays so the compiler enforces this.
 
 ---
 
@@ -78,7 +72,7 @@ Code should be clear through naming and structure. Comments indicate unclear cod
 
 **Exceptions:**
 - JSDoc for public APIs when generating documentation
-- "Why"-comments required by other skills: characterisation test file headers and SUSPICIOUS behavior markers (see the `characterisation-tests` skill)
+- "Why"-comments required by other skills: characterisation test file headers and SUSPICIOUS behavior markers (see the `legacy-add-tests` skill)
 - Constraints the code cannot express (e.g. a workaround pinned to an upstream bug, an ordering requirement imposed by an external system)
 
 ❌ **WRONG - Comments explaining unclear code**
@@ -212,7 +206,7 @@ async function saveOrder(order: Order): Promise<void> {
 
 ## Early Returns Over Nesting
 
-**Max 2 levels of function nesting.** Beyond that, extract functions or flatten with guard clauses. For worked flattening and composition examples, load `resources/composition-patterns.md`.
+**Max 2 levels of function nesting.** Beyond that, extract functions or flatten with guard clauses.
 
 ```typescript
 // ❌ WRONG - Nested conditions
@@ -273,6 +267,10 @@ When writing functional code, verify:
 - [ ] `ReadonlyArray<T>` for immutable arrays
 - [ ] Max 2 levels of nesting (use early returns)
 - [ ] Result types for error handling
+
+## Attribution
+
+Adapted from the `functional` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/functional), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

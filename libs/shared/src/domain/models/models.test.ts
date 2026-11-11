@@ -58,6 +58,7 @@ const files = [
           !f.endsWith(".d.ts"),
       )
       .sort()
+      .filter((f) => !/^index\.[tj]s$/.test(f))
       .map((f) => [f.replace(/\.[tj]s$/, ""), f] as const),
   ).values(),
 ].sort();

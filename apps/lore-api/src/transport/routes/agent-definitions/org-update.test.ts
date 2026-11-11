@@ -101,6 +101,21 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
   });
 
+  it("stores https://skills.test/verbatim in fix-ci's skills_source when adjust_skill_models is false", async () => {
+    process.env.LORE_SKILLS_URL = "https://skills.test";
+    const floor = await floorWithFixCi();
+
+    await put(await server(floor), {
+      name: "fix-ci",
+      adjust_skill_models: false,
+    });
+
+    expect((await floor.get("fix-ci"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+      skills_source: "https://skills.test/verbatim",
+    });
+  });
+
   it("puts the search MCP server with its X-API-Key header into fix-ci's config, keeping its skill", async () => {
     const floor = await floorWithFixCi();
     const search = {

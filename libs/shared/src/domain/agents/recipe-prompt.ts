@@ -16,31 +16,55 @@ export interface RuntimeContextArgs {
   reported_changes?: boolean;
   previous_round_report?: { done?: string; next?: string };
   ci_verdict?: CiVerdict;
+  node_failure?: { name: string; output: string };
   [key: string]: unknown;
 }
 
-/** Appends CI verdict and previous-round blocks; skipped when reported_changes is false or failed_checks is empty. */
+/** Appends node-failure (when not reported_changes) or previous-round and CI-verdict blocks (when reported_changes has failed_checks). */
 export function appendRuntimeContext(
   basePrompt: string,
   args: RuntimeContextArgs,
 ): string {
-  const { reported_changes, previous_round_report, ci_verdict } = args;
+  const blocks = buildContextBlocks(args);
 
-  if (
-    !reported_changes ||
-    !ci_verdict ||
-    ci_verdict.failed_checks.length === 0
-  ) {
+  if (blocks.length === 0) {
     return basePrompt;
   }
-  const blocks = [basePrompt];
+
+  return [basePrompt, ...blocks].join("\n\n");
+}
+
+function buildContextBlocks(args: RuntimeContextArgs): string[] {
+  if (!args.reported_changes) {
+    return args.node_failure ? [buildNodeFailureBlock(args.node_failure)] : [];
+  }
+
+  return buildCiVerdictBlocks(args);
+}
+
+function buildNodeFailureBlock(failure: {
+  name: string;
+  output: string;
+}): string {
+  return [`## The previous step ${failure.name} failed`, failure.output].join(
+    "\n",
+  );
+}
+
+function buildCiVerdictBlocks(args: RuntimeContextArgs): string[] {
+  const { previous_round_report, ci_verdict } = args;
+
+  if (!ci_verdict || ci_verdict.failed_checks.length === 0) {
+    return [];
+  }
+  const blocks: string[] = [];
 
   if (previous_round_report) {
     blocks.push(buildPreviousRoundBlock(previous_round_report));
   }
   blocks.push(buildCiBlock(ci_verdict));
 
-  return blocks.join("\n\n");
+  return blocks;
 }
 
 function buildPreviousRoundBlock(report: {

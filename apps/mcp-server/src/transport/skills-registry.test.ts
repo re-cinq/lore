@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadAgentDefaults } from "@re-cinq/lore-shared/project/agents/agent-defaults-files.js";
+import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import type { SkillDefinition } from "@re-cinq/lore-shared/models/skill-definition.js";
 import { handleSkillsRequest, isForwardedByProxy } from "./skills-registry.js";
 
@@ -109,31 +110,6 @@ describe("handleSkillsRequest", () => {
 
     expect([buf[0], buf[1]]).toEqual([0x1f, 0x8b]);
   });
-
-  it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
-    const recipes = loadAgentDefaults();
-    const declared = [
-      ...new Set(recipes.flatMap((r) => r.config?.skills ?? [])),
-    ].sort();
-
-    const served = await Promise.all(
-      declared.map(async (name) => {
-        const { res, captured, body } = mockRes();
-        const done = body();
-
-        await handleSkillsRequest(
-          req("GET", `/skills/${name}.tar.gz`),
-          res,
-          skillsRoot,
-        );
-        await done;
-
-        return { name, status: captured.status };
-      }),
-    );
-
-    expect(served).toEqual(declared.map((name) => ({ name, status: 200 })));
-  });
 });
 
 function catalogueSkill(
@@ -192,6 +168,27 @@ describe("handleSkillsRequest catalogue fallback", () => {
         input: body,
       }).toString(),
     }).toEqual({ status: 200, skillMd: "# cli-design\n\nbody" });
+  });
+
+  it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        skills: loadSkillDefaults().map((skill) => catalogueSkill(skill.name)),
+      }),
+    });
+    const declared = [
+      ...new Set(loadAgentDefaults().flatMap((r) => r.config?.skills ?? [])),
+    ].sort();
+
+    const served = await Promise.all(
+      declared.map(async (name) => ({
+        name,
+        status: (await skillsGet(`/skills/${name}.tar.gz`)).status,
+      })),
+    );
+
+    expect(served).toEqual(declared.map((name) => ({ name, status: 200 })));
   });
 
   it("serves the baked lore-context without asking the catalogue, whatever the catalogue holds under that name", async () => {
@@ -259,6 +256,84 @@ describe("handleSkillsRequest catalogue fallback", () => {
     expect({ status, gzip: [body[0], body[1]] }).toEqual({
       status: 200,
       gzip: [0x1f, 0x8b],
+    });
+  });
+});
+
+describe("handleSkillsRequest model adjustment", () => {
+  const fetchMock = vi.fn();
+  const sonnetSkill = catalogueSkill("cli-design", {
+    content:
+      "---\nname: cli-design\nmodel: claude-sonnet-4-6\n---\n\n# cli-design\n",
+  });
+  const skillMdOf = (body: Buffer) =>
+    execFileSync("tar", ["-xzOf", "-", "cli-design/SKILL.md"], {
+      input: body,
+    }).toString();
+
+  beforeEach(() => {
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ skills: [sonnetSkill] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("serves cli-design without its model line when x-agent-model is gemini-4-argon", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz", {
+      "x-agent-model": "gemini-4-argon",
+    });
+
+    expect(skillMdOf(body)).toEqual(
+      "---\nname: cli-design\n---\n\n# cli-design\n",
+    );
+  });
+
+  it("serves cli-design with its model line when x-agent-model is claude-sonnet-4-6", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz", {
+      "x-agent-model": "claude-sonnet-4-6",
+    });
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves cli-design with its model line when no x-agent-model is sent", async () => {
+    const { body } = await skillsGet("/skills/cli-design.tar.gz");
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves cli-design with its model line from /skills/verbatim/ when x-agent-model is gemini-4-argon", async () => {
+    const { body } = await skillsGet("/skills/verbatim/cli-design.tar.gz", {
+      "x-agent-model": "gemini-4-argon",
+    });
+
+    expect(skillMdOf(body)).toEqual(sonnetSkill.content);
+  });
+
+  it("serves /skills/verbatim/settings.json equal to /skills/settings.json", async () => {
+    const plain = await skillsGet("/skills/settings.json");
+    const verbatim = await skillsGet("/skills/verbatim/settings.json");
+
+    expect(verbatim).toEqual(plain);
+    expect(verbatim.status).toBe(200);
+  });
+
+  it("serves a hook bundle from /skills/verbatim/hooks/claude.tar.gz as a gzip tarball", async () => {
+    const { status, body } = await skillsGet(
+      "/skills/verbatim/hooks/claude.tar.gz",
+    );
+
+    expect({ status, magic: [body[0], body[1]] }).toEqual({
+      status: 200,
+      magic: [0x1f, 0x8b],
     });
   });
 });

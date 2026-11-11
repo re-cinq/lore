@@ -34,6 +34,11 @@ type ReasonPulls = Pick<
   | "listFiles"
 >;
 
+export interface TaskGroupRef {
+  task_group_id: string;
+  depends_on?: number[];
+}
+
 export interface BlockedReasonProject {
   pulls: ReasonPulls;
   /** The PR's conversation and its backlog issue's: both are issue comments on GitHub. */
@@ -45,6 +50,10 @@ export interface BlockedReasonProject {
   taskIssue(taskId: string): Promise<number | null>;
   /** The repository's auto-merge loop is on: then every open PR is the loop's to work, whoever opened it. */
   autoMergeOn(): Promise<boolean>;
+  /** The PR's task-group membership and its `depends_on` list; undefined when the PR has no task group. */
+  taskGroup?(prNumber: number): Promise<TaskGroupRef | undefined>;
+  /** True when a person requested a re-review on a head that was already approved, holding auto-merge until the new review lands. */
+  hasReviewInFlight?(prNumber: number): Promise<boolean>;
 }
 
 export interface BlockedReasonDeps {
@@ -73,12 +82,12 @@ export async function runBlockedReason(
   if (event.name === "github.pull_request.closed") {
     return closePulls({ repo, login, deps }, event.params);
   }
-  const project = await deps.project(repo);
-  const pulls = await watchedPulls(event, project, login);
-  const scope = { repo, project, reasons: deps.reasons };
-  const outcomes = await Promise.all(pulls.map((pr) => refresh(scope, pr)));
 
-  return outcomes.join("; ") || "no Lore PR to read";
+  if (event.name === "lore.pull_request.merge_refused") {
+    return handleMergeRefused({ repo, login, deps }, event.params);
+  }
+
+  return refreshWatched(event, { repo, login, deps });
 }
 
 interface ClosedScope {
@@ -95,8 +104,8 @@ async function closePulls(
   const { repo, deps } = scope;
   const numbers = pullNumbersIn(params);
 
-  await Promise.all(numbers.map((number) => deps.reasons.close(repo, number)));
-  const closed = numbers.map((number) => `#${number} closed`);
+  await Promise.all(numbers.map((n) => deps.reasons.close(repo, n)));
+  const closed = numbers.map((n) => `#${n} closed`);
   const merges =
     params.merged === true ? await auditMerges(scope, numbers) : [];
 
@@ -109,9 +118,7 @@ async function auditMerges(
 ): Promise<string[]> {
   const project = await deps.project(repo);
 
-  return Promise.all(
-    numbers.map((number) => auditMerge(project, login, number)),
-  );
+  return Promise.all(numbers.map((n) => auditMerge(project, login, n)));
 }
 
 /** The `pr_merged` row the KPI view counts; a redelivered close finds it written and writes no second one. */
@@ -150,13 +157,10 @@ async function writeMerge(
 }
 
 /** The changed files CODEOWNERS gives an owner, and who approved: what SC-004 weighs against each other. */
-async function mergeReview(
-  { pulls, repo }: BlockedReasonProject,
-  number: number,
-): Promise<{ sensitivePaths: string[]; approvedBy: string[] }> {
+async function mergeReview({ pulls, repo }: BlockedReasonProject, n: number) {
   const [files, reviews, codeowners] = await Promise.all([
-    pulls.listFiles(number),
-    pulls.listReviews(number),
+    pulls.listFiles(n),
+    pulls.listReviews(n),
     codeownersOf(repo),
   ]);
 
@@ -172,6 +176,18 @@ function pullNumbersIn(params: ReasonEvent["params"]): number[] {
   return [params.pr_number, ...listed].filter(
     (n): n is number => typeof n === "number",
   );
+}
+
+async function refreshWatched(
+  event: ReasonEvent,
+  { repo, login, deps }: ClosedScope,
+): Promise<string> {
+  const project = await deps.project(repo);
+  const pulls = await watchedPulls(event, project, login);
+  const scope = { repo, project, reasons: deps.reasons };
+  const outcomes = await Promise.all(pulls.map((pr) => refresh(scope, pr)));
+
+  return outcomes.join("; ") || "no Lore PR to read";
 }
 
 /** The open, non-draft PRs this event concerns that Lore's App opened, or any author's where the auto-merge loop is on: a push concerns every open PR based on the pushed branch. */
@@ -199,8 +215,19 @@ const awaitsMerge = (pr: PullRef): boolean =>
   pr.state === "open" && pr.draft !== true;
 
 async function refresh(scope: RepoScope, pr: PullRef): Promise<string> {
+  const blocked = await resolveBlockedReason(scope.project, pr);
+
+  await scope.reasons.resetUnclassifiedRefusals(scope.repo, pr.number);
+
+  return applyReason(scope, pr, blocked);
+}
+
+async function applyReason(
+  scope: RepoScope,
+  pr: Pick<PullRef, "number" | "body">,
+  blocked: BlockedReason | null,
+): Promise<string> {
   const { project, reasons } = scope;
-  const blocked = deriveBlockedReason(await pullState(project.pulls, pr));
   const current = await reasons.current(scope.repo, pr.number);
 
   if (sameReason(current, blocked)) {
@@ -216,21 +243,85 @@ async function refresh(scope: RepoScope, pr: PullRef): Promise<string> {
   return `#${pr.number} ${blocked?.reason ?? "clear"}`;
 }
 
-/** The audit row's payload: `from` and `to` are reason codes, null where nothing blocks. */
-function reasonChange(
+async function handleMergeRefused(
+  { repo, deps }: ClosedScope,
+  params: ReasonEvent["params"],
+): Promise<string> {
+  const prNumber = Number(params.pr_number);
+  const message = String(params.message ?? "");
+
+  if (isNamedRefusal(message)) {
+    await deps.reasons.resetUnclassifiedRefusals(repo, prNumber);
+
+    return recordRefusal({ repo, deps }, prNumber, message);
+  }
+  const count = await deps.reasons.bumpUnclassifiedRefusal(repo, prNumber);
+
+  return count >= 3
+    ? recordRefusal({ repo, deps }, prNumber, message)
+    : `#${prNumber} unclassified refusal ${count}/3`;
+}
+
+async function recordRefusal(
+  { repo, deps }: Pick<ClosedScope, "repo" | "deps">,
   prNumber: number,
-  from: BlockedReason | null,
-  to: BlockedReason | null,
-): Record<string, unknown> {
-  return {
-    prNumber,
-    from: codeOf(from),
-    to: codeOf(to),
-    detail: to?.detail ?? null,
-  };
+  detail: string,
+): Promise<string> {
+  const project = await deps.project(repo);
+  const pr = (await project.pulls.get(prNumber)) ?? { number: prNumber };
+  const refusal: BlockedReason = { reason: "github_refused", detail };
+
+  return applyReason({ repo, project, reasons: deps.reasons }, pr, refusal);
+}
+
+/** Messages that look like generic infrastructure errors rather than recognisable GitHub refusal conditions. */
+const GENERIC = /unknown|server.?error|internal.?error|timeout/i;
+const isNamedRefusal = (m: string): boolean => !GENERIC.test(m);
+
+async function resolveBlockedReason(
+  project: BlockedReasonProject,
+  pr: PullRef,
+): Promise<BlockedReason | null> {
+  const dep = await blockingDependency(project, pr);
+
+  if (dep !== null) {
+    return { reason: "blocked_by_pr", detail: String(dep) };
+  }
+
+  if (await project.hasReviewInFlight?.(pr.number)) {
+    return { reason: "review_in_flight", detail: null };
+  }
+
+  return deriveBlockedReason(await pullState(project.pulls, pr));
+}
+
+const isUnmergedPr = (p: PullRef | null): p is PullRef =>
+  p !== null && !p.mergedAt;
+
+async function blockingDependency(
+  project: BlockedReasonProject,
+  pr: PullRef,
+): Promise<number | null> {
+  const tg = await project.taskGroup?.(pr.number);
+  const numbers = tg?.depends_on ?? [];
+  const prs = await Promise.all(numbers.map((n) => project.pulls.get(n)));
+
+  return prs.find(isUnmergedPr)?.number ?? null;
 }
 
 const codeOf = (blocked: BlockedReason | null) => blocked?.reason ?? null;
+
+/** The audit row's payload: `from` and `to` are reason codes, null where nothing blocks. */
+const reasonChange = (
+  prNumber: number,
+  from: BlockedReason | null,
+  to: BlockedReason | null,
+) => ({
+  prNumber,
+  from: codeOf(from),
+  to: codeOf(to),
+  detail: to?.detail ?? null,
+});
 
 async function pullState(pulls: ReasonPulls, pr: PullRef): Promise<PullState> {
   const base = pr.baseBranch ?? "main";
@@ -242,15 +333,9 @@ async function pullState(pulls: ReasonPulls, pr: PullRef): Promise<PullState> {
     pulls.ciConclusion(head),
     pulls.listReviews(pr.number),
   ]);
+  const approvals = approvalCount(reviews);
 
-  return {
-    base,
-    mergeability,
-    rule,
-    checks,
-    ci,
-    approvals: approvalCount(reviews),
-  };
+  return { base, mergeability, rule, checks, ci, approvals };
 }
 
 const sameReason = (
@@ -272,7 +357,7 @@ function persist(
 /** The PR's comment first, then the backlog issue's, when the PR names a task that has one. */
 async function announce(
   project: BlockedReasonProject,
-  pr: PullRef,
+  pr: Pick<PullRef, "number" | "body">,
   blocked: BlockedReason | null,
 ): Promise<void> {
   await syncReasonComment(project.issues, pr.number, blocked);

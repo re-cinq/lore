@@ -23,6 +23,7 @@ import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import { waitingOnPerson } from "@/lib/human-station";
 import LlmCallsTable from "./LlmCallsTable";
+import BlockedReasonBanner from "./BlockedReasonBanner";
 
 export interface RunLiveShellProps {
   run: AssemblyRun;
@@ -114,6 +115,12 @@ function RunDetails({ props, run, live }: PanelSources) {
       />
       <RunIssueCard issue={props.issue ?? null} />
       <DefinitionOfDonePanel runId={run.id} refreshKey={dodRefreshKey(live)} />
+      <BlockedReasonBanner
+        repo={run.repo}
+        prNumber={run.prNumber}
+        runStatus={run.status}
+        refreshKey={dodRefreshKey(live)}
+      />
       <AssemblyRunOptions run={run} upgradeAvailable={props.upgradeAvailable} />
     </>
   );

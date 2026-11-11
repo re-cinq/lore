@@ -39,7 +39,7 @@ async function repoFilterOptions(): Promise<SearchRepoOption[]> {
 
 /** One memory call covers memories and facts alike — lore-api runs both ranked searches and returns them as one list — and the chunk hits come from lore-api too, which owns the schema union. */
 async function runSearch(q: string, repo?: string): Promise<SearchResult[]> {
-  const memoryHits = await searchMemory(q);
+  const memoryHits = await searchMemory(q, repo);
   const memoryResults = filterCrossRepoMemories(
     (memoryHits.status === "ok"
       ? memoryHits.data.results

@@ -1,6 +1,6 @@
 ---
 name: improve-codebase-architecture
-description: "Audit an existing repository or multi-module subsystem for evidence-backed architecture improvements, rank bounded candidates, and present them in a visual HTML report with before-and-after diagrams and a top recommendation. Use when the user asks where architecture investment would pay off across a codebase, wants multiple architecture candidates ranked, or needs systemic coupling, shotgun-change, testability, or AI-navigability problems diagnosed. For one named module's responsibility, deepening, splitting, or contract use codebase-design; for a source-tree or package audit use structure-codebase; for an already-selected path whose success is an evidence-backed net-mechanism-reduction claim use reduce-system-complexity. This is audit-and-selection by default."
+description: "Audit an existing repository or multi-module subsystem for evidence-backed architecture improvements, rank bounded candidates, and present them in a visual HTML report with before-and-after diagrams and a top recommendation. Use when the user asks where architecture investment would pay off across a codebase, wants multiple architecture candidates ranked, or needs systemic coupling, shotgun-change, testability, or AI-navigability problems diagnosed. For a source-tree or package audit use structure-codebase. This is audit-and-selection by default."
 ---
 
 # Improve Codebase Architecture
@@ -9,15 +9,10 @@ Find the highest-value **bounded** architecture improvement rather than producin
 
 Keep this skill distinct from:
 
-- `codebase-design`, which designs one selected module's responsibility and caller-facing contract;
 - `structure-codebase`, which owns physical trees, package boundaries, import direction, enforcement, and folder migration;
-- `reduce-system-complexity`, which conserves behavior while gathering same-scope evidence for a calibrated claim that total mechanism fell in an already-selected path;
-- `evaluate-existing-solutions`, which compares current external and built-in implementation options after the job and constraints are selected;
-- `refactoring`, which implements behavior-preserving improvements after the safety net is trustworthy.
 
-A request specifically to review a source tree, folder scheme, package split, or import enforcement belongs directly to `structure-codebase`. Use this skill when the unresolved question is **which architecture investment is worth making and why now**. On an ambiguous “architecture refactor” request, audit and select first; do not start this and `refactoring` as concurrent workflows.
+A request specifically to review a source tree, folder scheme, package split, or import enforcement belongs directly to `structure-codebase`. Use this skill when the unresolved question is **which architecture investment is worth making and why now**. On an ambiguous “architecture refactor” request, audit and select first; do not start this and a refactor as concurrent workflows.
 
-Read [`references/html-report.md`](references/html-report.md) before creating the report. Read [`references/source-notes.md`](references/source-notes.md) when explaining provenance or comparing this adaptation with its upstream source.
 
 ## Operating Contract
 
@@ -83,7 +78,7 @@ Look for more than consolidation:
 - **Restore locality** — reunite behavior, tests, schemas, and mappers that change as one unit.
 - **Make a contract honest** — expose required errors, effects, lifecycle, or performance while hiding collaborator mechanics.
 
-Consult `codebase-design` in lens-only mode for depth, leverage, locality, interface burden, seams, and thin-edge safeguards. Do not run its contract workflow or propose an exact interface before selection. Load `structure-codebase`, `hexagonal-architecture`, or `domain-driven-design` only when the candidate actually involves their concerns.
+Use depth, leverage, locality, interface burden, seams, and thin-edge safeguards as lenses; do not propose an exact interface before selection. Load `structure-codebase`, `hexagonal-architecture`, or `domain-driven-design` only when the candidate actually involves their concerns.
 
 Reject candidates based only on file length, folder aesthetics, a single adapter, one duplicated code shape, or speculative future flexibility.
 
@@ -113,7 +108,7 @@ If no candidate rises above speculative, recommend **no architecture investment 
 
 ### 6. Produce the HTML architecture report
 
-Create the visual report as a first-class deliverable using [`references/html-report.md`](references/html-report.md).
+Create the visual report as a first-class deliverable.
 
 - Default to a fresh timestamped file under the OS temp directory so an exploratory audit does not dirty the repository.
 - Use a durable project path only when the user requests it or the project already defines an architecture-review artifact location.
@@ -131,27 +126,24 @@ Stop after the audit unless the user already authorized a specific candidate. As
 
 For the selected candidate:
 
-1. Use `grill-me` when constraints or trade-offs remain decision-heavy.
-2. Load `codebase-design` and its Design It Twice process for a consequential contract.
+1. Settle decision-heavy constraints and trade-offs with the user one question at a time.
+2. For a consequential contract, sketch two or more candidate interfaces and compare them before choosing.
 3. Load `ubiquitous-language` if the design needs a new or changed domain term.
 4. Use `structure-codebase` if placement, packages, exports, or dependency enforcement change.
-5. Use `evaluate-existing-solutions` only when the selected direction introduces or replaces a material generic mechanism or dependency; do not research products for every audit candidate.
+5. Compare existing libraries and built-in options only when the selected direction introduces or replaces a material generic mechanism or dependency; do not research products for every audit candidate.
 6. Offer to record a durable accepted or rejected architecture decision through the project's ADR mechanism when future reviews would otherwise re-litigate it.
 
 ### 8. Route safe implementation
 
 Only implement when requested:
 
-- Untested or untestable existing behavior: `finding-seams` as needed, then `characterisation-tests` and `mutation-testing` over the change area.
-- Behavior-preserving restructuring with a trustworthy safety net: `refactoring`, keeping observable behavior stable.
-- Selected whole-path subtraction with a trustworthy safety net: `reduce-system-complexity`, preserving behavior while applying the behavior gate on every slice and the mechanism gate at terminal reduction.
-- New or changed behavior: `tdd`, `testing`, `mutation-testing`, and `refactoring`.
+- Untested or untestable existing behavior: `legacy-characterize` (pod skill) or `legacy-add-tests`, then `mutation-testing` over the change area.
+- Behavior-preserving restructuring with a trustworthy safety net: the refactor phase of `tdd-loop`, keeping observable behavior stable.
+- New or changed behavior: `tdd-loop`, `testing`, and `mutation-testing`.
 - Public compatibility: `api-design`.
 - Package and import migration: `structure-codebase` and its migration gates.
 - Explicit ports-and-adapters design: `hexagonal-architecture`.
-- Significant multi-slice delivery: `planning` after the candidate and contract are selected.
-- Consequential library, tool, application, service, framework, or platform choice: `evaluate-existing-solutions` after candidate selection and before implementation planning.
-- Finished high-stakes work: `double-check` for an adversarial second opinion.
+- Significant multi-slice delivery: split the work into small vertical slices once the candidate and contract are selected.
 
 Keep moves, dependency inversion, behavior changes, and compatibility removal in separate verifiable slices wherever possible.
 
@@ -183,7 +175,7 @@ Every reported candidate must contain:
 
 ## Attribution
 
-Adapted from Matt Pocock's MIT-licensed `improve-codebase-architecture` skill and HTML report resource, with its deep-module lens supplied by the attributed `codebase-design` sibling. See [`references/source-notes.md`](references/source-notes.md) and [`LICENSE`](LICENSE) for pinned provenance and license terms.
+Adapted from the `improve-codebase-architecture` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/improve-codebase-architecture), which adapts the `improve-codebase-architecture` skill and HTML report resource in [mattpocock/skills](https://github.com/mattpocock/skills/tree/66898f60e8c744e269f8ce06c2b2b99ce7660d5f/skills/engineering/improve-codebase-architecture). Copyright (c) 2026 Matt Pocock, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

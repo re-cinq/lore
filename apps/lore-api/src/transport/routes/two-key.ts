@@ -45,9 +45,9 @@ function twoKeyRequired(fieldPaths: string[], detail: string): ApprovalOutcome {
   };
 }
 
-/** Why the ceremony did not pass. A `TwoKeyError` is the CEREMONY refusing (403, with the specific reason so an approver can fix it), while anything else is GitHub being unreachable (503) — the caller may retry the second and must not retry the first. */
+/** Why the ceremony did not pass. A `TwoKeyError` with code `github_api` means GitHub itself was unreachable (503, retryable); every other `TwoKeyError` is the CEREMONY refusing (403, the approver must act); anything else is also a GitHub outage (503). */
 function approvalFailure(err: unknown): ApprovalOutcome {
-  if (err instanceof TwoKeyError) {
+  if (err instanceof TwoKeyError && err.code !== "github_api") {
     return {
       ok: false,
       code: 403,

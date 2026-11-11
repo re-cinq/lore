@@ -37,6 +37,10 @@ import {
   floorSpecTicketsHandlers,
   type FloorSpecTicketsDeps,
 } from "./floor-spec-tickets-handlers.js";
+import {
+  loopProgressHandlers,
+  loopProgressProductionDeps,
+} from "./loop-progress-handlers.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { renameAgentVariants } from "../outbound/agent-variants.js";
@@ -310,6 +314,8 @@ export function buildStationHandlers(): Map<string, EventHandler> {
     addHandlers(handlers, loopUpkeepHandlers(loopUpkeepDeps));
     addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
   }
+
+  addHandlers(handlers, loopProgressHandlers(loopProgressProductionDeps));
 
   return handlers;
 }

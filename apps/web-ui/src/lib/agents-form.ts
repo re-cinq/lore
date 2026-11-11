@@ -1,7 +1,7 @@
 import type { AgentDefinition } from "./agents-mirror";
 import type { AgentSaveResult } from "./agents-api";
 import { parseMcpServers, type McpServer } from "./mcp-servers-form";
-import { parseSkills } from "./skills-form";
+import { parseAdjustSkillModels, parseSkills } from "./skills-form";
 
 // Pure FormData→agent payload parsing shared by the new/edit server actions; kept here (not page.tsx) so the branchy bits are unit-tested.
 
@@ -21,6 +21,8 @@ export interface ParsedAgentForm {
     mcp_servers?: McpServer[];
     /** Absent while the form's skills are untouched; an empty list means none. */
     skills?: string[];
+    /** Absent while the checkbox is untouched. */
+    adjust_skill_models?: boolean;
   };
   approvalPr?: string;
 }
@@ -80,6 +82,7 @@ function parseDefinition(fd: FormData, name: string): ParsedAgentForm["def"] {
     pod_resources: parsePodResources(fd),
     ...mcpServersOf(fd),
     ...skillsOf(fd),
+    ...adjustSkillModelsOf(fd),
   };
 }
 
@@ -93,6 +96,12 @@ function skillsOf(fd: FormData): { skills?: string[] } {
   const skills = parseSkills(fd);
 
   return skills === undefined ? {} : { skills };
+}
+
+function adjustSkillModelsOf(fd: FormData): { adjust_skill_models?: boolean } {
+  const adjust = parseAdjustSkillModels(fd);
+
+  return adjust === undefined ? {} : { adjust_skill_models: adjust };
 }
 
 function parseModel(fd: FormData): string | null {

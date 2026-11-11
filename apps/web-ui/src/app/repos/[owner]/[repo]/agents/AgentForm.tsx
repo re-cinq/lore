@@ -151,7 +151,11 @@ function ToolFields(props: {
   return (
     <>
       <McpServerFields servers={values.mcpServers} />
-      <SkillFields skills={values.skills} catalogue={skills} />
+      <SkillFields
+        skills={values.skills}
+        adjustModels={values.adjustSkillModels}
+        catalogue={skills}
+      />
     </>
   );
 }

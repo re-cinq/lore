@@ -1,6 +1,6 @@
 ---
 name: cli-design
-description: Unix-composable CLI design patterns. Use when building CLI tools, designing command trees, implementing output layers, or testing CLI behavior. Covers stream separation (stdout/stderr), format flags (--json/--plain), exit codes, TTY detection, composability, and error design. Language-agnostic principles; TypeScript implementation patterns in resources/. For API design (REST, HTTP), see api-design.
+description: Unix-composable CLI design patterns. Use when building CLI tools, designing command trees, implementing output layers, or testing CLI behavior. Covers stream separation (stdout/stderr), format flags (--json/--plain), exit codes, TTY detection, composability, and error design. Language-agnostic principles. For API design (REST, HTTP), see api-design.
 ---
 
 # CLI Design: Unix-Composable Command-Line Interfaces
@@ -9,14 +9,6 @@ This skill covers **language-agnostic** CLI design principles. The rules about s
 
 For API contract stability and Hyrum's Law, see the `api-design` skill. For config, env vars, and graceful shutdown, see the `twelve-factor` skill.
 
-**TypeScript implementation patterns** are in the `resources/` directory. Load them on demand when building a CLI in TypeScript:
-
-| Resource | Load when... |
-|----------|-------------|
-| `output-architecture.md` | Implementing Result types, entry point wiring, formatters, logger, JSON envelope schemas |
-| `testing-cli.md` | Writing Vitest tests for CLI behavior (streams, exit codes, pipes, contract tests) |
-| `stream-contracts.md` | Understanding Node.js buffering, NDJSON, signal handling, crash-only design |
-| `composability.md` | Designing or testing pipe behavior — worked shell examples (jq filtering, NDJSON streaming, stdin, chaining, `--fields`, parallel `xargs`) |
 
 ---
 
@@ -58,7 +50,7 @@ This separation is what makes `mycli --json | jq ...` work. One spinner characte
 
 When stdout is piped, the user doesn't want your status messages in their data. All non-data output must go to stderr.
 
-For a deep dive on buffering behavior and performance implications, see `resources/stream-contracts.md`.
+
 
 ---
 
@@ -87,7 +79,7 @@ For simple CLIs where the "handler" is just calling a library, this separation a
 
 If your project uses hexagonal architecture, the mapping is direct: the CLI entry point is a **driving adapter**, and the handler is a **use case** that returns a result through a port. See the `hexagonal-architecture` skill — the patterns reinforce each other, but hex arch is not required to benefit from keeping handlers pure.
 
-For TypeScript implementation patterns (Result types, entry point wiring, formatters, logger interfaces), see `resources/output-architecture.md`.
+
 
 ---
 
@@ -148,7 +140,7 @@ For large datasets, use NDJSON (one JSON object per `\n`):
 - Final line can be a summary record
 - Enables: `mycli run --format ndjson | while read -r line; do ...; done`
 
-For NDJSON specification details, see `resources/stream-contracts.md`.
+
 
 ---
 
@@ -335,7 +327,7 @@ The `transient` boolean tells retry logic whether the failure may be temporary.
 - **Responsiveness beats speed** — print something within 100ms; show progress on stderr for anything long-running, with time estimates when progress can stall
 - **Timeouts on all network operations** — configurable, and exit 75 so retry logic knows the failure is transient
 - **Recoverable by re-run** — after a transient failure, re-running the command should resume or be safely idempotent
-- **Crash-only design** — exit fast on failure, defer cleanup to the next run; add timeouts to cleanup so Ctrl-C never hangs (second Ctrl-C skips cleanup) — see `resources/stream-contracts.md`
+- **Crash-only design** — exit fast on failure, defer cleanup to the next run; add timeouts to cleanup so Ctrl-C never hangs (second Ctrl-C skips cleanup)
 - **Expect misuse** — script wrapping, bad connections, concurrent instances, environments you never tested
 
 ---
@@ -344,7 +336,7 @@ The `transient` boolean tells retry logic whether the failure may be temporary.
 
 Design for real-world pipes: filtering with `jq`, streaming NDJSON line-by-line, feeding stdin, chaining commands through emitted identifiers, selecting columns with `--fields`, and fanning out with `xargs -P`.
 
-See `resources/composability.md` for the worked shell examples covering each of these patterns.
+
 
 **Key patterns:**
 
@@ -468,6 +460,13 @@ Default (TTY)     → colors, tables, formatted text
 ```
 flags > env vars > project config > user config > defaults
 ```
+
+## Attribution
+
+Adapted from the `cli-design` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/cli-design), which adapts [*Command Line Interface Guidelines*](https://github.com/cli-guidelines/cli-guidelines/blob/697d6a29fc8c93d3981a755c0c7683507ad39c3e/content/_index.md) at the pinned revision 697d6a29fc8c93d3981a755c0c7683507ad39c3e.
+Authors: Aanand Prasad, Ben Firshman, Carl Tashian and Eva Parish.
+Licence: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (SPDX: CC-BY-SA-4.0). No endorsement by the original authors is implied.
+Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. This file stays under CC BY-SA 4.0, not the Apache-2.0 licence of the rest of the repository. Attribution statement: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

@@ -13,11 +13,6 @@ Code coverage tells you what code your tests execute. Mutation testing tells you
 
 **Default posture:** use an automated mutation harness first. For JavaScript and TypeScript projects, recommend Stryker as the starting point if it is not already set up. Use manual/mental mutations only as a fallback, a teaching aid, or a focused follow-up for subtle survivors.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `mutator-rules.md` | Planning tests, scanning changed code for likely gaps, manually applying mutations, or interpreting surviving/equivalent mutants |
 
 ---
 
@@ -201,7 +196,7 @@ Adapt `testRunner`, `mutate`, `vitest.configFile`, build commands, and checker p
 
 ### Manual Mutation Fallback
 
-If Stryker is unavailable or cannot target the code under review, load `resources/mutator-rules.md` and manually apply the relevant operators. Always revert each mutation before the next one. Manual mutation should still follow the same loop: mutate, run tests, classify, fix obvious gaps, ask about judgment calls, and report the result.
+If Stryker is unavailable or cannot target the code under review, manually apply the relevant mutation operators (boundary swaps, negated conditions, removed statements, changed constants, emptied returns). Always revert each mutation before the next one. Manual mutation should still follow the same loop: mutate, run tests, classify, fix obvious gaps, ask about judgment calls, and report the result.
 
 ---
 
@@ -222,7 +217,10 @@ If Stryker is unavailable or cannot target the code under review, load `resource
 - Coverage measures execution, mutation testing measures detection
 - A test that doesn't make assertions can't kill mutants
 - Boundary values, mixed boolean cases, non-identity values, and observable side effects kill many common mutants
-- For the full mutator checklist and examples, load `resources/mutator-rules.md`
+
+## Attribution
+
+Adapted from the `mutation-testing` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/mutation-testing), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

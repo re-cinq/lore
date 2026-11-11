@@ -12,6 +12,8 @@ export interface ConfigWrite {
   podResources?: Record<string, unknown> | null;
   mcpServers?: Record<string, unknown>[] | null;
   skills?: string[] | null;
+  /** Whether pods adjust a skill's model to the agent's: stored in skills_source as a trailing /verbatim, so it needs a known source (the layer's, the inherited one or skillsSource). */
+  adjustSkillModels?: boolean;
   /** Where pods fetch skills from, written only with a non-empty skills list when neither the layer's config nor inheritedConfig names one. */
   skillsSource?: string;
   inheritedConfig: Record<string, unknown> | null;
