@@ -139,7 +139,7 @@ decided by what the step waits on, never by a run being open.
   `deploy/chart/charts/ui-helm/migrations/`,
   with its domain model (schema, type and `ColumnMap`, per the models
   convention) in a new file this change adds,
-  `libs/shared/src/domain/models/inbox-item-state.ts`.
+  `libs/shared/src/domain/models/inbox-item-state.ts`. ([validated by @89e6adfa](apps/lore-api/src/integration-tests/inbox-item-state-migration.acceptance.test.ts#L23)) ([validated by @c5aaeda3](libs/shared/src/domain/models/inbox-item-state.acceptance.test.ts#L4))
 - FR3.2: `PUT /api/inbox/items/{item_id}/state` (scope `write`) sets
   `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller.
 - FR3.3: The caller is the signed-in person's GitHub login. The web tier
