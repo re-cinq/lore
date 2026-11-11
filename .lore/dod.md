@@ -19,11 +19,11 @@
 
 ## Facets
 
-- [ ] Create the `InboxView` component skeleton to resolve module imports.
-- [ ] Wire up `apiFetch` in `InboxView` for data retrieval.
-- [ ] Render the list items and handle the empty/unavailable states.
-- [ ] Implement filter chips in `InboxView` and map interactions to API queries.
-- [ ] Update `navGroups` and `SidebarNav` to render the Inbox link with a badge count.
+- [x] Create the `InboxView` component skeleton to resolve module imports.
+- [x] Wire up `apiFetch` in `InboxView` for data retrieval.
+- [x] Render the list items and handle the empty/unavailable states.
+- [x] Implement filter chips in `InboxView` and map interactions to API queries.
+- [x] Update `navGroups` and `SidebarNav` to render the Inbox link with a badge count.
 
 ## Out of scope
 
