@@ -93,7 +93,7 @@ highlighting now keys off the markdown link's `href`:
 - **Any `<a>` whose href passes `isTestFile()`** (shared helper, same
   one the v2 linker used) → wrap the link in `class="stmt-tested"`,
   AND wrap its enclosing statement in `class="stmt"` with state
-  `tested`.
+  `tested`. ([validated by determines a statement is tested by finding a test link mid-statement, overriding a graph state of untested @37adb0b0](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L13))
 - **Statements with no test link** under a heading the section
   heuristic marks **testable** → wrap in `class="stmt-untested"`
   (red), counted as a visible gap.
@@ -276,7 +276,7 @@ parsing the spec markdown, not from a DB query.
   because nothing was inferred).
 - Red statements are visible gaps. No popover, just colour.
 - Grey statements (narrative) hover reveals the section category
-  (intro / vision / limitation / etc.).
+  (intro / vision / limitation / etc.). ([validated by surfaces the narrative section category in the hover popover @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L34))
 
 ### Cron diagnostics
 
@@ -413,11 +413,11 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 ## Acceptance Criteria
 
-1. The per-repo specs page renders an `<a>` whose `href`'s path passes `isTestFile()` with the green `stmt-tested` class; regular links render unchanged. ([validated by `SpecDetails.test.tsx@82e6861a`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L27))
+1. The per-repo specs page renders an `<a>` whose `href`'s path passes `isTestFile()` with the green `stmt-tested` class; regular links render unchanged. ([validated by `SpecDetails.test.tsx@82e6861a`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L27), [validated by @37adb0b0](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L13))
 
 2. A statement carrying ≥1 test link counts as `covered` in the `CoverageBar`; the headline percentage is `covered / (covered + uncovered)`, with `narrative` excluded from the denominator (same formula as v2). ([validated by `SpecCard.test.tsx@d5943b85`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.test.tsx#L23))
 
-3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `SpecDetails.test.tsx@6489ee5f`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L99))
+3. A statement under a section heading the heuristic marks `untestable` (Problem Statement / Vision / Background / Clarifications / Open Questions / Limitations / Rationale, plus the H1 intro) renders grey and is counted as `narrative`. ([validated by `SpecDetails.test.tsx@6489ee5f`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L99), [validated by @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L34))
 
 4. A testable statement with no test link renders red and counts toward `uncovered`. ([validated by `SpecDetails.test.tsx@d2f6c3e0`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L83))
 
