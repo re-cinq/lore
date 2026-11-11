@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Remove `errIngestRouteAbsent` and its use in `postIngestDelta`.
-- [ ] Remove the fallback logic in `main.go` that posts to `/api/webhook/ci-tests`.
+- [x] Remove `errIngestRouteAbsent` and its use in `postIngestDelta`.
+- [x] Remove the fallback logic in `main.go` that posts to `/api/webhook/ci-tests`.
 
 ## Out of scope
 
