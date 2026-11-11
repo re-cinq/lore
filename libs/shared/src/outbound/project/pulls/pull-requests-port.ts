@@ -248,6 +248,8 @@ export interface PullRequestsPort {
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
   /** Every changed filename on a PR, paginated so auto-merge's path gate can't silently truncate a large PR at one API page. */
   listFiles(repo: string, number: number): Promise<string[]>;
+  /** The PR's file list by name, paginated — the spec-mandated entry point for CODEOWNERS matching. */
+  getChangedFiles(repo: string, number: number): Promise<string[]>;
   /** Every changed file with status, line counts and unified patch — the same paginated read as listFiles, kept whole. */
   listFileChanges(repo: string, number: number): Promise<PullFileChange[]>;
   /** What `head` changes against `base` as of their merge base (GitHub's three-dot compare), file by file; null when GitHub cannot compare them. */

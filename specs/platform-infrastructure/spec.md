@@ -54,7 +54,7 @@ Three new reads are added to `libs/shared/src/outbound/project/lib/platform-gith
 
 - `getBranchRule(repo, branch)` — reads the branch's rulesets and classic branch protection: required approval count, Code Owners review required flag, and required check names. Used by the auto-merge loop to decide whether to arm native auto-merge (a rule that asks for an approval) or merge itself (one that asks for none).
 - `getMergeability(repo, prNumber)` — reads GitHub's mergeability field on a PR. Eventually consistent: GitHub computes it asynchronously after push; callers must treat a null as "not yet computed" rather than "not mergeable".
-- `getChangedFiles(repo, prNumber)` — reads the PR's file list for CODEOWNERS matching, used by the blocked-reason station to classify a PR as routine or sensitive.
+- `getChangedFiles(repo, prNumber)` — reads the PR's file list for CODEOWNERS matching, used by the blocked-reason station to classify a PR as routine or sensitive. ([validated by returns the PR's paginated file list @8e517425](libs/shared/src/outbound/project/lib/platform-github-get-changed-files.acceptance.test.ts#L6))
 
 Three new writes are added to the same adapter:
 
