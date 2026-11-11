@@ -14,7 +14,7 @@
 ## Facets
 
 - [ ] Add the `0111_inbox_item_state.sql` migration to create the table structure.
-- [ ] Add the domain model implementation in `libs/shared/src/domain/models/inbox-item-state.ts`.
+- [x] Add the domain model implementation in `libs/shared/src/domain/models/inbox-item-state.ts`.
 
 ## Out of scope
 
