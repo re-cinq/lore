@@ -38,6 +38,10 @@ export const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     description:
       "Scoped API token management, and the web sign-in that mints a person's session token.",
   },
+  {
+    name: "Inbox",
+    description: "Per-person inbox items and their read/handled state.",
+  },
   { name: "Meta", description: "The OpenAPI document and its reference UI." },
 ];
 
@@ -81,6 +85,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
   // The org's memories and episodes, mirrored into its Utopia base.
   [/^\/api\/utopia\/memory$/, "Memory"],
+  [/^\/api\/inbox\b/, "Inbox"],
 ];
 
 /** The sidebar category for a normalized path. */
