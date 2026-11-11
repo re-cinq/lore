@@ -23,6 +23,12 @@ const form = (fields: Record<string, string>) => {
   return formData;
 };
 
+const calls = () =>
+  fetchMock.mock.calls.map(([url, init]) => ({
+    url: String(url),
+    body: JSON.parse(String((init as RequestInit).body)) as unknown,
+  }));
+
 beforeEach(() => {
   process.env.LORE_API_URL = "http://api:3000";
 });
@@ -31,68 +37,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("createPlanAction", () => {
-  it("returns the seed failure and creates nothing else when seeding the plan fails", async () => {
-    fetchMock = vi.fn(async (url: RequestInfo | URL) => {
-      const urlStr = String(url);
-
-      if (urlStr.includes("/agent-edits")) {
-        return new Response(JSON.stringify({ error: "Seed failed" }), {
+describe("createPlanAction failures", () => {
+  it("A seed or draft-start API failure is shown with its reason and does not produce a success-only redirect", async () => {
+    fetchMock = vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith("/agent-edits")) {
+        return new Response(JSON.stringify({ message: "Seed intent failed" }), {
           status: 500,
         });
       }
 
-      return new Response(
-        JSON.stringify({
-          meta: { id: "p1" },
-          documentName: "plan:re-cinq/lore:p1",
-        }),
-      );
+      return new Response(JSON.stringify({ meta: { id: "p1" } }));
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await createPlanAction(
       "re-cinq/lore",
       null,
-      form({
-        title: "Faster checkout",
-        type: "feature",
-        description: "Checkout is slow.",
-      }),
+      form({ title: "Faster checkout", type: "feature", description: "Hello" }),
     );
 
-    expect(result).toEqual({ error: "Seed failed" });
+    expect(result).toEqual({ error: "Seed intent failed", planId: "p1" });
   });
 
-  it("returns the drafting start failure and creates nothing else when starting the draft fails", async () => {
-    fetchMock = vi.fn(async (url: RequestInfo | URL) => {
-      const urlStr = String(url);
-
-      if (urlStr.includes("/drafting")) {
-        return new Response(JSON.stringify({ error: "Drafting failed" }), {
-          status: 500,
-        });
-      }
-
-      return new Response(
-        JSON.stringify({
-          meta: { id: "p1" },
-          documentName: "plan:re-cinq/lore:p1",
-        }),
-      );
+  it("A retry does not create a duplicate plan", async () => {
+    fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ meta: { id: "p1" } }));
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await createPlanAction(
-      "re-cinq/lore",
-      null,
-      form({
-        title: "Faster checkout",
-        type: "feature",
-        description: "Checkout is slow.",
-      }),
-    );
+    const prevState = { error: "Seed intent failed", planId: "p1" };
 
-    expect(result).toEqual({ error: "Drafting failed" });
+    await expect(
+      createPlanAction(
+        "re-cinq/lore",
+        prevState as any,
+        form({
+          title: "Faster checkout",
+          type: "feature",
+          description: "Hello",
+        }),
+      ),
+    ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
+
+    const apiCalls = calls();
+
+    expect(apiCalls.some((c) => c.url === "http://api:3000/api/plans")).toBe(
+      false,
+    );
+    expect(apiCalls.map((c) => c.url)).toEqual([
+      "http://api:3000/api/plans/p1/agent-edits",
+      "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
+    ]);
   });
 });
