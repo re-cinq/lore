@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
