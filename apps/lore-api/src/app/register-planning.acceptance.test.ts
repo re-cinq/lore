@@ -91,7 +91,9 @@ describe("registerPlanning acceptance", () => {
     let recorded = false;
     const server = Hapi.server();
     const query = async (text: string, _params: unknown[]) => {
-      if (text.includes("assembly_runs")) {return { rows: [] };}
+      if (text.includes("assembly_runs")) {
+        return { rows: [] };
+      }
 
       if (text.includes("plan_refine_asks")) {
         recorded = true;
