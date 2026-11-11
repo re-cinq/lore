@@ -6,16 +6,16 @@
 
 ## Done when these pass
 
-- [ ] **unbounded-retry** — reports unbounded-retry for a back-edge to the same node without iteration_max
+- [x] **unbounded-retry** — reports unbounded-retry for a back-edge to the same node without iteration_max
   `libs/assembly-lines/src/pipeline-lint.acceptance.test.ts`
-- [ ] **unresolvable-conversation-key** — reports unresolvable-conversation-key for a station whose conversation_key is not a declared arg
+- [x] **unresolvable-conversation-key** — reports unresolvable-conversation-key for a station whose conversation_key is not a declared arg
   `libs/assembly-lines/src/pipeline-lint.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Add `unbounded-retry` rule logic mapping back-edges lacking iteration_max.
-- [ ] Add `unresolvable-conversation-key` rule logic mapping conversation_keys against pipeline args.
-- [ ] Add schema support or extract `iteration_max` and `conversation_key` in `pipeline-lint-shape.ts` to expose to the linter.
+- [x] Add `unbounded-retry` rule logic mapping back-edges lacking iteration_max.
+- [x] Add `unresolvable-conversation-key` rule logic mapping conversation_keys against pipeline args.
+- [x] Add schema support or extract `iteration_max` and `conversation_key` in `pipeline-lint-shape.ts` to expose to the linter.
 
 ## Out of scope
 

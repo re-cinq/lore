@@ -5,7 +5,7 @@ import { pipelineProblems } from "./pipeline-lint.js";
 const prompts = shippedAgentPrompts();
 
 describe("pipelineProblems — FR-15 continuation/retry behavior", () => {
-  it("reports unbounded-retry for a back-edge to the same node without iteration_max", () => {
+  it("reports unbounded-retry for a back-edge to the same node without iteration_max (spec: specs/7-feature-planning/spec.md#L245)", () => {
     const yamlText = `
 line:
   id: sound
@@ -47,7 +47,7 @@ stations:
     });
   });
 
-  it("reports unresolvable-conversation-key for a station whose conversation_key is not a declared arg", () => {
+  it("reports unresolvable-conversation-key for a station whose conversation_key is not a declared arg (spec: specs/7-feature-planning/spec.md#L244)", () => {
     const yamlText = `
 line:
   id: sound
