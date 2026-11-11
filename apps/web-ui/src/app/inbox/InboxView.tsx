@@ -21,13 +21,16 @@ interface InboxData {
 }
 
 // The test mock returns { ok, val }; the real apiFetch returns { status, data }.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 async function loadInbox(kinds: string[]): Promise<InboxData | null> {
   const opts = kinds.length > 0 ? { query: { kind: kinds } } : {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await (apiFetch as any)("lore-api", "/api/inbox", opts);
-  if (raw?.ok) return raw.val as InboxData;
-  if (raw?.status === "ok") return raw.data as InboxData;
+
+  if (raw?.ok) {return raw.val as InboxData;}
+
+  if (raw?.status === "ok") {return raw.data as InboxData;}
+
   return null;
 }
 
@@ -36,17 +39,17 @@ export default function InboxView() {
 
   useEffect(() => {
     loadInbox([]).then((d) => {
-      if (d) setData(d);
+      if (d) {setData(d);}
     });
   }, []);
 
   function handleKindClick(kind: string) {
     loadInbox([kind]).then((d) => {
-      if (d) setData(d);
+      if (d) {setData(d);}
     });
   }
 
-  if (data === null) return null;
+  if (data === null) {return null;}
 
   const { items, counts, unavailable = [] } = data;
   const kinds = Object.keys(counts);
