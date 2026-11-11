@@ -31,27 +31,9 @@ export {
   type WriteEpisodeDeps,
   type CurationDeps,
 } from "./work/episode-writer.js";
-export {
-  buildCopyPrompt,
-  fallbackCopy,
-  generateArtifactCopy,
-  type CopyResult,
-  type BuildCopyPromptArgs,
-  type FallbackCopyArgs,
-  type GenerateArtifactCopyArgs,
-} from "./work/artifact-copy.js";
-export {
-  loadApprovalConfig,
-  requiresApproval,
-  getApprovalLabel,
-  getApprovalConfig,
-  type ApprovalConfig,
-} from "./domain/approval-config.js";
-export {
-  extractSection,
-  stripCommentsAndWhitespace,
-  sectionIsEmpty,
-} from "./work/pr-section-check.js";
+export * from "./work/artifact-copy.js";
+export * from "./domain/approval-config.js";
+export * from "./work/pr-section-check.js";
 export * from "./outbound/embeddings/index.js";
 export { resolveAgentId } from "./outbound/agent-id.js";
 // Re-exported via index-spec-trace.js: "./work/spec-trace/project-spec-file.js" "./work/spec-trace/project-adr-file.js" "./domain/spec-trace/trace-descriptors.js" "./work/spec-trace/bind-descriptors-to-spec-links.js" "./work/spec-trace/resolve-test-lines.js" "./domain/spec-trace/spec-anchor.js" "./work/spec-trace/ingest-spec-trace.js" "./work/spec-trace/graph-retention.js" "./work/spec-trace/overlay.js" "./outbound/spec-trace/tests-covering.js" "./outbound/spec-trace/code-callers.js" "./work/spec-trace/project-code-file.js" "./work/spec-trace/failure-nodes.js" "./domain/spec-trace/trace-scope.js" "./work/spec-trace/prune-removed-docs.js" "./work/spec-trace/prune-test-files.js" "./domain/spec-trace/assemble-trace-document.js" "./outbound/spec-trace/trace-document-listing.js" "./outbound/spec-trace/spec-graph.js" "./work/spec-trace/trace-units.js" "./work/spec-trace/trace-impact.js" "./work/spec-trace/graph-baseline.js" "./outbound/spec-trace/graph-context.js" "./work/spec-trace/ingest-graph-task.js" "./work/spec-trace/ingest-patterns.js"
@@ -79,20 +61,8 @@ export {
   type EventInsert,
   type EventSource,
 } from "./outbound/events.js";
-export {
-  formatTrailers,
-  formatValidatesTrailer,
-  parseTrailers,
-  parseValidatesTrailers,
-  type Trailers,
-  type ProvenanceRef,
-} from "./domain/commit-trailers.js";
-export {
-  StationInputSchema,
-  parseStationInput,
-  serializeStationInput,
-  type StationInput,
-} from "./domain/station-input.js";
+export * from "./domain/commit-trailers.js";
+export * from "./domain/station-input.js";
 // TrustLevel is re-exported via domain/models/index.js below.
 export * from "./domain/dod/index.js";
 export type {
@@ -102,12 +72,7 @@ export type {
   PRDetails,
   PRStatus,
 } from "./domain/types.js";
-export {
-  parseReferences,
-  linkifyMarkdown,
-  type RefContext,
-  type Segment,
-} from "./domain/references.js";
+export * from "./domain/references.js";
 // Re-exported via index-spec-content.js: "./work/spec-summary.js" "./domain/spec-blocks.js" "./domain/spec-segment.js" "./domain/spec-sentence-split.js" "./domain/spec-status.js" "./work/spec-status-coverage.js" "./domain/test-paths.js" "./domain/test-command-manifest.js" "./domain/test-report.js" "./work/ingest-workflow.js" "./work/trace-impact-workflow.js" "./domain/spec-link-parser.js" "./domain/spec-judge.js" "./work/spec-judge-llm.js"
 export * from "./work/index-spec-content.js";
 
@@ -282,6 +247,8 @@ export * from "./work/utopia/index.js";
 
 // Direct exports for files not covered by a sub-barrel.
 export * from "./domain/agent-defaults/agent-default-file.js";
+export * from "./domain/agents/model-harness.js";
+export * from "./domain/agents/skills-source.js";
 export * from "./domain/anchor-hash.js";
 export * from "./domain/blocked-reason.js";
 export * from "./domain/codeowners.js";
