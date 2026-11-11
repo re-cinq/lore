@@ -7,15 +7,15 @@
 
 ## Done when these pass
 
-- [ ] **reads the station kind from the station body the line version names**
+- [x] **reads the station kind from the station body the line version names**
   `apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts`
-- [ ] **excludes await-ci from actionable human waiting items**
+- [x] **excludes await-ci from actionable human waiting items**
   `apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Expose station metadata in the LineFacts returned by readLineFacts
-- [ ] Ensure await-ci and await-pr are not actionable human waiting items in the metadata or predicate
+- [x] Expose station metadata in the LineFacts returned by readLineFacts
+- [x] Ensure await-ci and await-pr are not actionable human waiting items in the metadata or predicate
 
 ## Out of scope
 
