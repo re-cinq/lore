@@ -125,7 +125,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks spec-tickets from load-tickets through decompose and issues to issue-coverage and done, keyed on the run key", () => {
+  it("walks spec-tickets from load-tickets through decompose, verify-implementation and issues to issue-coverage and done, keyed on the run key", () => {
     const { line } = pipelineOf("spec-tickets");
     const forward = line.edges
       .filter((edge) => edge.on === "success")
