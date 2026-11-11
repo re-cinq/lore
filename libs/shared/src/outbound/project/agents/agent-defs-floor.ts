@@ -6,6 +6,7 @@ import type {
   DefinitionApi,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../../lib/enforce.js";
+import { skillsSourceWith } from "../../../domain/agents/skills-source.js";
 import type {
   AgentDefinition,
   AgentDefinitionInput,
@@ -274,12 +275,32 @@ function withSkillsSource(
   config: Record<string, unknown>,
   write: ConfigWrite,
 ): Record<string, unknown> {
-  const sourceKnown =
-    config.skills_source ?? write.inheritedConfig?.skills_source;
+  return withField(config, "skills_source", skillsSourceToStore(config, write));
+}
 
-  return write.skills?.length && !sourceKnown
-    ? withField(config, "skills_source", write.skillsSource)
-    : config;
+/** The source this write stores, or undefined to leave the stored one alone: the adjusting flag rewrites the known source, and a write that adds skills seeds one when none is known. */
+function skillsSourceToStore(
+  config: Record<string, unknown>,
+  write: ConfigWrite,
+): string | undefined {
+  const known = config.skills_source ?? write.inheritedConfig?.skills_source;
+  const source = known ?? write.skillsSource;
+  const { adjustSkillModels: adjust } = write;
+
+  if (typeof source !== "string") {
+    return undefined;
+  }
+
+  return adjust === undefined
+    ? seededSkillsSource(source, { known: Boolean(known), write })
+    : skillsSourceWith(source, { adjust });
+}
+
+function seededSkillsSource(
+  source: string,
+  { known, write }: { known: boolean; write: ConfigWrite },
+): string | undefined {
+  return !known && write.skills?.length ? source : undefined;
 }
 
 function renamedVariant(

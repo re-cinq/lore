@@ -58,23 +58,37 @@ export const AgentInputSchema = z.object({
   pod_resources: PodResourcesSchema.nullish(),
   mcp_servers: z.array(McpServerSchema).max(32).nullish(),
   skills: z.array(z.string().regex(SKILL_NAME)).max(32).nullish(),
+  adjust_skill_models: z.boolean().nullish(),
 });
+
+/** The config keys the Agents UI owns, each its own field on the body. */
+export type OwnedConfigKey =
+  "pod_resources" | "mcp_servers" | "skills" | "adjust_skill_models";
 
 // POST body: row fields + pod_resources; route merges over inherited config (org → yaml).
 export type AgentCreate = AgentDefinitionInput & {
   pod_resources?: PodResources;
   mcp_servers?: McpServer[];
   skills?: string[];
+  adjust_skill_models?: boolean;
 };
+
+const adjustSkillModelsField = (
+  p: Pick<z.infer<typeof AgentInputSchema>, "adjust_skill_models">,
+): Pick<AgentPatch, "adjust_skill_models"> =>
+  p.adjust_skill_models == null
+    ? {}
+    : { adjust_skill_models: p.adjust_skill_models };
 
 // Only what the create names: an absent or empty value is left to the inherited config.
 function ownedConfigOf(
   p: z.infer<typeof AgentInputSchema>,
-): Pick<AgentCreate, "pod_resources" | "mcp_servers" | "skills"> {
+): Pick<AgentCreate, OwnedConfigKey> {
   return {
     ...(p.pod_resources ? { pod_resources: p.pod_resources } : {}),
     ...(p.mcp_servers?.length ? { mcp_servers: p.mcp_servers } : {}),
     ...(p.skills?.length ? { skills: p.skills } : {}),
+    ...adjustSkillModelsField(p),
   };
 }
 
@@ -100,26 +114,28 @@ export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
   mcp_servers?: McpServer[] | null;
   skills?: string[] | null;
+  adjust_skill_models?: boolean;
 };
 
 /** The config keys a patch names, under the adapter's names. An empty list stays a list: in a repo's variant it means "none", where null means "the org default's". */
-export function configKeysOf(
-  patch: Pick<AgentPatch, "pod_resources" | "mcp_servers" | "skills">,
-): {
+export function configKeysOf(patch: Pick<AgentPatch, OwnedConfigKey>): {
   podResources?: PodResources | null;
   mcpServers?: McpServer[] | null;
   skills?: string[] | null;
+  adjustSkillModels?: boolean;
 } {
   const {
     pod_resources: podResources,
     mcp_servers: mcpServers,
     skills,
+    adjust_skill_models: adjustSkillModels,
   } = patch;
 
   return {
     ...(podResources === undefined ? {} : { podResources }),
     ...(mcpServers === undefined ? {} : { mcpServers }),
     ...(skills === undefined ? {} : { skills }),
+    ...(adjustSkillModels === undefined ? {} : { adjustSkillModels }),
   };
 }
 
@@ -179,6 +195,7 @@ export function parseAgentPatch(body: unknown): AgentPatch {
     ...podResourcesField(parsed),
     ...mcpServersField(parsed),
     ...skillsField(parsed),
+    ...adjustSkillModelsField(parsed),
   };
 }
 

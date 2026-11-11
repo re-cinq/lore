@@ -1,7 +1,10 @@
 import { KNOWN_MODELS, type AgentDefinition } from "@/lib/agents-mirror";
 import { type PodResources } from "@/lib/agents-form";
 import { configuredServers } from "@/lib/mcp-servers-form";
-import { configuredSkills } from "@/lib/skills-form";
+import {
+  configuredAdjustSkillModels,
+  configuredSkills,
+} from "@/lib/skills-form";
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
@@ -114,6 +117,7 @@ function resolveConfigFields(agent: AgentDefinition | null) {
     podResources: resolvePodResources(agent),
     mcpServers: configuredServers(agent?.config),
     skills: configuredSkills(agent?.config),
+    adjustSkillModels: configuredAdjustSkillModels(agent?.config),
   };
 }
 

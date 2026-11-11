@@ -15,6 +15,10 @@
       "types": "./dist/agent-defaults/*.d.ts",
       "default": "./dist/agent-defaults/*.js"
     },
+    "./agents/*.js": {
+      "types": "./dist/domain/agents/*.d.ts",
+      "default": "./dist/domain/agents/*.js"
+    },
     "./project/*.js": {
       "types": "./dist/outbound/project/*.d.ts",
       "default": "./dist/outbound/project/*.js"

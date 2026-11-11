@@ -296,6 +296,64 @@ describe("FloorAgentDefs", () => {
     ).toEqual({ test_policy: "none", skills: [] });
   });
 
+  it("stores https://skills.test/verbatim on the org default when adjusting turns off", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": LOOP_TDD });
+
+    await defs.updateOrg(
+      "loop-tdd",
+      {},
+      {
+        adjustSkillModels: false,
+        skillsSource: "https://skills.test",
+        inheritedConfig: null,
+      },
+    );
+
+    expect((await floor.get("loop-tdd"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+      test_policy: "scoped",
+      skills_source: "https://skills.test/verbatim",
+    });
+  });
+
+  it("stores https://org.skills on otto's variant when adjusting turns on over an org default of https://org.skills/verbatim", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        adjustSkillModels: true,
+        inheritedConfig: { skills_source: "https://org.skills/verbatim" },
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills_source: "https://org.skills" });
+  });
+
+  it("leaves skills_source https://org.skills/verbatim alone when the write names no adjusting", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        skills: ["cli-design"],
+        inheritedConfig: { skills_source: "https://org.skills/verbatim" },
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills: ["cli-design"] });
+  });
+
   it("creates a github.com/re-cinq/lore variant of loop-tdd with model claude-sonnet-4-6", async () => {
     const { defs } = await floorWith({ "loop-tdd": LOOP_TDD });
 
