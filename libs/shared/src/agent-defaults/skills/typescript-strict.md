@@ -212,6 +212,10 @@ When writing TypeScript code, verify:
 - [ ] Strict mode enabled with all checks passing
 - [ ] For immutability, pure functions, composition: see `functional` skill
 
+## Attribution
+
+Adapted from the `typescript-strict` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/typescript-strict), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

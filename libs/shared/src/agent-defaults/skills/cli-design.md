@@ -461,6 +461,13 @@ Default (TTY)     → colors, tables, formatted text
 flags > env vars > project config > user config > defaults
 ```
 
+## Attribution
+
+Adapted from the `cli-design` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/cli-design), which adapts [*Command Line Interface Guidelines*](https://github.com/cli-guidelines/cli-guidelines/blob/697d6a29fc8c93d3981a755c0c7683507ad39c3e/content/_index.md) at the pinned revision 697d6a29fc8c93d3981a755c0c7683507ad39c3e.
+Authors: Aanand Prasad, Ben Firshman, Carl Tashian and Eva Parish.
+Licence: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (SPDX: CC-BY-SA-4.0). No endorsement by the original authors is implied.
+Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. This file stays under CC BY-SA 4.0, not the Apache-2.0 licence of the rest of the repository. Attribution statement: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

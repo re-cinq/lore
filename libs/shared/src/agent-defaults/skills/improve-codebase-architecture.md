@@ -175,7 +175,7 @@ Every reported candidate must contain:
 
 ## Attribution
 
-Adapted from Matt Pocock's MIT-licensed `improve-codebase-architecture` skill and HTML report resource.
+Adapted from the `improve-codebase-architecture` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/improve-codebase-architecture), which adapts the `improve-codebase-architecture` skill and HTML report resource in [mattpocock/skills](https://github.com/mattpocock/skills/tree/66898f60e8c744e269f8ce06c2b2b99ce7660d5f/skills/engineering/improve-codebase-architecture). Copyright (c) 2026 Matt Pocock, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

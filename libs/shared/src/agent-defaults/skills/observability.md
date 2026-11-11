@@ -236,6 +236,10 @@ Browser observability is RUM (real-user monitoring) with Core Web Vitals as the 
 - [ ] Instrumentation is covered by tests (in-memory exporter or fake-probe assertions)
 - [ ] Adding a metric label or new signal triggers a written cardinality/cost estimate
 
+## Attribution
+
+Adapted from the `observability` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/observability), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->
