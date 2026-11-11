@@ -118,7 +118,9 @@ function UnavailableList({
 
 function loadKind(kinds: string[], set: (p: InboxPayload) => void) {
   void fetchInbox(kinds).then((p) => {
-    if (p) {set(p);}
+    if (p) {
+      set(p);
+    }
   });
 }
 
