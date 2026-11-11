@@ -31,4 +31,3 @@ describe("SidebarNav", () => {
     expect(link).toBeInTheDocument();
   });
 });
-

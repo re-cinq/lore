@@ -25,16 +25,22 @@ export default function InboxView() {
 
   useEffect(() => {
     void fetchInbox([]).then((loadedInbox) => {
-      if (loadedInbox) {setInboxPayload(loadedInbox);}
+      if (loadedInbox) {
+        setInboxPayload(loadedInbox);
+      }
     });
   }, []);
   function handleKindClick(kind: string) {
     void fetchInbox([kind]).then((loadedInbox) => {
-      if (loadedInbox) {setInboxPayload(loadedInbox);}
+      if (loadedInbox) {
+        setInboxPayload(loadedInbox);
+      }
     });
   }
 
-  if (inboxPayload === null) {return null;}
+  if (inboxPayload === null) {
+    return null;
+  }
 
   return <InboxContent payload={inboxPayload} onKindClick={handleKindClick} />;
 }
@@ -70,7 +76,9 @@ function KindChips({
 }) {
   const kinds = Object.keys(counts);
 
-  if (kinds.length === 0) {return null;}
+  if (kinds.length === 0) {
+    return null;
+  }
 
   return (
     <div>
@@ -84,7 +92,9 @@ function KindChips({
 }
 
 function EntryList({ inboxEntries }: { inboxEntries: InboxEntry[] }) {
-  if (inboxEntries.length === 0) {return null;}
+  if (inboxEntries.length === 0) {
+    return null;
+  }
 
   return (
     <ul>
@@ -100,7 +110,9 @@ function UnavailableList({
 }: {
   unavailableSources: string[];
 }) {
-  if (unavailableSources.length === 0) {return null;}
+  if (unavailableSources.length === 0) {
+    return null;
+  }
 
   return (
     <ul>
@@ -116,9 +128,13 @@ async function fetchInbox(kinds: string[]): Promise<InboxPayload | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await (apiFetch as any)("lore-api", "/api/inbox", opts);
 
-  if (raw?.ok) {return raw.val as InboxPayload;}
+  if (raw?.ok) {
+    return raw.val as InboxPayload;
+  }
 
-  if (raw?.status === "ok") {return raw.data as InboxPayload;}
+  if (raw?.status === "ok") {
+    return raw.data as InboxPayload;
+  }
 
   return null;
 }
