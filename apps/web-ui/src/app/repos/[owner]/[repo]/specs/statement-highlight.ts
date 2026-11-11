@@ -123,19 +123,59 @@ function tryBlockMatch(state: HighlightState, node: Element): boolean {
   const rendered = renderedText(node).replace(/\s+/g, " ").trim();
 
   for (const s of state.ordered) {
-    if (!isBlockMatchCandidate(state, s)) {
+    if (!isBlockMatchCandidate(state, s) || !rendered.startsWith(s.plain)) {
+      continue;
+    }
+    state.used.add(s.ordinal);
+    wrapChildren(node, overrideIfTestLinked(s, node));
+
+    return true;
+  }
+
+  return false;
+}
+
+/** Upgrade state to "tested" when the block contains a test-file link and state was not already "tested". */
+function overrideIfTestLinked(
+  s: HighlightState["ordered"][number],
+  node: Element,
+): MarkMeta {
+  if (s.state !== "tested" && elementHasTestLink(node)) {
+    return { ordinal: s.ordinal, state: "tested", drifted: s.drifted };
+  }
+
+  return s;
+}
+
+const TEST_HREF_RE =
+  /\.test\.|\.spec\.|_test\.(go|rs)$|Tests?\.(java|kt|cs)$|_spec\.rb$|Test\.php$|__tests__\//;
+
+/** True when the element or any descendant `<a>` carries a test-file href. */
+function elementHasTestLink(node: Element): boolean {
+  for (const child of node.children) {
+    if (child.type !== "element") {
       continue;
     }
 
-    if (rendered.startsWith(s.plain)) {
-      state.used.add(s.ordinal);
-      wrapChildren(node, s);
-
+    if (childHasTestLink(child)) {
       return true;
     }
   }
 
   return false;
+}
+
+function childHasTestLink(child: Element): boolean {
+  return anchorHasTestHref(child) || elementHasTestLink(child);
+}
+
+function anchorHasTestHref(el: Element): boolean {
+  if (el.tagName !== "a") {
+    return false;
+  }
+  const href = String((el.properties as Record<string, unknown>).href ?? "");
+
+  return TEST_HREF_RE.test(href);
 }
 
 /** Appends `child` to `out`, replaced by its marked-up parts when a statement claims its text; says whether it was replaced. */

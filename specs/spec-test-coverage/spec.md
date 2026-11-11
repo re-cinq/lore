@@ -93,7 +93,7 @@ highlighting now keys off the markdown link's `href`:
 - **Any `<a>` whose href passes `isTestFile()`** (shared helper, same
   one the v2 linker used) → wrap the link in `class="stmt-tested"`,
   AND wrap its enclosing statement in `class="stmt"` with state
-  `tested`.
+  `tested`. ([validated by determines a statement is tested by finding a test link mid-statement, overriding a graph state of untested @37adb0b0](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L13))
 - **Statements with no test link** under a heading the section
   heuristic marks **testable** → wrap in `class="stmt-untested"`
   (red), counted as a visible gap.
@@ -276,7 +276,7 @@ parsing the spec markdown, not from a DB query.
   because nothing was inferred).
 - Red statements are visible gaps. No popover, just colour.
 - Grey statements (narrative) hover reveals the section category
-  (intro / vision / limitation / etc.).
+  (intro / vision / limitation / etc.). ([validated by surfaces the narrative section category in the hover popover @03668910](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.acceptance.test.tsx#L34))
 
 ### Cron diagnostics
 
