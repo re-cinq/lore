@@ -16,31 +16,43 @@ export interface RuntimeContextArgs {
   reported_changes?: boolean;
   previous_round_report?: { done?: string; next?: string };
   ci_verdict?: CiVerdict;
+  node_failure?: { name: string; output: string };
   [key: string]: unknown;
 }
 
-/** Appends CI verdict and previous-round blocks; skipped when reported_changes is false or failed_checks is empty. */
+/** Appends CI verdict, node-failure, and previous-round blocks; skipped when reported_changes is false and no node_failure is present, or when failed_checks is empty and no node_failure is present. */
 export function appendRuntimeContext(
   basePrompt: string,
   args: RuntimeContextArgs,
 ): string {
-  const { reported_changes, previous_round_report, ci_verdict } = args;
+  const { reported_changes, node_failure, ci_verdict } = args;
+  const hasCiFailures =
+    ci_verdict != null && ci_verdict.failed_checks.length > 0;
 
-  if (
-    !reported_changes ||
-    !ci_verdict ||
-    ci_verdict.failed_checks.length === 0
-  ) {
+  if (!reported_changes || (!node_failure && !hasCiFailures)) {
     return basePrompt;
   }
-  const blocks = [basePrompt];
+
+  return [basePrompt, ...buildContextBlocks(args)].join("\n\n");
+}
+
+function buildContextBlocks(args: RuntimeContextArgs): string[] {
+  const { previous_round_report, node_failure, ci_verdict } = args;
+  const blocks: string[] = [];
 
   if (previous_round_report) {
     blocks.push(buildPreviousRoundBlock(previous_round_report));
   }
-  blocks.push(buildCiBlock(ci_verdict));
 
-  return blocks.join("\n\n");
+  if (node_failure) {
+    blocks.push(buildNodeFailureBlock(node_failure));
+  }
+
+  if (ci_verdict && ci_verdict.failed_checks.length > 0) {
+    blocks.push(buildCiBlock(ci_verdict));
+  }
+
+  return blocks;
 }
 
 function buildPreviousRoundBlock(report: {
@@ -58,6 +70,15 @@ function buildPreviousRoundBlock(report: {
   }
 
   return lines.join("\n");
+}
+
+function buildNodeFailureBlock(failure: {
+  name: string;
+  output: string;
+}): string {
+  return [`## The previous step ${failure.name} failed`, failure.output].join(
+    "\n",
+  );
 }
 
 function buildCiBlock(verdict: CiVerdict): string {

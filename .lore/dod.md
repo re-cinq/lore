@@ -11,9 +11,9 @@
 
 ## Facets
 
-- [ ] Add `node_failure?: { name: string; output: string }` to `RuntimeContextArgs`.
-- [ ] Update `appendRuntimeContext` to not early return if `node_failure` is present.
-- [ ] Build and append a block for `node_failure` naming the step and output.
+- [x] Add `node_failure?: { name: string; output: string }` to `RuntimeContextArgs`.
+- [x] Update `appendRuntimeContext` to not early return if `node_failure` is present.
+- [x] Build and append a block for `node_failure` naming the step and output.
 
 ## Out of scope
 
