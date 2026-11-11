@@ -69,7 +69,7 @@ async function aggregateInboxItems(pool: Pool) {
        ORDER BY updated_at DESC`,
     ),
     pool.query(
-      `SELECT id, full_name, onboarding_pr_url, created_at
+      `SELECT id, full_name, onboarding_pr_url, onboarded_at
        FROM lore.repos
        WHERE onboarding_pr_merged = false
          AND onboarding_pr_url IS NOT NULL`,
@@ -79,7 +79,7 @@ async function aggregateInboxItems(pool: Pool) {
   return [
     ...planRows.rows.map(toPlanItem),
     ...repoRows.rows.map(toOnboardingItem),
-  ];
+  ].sort((a, b) => a.waiting_since.localeCompare(b.waiting_since));
 }
 
 function toPlanItem(row: Record<string, unknown>) {
@@ -89,6 +89,7 @@ function toPlanItem(row: Record<string, unknown>) {
     repo: row.repo as string,
     title: row.title as string,
     waiting_since: (row.updated_at as Date).toISOString(),
+    open_url: `/repos/${row.repo}/plans/${row.id}`,
     state: row.status as string,
   };
 }
@@ -99,7 +100,7 @@ function toOnboardingItem(row: Record<string, unknown>) {
     kind: "onboarding_pr" as const,
     repo: row.full_name as string,
     title: `Onboarding PR open for ${row.full_name}`,
-    waiting_since: (row.created_at as Date).toISOString(),
+    waiting_since: (row.onboarded_at as Date).toISOString(),
     open_url: row.onboarding_pr_url as string,
     state: "open",
   };

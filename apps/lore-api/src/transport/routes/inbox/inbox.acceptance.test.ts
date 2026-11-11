@@ -54,7 +54,7 @@ describe("Inbox GET route (Acceptance)", () => {
               id: "repo-uuid",
               full_name: "re-cinq/mock-repo",
               onboarding_pr_url: "https://github.com/re-cinq/mock-repo/pull/1",
-              created_at: new Date("2026-10-13T00:00:00.000Z"),
+              onboarded_at: new Date("2026-10-13T00:00:00.000Z"),
             },
           ],
         };
@@ -77,6 +77,8 @@ describe("Inbox GET route (Acceptance)", () => {
           id: "plan:b45a2789-982c-473d-8ab1-2b6fb0a5b28d",
           title: "Mock Plan",
           repo: "re-cinq/lore",
+          open_url:
+            "/repos/re-cinq/lore/plans/b45a2789-982c-473d-8ab1-2b6fb0a5b28d",
         }),
         expect.objectContaining({
           kind: "onboarding_pr",
