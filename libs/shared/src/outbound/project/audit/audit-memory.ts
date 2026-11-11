@@ -13,6 +13,9 @@ export class InMemoryAudit implements AuditPort {
   private readonly writtenAt: Date[] = [];
 
   async write(entry: AuditLogEntry): Promise<void> {
+    if (alreadyMerged(this.entries, entry)) {
+      return;
+    }
     this.entries.push(entry);
     this.writtenAt.push(this.clock());
   }
@@ -38,6 +41,23 @@ export class InMemoryAudit implements AuditPort {
       .some((entry) => carries(entry.payload, fields));
   }
 }
+
+const alreadyMerged = (
+  entries: readonly AuditLogEntry[],
+  entry: AuditLogEntry,
+): boolean =>
+  isMergeWithNumber(entry) &&
+  entries.some((existing) => sameMerge(existing, entry));
+
+const isMergeWithNumber = (entry: AuditLogEntry): boolean =>
+  entry.event_type === "pr_merged" &&
+  Boolean(entry.repo) &&
+  entry.payload.prNumber !== undefined;
+
+const sameMerge = (a: AuditLogEntry, b: AuditLogEntry): boolean =>
+  a.event_type === "pr_merged" &&
+  a.repo === b.repo &&
+  a.payload.prNumber === b.payload.prNumber;
 
 const carries = (
   payload: Record<string, unknown>,

@@ -13,7 +13,8 @@ export class PgAudit implements AuditPort {
     await this.pool.query(
       `INSERT INTO pipeline.audit_log
          (event_type, task_id, repo, actor, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT DO NOTHING`,
       [
         entry.event_type,
         entry.task_id ?? null,
