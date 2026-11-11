@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Write acceptance test using `assembleContext` to query ADRs and verify `vectorLegRows` in the debug trace.
+- [x] Write acceptance test using `assembleContext` to query ADRs and verify `vectorLegRows` in the debug trace.
 
 ## Out of scope
 
