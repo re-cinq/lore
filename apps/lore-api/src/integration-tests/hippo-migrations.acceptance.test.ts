@@ -8,6 +8,7 @@ const MIGRATIONS_DIR = join(
   "..",
   "..",
   "..",
+  "..",
   "deploy",
   "chart",
   "charts",
