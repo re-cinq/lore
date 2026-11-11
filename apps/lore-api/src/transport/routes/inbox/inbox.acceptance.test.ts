@@ -67,7 +67,7 @@ describe("Inbox GET route (Acceptance)", () => {
 
     expect(res.statusCode).toBe(200);
 
-    const payload = res.json();
+    const payload = res.result as Record<string, unknown>;
 
     expect(payload.items).toBeDefined();
     expect(payload.items).toEqual(
