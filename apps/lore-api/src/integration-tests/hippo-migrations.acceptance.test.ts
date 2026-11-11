@@ -3,6 +3,12 @@ import pg from "pg";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+const APP_USER = process.env.LORE_DB_USER || "lore";
+const APP_PASSWORD = process.env.LORE_DB_PASSWORD || "lore";
+
+const MIGRATOR_USER = "lore_hippo_test_migrator";
+const MIGRATOR_PASSWORD = "hippo_migrator_test";
+
 const MIGRATIONS_DIR = join(
   import.meta.dirname,
   "..",
@@ -27,19 +33,23 @@ async function setupLegacySchema(
 ): Promise<void> {
   await superuserPool.query(`
     DO $$ BEGIN
-      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
-        CREATE ROLE lore LOGIN PASSWORD 'lore';
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${APP_USER}') THEN
+        CREATE ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
+      ELSE
+        ALTER ROLE ${APP_USER} LOGIN PASSWORD '${APP_PASSWORD}';
       END IF;
     END $$;
   `);
-  await superuserPool.query(`GRANT CREATE ON DATABASE "${dbName}" TO lore`);
+  await superuserPool.query(
+    `GRANT CREATE ON DATABASE "${dbName}" TO ${APP_USER}`,
+  );
 
   const lorePool = new pg.Pool({
     host: process.env.LORE_DB_HOST || "localhost",
     port: parseInt(process.env.LORE_DB_PORT || "5432"),
     database: dbName,
-    user: "lore",
-    password: "lore",
+    user: APP_USER,
+    password: APP_PASSWORD,
   });
 
   try {
@@ -67,7 +77,20 @@ async function setupLegacySchema(
   }
 }
 
-async function setupPrivilegeGuardedSchema(dbName: string): Promise<void> {
+async function setupPrivilegeGuardedSchema(
+  dbName: string,
+  superuserPool: pg.Pool,
+): Promise<void> {
+  await superuserPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${MIGRATOR_USER}') THEN
+        CREATE ROLE ${MIGRATOR_USER} LOGIN PASSWORD '${MIGRATOR_PASSWORD}';
+      ELSE
+        ALTER ROLE ${MIGRATOR_USER} NOSUPERUSER LOGIN PASSWORD '${MIGRATOR_PASSWORD}';
+      END IF;
+    END $$;
+  `);
+
   const pool = new pg.Pool({
     host: process.env.LORE_DB_HOST || "localhost",
     port: parseInt(process.env.LORE_DB_PORT || "5432"),
@@ -97,28 +120,26 @@ async function setupPrivilegeGuardedSchema(dbName: string): Promise<void> {
 
       CREATE SCHEMA IF NOT EXISTS pipeline;
 
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
-          CREATE ROLE lore LOGIN PASSWORD 'lore';
-        END IF;
-      END $$;
-
-      GRANT USAGE ON SCHEMA memory TO lore;
-      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA memory TO lore;
-      GRANT USAGE, CREATE ON SCHEMA pipeline TO lore;
+      GRANT USAGE ON SCHEMA memory TO ${MIGRATOR_USER};
+      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA memory TO ${MIGRATOR_USER};
+      GRANT USAGE, CREATE ON SCHEMA pipeline TO ${MIGRATOR_USER};
     `);
   } finally {
     await pool.end();
   }
 }
 
-async function runMigrations(dbName: string) {
+async function runMigrations(
+  dbName: string,
+  user = APP_USER,
+  password = APP_PASSWORD,
+) {
   const lorePool = new pg.Pool({
     host: process.env.LORE_DB_HOST || "localhost",
     port: parseInt(process.env.LORE_DB_PORT || "5432"),
     database: dbName,
-    user: "lore",
-    password: "lore",
+    user,
+    password,
   });
   const mig13 = readFileSync(
     join(MIGRATIONS_DIR, "0013_memory_hippo_columns.sql"),
@@ -195,8 +216,8 @@ describe("hippo-memory and audit_log migrations (T010)", () => {
     const dbName = "lore_test_empty_hippo";
 
     await setupSuperuserDb(dbName, superuserPool);
-    await setupPrivilegeGuardedSchema(dbName);
-    await runMigrations(dbName);
+    await setupPrivilegeGuardedSchema(dbName, superuserPool);
+    await runMigrations(dbName, MIGRATOR_USER, MIGRATOR_PASSWORD);
 
     const verifyPool = new pg.Pool({
       host: process.env.LORE_DB_HOST || "localhost",
