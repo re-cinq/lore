@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { enforceTrue } from "../../../lib/enforce.js";
-import { assembleContext } from "./context-assembly.js";
+import { hybridChunkSearch } from "./context-assembly-chunk-search.js";
 
 const SCHEMA = `hybrid_leg_acc_${randomBytes(4).toString("hex")}`;
 const DIMS = 768;
@@ -126,20 +126,14 @@ afterAll(async () => {
 });
 
 describe.skipIf(!pg.ok)("context-assembly sparse content types", () => {
-  it("Vector leg survives sparse types filtering", async () => {
-    const result = await assembleContext(pool as never, "unrelated phrasing", {
-      repo: "octo/big",
-      templateName: "default",
-      debug: true,
-    });
+  it("returns all 6 ADR chunks from the vector leg among 3000 nearer code chunks", async () => {
+    const result = await hybridChunkSearch(
+      pool as never,
+      "unrelated phrasing",
+      "octo/big",
+      { contentTypes: ["adr"], limit: ADR_CHUNKS },
+    );
 
-    const trace = result.trace;
-
-    expect(trace).toBeDefined();
-
-    const adrTrace = trace?.sections.find((s) => s.source === "adrs");
-
-    expect(adrTrace).toBeDefined();
-    expect(adrTrace?.vectorLegRows).toBe(ADR_CHUNKS);
+    expect(result.vectorLegRows).toBe(ADR_CHUNKS);
   });
 });
