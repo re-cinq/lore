@@ -268,6 +268,10 @@ When writing functional code, verify:
 - [ ] Max 2 levels of nesting (use early returns)
 - [ ] Result types for error handling
 
+## Attribution
+
+Adapted from the `functional` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/functional), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

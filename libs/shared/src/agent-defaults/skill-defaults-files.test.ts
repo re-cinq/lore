@@ -8,6 +8,11 @@ import { fileURLToPath } from "node:url";
 import { readAgentDefaultFile } from "../domain/agent-defaults/agent-default-file.js";
 import { hasValidHelpBlock } from "./skill-help-block.js";
 import {
+  attributionFactsOf,
+  attributionSectionOf,
+  hasCompleteAttribution,
+} from "./skill-attribution.js";
+import {
   referencedMarkdownFiles,
   referencedSkillNames,
 } from "./skill-references.js";
@@ -49,6 +54,7 @@ const CONVENTIONAL_REPO_FILES = [
   "AGENTS.md",
   "README.md",
   "CHANGELOG.md",
+  "THIRD_PARTY_NOTICES.md",
   "CONTEXT.md",
 ];
 const FILES_A_SKILL_HAS_THE_READER_CREATE = ["characterization_test_plan.md"];
@@ -190,3 +196,83 @@ function shippedAgentFiles() {
       ),
     );
 }
+
+const RECINQ_ORIGINAL_SKILLS = [
+  "check-tests",
+  "legacy-add-tests",
+  "legacy-find-missing-tests",
+  "tdd-loop",
+  "tdd-start",
+];
+const THIRD_PARTY_NOTICES = readFileSync(
+  fileURLToPath(new URL("../../../../THIRD_PARTY_NOTICES.md", import.meta.url)),
+  "utf-8",
+);
+
+describe("skill attribution", () => {
+  const skills = loadSkillDefaults();
+  const attributed = skills.filter(
+    (skill) => !RECINQ_ORIGINAL_SKILLS.includes(skill.name),
+  );
+
+  it("returns 17 skills that are attributed to an upstream", () => {
+    expect(attributed.map((skill) => skill.name)).toEqual([
+      "api-design",
+      "cli-design",
+      "domain-driven-design",
+      "event-sourcing",
+      "front-end-testing",
+      "functional",
+      "hexagonal-architecture",
+      "improve-codebase-architecture",
+      "mutation-testing",
+      "observability",
+      "react-testing",
+      "structure-codebase",
+      "test-design-reviewer",
+      "testing",
+      "twelve-factor",
+      "typescript-strict",
+      "ubiquitous-language",
+    ]);
+  });
+
+  it("returns attributed skills that all carry a source url, a credit line, a licence id and a modification statement in an Attribution section before Help", () => {
+    const incomplete = attributed
+      .filter((skill) => !hasCompleteAttribution(skill.content))
+      .map((skill) => skill.name);
+
+    expect(incomplete).toEqual([]);
+  });
+
+  it("returns a notices file that names every attributed skill file", () => {
+    const missing = attributed
+      .map((skill) => `libs/shared/src/agent-defaults/skills/${skill.name}.md`)
+      .filter((path) => !THIRD_PARTY_NOTICES.includes(path));
+
+    expect(missing).toEqual([]);
+  });
+
+  it("returns a notices file that holds every credit line the skills carry", () => {
+    const creditLines = attributed.flatMap(
+      (skill) =>
+        attributionFactsOf(attributionSectionOf(skill.content) ?? "")
+          .creditLines,
+    );
+
+    expect(
+      [...new Set(creditLines)].filter(
+        (line) => !THIRD_PARTY_NOTICES.includes(line),
+      ),
+    ).toEqual([]);
+  });
+
+  it("returns no Attribution section for the skills re:cinq wrote itself", () => {
+    expect(
+      skills
+        .filter((skill) => RECINQ_ORIGINAL_SKILLS.includes(skill.name))
+        .filter((skill) => skill.content.includes("## Attribution"))
+        .map((skill) => skill.name),
+    ).toEqual([]);
+  });
+});

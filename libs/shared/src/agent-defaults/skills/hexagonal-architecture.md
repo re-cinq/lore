@@ -452,6 +452,10 @@ const placeOrder = async (...) => ...
 - [ ] Cross-cutting concerns (auth, technical telemetry, transactions) live in adapters; domain-significant observations go through an explicit driven port or domain events, never a raw logger import
 - [ ] Domain returns result types for expected outcomes, never throws for business rules
 
+## Attribution
+
+Adapted from the `hexagonal-architecture` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/hexagonal-architecture), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

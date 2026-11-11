@@ -7,7 +7,7 @@ description: 12-Factor App patterns for deployable applications. Use when config
 
 Core factors (config, dependencies, backing services, logs) apply to any deployed application — services, frontends, workers, and CLI tools. Server-specific factors (port binding, concurrency, disposability) apply only to backend services that run as long-lived processes.
 
-Based on [12factor.net](https://12factor.net). All 12 factors are covered below: rules, anti-patterns, and code-level implications live here.
+All 12 factors are covered below: rules, anti-patterns, and code-level implications live here.
 
 See the `typescript-strict` skill for schema-first patterns at trust boundaries. See the `testing` skill for how to TDD these patterns — config validation, shutdown behavior, and backing service integration are all testable through behavior-driven tests.
 
@@ -232,6 +232,10 @@ Config injection via options objects makes all of these patterns naturally testa
 - [ ] App binds to a port from config, includes its own HTTP server
 - [ ] Same backing service types used in development and production
 - [ ] Admin scripts live in the repo and use the same config/dependencies
+
+## Attribution
+
+Adapted from the `twelve-factor` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/twelve-factor), Copyright (c) 2024 Paul Hammond, MIT licence. Based on [12factor.net](https://12factor.net). Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

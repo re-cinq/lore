@@ -69,6 +69,10 @@ With `vitest-browser-react`, `render()` and `renderHook()` are async and must be
 - Test rendered output, not component state or instance methods.
 - No shallow rendering: it hides the integration bugs between parent and child.
 
+## Attribution
+
+Adapted from the `react-testing` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/react-testing), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: rewritten much shorter as a single file, with one example per rule and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

@@ -207,6 +207,10 @@ Reject these structures:
 - Does the proposal state where the next new file belongs and what it may import?
 - Does every new directory shown have a real owner now rather than serving as an empty or speculative placeholder?
 
+## Attribution
+
+Adapted from the `structure-codebase` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/structure-codebase), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

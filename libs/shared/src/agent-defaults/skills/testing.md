@@ -78,6 +78,10 @@ When a component or function takes a callback (`onSubmit`), the callback contrac
 - Factories validated by the real schema; no `let`/`beforeEach`
 - No 1:1 test-to-file mapping
 
+## Attribution
+
+Adapted from the `testing` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/testing), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: rewritten much shorter as a single file, with one example per rule and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
+
 ## Help
 
 <!-- lore-help:begin -->

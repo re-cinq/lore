@@ -1,69 +1,78 @@
 ---
 name: test-design-reviewer
-description: Evaluates test quality using Dave Farley's 8 properties. Use when reviewing tests, assessing test suite quality, or analyzing test effectiveness against TDD best practices.
+description: Review test quality using Dave Farley's eight properties of good tests. Use when assessing a test file or suite for understandability, maintainability, repeatability, atomicity, necessity, granularity, speed, and evidence of test-first development.
 context: fork
 agent: Explore
 model: claude-sonnet-4-6
 ---
 
-Review the given tests against Dave Farley's eight properties of good tests (https://www.linkedin.com/pulse/tdd-properties-good-tests-dave-farley-iexge/). Read the tests before the implementation. Score each property from 1 to 10 with evidence from the code, and score conservatively when unsure about test-first adherence.
+Review tests as executable specifications and safety evidence. Read the tests before the implementation so their public story can stand on its own, then inspect the production boundary and repository constraints needed to judge the claims accurately. The eight properties come from Dave Farley's [Properties of Good Tests](https://www.linkedin.com/pulse/tdd-properties-good-tests-dave-farley-iexge/).
 
-## The eight properties
+## Properties
 
-| Property | High score (9-10) | Low score (1-3) |
+| Property | Inspect | Strong evidence |
 |---|---|---|
-| Understandable (U) | Reads like a specification; intent is clear without the implementation | Cryptic; leans on implementation details |
-| Maintainable (M) | Proper abstractions; implementation changes rarely break tests | Tightly coupled; minor changes break tests |
-| Repeatable (R) | Deterministic, same result anywhere | Depends on external state or timing |
-| Atomic (A) | Isolated, no shared state, parallelizable | Order-dependent, heavy interdependence |
-| Necessary (N) | Every test adds value, no redundancy | Many tests add nothing or repeat each other |
-| Granular (G) | One behaviour per test; a failure pinpoints the issue | Sprawling tests; failures need investigation |
-| Fast (F) | Milliseconds; the suite runs quickly | Slow enough to hurt the development flow |
-| First (T) | Evidence of test-first; tests drove the design | Written after the code; mirrors its structure |
+| Understandable | Names, arrange/act/assert flow, domain vocabulary | The behavior and failure are clear without reconstructing internals |
+| Maintainable | Coupling, duplication, fixtures, public boundaries | Behavior-preserving refactors do not require unrelated test rewrites |
+| Repeatable | Time, randomness, concurrency, network, shared resources | Repeated and parallel runs have controlled inputs and cleanup |
+| Atomic | Shared state, ordering, cleanup, failure isolation | A test can run alone and its failure identifies one behavior |
+| Necessary | Distinct risk or contract protected | Removing the test would remove meaningful evidence |
+| Granular | Scope of behavior and diagnostic quality | Assertions describe one coherent outcome; related assertions may stay together |
+| Fast | Measured feedback time at the appropriate layer | The suite is fast enough for its intended feedback loop |
+| First | Evidence of test-first development | A captured RED run, development trace, or history shows the test failed for the expected reason before production behavior changed |
 
-## Farley Score
+## Rating
 
+Rate each property `Strong`, `Mixed`, `Weak`, or `Not assessed`.
+
+- Use exact file locations and observed evidence.
+- Do not calculate an aggregate score; unequal risks and repository contexts make a weighted number falsely precise.
+- Mark **First** `Not assessed` when only the final tree is available. Static test shape cannot prove chronology.
+- Mark **Fast** `Not assessed` unless execution evidence or trustworthy timing is available.
+- Prefer the smallest change that strengthens observable behavior. Do not demand one assertion per test, one test per file, or unit tests where a higher-level contract is the honest evidence boundary.
+
+## Review process
+
+1. Establish the claimed behavior, test layer, repository policy, and relevant risk.
+2. Read the tests without the implementation and record what a failure would mean.
+3. Inspect the public production boundary, fixtures, and configured runner.
+4. Run focused tests or timing only when authorized and useful; report exactly what ran.
+5. Rate every property with evidence, including `Not assessed` where evidence is absent.
+6. Rank only actionable findings by severity and impact, each with the smallest credible fix.
+7. Separate test defects from production-design seams and local policy preferences.
+
+## Output
+
+```markdown
+## Test design review: [scope]
+
+| Property | Rating | Evidence |
+|---|---|---|
+| Understandable | Strong/Mixed/Weak/Not assessed | [file:line and reason] |
+| ... one row per property ... | | |
+
+### Findings
+
+1. **[severity] - [problem]** (`path:line`)
+   Impact: [observable risk].
+   Smallest fix: [action].
+
+### Validation gaps
+
+- [Anything not assessed and the evidence needed]
 ```
-Farley Score = (U×1.5 + M×1.5 + R×1.25 + A×1.0 + N×1.0 + G×1.0 + F×0.75 + T×1.0) / 9
-```
 
-9.0-10: exemplary; 7.5-8.9: excellent; 6.0-7.4: good; 4.5-5.9: fair; 3.0-4.4: poor; below 3.0: critical, consider rewriting.
-
-## Output format
-
-```
-## Test Design Review: [File/Suite Name]
-
-| Property | Score | Evidence |
-|----------|-------|----------|
-| Understandable | X/10 | [brief justification] |
-| Maintainable | X/10 | [brief justification] |
-| Repeatable | X/10 | [brief justification] |
-| Atomic | X/10 | [brief justification] |
-| Necessary | X/10 | [brief justification] |
-| Granular | X/10 | [brief justification] |
-| Fast | X/10 | [brief justification] |
-| First (TDD) | X/10 | [brief justification] |
-
-### Farley Score: X.X/10 [Rating]
-
-### Top Recommendations
-1. [Highest impact improvement, with a code example where it helps]
-2. [Second priority]
-3. [Third priority]
-```
-
-Acknowledge what is done well, be specific, give both individual and aggregate scores for several files, and end with the link to Dave Farley's article above.
+No findings is a valid result; do not invent work to populate the section.
 
 ## Attribution
 
-Adapted from [Andrea Laforgia's claude-code-agents repository](https://github.com/andrealaforgia/claude-code-agents/blob/main/alf-test-design-reviewer/alf-test-design-reviewer.md).
+Adapted from the `test-design-reviewer` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/test-design-reviewer), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 
 <!-- lore-help:begin -->
-**Summary.** Score the quality of tests against Dave Farley's eight properties of good tests.
+**Summary.** Rate the quality of tests against Dave Farley's eight properties of good tests.
 **Usage:** `/test-design-reviewer`
-**Use when.** You are reviewing a test suite or a change's tests and want a scored assessment of how well they would catch regressions.
+**Use when.** You are reviewing a test suite or a change's tests and want an evidence-based assessment of how well they would catch regressions.
 **Related:** `/testing`, `/mutation-testing`
 <!-- lore-help:end -->
