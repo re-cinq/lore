@@ -32,6 +32,15 @@ export {
   type CurationDeps,
 } from "./work/episode-writer.js";
 export {
+  buildCopyPrompt,
+  fallbackCopy,
+  generateArtifactCopy,
+  type CopyResult,
+  type BuildCopyPromptArgs,
+  type FallbackCopyArgs,
+  type GenerateArtifactCopyArgs,
+} from "./work/artifact-copy.js";
+export {
   loadApprovalConfig,
   requiresApproval,
   getApprovalLabel,
