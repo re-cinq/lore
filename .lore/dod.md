@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Implement `listCrossRepoPlanMetas` in `plan-store-pg.ts`
-- [ ] Ensure existing single-repository plan persistence/listing remains reusable
+- [x] Implement `listCrossRepoPlanMetas` in `plan-store-pg.ts`
+- [x] Ensure existing single-repository plan persistence/listing remains reusable
 
 ## Out of scope
 
