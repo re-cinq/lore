@@ -58,6 +58,13 @@ export async function listAllRepos(): Promise<
   }
 }
 
+/** Installation repos not yet in lore.repos — the candidates for onboarding. */
+export function listAvailableRepos(): Promise<
+  ApiResult<{ full_name: string }[]>
+> {
+  return apiFetch("lore-api", "/api/repos/available");
+}
+
 /** Throws naming why, rather than answering `[]` on an unreachable lore-api — an outage must not render as "no repos" (worst on the home page's onboard-your-first-repo empty state). */
 export function reposOrThrow<T>(result: ApiResult<T>): T {
   if (result.status !== "ok") {
