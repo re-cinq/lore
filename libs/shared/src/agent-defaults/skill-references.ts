@@ -14,3 +14,13 @@ export function referencedSkillNames(content: string): string[] {
 
   return [...new Set([...mentioned, ...related])];
 }
+
+const BACKTICKED_MARKDOWN_FILE = /`([A-Za-z0-9_./-]+\.md)`/g;
+
+export function referencedMarkdownFiles(content: string): string[] {
+  return [
+    ...new Set(
+      [...content.matchAll(BACKTICKED_MARKDOWN_FILE)].map((match) => match[1]),
+    ),
+  ];
+}

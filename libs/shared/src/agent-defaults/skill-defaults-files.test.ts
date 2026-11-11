@@ -7,7 +7,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { readAgentDefaultFile } from "../domain/agent-defaults/agent-default-file.js";
 import { hasValidHelpBlock } from "./skill-help-block.js";
-import { referencedSkillNames } from "./skill-references.js";
+import {
+  referencedMarkdownFiles,
+  referencedSkillNames,
+} from "./skill-references.js";
 
 const SHIPPED_SKILL_NAMES = [
   "api-design",
@@ -39,6 +42,16 @@ const GATEWAY_BAKED_SKILL_NAMES = [
   "tdd-loop",
   "legacy-characterize",
 ];
+
+const CONVENTIONAL_REPO_FILES = [
+  "SKILL.md",
+  "CLAUDE.md",
+  "AGENTS.md",
+  "README.md",
+  "CHANGELOG.md",
+  "CONTEXT.md",
+];
+const FILES_A_SKILL_HAS_THE_READER_CREATE = ["characterization_test_plan.md"];
 
 describe("loadSkillDefaults", () => {
   const skills = loadSkillDefaults();
@@ -72,6 +85,20 @@ describe("loadSkillDefaults", () => {
         .filter((skill) => skill.content.includes("resources/"))
         .map((skill) => skill.name),
     ).toEqual([]);
+  });
+
+  it("returns skills that only name markdown files a repo conventionally holds or the skill has the reader create", () => {
+    const allowed = new Set([
+      ...CONVENTIONAL_REPO_FILES,
+      ...FILES_A_SKILL_HAS_THE_READER_CREATE,
+    ]);
+    const unshippedFiles = skills.flatMap((skill) =>
+      referencedMarkdownFiles(skill.content)
+        .filter((file) => !allowed.has(file))
+        .map((file) => `${skill.name} -> ${file}`),
+    );
+
+    expect(unshippedFiles).toEqual([]);
   });
 
   it("returns skills that only name shipped or gateway-baked skills", () => {

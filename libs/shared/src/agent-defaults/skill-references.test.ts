@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { referencedSkillNames } from "./skill-references.js";
+import {
+  referencedMarkdownFiles,
+  referencedSkillNames,
+} from "./skill-references.js";
 
 describe("referencedSkillNames", () => {
   it("returns tdd for a body naming the tdd skill", () => {
@@ -30,5 +33,27 @@ describe("referencedSkillNames", () => {
     expect(
       referencedSkillNames("`testing` skill.\n**Related:** `/testing`"),
     ).toEqual(["testing"]);
+  });
+});
+
+describe("referencedMarkdownFiles", () => {
+  it("returns event-store.md for a backticked bare file name", () => {
+    expect(referencedMarkdownFiles("see `event-store.md` for more")).toEqual([
+      "event-store.md",
+    ]);
+  });
+
+  it("returns resources/msw.md with its folder when the path is backticked", () => {
+    expect(referencedMarkdownFiles("load `resources/msw.md`")).toEqual([
+      "resources/msw.md",
+    ]);
+  });
+
+  it("returns a file once when mentioned twice", () => {
+    expect(referencedMarkdownFiles("`a.md` then `a.md`")).toEqual(["a.md"]);
+  });
+
+  it("returns nothing for prose that is not a backticked markdown file", () => {
+    expect(referencedMarkdownFiles("a.md and `vitest` and `x.ts`")).toEqual([]);
   });
 });
