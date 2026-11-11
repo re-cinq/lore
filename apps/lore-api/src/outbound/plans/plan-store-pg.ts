@@ -96,7 +96,9 @@ export async function listCrossRepoPlanMetas(
   db: Db,
   repos: string[],
 ): Promise<PlanMeta[]> {
-  if (repos.length === 0) {return [];}
+  if (repos.length === 0) {
+    return [];
+  }
   const result = await db().query<DbRow>(
     `SELECT ${PLAN_SELECT} FROM ${PLAN_TABLE} WHERE repo = ANY($1) ORDER BY updated_at DESC`,
     [repos],
