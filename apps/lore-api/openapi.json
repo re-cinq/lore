@@ -3798,6 +3798,76 @@
         ]
       }
     },
+    "/api/inbox/items/{item_id}/state": {
+      "put": {
+        "operationId": "put_api_inbox_items_item_id_state",
+        "summary": "PUT /api/inbox/items/{item_id}/state",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "person": {
+                    "type": "string"
+                  },
+                  "handled": {
+                    "type": "boolean"
+                  },
+                  "snoozed_until": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": ["person"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ingest": {
       "post": {
         "operationId": "post_api_ingest",

@@ -45,7 +45,7 @@ describe("PUT /api/inbox/items/{item_id}/state", () => {
 
     expect(res.statusCode).toBe(200);
 
-    const call = pool.query.mock.calls.find(([querySql]: [string]) =>
+    const call = pool.query.mock.calls.find(([querySql]) =>
       String(querySql).includes("INSERT INTO lore.inbox_item_state"),
     );
 
