@@ -121,7 +121,7 @@ describe.skipIf(!reachable)("ingestCoverageReport idempotency", () => {
       records,
       stored2,
     );
-    
+
     resetCounts();
     const recordsMod = [
       {
