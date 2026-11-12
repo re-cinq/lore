@@ -6,15 +6,15 @@
 
 ## Done when these pass
 
-- [ ] **recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks** — re-projecting a shorter spec prunes orphaned blocks
+- [x] **recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks** — re-projecting a shorter spec prunes orphaned blocks
   `libs/shared/src/work/spec-trace/block-pruning.acceptance.test.ts`
-- [ ] **recomputes the shorter source after re-projecting a SHORTER ADR over a longer one** — re-projecting a shorter ADR prunes orphaned blocks
+- [x] **recomputes the shorter source after re-projecting a SHORTER ADR over a longer one** — re-projecting a shorter ADR prunes orphaned blocks
   `libs/shared/src/work/spec-trace/block-pruning.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Write acceptance tests for pruning in specs and ADRs
-- [ ] Ensure they are properly linked in spec.md
+- [x] Write acceptance tests for pruning in specs and ADRs
+- [x] Ensure they are properly linked in spec.md
 
 ## Out of scope
 
