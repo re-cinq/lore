@@ -119,10 +119,9 @@ export async function resolveTestName(
     return link.label;
   }
   const content = await readLinked(link.path);
+  const title = content != null ? testTitleAt(content, link.line) : null;
 
-  return content != null
-    ? (testTitleAt(content, link.line) ?? link.label)
-    : link.label;
+  return title ?? link.label;
 }
 
 /** The test chunks this text links to. A test's xid is FILE-scoped rather than line-scoped: a test keeps its identity when the file above it grows, and re-anchoring on every shifted line would churn the graph for no change in meaning. */
@@ -137,7 +136,7 @@ async function projectTestLinks(
     extraFields: async (link) => ({
       "TestChunk.test_name": await resolveTestName(link, context.readLinked),
       "TestChunk.link_label": link.label,
-      ...anchorHashField("TestChunk", link),
+      ...(link.hash === null ? {} : { "TestChunk.anchor_hash": link.hash }),
     }),
   });
 }
@@ -151,15 +150,9 @@ async function projectCodeLinks(
     parse: parseCodeLinksInStatement,
     nodeType: "CodeChunk",
     buildXid: anchorScopedXid,
-    extraFields: async (link) => anchorHashField("CodeChunk", link),
+    extraFields: async (link) =>
+      link.hash === null ? {} : { "CodeChunk.anchor_hash": link.hash },
   });
-}
-
-function anchorHashField(
-  nodeType: SpecTraceNodeType,
-  link: SpecLinkRef,
-): Record<string, string> {
-  return link.hash === null ? {} : { [`${nodeType}.anchor_hash`]: link.hash };
 }
 
 /** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
