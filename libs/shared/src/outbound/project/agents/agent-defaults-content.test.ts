@@ -123,6 +123,20 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("documents all three provenance forms in loop-tdd-round — inline spec link, lore:validates annotation, and Lore-Validates trailer", () => {
+    const round = promptOf("loop-tdd-round");
+
+    expect({
+      inlineLink: round.includes("([validated by name](path/to/test.ts#L42))"),
+      annotation: round.includes("// lore:validates"),
+      trailer: round.includes("Lore-Validates: <specPath>#<ordinal>"),
+    }).toEqual({
+      inlineLink: true,
+      annotation: true,
+      trailer: true,
+    });
+  });
+
   it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name);

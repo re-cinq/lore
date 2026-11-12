@@ -53,3 +53,6 @@ export async function recomputeFile(
 
   return sourceFromBlockRows(rows);
 }
+
+/** Spec-scoped alias for {@link recomputeFile}; delegates directly for callers that work exclusively with specs. */
+export const recomputeSpecFile = recomputeFile;
