@@ -22,46 +22,7 @@ describe("Inbox GET route (Acceptance)", () => {
   });
 
   it("successfully returns 200 and mapped Plan and Onboarding PR items", async () => {
-    const pool = makePool();
-
-    pool.query.mockImplementation(async (sql: string) => {
-      const query = sql.toLowerCase();
-
-      if (query.includes("lore.plans")) {
-        return {
-          rows: [
-            {
-              id: "b45a2789-982c-473d-8ab1-2b6fb0a5b28d",
-              repo: "re-cinq/lore",
-              title: "Mock Plan",
-              status: "in-review",
-              type: "feature",
-              created_by: "alice",
-              created_at: new Date("2026-10-13T00:00:00.000Z"),
-              updated_at: new Date("2026-10-13T00:00:00.000Z"),
-            },
-          ],
-        };
-      }
-
-      if (
-        query.includes("lore.repos") &&
-        query.includes("onboarding_pr_merged = false")
-      ) {
-        return {
-          rows: [
-            {
-              id: "repo-uuid",
-              full_name: "re-cinq/mock-repo",
-              onboarding_pr_url: "https://github.com/re-cinq/mock-repo/pull/1",
-              onboarded_at: new Date("2026-10-13T00:00:00.000Z"),
-            },
-          ],
-        };
-      }
-
-      return { rows: [] };
-    });
+    const pool = poolWithOnePlanAndOneOnboarding();
 
     const res = await get(pool, "/api/inbox");
 
@@ -88,4 +49,58 @@ describe("Inbox GET route (Acceptance)", () => {
       ]),
     );
   });
+
+  it("counts plan_review 1 and onboarding_pr 1 for one in-review plan and one open onboarding PR", async () => {
+    const res = await get(poolWithOnePlanAndOneOnboarding(), "/api/inbox");
+
+    expect((res.result as Record<string, unknown>).counts).toEqual({
+      plan_review: 1,
+      onboarding_pr: 1,
+    });
+  });
 });
+
+function poolWithOnePlanAndOneOnboarding() {
+  const pool = makePool();
+
+  pool.query.mockImplementation(async (sql: string) => {
+    const query = sql.toLowerCase();
+
+    if (query.includes("lore.plans")) {
+      return {
+        rows: [
+          {
+            id: "b45a2789-982c-473d-8ab1-2b6fb0a5b28d",
+            repo: "re-cinq/lore",
+            title: "Mock Plan",
+            status: "in-review",
+            type: "feature",
+            created_by: "alice",
+            created_at: new Date("2026-10-13T00:00:00.000Z"),
+            updated_at: new Date("2026-10-13T00:00:00.000Z"),
+          },
+        ],
+      };
+    }
+
+    if (
+      query.includes("lore.repos") &&
+      query.includes("onboarding_pr_merged = false")
+    ) {
+      return {
+        rows: [
+          {
+            id: "repo-uuid",
+            full_name: "re-cinq/mock-repo",
+            onboarding_pr_url: "https://github.com/re-cinq/mock-repo/pull/1",
+            onboarded_at: new Date("2026-10-13T00:00:00.000Z"),
+          },
+        ],
+      };
+    }
+
+    return { rows: [] };
+  });
+
+  return pool;
+}

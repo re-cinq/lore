@@ -70,7 +70,7 @@ folder, `apps/lore-api/src/transport/routes/inbox/`, registered in
   snoozed items are left out.
 - FR1.5: The response also carries a count per kind for the caller, after the
   handled/snoozed default and before the `kind` filter, so the UI can label
-  its chips.
+  its chips. ([validated by counts plan_review 1 and onboarding_pr 1 for one in-review plan and one open onboarding PR @41c6c855](apps/lore-api/src/transport/routes/inbox/inbox.acceptance.test.ts#L53))
 - FR1.6: A source that cannot be read (the floor unreachable, GitHub refusing)
   does not fail the whole read: the response lists it in
   `unavailable: string[]` and serves the other sources.
