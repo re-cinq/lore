@@ -26,7 +26,7 @@ describe("Ingest round-trip", () => {
     await pool?.end();
   });
 
-  it("A chunk inserted through API ingest retains its exact content_hash when read back", async () => {
+  it("A chunk inserted through API ingest retains its exact content_hash when read back ([validated by this](specs/spec-traceability-graph/spec.md#L91))", async () => {
     const content = "const x = 42;";
     const filePath = "src/x.ts";
 
