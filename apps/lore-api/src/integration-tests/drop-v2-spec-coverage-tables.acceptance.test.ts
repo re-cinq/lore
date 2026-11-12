@@ -21,7 +21,7 @@ describe("0008_drop_v2_spec_coverage_tables", () => {
 
     await setupSuperuserDb(dbName, superuserPool);
     await setupLegacyV2Schemas(dbName);
-    
+
     const tablesBefore = await checkV2Tables(dbName);
 
     expect(tablesBefore).toEqual(
@@ -40,7 +40,7 @@ describe("0008_drop_v2_spec_coverage_tables", () => {
     const tablesAfter = await checkV2Tables(dbName);
 
     expect(tablesAfter).toEqual([]);
-    
+
     const otherTables = await checkOtherTables(dbName);
 
     expect(otherTables).toEqual(["team_a.other_table"]);
