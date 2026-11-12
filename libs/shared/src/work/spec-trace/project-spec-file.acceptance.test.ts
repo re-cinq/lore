@@ -56,7 +56,9 @@ describe.skipIf(!reachable)("projectSpecFile acceptance (live Dgraph)", () => {
     ).join("\n");
 
     const readLinked = async (path: string) => {
-      if (path === testPath) {return testContent;}
+      if (path === testPath) {
+        return testContent;
+      }
 
       return null;
     };
