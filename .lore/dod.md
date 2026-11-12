@@ -7,13 +7,13 @@
 
 ## Done when these pass
 
-- [ ] **includes the sections required by the PR description check in the generated pull request body** — The generated PR body has `## Why`, `## What Changed`, `## Testing`, `## Alternatives Considered`, and `## ADRs & Architecture` sections, and does not mention CI.
+- [x] **includes the sections required by the PR description check in the generated pull request body** — The generated PR body has `## Why`, `## What Changed`, `## Testing`, `## Alternatives Considered`, and `## ADRs & Architecture` sections, and does not mention CI.
   `apps/stations/src/onboard/open-pr/station.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Add the required sections from `libs/shared/src/work/onboard-content.ts` to `apps/stations/src/onboard/open-pr/station.ts`.
-- [ ] Update tests in `apps/stations/src/onboard/open-pr/station.test.ts` to match the new PR body format.
+- [x] Add the required sections from `libs/shared/src/work/onboard-content.ts` to `apps/stations/src/onboard/open-pr/station.ts`.
+- [x] Update tests in `apps/stations/src/onboard/open-pr/station.test.ts` to match the new PR body format.
 
 ## Out of scope
 
