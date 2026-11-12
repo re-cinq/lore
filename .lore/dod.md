@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **performs no writes at the same commit, but a new commit replaces targets without duplicates** — ensures reposting the same report at the same commit is a complete no-op (zero mutations), while maintaining correct replacement behavior on a new commit.
+- [x] **performs no writes at the same commit, but a new commit replaces targets without duplicates** — ensures reposting the same report at the same commit is a complete no-op (zero mutations), while maintaining correct replacement behavior on a new commit.
   `libs/shared/src/work/spec-trace/ingest-coverage.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Wrap `dgraphClient` mutations to verify `ingestCoverageReport` issues no writes for a same-commit repost.
-- [ ] Add same-commit short-circuit in `ingestCoverageReport` before stamping baseline and restamping commit.
+- [x] Wrap `dgraphClient` mutations to verify `ingestCoverageReport` issues no writes for a same-commit repost.
+- [x] Add same-commit short-circuit in `ingestCoverageReport` before stamping baseline and restamping commit.
 
 ## Out of scope
 
