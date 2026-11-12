@@ -18,10 +18,12 @@ export const TEST_PATH_SQL_PATTERN = TEST_PATH_PATTERNS.map(
   (pattern) => pattern.source,
 ).join("|");
 
-export function isTestFile(filePath: string, content?: string): boolean {
-  if (TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath))) {return true;}
+export function isTestFile(filePath: string, content?: unknown): boolean {
+  if (TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath))) {
+    return true;
+  }
 
-  if (content !== undefined && filePath.endsWith(".rs")) {
+  if (typeof content === "string" && filePath.endsWith(".rs")) {
     return /#\[test\]/.test(content);
   }
 
