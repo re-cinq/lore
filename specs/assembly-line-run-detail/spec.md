@@ -59,8 +59,8 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
 - `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). _Amended 2026-09-02:_ the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
   - A `code-review` run with a PR number renders the trigger-review button. ([validated by @d33a6a17](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L34))
-  - A run of another definition renders no options. ([validated by @4d8d84d9](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L42))
-  - A `code-review` run without a PR number renders no options. ([validated by @801936b4](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L52))
+  - A run of another definition renders no review options. ([validated by @a8bc260f](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L42))
+  - A `code-review` run without a PR number renders no review options. ([validated by @960f39ee](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L52))
 
 ## Alternatives Rejected
 

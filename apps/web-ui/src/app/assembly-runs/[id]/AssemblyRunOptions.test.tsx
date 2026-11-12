@@ -39,7 +39,7 @@ describe("AssemblyRunOptions", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders nothing for an implementation run", () => {
+  it("renders no review options for an implementation run", () => {
     const { container } = render(
       <AssemblyRunOptions
         run={buildRun({ blueprintName: "implementation" })}
@@ -49,7 +49,7 @@ describe("AssemblyRunOptions", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders nothing for a code-review run without a PR number", () => {
+  it("renders no review options for a code-review run without a PR number", () => {
     const { container } = render(
       <AssemblyRunOptions run={buildRun({ prNumber: null, prUrl: null })} />,
     );
