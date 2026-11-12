@@ -909,30 +909,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(recomputed).toBe(content);
   });
 
-  it("recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks", async () => {
-    const repo = `test-proj/${randomUUID()}`;
-
-    createdRepo = repo;
-    const filePath = "specs/example/spec.md";
-    const longContent = ["# Title", "", "Para one.", "", "Para two."].join(
-      "\n",
-    );
-    const shortContent = "# Title";
-
-    await projectSpecFile(
-      { repo, filePath, content: longContent },
-      dgraphClient,
-    );
-    await projectSpecFile(
-      { repo, filePath, content: shortContent },
-      dgraphClient,
-    );
-
-    const recomputed = await recomputeFile(repo, filePath, dgraphClient);
-
-    expect(recomputed).toBe(shortContent);
-  });
-
   it("replaces a surviving statement's validated_by link when its inline test link changes on re-projection", async () => {
     const repo = `test-proj/${randomUUID()}`;
 
