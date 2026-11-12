@@ -30,19 +30,18 @@ describe("Ingest round-trip", () => {
     const content = "const x = 42;";
     const filePath = "src/x.ts";
 
-    const { results } = await ingestFiles(
-      pool,
-      [{ path: filePath, content }],
-      { repo: REPO, commit: "HEAD" }
-    );
+    const { results } = await ingestFiles(pool, [{ path: filePath, content }], {
+      repo: REPO,
+      commit: "HEAD",
+    });
 
     const chunkId = results[0]?.chunk_id;
 
     expect(results).toMatchObject([{ status: "ingested" }]);
-    
+
     const { rows } = await pool.query(
       `SELECT metadata FROM ${SCHEMA}.chunks WHERE id = $1`,
-      [chunkId]
+      [chunkId],
     );
 
     expect(rows).toHaveLength(1);
