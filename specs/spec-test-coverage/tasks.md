@@ -119,7 +119,7 @@ walkthrough) was deferred under v2 and is now superseded by T128.
 - [x] T013 [P] Build `SpecCard.tsx` (title, file_path, summary, coverage line, Details button; zero-test gap state) in `web-ui/src/app/repos/[owner]/[repo]/specs/`
 - [x] T014 [P] Build `SpecDetails.tsx` client component: `react-markdown` + `remark-gfm` + `rehype-raw` full-spec render (reassembled chunks) + matched test list with source links + expandable rationale
 - [x] T015 Details surface = **route** `/repos/:o/:r/specs/[...path]` (catch-all, `encodeURIComponent` contract per web-ui CLAUDE.md); navigation wired from `SpecCard`
-- [x] T016 Rewrite `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`: DB-direct coverage (spec chunks + link counts) → `SpecCard` list, **Add Spec form preserved unchanged** (later removed in v3 since specs are auto-projected)
+- [x] T016 Rewrite `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`: DB-direct coverage (spec chunks + link counts) → `SpecCard` list
 - [x] T017 [P] Styling reuses existing `spec-card` / `content-viewer` / `btn-secondary` classes + inline styles (no new CSS file needed)
 
 #### v2 — Phase 5 — Verify (v1)
@@ -168,7 +168,7 @@ walkthrough) was deferred under v2 and is now superseded by T128.
 #### v2 — Phase 12 — SpecCard + per-repo specs page
 
 - [x] T039 Update `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` to replace inline test-count with `<CoverageBar>` + caption (mockup at spec.md §Card list)
-- [x] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload; **Add Spec form preserved unchanged** (AC13, later removed in v3)
+- [x] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload
 
 #### v2 — Phase 13 — SpecDetails statement highlighting
 

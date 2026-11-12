@@ -12,8 +12,8 @@
 
 ## Facets
 
-- [ ] Remove "The Add Spec form is preserved unchanged" from T106, T016, and T040 in `specs/spec-test-coverage/tasks.md`.
-- [ ] Amend AC 6 in `specs/spec-test-coverage/spec.md` to state the Add Spec form is removed because specs are auto-projected by CI on push.
+- [x] Remove "The Add Spec form is preserved unchanged" from T106, T016, and T040 in `specs/spec-test-coverage/tasks.md`.
+- [x] Amend AC 6 in `specs/spec-test-coverage/spec.md` to state the Add Spec form is removed because specs are auto-projected by CI on push.
 
 ## Out of scope
 
