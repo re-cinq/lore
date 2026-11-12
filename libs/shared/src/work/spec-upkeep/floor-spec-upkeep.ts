@@ -15,6 +15,9 @@ export const SPEC_UPKEEP_LINE = "spec-upkeep";
 export const MAX_DRIFTED_SPECS = 3;
 export const MAX_UNLINKED_STATEMENTS = 25;
 
+/** On a first-run backfill across many repositories, capping starts per tick prevents a PR flood. */
+export const MAX_RUNS_PER_TICK = 10;
+
 /** Every upkeep pull request's branch starts with it, which is how the Loops tab finds them. */
 export const UPKEEP_BRANCH_PREFIX = "lore/spec-upkeep/";
 const DAY_LENGTH = "2026-10-05".length;
@@ -60,6 +63,9 @@ export async function specUpkeepTick(
   const tally = { started: 0, skipped: 0, failed: 0 };
 
   for (const repo of repos) {
+    if (tally.started >= MAX_RUNS_PER_TICK) {
+      break;
+    }
     tally[await startFor(repo, deps)]++;
   }
 

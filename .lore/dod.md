@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **spec upkeep throttling** — staggers PR creation with an explicit limit across repositories on an initial burst
+- [x] **spec upkeep throttling** — staggers PR creation with an explicit limit across repositories on an initial burst
   `libs/shared/src/work/spec-upkeep/floor-spec-upkeep.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Enforce a numerical limit on total `startRun` invocations per `specUpkeepTick` run.
+- [x] Enforce a numerical limit on total `startRun` invocations per `specUpkeepTick` run.
 
 ## Out of scope
 
