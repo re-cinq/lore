@@ -43,6 +43,38 @@ describe("SpecDetails v3 (markdown-driven)", () => {
     expect(mark?.className).toContain("stmt-tested");
   });
 
+  it("renders a statement with multiple test links as tested and shows all links in the hover popover", () => {
+    const md =
+      "## Acceptance Criteria\n\n- Claims a pending task. ([t1](src/1.test.ts#L1), [t2](src/2.test.ts#L2))\n";
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: "Claims a pending task. ([t1](src/1.test.ts#L1), [t2](src/2.test.ts#L2))",
+        kind: "list-item",
+        state: "tested",
+        testLinks: [
+          { label: "t1", path: "src/1.test.ts", line: 1, hash: null },
+          { label: "t2", path: "src/2.test.ts", line: 2, hash: null },
+        ],
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    const mark = container.querySelector('mark[data-state="tested"]');
+
+    expect(mark?.className).toContain("stmt-tested");
+
+    fireEvent.mouseOver(mark!);
+    const popover = screen.getByRole("tooltip");
+
+    const links = popover.querySelectorAll("a");
+
+    expect(links.length).toBe(2);
+    expect(links[0].getAttribute("href")).toEqual(gh("src/1.test.ts#L1"));
+    expect(links[0].textContent).toEqual("t1");
+    expect(links[1].getAttribute("href")).toEqual(gh("src/2.test.ts#L2"));
+    expect(links[1].textContent).toEqual("t2");
+  });
+
   it("marks a drifted statement with data-drifted true on its mark", () => {
     const md =
       "## Acceptance Criteria\n\n- Claims a pending task. ([t](src/x.test.ts#L1))\n";
