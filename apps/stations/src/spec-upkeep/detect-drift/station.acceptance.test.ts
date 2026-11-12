@@ -48,7 +48,7 @@ describe("spec-upkeep-detect-drift acceptance", () => {
       project: () =>
         Promise.resolve({
           pulls: {
-            list: () => Promise.resolve([]), 
+            list: () => Promise.resolve([]),
           },
           issues: {
             create: (title: string, body: string, labels?: string[]) => {
