@@ -34,7 +34,12 @@ describe.skipIf(!reachable)("projectSpecFile acceptance", () => {
 
   afterEach(async () => {
     if (createdRepo) {
-      const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient);
+      const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+        { alias: "specs", type: "Spec" },
+        { alias: "root", type: "Repo", field: "xid" },
+        { alias: "blocks", type: "Block" },
+        { alias: "features", type: "Feature" },
+      ]);
 
       await deleteRepoNodes(createdRepo);
       createdRepo = undefined;
