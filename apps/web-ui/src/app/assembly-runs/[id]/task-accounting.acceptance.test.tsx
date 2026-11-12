@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
@@ -57,16 +57,36 @@ function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   );
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 describe("Task accounting layout", () => {
-  it("groups EventTimeline and LlmCallsTable under a 'Task accounting' heading when taskId is present", async () => {
+  it("draws LlmCallsTable after the run facts outside the aside without a Task accounting heading when taskId is present", async () => {
+    renderShell({ run: { ...run, taskId: "task-123" } });
+
     await act(async () => {
-      renderShell({ run: { ...run, taskId: "task-123" } });
+      await Promise.resolve();
     });
 
-    const heading = screen.getByRole("heading", { name: "Task accounting" });
+    const facts = screen.getByText("Branch");
+    const llmCalls = screen.getByText("LLM Calls");
+    const aside = screen.getByRole("complementary", { name: "Selected node" });
 
-    expect(heading).toBeInTheDocument();
-    expect(screen.getByText("LLM Calls")).toBeInTheDocument();
-    expect(screen.getByText("EventTimeline")).toBeInTheDocument();
+    expect({
+      factsThenCostTable: Boolean(
+        facts.compareDocumentPosition(llmCalls) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      inAside: aside.contains(llmCalls),
+      heading: screen.queryByRole("heading", { name: "Task accounting" }),
+      eventTimeline: screen.queryByText(/Event\s*Timeline/),
+    }).toEqual({
+      factsThenCostTable: true,
+      inAside: false,
+      heading: null,
+      eventTimeline: null,
+    });
   });
 });
