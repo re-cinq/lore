@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **recomputeSpecFile delegator** — delegates to recomputeFile.
+- [x] **recomputeSpecFile delegator** — delegates to recomputeFile.
   `libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Export `recomputeSpecFile` from `libs/shared/src/outbound/spec-trace/recompute-spec-file.ts` as an alias to `recomputeFile`.
+- [x] Export `recomputeSpecFile` from `libs/shared/src/outbound/spec-trace/recompute-spec-file.ts` as an alias to `recomputeFile`.
 
 ## Out of scope
 
