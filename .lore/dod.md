@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **agent-defaults-content.test.ts** — The existing string-matching tests for prompt templates and the new test verifying the provenance instructions.
+- [x] **agent-defaults-content.test.ts** — The existing string-matching tests for prompt templates and the new test verifying the provenance instructions.
   `libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts`
 
 ## Facets
 
-- [ ] Add instructions for the `// lore:validates` annotation and `Lore-Validates:` commit trailer to `libs/shared/src/agent-defaults/loop-tdd-round.md` (and any other implementation prompt templates if required).
-- [ ] Add a unit test to `libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts` asserting the prompt(s) contain the required three provenance forms.
+- [x] Add instructions for the `// lore:validates` annotation and `Lore-Validates:` commit trailer to `libs/shared/src/agent-defaults/loop-tdd-round.md` (and any other implementation prompt templates if required).
+- [x] Add a unit test to `libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts` asserting the prompt(s) contain the required three provenance forms.
 
 ## Out of scope
 

@@ -123,6 +123,13 @@ TRACEABILITY:
   validates) so the repo's tests.list surfaces it as the descriptor's
   `spec` field and the VALIDATED_BY link is established automatically —
   see `.lore/test-commands.yml` for how this repo exposes descriptors.
+- Also add a `// lore:validates <specPath>#<ordinal>` annotation (or
+  `# lore:validates <specPath>#<ordinal>` for shell/Python-style files) on
+  the line that declares the test, so the annotation form is captured at
+  ingest from the code itself.
+- End the commit with a `Lore-Validates: <specPath>#<ordinal> -> <testFilePath>`
+  trailer for each statement the test validates, so the trailer form is
+  captured from the commit message even when annotations are absent.
 
 - If this round completes what a `specs/<name>/spec.md` describes, update
   that spec's `| Status |` header row in the same branch (Draft ->
