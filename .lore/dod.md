@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **Task accounting layout** — Task-backed runs render EventTimeline and LlmCallsTable under a "Task accounting" heading
+- [x] **Task accounting layout** — Task-backed runs render EventTimeline and LlmCallsTable under a "Task accounting" heading
   `apps/web-ui/src/app/assembly-runs/[id]/task-accounting.acceptance.test.tsx`
 
 ## Facets
 
-- [ ] Create an `EventTimeline` component or retrieve the existing one if moved.
-- [ ] Update `TaskContextSection` in `RunLiveShell.tsx` to group `EventTimeline` and `LlmCallsTable` under an `h2` or `h3` named "Task accounting".
+- [x] Create an `EventTimeline` component or retrieve the existing one if moved.
+- [x] Update `TaskContextSection` in `RunLiveShell.tsx` to group `EventTimeline` and `LlmCallsTable` under an `h2` or `h3` named "Task accounting".
 
 ## Out of scope
 

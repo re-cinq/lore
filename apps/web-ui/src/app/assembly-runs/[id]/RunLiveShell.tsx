@@ -23,6 +23,7 @@ import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import { waitingOnPerson } from "@/lib/human-station";
 import LlmCallsTable from "./LlmCallsTable";
+import EventTimeline from "./EventTimeline";
 import BlockedReasonBanner from "./BlockedReasonBanner";
 
 export interface RunLiveShellProps {
@@ -96,6 +97,7 @@ function panelSlots(sources: PanelSources) {
     taskContext: (
       <TaskContextSection
         taskId={run.taskId}
+        taskEvents={live.taskEvents}
         llmCalls={props.llmCalls}
         repo={run.repo}
         costUsd={run.costUsd}
@@ -147,20 +149,27 @@ function dodRefreshKey(live: ReturnType<typeof initialRunLive>): string {
 
 interface TaskContextProps {
   taskId: string | null;
+  taskEvents: readonly TaskRuntimeEvent[];
   llmCalls: readonly TaskRuntimeLlmCall[];
   repo: string;
   costUsd: number | null;
 }
 
-/** The task's cost table; its status transitions now live inside the selected node's transcript. */
+/** The task accounting group: status-transition timeline and cost table, grouped under a heading when a task is present. */
 function TaskContextSection(props: TaskContextProps) {
-  const { taskId, llmCalls, repo, costUsd } = props;
+  const { taskId, taskEvents, llmCalls, repo, costUsd } = props;
 
   if (!taskId) {
     return <TaskLessRunAlert costKnown={costUsd !== null} />;
   }
 
-  return <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />;
+  return (
+    <>
+      <h2>Task accounting</h2>
+      <EventTimeline events={taskEvents} />
+      <LlmCallsTable llmCalls={[...llmCalls]} repo={repo} />
+    </>
+  );
 }
 
 /** A task-less run (a code-review one, or a floor run) keeps no status-transition history; its cost is still said when the run row carries one. */
