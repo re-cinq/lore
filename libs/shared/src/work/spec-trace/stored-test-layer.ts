@@ -160,7 +160,7 @@ export function isCoverageUnchanged(
     stored.tool === planned.tool &&
     sameCovers(stored, planned, sources) &&
     holders !== undefined &&
-    pointsAtItAlone(holders, stored.uid)
+    noneOrPointsAlone(holders, stored.uid)
   );
 }
 
@@ -212,6 +212,13 @@ function sameCover(
     cover.repo === repo &&
     sources.get(fileXid) === cover.uid
   );
+}
+
+function noneOrPointsAlone(
+  holders: StoredTestChunk[],
+  coverageUid: string,
+): boolean {
+  return holders.length === 0 || pointsAtItAlone(holders, coverageUid);
 }
 
 // The record's test is looked up by file and name, so a second chunk with that name makes the lookup ambiguous and the record is written as before.
@@ -346,3 +353,5 @@ function uniqueFiles(tests: TestDescriptor[]): string[] {
 function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
+
+export { readStoredTestLayer } from "./read-coverage-layer.js";

@@ -27,6 +27,27 @@ interface GraphRepoBaseline {
   "Repo.trace_commit_at"?: string;
 }
 
+/** Stamps repo with commit for its ranges; empty commit is no-op to avoid blanking older baseline. */
+export async function stampGraphBaseline(
+  dgraph: DgraphClientPort,
+  repo: string,
+  commit: string,
+  at: Date,
+): Promise<void> {
+  if (!commit) {
+    return;
+  }
+  const current = await readGraphBaseline(dgraph, repo);
+
+  if (current.commit === commit) {
+    return;
+  }
+  await upsertByXid(dgraph, "Repo", repo, {
+    "Repo.trace_commit": commit,
+    "Repo.trace_commit_at": at.toISOString(),
+  });
+}
+
 /** Reads repo's stamped baseline; unstamped repos return source: "none" rather than error. */
 export async function readGraphBaseline(
   dgraph: DgraphClientPort,
@@ -50,21 +71,4 @@ export async function readGraphBaseline(
       : null,
     source: "repo-stamp",
   };
-}
-
-/** Stamps repo with commit for its ranges; empty commit is no-op to avoid blanking older baseline. */
-export async function stampGraphBaseline(
-  dgraph: DgraphClientPort,
-  repo: string,
-  commit: string,
-  at: Date,
-): Promise<void> {
-  if (!commit) {
-    return;
-  }
-
-  await upsertByXid(dgraph, "Repo", repo, {
-    "Repo.trace_commit": commit,
-    "Repo.trace_commit_at": at.toISOString(),
-  });
 }

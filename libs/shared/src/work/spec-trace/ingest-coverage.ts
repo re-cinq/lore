@@ -151,14 +151,13 @@ function plannedCoverage(
 function keepCoverage(run: CoverageRun, held: StoredCoverage): number {
   const { meta, knownFiles } = run;
 
-  run.rootCoverage.add(held.uid);
-
   for (const [path, cover] of held.covers) {
     knownFiles.set(scopedXid(meta.scope, path), cover.uid);
     run.rootFiles.add(cover.uid);
   }
 
   if (held.commit !== meta.commit) {
+    run.rootCoverage.add(held.uid);
     run.staleCommits.push(held.uid);
   }
 
