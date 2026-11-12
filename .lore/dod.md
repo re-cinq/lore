@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Add the AST/language test-name fallback to `projectTestLinks`
+- [x] Add the AST/language test-name fallback to `projectTestLinks`
 
 ## Out of scope
 
