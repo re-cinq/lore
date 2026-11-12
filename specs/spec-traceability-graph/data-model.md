@@ -136,6 +136,8 @@ Spec.file_path:       string @index(hash) .
 Spec.content_hash:    string .                       # projection freshness gate
 Spec.feature:         uid @reverse .                  # the feature folder this md belongs to
 Spec.blocks:          [uid] @reverse @count .
+
+The schema declares `Spec.blocks` as a uid list predicate and adds it to the Spec type. ([validated by declares Spec.blocks as a uid list predicate @3739b33f](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L42), [validated by lists Spec.blocks in the Spec type @471e9ca5](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L57))
 Spec.sections:        [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
 
@@ -238,6 +240,8 @@ ADR.embedding:          float32vector @index(hnsw(metric:"cosine")) .
 ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 ```
 
+
+The schema declares `Spec.blocks` as a uid list predicate and adds it to the Spec type. ([validated by declares Spec.blocks as a uid list predicate @3739b33f](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L42), [validated by lists Spec.blocks in the Spec type @471e9ca5](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L57))
 ## Call graph (cross-file symbol references)
 
 The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph @fe892028](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L199))
@@ -390,7 +394,7 @@ change what anyone else is told. ([validated by does not see the branch's covera
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
-nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L43), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L47))
+nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L42), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L47))
 
 ### Ending a branch's overlay
 
