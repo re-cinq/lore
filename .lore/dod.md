@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] Update `specs/shared-utilities/spec.md` to state explicitly that `user-repo-access` supersedes direct GitHub access checks per ADR-053.
+- [x] Update `specs/shared-utilities/spec.md` to state explicitly that `user-repo-access` supersedes direct GitHub access checks per ADR-053.
 
 ## Out of scope
 
