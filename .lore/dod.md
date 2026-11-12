@@ -13,7 +13,7 @@
 
 ## Facets
 
-- [ ] Update `FR2` in `specs/assembly-line-run-detail/spec.md` to state that a persistent hint panel is shown instead of closing the detail pane, pointing to existing tests.
+- [x] Update `FR2` in `specs/assembly-line-run-detail/spec.md` to state that a persistent hint panel is shown instead of closing the detail pane, pointing to existing tests.
 
 ## Out of scope
 
