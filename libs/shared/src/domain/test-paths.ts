@@ -24,7 +24,7 @@ export function isTestFile(filePath: string, content?: unknown): boolean {
   }
 
   if (typeof content === "string" && filePath.endsWith(".rs")) {
-    return /#\[test\]/.test(content);
+    return /(?:^|\n)\s*#\[(?:[\w:]+::)?test\b/.test(content);
   }
 
   return false;
