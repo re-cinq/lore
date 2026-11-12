@@ -13,10 +13,10 @@
 
 ## Facets
 
-- [ ] Add `Spec.blocks: [uid] @reverse @count .` to the predicate definitions in `scripts/infra/setup-spec-trace-schema.sh`
-- [ ] Add `Spec.blocks` to the `type Spec` definition in `scripts/infra/setup-spec-trace-schema.sh`
-- [ ] Mirror the predicate definition in `libs/shared/src/outbound/setup-spec-trace-schema.schema.ts`
-- [ ] Mirror the type definition in `libs/shared/src/outbound/setup-spec-trace-schema.schema-types.ts`
+- [x] Add `Spec.blocks: [uid] @reverse @count .` to the predicate definitions in `scripts/infra/setup-spec-trace-schema.sh`
+- [x] Add `Spec.blocks` to the `type Spec` definition in `scripts/infra/setup-spec-trace-schema.sh`
+- [x] Mirror the predicate definition in `libs/shared/src/outbound/setup-spec-trace-schema.schema.ts`
+- [x] Mirror the type definition in `libs/shared/src/outbound/setup-spec-trace-schema.schema-types.ts`
 
 ## Out of scope
 
