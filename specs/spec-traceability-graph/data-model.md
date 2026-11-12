@@ -394,7 +394,7 @@ change what anyone else is told. ([validated by does not see the branch's covera
 
 The overlay's answer REPLACES main's for a file the branch covers; a file the
 branch never touched falls through to main, and a file neither covers returns
-nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L42), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L47))
+nothing. ([validated by replaces main's answer for the file when the overlay covers it @72a0dcfa](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L39), [validated by falls through to main for a file the branch never touched @c9642c25](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L43), [validated by returns nothing when neither scope covers the file @ba159251](libs/shared/src/outbound/spec-trace/tests-covering.test.ts#L47))
 
 ### Ending a branch's overlay
 

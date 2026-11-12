@@ -298,7 +298,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   once the build is green it asks the code-review line for a review. And the
   task branch is `lore/onboard/<first 8 of the task id>`. Everything else —
   one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
-  the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer @92ee3ff3](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app @2d14e7aa](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-… @d81f5ad3](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
+  the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer @92ee3ff3](apps/stations/src/onboard/open-pr/station.test.ts#L87), [validated by starts a forced review of pull request 42 of re-cinq/app @2d14e7aa](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-… @d81f5ad3](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
 
 - FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
   feedback. On success the user lands on the repository's page, which shows
