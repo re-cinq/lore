@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Write integration test to run `0008_drop_v2_spec_coverage_tables.sql` twice against a Postgres test schema.
+- [x] Write integration test to run `0008_drop_v2_spec_coverage_tables.sql` twice against a Postgres test schema.
 
 ## Out of scope
 
