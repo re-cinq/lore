@@ -17,8 +17,8 @@
 
 ## Facets
 
-- [ ] Update `isTestFile` signature to optionally accept content and implement Rust detection logic.
-- [ ] Update `classifyFile` signature to optionally accept content and forward it to `isTestFile`.
+- [x] Update `isTestFile` signature to optionally accept content and implement Rust detection logic.
+- [x] Update `classifyFile` signature to optionally accept content and forward it to `isTestFile`.
 
 ## Out of scope
 

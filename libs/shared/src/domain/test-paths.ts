@@ -18,8 +18,14 @@ export const TEST_PATH_SQL_PATTERN = TEST_PATH_PATTERNS.map(
   (pattern) => pattern.source,
 ).join("|");
 
-export function isTestFile(filePath: string): boolean {
-  return TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath));
+export function isTestFile(filePath: string, content?: string): boolean {
+  if (TEST_PATH_PATTERNS.some((pattern) => pattern.test(filePath))) {return true;}
+
+  if (content !== undefined && filePath.endsWith(".rs")) {
+    return /#\[test\]/.test(content);
+  }
+
+  return false;
 }
 
 const DOC_PATH_PATTERN = /\.(md|markdown|mdx|txt|rst|adoc)$/i;
