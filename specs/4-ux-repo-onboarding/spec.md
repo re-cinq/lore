@@ -298,7 +298,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   once the build is green it asks the code-review line for a review. And the
   task branch is `lore/onboard/<first 8 of the task id>`. Everything else —
   one pull request, the scaffolding rule of FR-2.3, the ticket of FR-2.10,
-  the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer @92ee3ff3](apps/stations/src/onboard/open-pr/station.test.ts#L88), [validated by starts a forced review of pull request 42 of re-cinq/app @2d14e7aa](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-… @d81f5ad3](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
+  the guard, the "already current" ending of FR-2.11 — holds on both. ([validated by puts the needs-attention section in the pull request body, above the footer @92ee3ff3](apps/stations/src/onboard/open-pr/station.test.ts#L87), [validated by starts a forced review of pull request 42 of re-cinq/app @2d14e7aa](apps/stations/src/onboard/request-review/station.test.ts#L19), [validated by names the branch lore/onboard/1234abcd for task 1234abcd-… @d81f5ad3](libs/shared/src/work/onboard/floor-onboard.test.ts#L11))
 
 - FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
   feedback. On success the user lands on the repository's page, which shows
@@ -314,7 +314,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-3.1c: Chips above the grid filter it to All, Needs attention or Agents running. Each chip is a link carrying `?filter=` with the count it would show; an unknown filter reads as All, and a filter that hides every repo says so rather than showing the onboarding prompt. ([validated by keeps only the repos needing attention under the Needs attention chip @a6230f2c](apps/web-ui/src/app/HomeView.test.tsx#L275), [validated by keeps only repos with running agents under the Agents running chip @f5471d6a](apps/web-ui/src/app/HomeView.test.tsx#L291), [validated by links each chip to its filter with the count it would show @67f4d19d](apps/web-ui/src/app/HomeView.test.tsx#L304), [validated by says no repo matches when a chip hides every repo @a9c34621](apps/web-ui/src/app/HomeView.test.tsx#L315), [validated by reads a known filter and falls back to all for anything else @39b4b1d2](apps/web-ui/src/app/HomeView.filters.test.ts#L5))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
   Overview, Context, Assembled, Specs, Plans, Changelog, Loops,
-  ADRs, Graph, Agents, Settings. ([validated by `renders one Loops tab where Backlog and Triage were` @f7fbc32f](apps/web-ui/src/app/repos/[owner]/[repo]/layout.test.tsx#L29))
+  ADRs, Graph, Agents, Settings. ([validated by `renders one Loops tab where Backlog and Triage were` @f7fbc32f](apps/web-ui/src/app/repos/[owner]/[repo]/layout.test.tsx#L33))
 - FR-3.3: Overview tab shows recent tasks (PR + pipeline links,
   truncated descriptions, empty state), latest events (status badge +
   Show-all, empty state), the enrollment/re-onboard controls, and the

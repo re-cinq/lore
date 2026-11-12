@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import {
   PlanEditor,
@@ -18,6 +18,7 @@ import PlanBlockAnchor from "./PlanBlockAnchor";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
 import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
+import styles from "./PlanEditorPanel.module.scss";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -59,7 +60,7 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   return (
     <>
       <PlanBlockAnchor />
-      <PlanEditor
+      <FramedPlanEditor
         transport={transport}
         user={user}
         readOnly={meta.status === "approved"}
@@ -69,6 +70,14 @@ function ConnectedPlan(props: ConnectedPlanProps) {
         outlineFooter={<PlanOutlineActions {...outlineActions} />}
       />
     </>
+  );
+}
+
+function FramedPlanEditor(props: ComponentProps<typeof PlanEditor>) {
+  return (
+    <div className={styles.editor}>
+      <PlanEditor {...props} />
+    </div>
   );
 }
 
