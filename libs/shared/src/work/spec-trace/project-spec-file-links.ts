@@ -115,7 +115,9 @@ export async function resolveTestName(
   link: Pick<SpecLinkRef, "label" | "path" | "line">,
   readLinked: ProjectionContext["readLinked"],
 ): Promise<string> {
-  if (!readLinked || link.line == null) {return link.label;}
+  if (!readLinked || link.line == null) {
+    return link.label;
+  }
   const content = await readLinked(link.path);
 
   return content != null
