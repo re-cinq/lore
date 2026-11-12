@@ -25,7 +25,7 @@ v1 + v2 task lists (preserved below for history).
 
 - [ ] T110 Build `agent/src/jobs/scheduled/spec-coverage-validate.ts` exporting `validateSpecCoverageJob(opts: { repoFilter?: string }): Promise<string>`. Per repo, per spec chunk: reassemble + segment + for each statement's parsed test links, resolve `path#Lline` against `{schema}.chunks` (content_type='code', `metadata.start_line` ≤ line ≤ `metadata.end_line`). When a link doesn't resolve, accumulate into a broken-links report.
 - [ ] T111 [P] Tests `agent/src/jobs/scheduled/__tests__/spec-coverage-validate.test.ts` — fixture: link resolves to a known chunk line range → no flag; link resolves to a file but no chunk covers the line → flag `line-out-of-range`; file in href doesn't exist as any chunk → flag `file-missing`; link href doesn't pass `isTestFile()` → ignored (not in scope for validate).
-- [ ] T112 PR-comment emitter: when the broken-links report is non-empty, find the most recent open PR for the spec's repo that touches `specs/`; post a comment listing the broken links with `file:line` references. Fall back: when no such PR exists, open an issue labelled `spec-link-rot` summarizing the broken links.
+- [x] T112 *(Superseded by the `spec-links` PR check and the retirement of `spec_coverage_validate` in `specs/external-floor` FR16.6 / FR16.15.)* PR-comment emitter: when the broken-links report is non-empty, find the most recent open PR for the spec's repo that touches `specs/`; post a comment listing the broken links with `file:line` references. Fall back: when no such PR exists, open an issue labelled `spec-link-rot` summarizing the broken links.
 - [ ] T113 Rename `POST /api/trigger/spec-test-linker` → `POST /api/trigger/spec-coverage-validate` in `agent/src/health.ts`. Body unchanged (`{ repo, linked_by? }` — drop the `linked_by` field, no longer relevant). Returns 202; runs `validateSpecCoverageJob({ repoFilter: repo })` in background.
 - [ ] T114 Update `mcp-server/src/routes.ts` `handleIngest` fan-out: rename `triggerAgentSpecTestLinker` → `triggerAgentSpecCoverageValidate`, point at the new agent endpoint. Update the 5 trigger forwarder tests to match.
 
@@ -58,7 +58,7 @@ v1 + v2 task lists (preserved below for history).
 
 ### Phase 7 — Follow-ups (deferred, not in v3)
 
-- [ ] F-validate-fallback Open a `spec-link-rot` labelled issue when no open PR exists for the spec's repo (covers limitation 4).
+- [x] F-validate-fallback *(Superseded by the `spec-links` PR check and the retirement of `spec_coverage_validate` in `specs/external-floor` FR16.6 / FR16.15.)* Open a `spec-link-rot` labelled issue when no open PR exists for the spec's repo (covers limitation 4).
 - [ ] F-coverage-integration Wire `specs/coverage-ingestion/` execution-trace data into the backfill judge's selectCandidates pre-filter (covers limitation 9).
 - [ ] F-suggestion-throttle Rate-limit the first backfill run so the burst of suggestion-PRs is staggered (covers limitation 1).
 - [ ] F-ci-link-check Standalone CI workflow that runs the validate pass on every PR touching `specs/` so authors see broken links as a check, not after merge (parallel path to the cron).
