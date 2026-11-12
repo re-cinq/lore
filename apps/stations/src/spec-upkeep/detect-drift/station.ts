@@ -67,7 +67,9 @@ async function openIssueWhenNoPR(
 ): Promise<void> {
   const openPRs = await ports.pulls.list();
 
-  if (openPRs.length > 0) {return;}
+  if (openPRs.length > 0) {
+    return;
+  }
 
   await ports.issues.create(
     "Link rot detected: spec statements have drifted",
