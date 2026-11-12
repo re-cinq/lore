@@ -27,6 +27,13 @@ describe.skipIf(!reachable)(
       new dgraph.DgraphClientStub(DGRAPH_HTTP),
     );
 
+    const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+      { alias: "specs", type: "Spec" },
+      { alias: "adrs", type: "ADR" },
+      { alias: "blocks", type: "Block" },
+      { alias: "root", type: "Repo", field: "xid" },
+    ]);
+
     let createdRepo: string | undefined;
 
     beforeAll(() => {
@@ -38,7 +45,7 @@ describe.skipIf(!reachable)(
 
     afterEach(async () => {
       if (createdRepo) {
-        await makeDeleteRepoNodes(dgraphClient)(createdRepo);
+        await deleteRepoNodes(createdRepo);
         createdRepo = undefined;
       }
     });
