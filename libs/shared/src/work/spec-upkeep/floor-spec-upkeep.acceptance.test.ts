@@ -1,27 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { specUpkeepTick } from "./floor-spec-upkeep.js";
-import type { UpkeepTickDeps } from "./floor-spec-upkeep.js";
+import { recordedPlanFloor } from "../../outbound/floor/recorded-plan-floor.js";
+import { MAX_RUNS_PER_TICK, specUpkeepTick } from "./floor-spec-upkeep.js";
 
 describe("spec upkeep throttling", () => {
   it("staggers PR creation with an explicit limit across repositories on an initial burst", async () => {
-    let started = 0;
-    const deps: UpkeepTickDeps = {
-      floor: {
-        lines: {
-          start: async () => {
-            started++;
-
-            return { id: "run-" + started };
-          },
-        },
+    const recorded = recordedPlanFloor();
+    const summary = await specUpkeepTick(
+      {},
+      {
+        floor: recorded.floor,
+        repos: () =>
+          Promise.resolve(
+            Array.from({ length: 50 }, (_, i) => `acme/repo-${i}`),
+          ),
+        openPrBranches: () => Promise.resolve([]),
+        now: () => new Date("2026-10-05T10:00:00Z"),
       },
-      repos: async () => Array.from({ length: 50 }, (_, i) => `acme/repo-${i}`),
-      openPrBranches: async () => [],
-      now: () => new Date("2026-10-05T10:00:00Z"),
-    };
+    );
 
-    await specUpkeepTick({}, deps);
-
-    expect(started).toBeLessThan(50);
+    expect(summary).toBe(
+      `spec upkeep: started ${MAX_RUNS_PER_TICK}, skipped 0, failed 0`,
+    );
   });
 });
