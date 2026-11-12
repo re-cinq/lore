@@ -1,12 +1,11 @@
 // The weekly spec upkeep on the external floor: one run per repository that finds drifted statements and statements with no test link, has one agent fix both, and opens one pull request. Lore starts the runs itself, one per repository, because a floor schedule tick starts a single run.
-import type { FloorClient } from "@re-cinq/floor-client";
+import type { StartRun } from "@re-cinq/floor-client";
 import { errorMessage } from "../../lib/error-classify.js";
 import {
   floorRepoOf,
   gitItem,
   valueItem,
 } from "../../outbound/floor/floor-items.js";
-import { startLine } from "../review/floor-line-start.js";
 import { specUpkeepEnabled } from "../../domain/loops/loop-enabled.js";
 
 export const SPEC_UPKEEP_LINE = "spec-upkeep";
@@ -42,7 +41,11 @@ export function enabledUpkeepRepos(
 }
 
 export interface UpkeepTickDeps {
-  floor: { lines: Pick<FloorClient["lines"], "start"> };
+  floor: {
+    lines: {
+      start(lineId: string, starting: StartRun): Promise<unknown>;
+    };
+  };
   /** The repositories the upkeep covers. */
   repos(): Promise<string[]>;
   /** The branches of the repository's open pull requests. */
@@ -93,8 +96,9 @@ async function startFor(repo: string, deps: UpkeepTickDeps): Promise<Started> {
 /** Keyed on the day, so a second tick the same day joins the run instead of starting another. */
 async function startRun(repo: string, deps: UpkeepTickDeps): Promise<void> {
   const now = deps.now();
+  const { start } = deps.floor.lines;
 
-  await startLine(deps.floor.lines, SPEC_UPKEEP_LINE, {
+  await start(SPEC_UPKEEP_LINE, {
     repo: floorRepoOf(repo),
     startItems: {
       repo: gitItem(repo, upkeepBranch(now)),
