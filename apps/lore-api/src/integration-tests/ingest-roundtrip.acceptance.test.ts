@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 import { ingestFiles } from "../work/spec-trace/ingest.js";
-import { setPool } from "@re-cinq/lore-server-core/outbound/db.js";
+import { createHash } from "node:crypto";
 
 const REPO = "test/ingest-roundtrip";
 const SCHEMA = "org_shared";
@@ -17,7 +17,6 @@ describe("Ingest round-trip", () => {
       user: process.env.LORE_DB_USER || "lore",
       password: process.env.LORE_DB_PASSWORD || "test",
     });
-    setPool(pool);
     await pool.query(`DELETE FROM ${SCHEMA}.chunks WHERE repo = $1`, [REPO]);
   });
 
@@ -26,7 +25,7 @@ describe("Ingest round-trip", () => {
     await pool?.end();
   });
 
-  it("A chunk inserted through API ingest retains its exact content_hash when read back ([validated by this](specs/spec-traceability-graph/spec.md#L91))", async () => {
+  it("A chunk inserted through API ingest retains its exact content_hash when read back", async () => {
     const content = "const x = 42;";
     const filePath = "src/x.ts";
 
@@ -45,6 +44,8 @@ describe("Ingest round-trip", () => {
     );
 
     expect(rows).toHaveLength(1);
-    expect(typeof rows[0].metadata.content_hash).toBe("string");
+    expect(rows[0].metadata.content_hash).toBe(
+      createHash("sha256").update(content).digest("hex"),
+    );
   });
 });
