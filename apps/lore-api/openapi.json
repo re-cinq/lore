@@ -17362,11 +17362,29 @@
               "additionalProperties": false
             }
           },
+          "counts": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "plan_review",
+                "spec_pr",
+                "triage",
+                "onboarding_pr",
+                "failed_run"
+              ]
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
           "next_cursor": {
             "type": ["string", "null"]
           }
         },
-        "required": ["items", "next_cursor"],
+        "required": ["items", "counts", "next_cursor"],
         "additionalProperties": false
       },
       "IncidentRecorded": {

@@ -11,15 +11,19 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { withPool } from "../with-pool.js";
 
+const InboxKindSchema = z.enum([
+  "plan_review",
+  "spec_pr",
+  "triage",
+  "onboarding_pr",
+  "failed_run",
+]);
+
+type InboxKind = z.infer<typeof InboxKindSchema>;
+
 const InboxItemSchema = z.object({
   id: z.string(),
-  kind: z.enum([
-    "plan_review",
-    "spec_pr",
-    "triage",
-    "onboarding_pr",
-    "failed_run",
-  ]),
+  kind: InboxKindSchema,
   repo: z.string(),
   title: z.string(),
   detail: z.string().optional(),
@@ -30,6 +34,7 @@ const InboxItemSchema = z.object({
 
 const InboxPageSchema = z.object({
   items: z.array(InboxItemSchema),
+  counts: z.partialRecord(InboxKindSchema, z.number().int()),
   next_cursor: z.string().nullable(),
 });
 
@@ -54,10 +59,26 @@ async function serveInbox(
   try {
     const inboxItems = await aggregateInboxItems(pool);
 
-    return h.response({ items: inboxItems, next_cursor: null });
+    return h.response({
+      items: inboxItems,
+      counts: countByKind(inboxItems),
+      next_cursor: null,
+    });
   } catch (err) {
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+function countByKind(
+  inboxItems: readonly { kind: InboxKind }[],
+): Partial<Record<InboxKind, number>> {
+  const counts: Partial<Record<InboxKind, number>> = {};
+
+  for (const { kind } of inboxItems) {
+    counts[kind] = (counts[kind] ?? 0) + 1;
+  }
+
+  return counts;
 }
 
 async function aggregateInboxItems(pool: Pool) {

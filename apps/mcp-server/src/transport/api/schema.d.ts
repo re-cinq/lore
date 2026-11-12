@@ -4070,6 +4070,9 @@ export interface components {
         open_url?: string | null;
         state?: string;
       }[];
+      counts: {
+        [key: string]: number;
+      };
       next_cursor: string | null;
     };
     IncidentRecorded: {
