@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **embeds a spec's 3 statements and 1 acceptance criterion in one embedder call of 4 texts** — the existing behavioral test asserting batching and zero LLM calls.
+- [x] **embeds a spec's 3 statements and 1 acceptance criterion in one embedder call of 4 texts** — the existing behavioral test asserting batching and zero LLM calls.
   `libs/shared/src/work/spec-trace/project-spec-file.test.ts`
 
 ## Facets
 
-- [ ] Add `Llm` spy and zero-invocation assertion to the existing batching test.
+- [x] Add `Llm` spy and zero-invocation assertion to the existing batching test.
 
 ## Out of scope
 
