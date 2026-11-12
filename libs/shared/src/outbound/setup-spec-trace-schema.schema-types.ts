@@ -48,6 +48,7 @@ type Spec {
   Spec.feature
   Spec.sections
   Spec.acceptance_criteria
+  Spec.blocks
 }
 type Feature {
   Feature.xid

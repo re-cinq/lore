@@ -64,4 +64,14 @@ describe("PlanEditorPanel", () => {
       destroyed: destroy.mock.calls.length,
     }).toEqual({ opened: 1, destroyed: 0 });
   });
+
+  it("wraps the editor in an element of its own, which sets the plan page's narrower padding", async () => {
+    const view = render(
+      <PlanEditorPanel {...props(async () => ({ documentName: "plan:p1" }))} />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+
+    expect(view.getByText("editor").parentElement?.className).toMatch(/editor/);
+  });
 });
