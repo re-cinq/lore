@@ -976,6 +976,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/inbox/items/{item_id}/state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/inbox/items/{item_id}/state */
+    put: operations["put_api_inbox_items_item_id_state"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/ingest": {
     parameters: {
       query?: never;
@@ -4035,6 +4052,10 @@ export interface components {
           | null;
         unblocks_count?: number;
       }[];
+    };
+    InboxItemStateSaved: {
+      /** @constant */
+      ok: true;
     };
     InboxPage: {
       items: {
@@ -8060,6 +8081,42 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  put_api_inbox_items_item_id_state: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          person: string;
+          handled?: boolean;
+          snoozed_until?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description The per-person inbox item state was saved */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InboxItemStateSaved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
