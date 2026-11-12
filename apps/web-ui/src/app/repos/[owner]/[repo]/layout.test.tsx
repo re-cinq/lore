@@ -11,6 +11,10 @@ vi.mock("@/lib/api/repos", () => ({
   getRepo: vi.fn().mockResolvedValue({ status: "error" }),
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/repos/re-cinq/lore/loops",
+}));
+
 vi.mock("@/components/Icon", () => ({ default: () => null }));
 
 vi.mock("./TabNav", () => ({

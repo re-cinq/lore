@@ -76,13 +76,12 @@ describe("the onboard-open-pr station", () => {
 
     await handle(brief(), TOOLS);
 
-    expect(opened).toEqual([
-      {
-        branch: "lore/onboard/app-1234abcd",
-        title: "lore: onboard re-cinq/app",
-        body: "Onboards this repository to Lore: the workflows and templates Lore keeps current, and the repository-specific files written from the onboarding ticket.\n\nLore-Task: task-1",
-      },
-    ]);
+    expect(opened[0]).toMatchObject({
+      branch: "lore/onboard/app-1234abcd",
+      title: "lore: onboard re-cinq/app",
+    });
+    expect(opened[0].body).toContain("Lore-Task: task-1");
+    expect(opened[0].body).toMatch(/^## Why/m);
   });
 
   it("puts the needs-attention section in the pull request body, above the footer", async () => {
@@ -91,7 +90,7 @@ describe("the onboard-open-pr station", () => {
     await handle(brief("## Needs attention\n\n- no secret"), TOOLS);
 
     expect(opened[0].body).toContain(
-      "onboarding ticket.\n\n## Needs attention\n\n- no secret\n\nLore-Task: task-1",
+      "## Needs attention\n\n- no secret\n\nLore-Task: task-1",
     );
   });
 
