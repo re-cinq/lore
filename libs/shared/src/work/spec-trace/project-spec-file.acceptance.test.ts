@@ -98,4 +98,47 @@ it('actually tests the thing', () => {
       "TestChunk.link_label": "validated by",
     });
   });
+
+  it("produces deterministic nodes and a TestChunk with the actual referenced test's name", async () => {
+    const repo = `test-proj/${randomUUID()}`;
+
+    createdRepo = repo;
+
+    const filePath = "specs/example/spec.md";
+    const testPath = "src/x.test.ts";
+    const content =
+      "## Overview\n\n- Returns the value ([validated by](src/x.test.ts#L42))\n";
+    const testContent = Array.from({ length: 50 }, (_, index) =>
+      index === 40
+        ? 'test("my correct test name", () => { // L41'
+        : `// L${index + 1}`,
+    ).join("\n");
+
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      readLinked: async (path) => (path === testPath ? testContent : null),
+    });
+
+    const graph = (await readGraph(
+      `query q($sx: string) {
+        stmt(func: eq(Statement.xid, $sx)) {
+          Statement.validated_by {
+            TestChunk.xid TestChunk.repo TestChunk.file_path
+            TestChunk.test_name TestChunk.link_label TestChunk.start_line
+          }
+        }
+      }`,
+      { $sx: `${repo}|${filePath}|0` },
+    )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
+
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      {
+        "TestChunk.xid": `${repo}|${testPath}`,
+        "TestChunk.repo": repo,
+        "TestChunk.file_path": testPath,
+        "TestChunk.test_name": "my correct test name",
+        "TestChunk.link_label": "validated by",
+        "TestChunk.start_line": 42,
+      },
+    ]);
+  });
 });
