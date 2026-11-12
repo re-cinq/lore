@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] add identical-content test to chunker.test.ts
-- [ ] add changed-content test to chunker.test.ts
+- [x] add identical-content test to chunker.test.ts
+- [x] add changed-content test to chunker.test.ts
 
 ## Out of scope
 
