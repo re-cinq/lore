@@ -314,7 +314,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 - FR-3.1c: Chips above the grid filter it to All, Needs attention or Agents running. Each chip is a link carrying `?filter=` with the count it would show; an unknown filter reads as All, and a filter that hides every repo says so rather than showing the onboarding prompt. ([validated by keeps only the repos needing attention under the Needs attention chip @a6230f2c](apps/web-ui/src/app/HomeView.test.tsx#L275), [validated by keeps only repos with running agents under the Agents running chip @f5471d6a](apps/web-ui/src/app/HomeView.test.tsx#L291), [validated by links each chip to its filter with the count it would show @67f4d19d](apps/web-ui/src/app/HomeView.test.tsx#L304), [validated by says no repo matches when a chip hides every repo @a9c34621](apps/web-ui/src/app/HomeView.test.tsx#L315), [validated by reads a known filter and falls back to all for anything else @39b4b1d2](apps/web-ui/src/app/HomeView.filters.test.ts#L5))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
   Overview, Context, Assembled, Specs, Plans, Changelog, Loops,
-  ADRs, Graph, Agents, Settings. ([validated by `renders one Loops tab where Backlog and Triage were` @f7fbc32f](apps/web-ui/src/app/repos/[owner]/[repo]/layout.test.tsx#L29))
+  ADRs, Graph, Agents, Settings. ([validated by `renders one Loops tab where Backlog and Triage were` @f7fbc32f](apps/web-ui/src/app/repos/[owner]/[repo]/layout.test.tsx#L33))
 - FR-3.3: Overview tab shows recent tasks (PR + pipeline links,
   truncated descriptions, empty state), latest events (status badge +
   Show-all, empty state), the enrollment/re-onboard controls, and the
