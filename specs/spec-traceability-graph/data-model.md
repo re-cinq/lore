@@ -657,6 +657,7 @@ from the graph — the inverse of the Block projection, and **document-agnostic*
    the exact inverse of the line-partition `segmentBlocks` performed.
 
 `recomputeSpecFile(repo, file_path, dgraph)` is a thin alias of `recomputeFile`
+([validated by `delegates to recomputeFile.` @46d4c9e2](libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts#L5))
 (specs and ADRs reconstruct through the same reader).
 
 **Round-trip invariant — byte-exact:** `recomputeFile(...) === content` and
