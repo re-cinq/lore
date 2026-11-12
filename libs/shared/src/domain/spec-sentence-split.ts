@@ -28,6 +28,7 @@ const ABBREVIATIONS = new Set([
 
 /** Trailing markdown link parenthetical belongs to previous sentence (spec-link-parser.ts). */
 const TRAILING_LINK_PARENTHETICAL = /^\(\[[^\]]*\]\(/;
+const OPEN_BACKTICK_LINK_LABEL = /\[[^\]`]*`[^\]`]*$/;
 
 const SENTENCE_ENDERS = new Set([".", "?", "!"]);
 
@@ -96,7 +97,7 @@ function isSentenceBreak(
 ): boolean {
   const nextCh = flat[j];
 
-  if (!/[A-Z([0-9]/.test(nextCh) || isInsideInlineCode(buf)) {
+  if (!/[A-Z([0-9]/.test(nextCh) || isInsideBacktickLinkLabel(buf)) {
     return false;
   }
 
@@ -107,8 +108,8 @@ function isSentenceBreak(
   return !(ch === "." && endsInAbbreviationOrInitial(buf));
 }
 
-function isInsideInlineCode(buf: string): boolean {
-  return (buf.split("`").length - 1) % 2 === 1;
+function isInsideBacktickLinkLabel(buf: string): boolean {
+  return OPEN_BACKTICK_LINK_LABEL.test(buf);
 }
 
 function endsInAbbreviationOrInitial(buf: string): boolean {
