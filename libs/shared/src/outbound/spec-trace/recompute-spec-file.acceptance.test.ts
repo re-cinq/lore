@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recomputeSpecFile } from "./recompute-spec-file.js";
+import { recomputeFile, recomputeSpecFile } from "./recompute-spec-file.js";
 
 describe("recomputeSpecFile delegator", () => {
   it("delegates to recomputeFile.", async () => {
@@ -10,5 +10,11 @@ describe("recomputeSpecFile delegator", () => {
     await expect(
       recomputeSpecFile("repo", "specs/never.md", fakeDgraph),
     ).rejects.toThrow();
+  });
+});
+
+describe("recomputeSpecFile", () => {
+  it("is exported as a thin alias for recomputeFile", () => {
+    expect(recomputeSpecFile).toBe(recomputeFile);
   });
 });

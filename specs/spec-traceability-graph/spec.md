@@ -253,7 +253,7 @@ Edges: `IN_REPO`, `IN_SPEC`, `IN_SECTION`, `VALIDATED_BY`, `IMPLEMENTED_BY`
 
 The graph is **reversible**: `recomputeSpecFile()` walks it back to a
 `spec.md` that hashes to the projected `Spec.content_hash` (round-trip
-invariant), so the projection is lossless by construction.
+invariant), so the projection is lossless by construction. ([validated by is exported as a thin alias for recomputeFile @319fd7e6](libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts#L17))
 
 ## File Changes
 
@@ -270,7 +270,7 @@ invariant), so the projection is lossless by construction.
 | `shared/src/spec-trace/project-spec-file.ts` | NEW: per-spec projection unit (upsert Repo root → **lossless `Block` layer** via `segmentBlocks` + the Section/Statement/AcceptanceCriterion semantic overlay; parse links → VALIDATED_BY/IMPLEMENTED_BY/DECIDED_BY; prune orphans by reverse-edge sweep) |
 | `shared/src/spec-trace/project-adr-file.ts` | NEW: per-ADR projection — projects the ADR's **lossless `Block` layer** (shared `projectDocumentBlocks`, keyed by `Block.file_path`, pruned by `pruneOrphanBlocksByFile`) so ADRs reconstruct byte-exact; the ADR metadata node (number/title/status/supersedes for DECIDED_BY/SUPERSEDES) is a later overlay |
 | `shared/src/spec-trace/project-blocks.ts` | NEW: shared block writer/pruner — `projectDocumentBlocks` (spec + ADR) + `pruneOrphanBlocksByFile` (file_path-scoped) |
-| `shared/src/spec-trace/recompute-spec-file.ts` | NEW: reverse unit (graph → source) — `recomputeFile(repo, file_path)` reads the `Block` layer by `(file_path, repo)`, ordered → `reassembleBlocks`; **document-agnostic & byte-exact** `recompute === content` for specs AND ADRs (`recomputeSpecFile` is a thin alias) |
+| `shared/src/spec-trace/recompute-spec-file.ts` | NEW: reverse unit (graph → source) — `recomputeFile(repo, file_path)` reads the `Block` layer by `(file_path, repo)`, ordered → `reassembleBlocks`; **document-agnostic & byte-exact** `recompute === content` for specs AND ADRs (`recomputeSpecFile` is a thin alias). ([validated by @319fd7e6](libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts#L17)) |
 | `shared/src/spec-trace/ingest-coverage.ts` | NEW: per-report unit (parse → Coverage + COVERS) |
 | `shared/src/spec-trace/drift-check-file.ts` | NEW: per-changed-file unit (hash compare → reverse-traverse → flag) |
 | `shared/src/spec-trace/provenance.ts` | NEW: parse inline link + `// lore:validates` annotation + `Lore-Validates:` trailer |
