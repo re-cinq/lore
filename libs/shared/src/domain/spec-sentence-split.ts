@@ -96,7 +96,7 @@ function isSentenceBreak(
 ): boolean {
   const nextCh = flat[j];
 
-  if (!/[A-Z([0-9]/.test(nextCh)) {
+  if (!/[A-Z([0-9]/.test(nextCh) || isInsideInlineCode(buf)) {
     return false;
   }
 
@@ -105,6 +105,10 @@ function isSentenceBreak(
   }
 
   return !(ch === "." && endsInAbbreviationOrInitial(buf));
+}
+
+function isInsideInlineCode(buf: string): boolean {
+  return (buf.split("`").length - 1) % 2 === 1;
 }
 
 function endsInAbbreviationOrInitial(buf: string): boolean {
