@@ -53,3 +53,7 @@ export async function recomputeFile(
 
   return sourceFromBlockRows(rows);
 }
+
+/** Thin alias for {@link recomputeFile} — the spec-traceability entry point for spec reconstruction (specs/spec-traceability-graph/spec.md#254). */
+// specs/spec-traceability-graph/spec.md#254
+export const recomputeSpecFile = recomputeFile;

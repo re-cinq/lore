@@ -7,12 +7,12 @@
 
 ## Done when these pass
 
-- [ ] **is exported as a thin alias for recomputeFile** — validates that `recomputeSpecFile` is defined and strictly equals `recomputeFile`
+- [x] **is exported as a thin alias for recomputeFile** — validates that `recomputeSpecFile` is defined and strictly equals `recomputeFile`
   `libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Export `recomputeSpecFile` as an alias of `recomputeFile` in `libs/shared/src/outbound/spec-trace/recompute-spec-file.ts`
+- [x] Export `recomputeSpecFile` as an alias of `recomputeFile` in `libs/shared/src/outbound/spec-trace/recompute-spec-file.ts`
 
 ## Out of scope
 
