@@ -30,7 +30,7 @@ export * from "./project-spec-file-links.js";
 export * from "./project-spec-file-nodes.js";
 export * from "./provenance.js";
 export * from "./prune-adr-subtree.js";
-export * from "./read-stored-test-layer.js";
+export { storedTestLayerQuery, storedTestLayerOf } from "./read-stored-test-layer.js";
 export * from "./reference-extractor.js";
 export * from "./registration-anchors.js";
 export * from "./resolve-sentence-link.js";
