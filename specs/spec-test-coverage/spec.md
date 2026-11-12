@@ -484,7 +484,7 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 ## Limitations & Open Questions
 
-1. **Backfill cost.** Existing specs across the org have ~zero markdown test links today. The first weekly backfill run will open one PR per spec with suggestions — potentially dozens of PRs at once. Mitigation: rate-limit the first run, or gate the backfill on a feature flag and ramp slowly. Document the burst.
+1. **Backfill cost.** Existing specs across the org have ~zero markdown test links today. The first weekly backfill run will open one PR per spec with suggestions — potentially dozens of PRs at once. Mitigation: rate-limit the first run, or gate the backfill on a feature flag and ramp slowly. Document the burst. ([validated by staggers PR creation with an explicit limit across repositories on an initial burst @70a16c05](libs/shared/src/work/spec-upkeep/floor-spec-upkeep.acceptance.test.ts#L6))
 2. **Multiple test links per statement.** Format A handles this via comma-separation inside one paren. The rehype detection wraps all of them; the popover lists all of them. Tested.
 3. **Manually-added links may not match the cron's preferred format.** The validate pass tolerates any markdown link whose href passes `isTestFile()` — the parenthetical wrapper is the cron's emission style, not a requirement on the author. An author who writes `It [does the thing](src/x.test.ts#L<line>).` mid-statement also gets the green wrap.
 4. **Link rot UX.** The validate pass posts PR comments; comments on closed PRs aren't visible. Need a fallback: if no open PR exists for the spec's repo, open a `link-rot` labelled issue. Tracked as F-validate-fallback.
