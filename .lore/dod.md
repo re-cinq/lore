@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Extract test declarations using `testTitleAt` for TestChunk projection.
-- [ ] Feed `readLinked` content into test chunk link projection.
+- [x] Extract test declarations using `testTitleAt` for TestChunk projection.
+- [x] Feed `readLinked` content into test chunk link projection.
 
 ## Out of scope
 
