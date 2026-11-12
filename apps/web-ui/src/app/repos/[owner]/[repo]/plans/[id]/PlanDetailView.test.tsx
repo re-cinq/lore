@@ -93,7 +93,3 @@ describe("PlanDetailView", () => {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: () => {} }),
-}));

@@ -34,7 +34,7 @@ describe("RepoChrome", () => {
     }));
 
     expect(links).toEqual([
-      { label: "Repositories", href: "/repos" },
+      { label: "Repositories", href: "/" },
       { label: "re-cinq/lore", href: base },
       { label: "Plans", href: `${base}/plans` },
     ]);

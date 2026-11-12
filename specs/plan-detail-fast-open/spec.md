@@ -53,7 +53,7 @@ Once Next has prefetched the plan page down to its `loading.tsx`, a click shows 
 
 - `PlanDetailPage` reads the plan (`readPlan`, which also decides the repository check and `notFound()`) and the session. **It reads no run, visit or PR.** `planRunFor`, `fetchPlanRun` and `refreshPlanRunFactsAction` are no longer used by the plan page.
 - Once the plan is known to belong to the repo, it mints, in parallel, the plan's collab token (as `openPlanSocketAction` does today) and a `plan-run` token (FR4). It hands both to the client, so the first connect needs no server-action round trip. A token is valid for ten minutes. A reconnect after that mints new ones through server actions, as the editor already does (`openSocket`).
-- The header's facts (type, version, author, approval), its status badge and its Delete button come from the plan, so they render in the first paint.
+- The toolbar's facts (type, version, author, approval), its status badge and its Delete plan action come from the plan, so they render in the first paint.
 - An action that ends in `router.refresh()` (Approve, Reopen, …) re-renders only this small read, because the plan's status lives in the plan. The new tokens it brings are kept for the next reconnect. A changed token prop never closes and reopens a channel that is open.
 
 ## FR4: A `plan-run` channel follows the plan's current run (lore-api)
@@ -70,7 +70,7 @@ Once Next has prefetched the plan page down to its `loading.tsx`, a click shows 
 ## FR5: The page draws itself as the frames arrive (web-ui)
 
 - A new hook, `usePlanRunChannel(planId, token, mintToken)`, replaces `usePlanRunLive`'s server-rendered seed and its `refreshRunFacts` re-reads. It opens the `plan-run` channel on the tab's one socket and folds the frames: `plan_run` resets the run's facts (and its visits, when the run id changed), and `run_status` and `node_status` go through the existing `plan-run-live-reducer`. It answers `unknown` until the first `plan_run` frame arrives, then the run or `null`.
-- While the run is `unknown`, the run card and the body show `PlanDetailSkeleton`'s `run` and `body` parts. The header is already drawn (FR3). The user-story link, and the story field shown when the run carries none, appear with the first `plan_run` frame.
+- While the run is `unknown`, the toolbar's run text and the body show placeholders, the body `PlanDetailSkeleton`'s `body` part. The toolbar's facts are already drawn (FR3). The user-story link, and the story field shown when the run carries none, appear with the first `plan_run` frame.
 - `planPageState` is given the run only once it is known. **An unknown run never yields the editor**, and neither does a closed channel or an error. The editor only renders once the page knows no draft is being written.
 - `PlanWorkspace`'s `loading` placeholder ("Opening the plan…") and `PlanEditorPanel`'s "Connecting…" become `PlanDetailSkeleton`'s `body` part, keeping a visually hidden text for screen readers.
 - The editor's chunk (`PlanEditorPanel`, which pulls in BlockNote) starts downloading when the plan view mounts, while the channel is still opening, instead of when the body first renders.

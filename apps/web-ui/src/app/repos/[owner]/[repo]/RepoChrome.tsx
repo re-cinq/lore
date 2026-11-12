@@ -23,7 +23,7 @@ export default function RepoChrome({ base, fullName, full }: RepoChromeProps) {
 
   return (
     <nav className={styles.crumbs} aria-label="Breadcrumb">
-      <Link href="/repos">Repositories</Link>
+      <Link href="/">Repositories</Link>
       <span aria-hidden="true">/</span>
       <Link href={base}>{fullName}</Link>
       <span aria-hidden="true">/</span>
