@@ -179,7 +179,7 @@ A turn with a content block of an unknown type is kept as a raw entry, including
 
 The captured production sample (`agent-log-entries.fixtures.ts`) parses into the expected ordered kind sequence with one counter per ticker run. ([validated by parses the assembled sample log into the expected kind sequence with one counter per run @b39dfdad](apps/web-ui/src/lib/agent-log-entries.test.ts#L317))
 
-`formatTokens` abbreviates counts of a thousand or more with a `k` suffix. ([validated by formats 4200 tokens as ~4.2k and 444 as ~444 @95e06f93](apps/web-ui/src/lib/agent-log-entries.test.ts#L341))
+`formatTokens` abbreviates counts of a thousand or more with a `k` suffix. ([validated by `agent-log-entries.test.ts@95e06f93`](apps/web-ui/src/lib/agent-log-entries.test.ts#L341))
 
 `formatDuration` renders the two largest time units. ([validated by `agent-log-entries.test.ts@5054ddc1`](apps/web-ui/src/lib/agent-log-entries.test.ts#L349))
 
@@ -189,7 +189,7 @@ The captured production sample (`agent-log-entries.fixtures.ts`) parses into the
 
 Gemini pods emit a flat event dialect: no `message.content` blocks, and `parameters` where Claude Code says `input`. The same classifier reads both dialects.
 
-A gemini `init` event becomes a session-init entry exposing the model and the pretty-printed payload, with no Claude Code version. ([validated by parses the gemini init line to model gemini-3.1-pro-preview with pretty details @654998b6](apps/web-ui/src/lib/agent-log-entries.test.ts#L692))
+A gemini `init` event becomes a session-init entry exposing the model and the pretty-printed payload, with no Claude Code version. ([validated by `agent-log-entries.test.ts@654998b6`](apps/web-ui/src/lib/agent-log-entries.test.ts#L692))
 
 A gemini `message` with string content from the user becomes a user-text entry. ([validated by parses a gemini user message with string content as user-text @efc6096e](apps/web-ui/src/lib/agent-log-entries.test.ts#L702))
 
@@ -260,5 +260,7 @@ A run's turns span every visit of every node, so `segmentTurns` (`@/lib/turn-seg
 Turns with no node keep a segment of their own. ([validated by `turn-segments.test.ts@d2c1f57e`](apps/web-ui/src/lib/turn-segments.test.ts#L60))
 
 `segmentLabel` reads `node · iteration N`, the bare node name when the iteration is unknown, and nothing for a segment with no node. ([validated by `turn-segments.test.ts@a2ed77ed`](apps/web-ui/src/lib/turn-segments.test.ts#L75), [validated by `turn-segments.test.ts@d07ae97c`](apps/web-ui/src/lib/turn-segments.test.ts#L79), [validated by `turn-segments.test.ts@ba0f9738`](apps/web-ui/src/lib/turn-segments.test.ts#L83))
+
+`segmentRawLog` joins a segment's envelopes one per line and is empty for a segment with no turns. ([validated by `turn-segments.test.ts@45d38bf8`](apps/web-ui/src/lib/turn-segments.test.ts#L91), [validated by `turn-segments.test.ts@a790e39f`](apps/web-ui/src/lib/turn-segments.test.ts#L104))
 
 The transcript panel classifies each segment's turns on their own, so each visit keeps its own conversation. The panel itself is specified in `specs/turn-level-transcript-store` FR5.
