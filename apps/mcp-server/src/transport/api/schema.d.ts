@@ -1282,6 +1282,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/available": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/available */
+    get: operations["get_api_repos_available"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}": {
     parameters: {
       query?: never;
@@ -3362,6 +3379,11 @@ export interface components {
         blocked: string | null;
       }[];
     };
+    AvailableRepos: {
+      full_name: string;
+      owner: string;
+      name: string;
+    }[];
     BlobPreviews: {
       previews: {
         [key: string]: {
@@ -8654,6 +8676,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RepoList"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_available: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description GitHub App repos not yet onboarded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AvailableRepos"];
         };
       };
       401: components["responses"]["Unauthorized"];
