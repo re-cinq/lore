@@ -91,7 +91,7 @@ describe("withSharedFloorClient", () => {
     [FLOOR_CLIENT],
   )[FLOOR_CLIENT];
 
-  it("adds libs/shared's floor-client under its own key when the service resolves 0.0.1", () => {
+  it("adds libs/shared's floor-client under its own key when the service resolves an older one", () => {
     expect(withSharedFloorClient({ [FLOOR_CLIENT]: "0.0.1" })).toEqual({
       [FLOOR_CLIENT]: "0.0.1",
       [`${FLOOR_CLIENT} (libs/shared)`]: sharedFloorClient,

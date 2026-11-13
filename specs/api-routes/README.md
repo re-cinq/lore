@@ -64,4 +64,5 @@ that's plumbing, not duplication.
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
 | `GET /healthz` | [spec](healthz/spec.md) | none | Liveness probe. |
+| `GET /api/versions` | [spec](versions/spec.md) | read | Which build of every Lore part runs; `POST /api/service-versions` (write) records the gateway's start. |
 | `/api/tokens` | [spec](tokens/spec.md) | admin | API token create / list / revoke. |

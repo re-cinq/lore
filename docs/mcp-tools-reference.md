@@ -394,7 +394,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 
 One-line purpose: rebuild the installed local MCP adapter (`~/.re-cinq/lore`) from the latest `origin/main`.
 
-- **When to use:** only after the user consents — `lore_assemble_context` prefixes `lore_mcp_update_available` when the running adapter is behind `origin/main` (the SessionStart hook pulls the checkout but never rebuilds `dist/`).
+- **When to use:** only after the user consents — `lore_assemble_context` prefixes `lore_mcp_update_available`, and the SessionStart hook prints `[lore] Your Lore MCP is behind the deployed version (<built> → <latest>)`, when the running adapter is behind the build deployed on lore-api (`latest.build` of `GET /api/versions`). The hook no longer pulls the checkout.
 - **When not to use:** unprompted, or on the shared gateway — the tool is not registered in `agent` server mode, and an agent pod has no checkout to rebuild.
 
 | Parameter | Required | Default | Description |
@@ -402,8 +402,23 @@ One-line purpose: rebuild the installed local MCP adapter (`~/.re-cinq/lore`) fr
 | _(none)_ | — | — | Takes no input. |
 
 - **Returns:** the updater's combined output plus `Restart Claude Code to load the rebuilt MCP.` — a running process cannot hot-swap its own code.
-- **Where it runs:** local machine; runs the audited `scripts/lore-update.sh` (`git pull` + `npm ci --ignore-scripts` + build shared→server-core→mcp). No DB, no API.
+- **Where it runs:** local machine; asks `GET /api/versions` for the deployed build, then runs the audited `scripts/lore-update.sh` (`git pull` + `npm ci --ignore-scripts` + build shared→server-core→mcp). No DB.
 - **Cache/mutation:** rewrites the installed `dist/` and the `~/.lore/mcp-build-head` marker; resets the cached update status.
+
+#### `lore_versions`
+
+One-line purpose: list which build of every Lore part runs.
+
+- **When to use:** to answer "which version of Lore is running": lore-api, stations, the lore-mcp gateway, the web UI, the floor and each live cluster's agent and AI subsystem, the database migrations, the pipelines and agent definitions on the floor, and the agent image. On a laptop the last line says whether this adapter is the deployed build.
+- **When not to use:** to update the adapter → `lore_update`.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| _(none)_ | — | — | Takes no input. |
+
+- **Returns:** a short list, one part per line, headed `Latest Lore build: <sha>`; a part that failed prints `error: <reason>`.
+- **Where it runs:** proxies `GET /api/versions` (read scope); shared, so also on the gateway.
+- **Cache/mutation:** read-only.
 
 ### Spec-trace
 

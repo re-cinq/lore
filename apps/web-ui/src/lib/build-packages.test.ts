@@ -19,7 +19,7 @@ function installed(versions: Record<string, string>): string {
 }
 
 describe("planningPackageVersions", () => {
-  it("reads 0.12.0 and 0.16.0 from the two installed planning packages", () => {
+  it("reads the versions of the two installed planning packages", () => {
     const root = installed({
       "@re-cinq/planning-document": "0.12.0",
       "@re-cinq/planning-editor": "0.16.0",

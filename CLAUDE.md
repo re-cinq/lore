@@ -233,6 +233,7 @@ MCP memory tools for persistent agent memory:
 - **lore_query_graph** — query the live knowledge graph for entities and relationships
 - **lore_assemble_context** — retrieve and assemble context from all sources into a structured, token-budgeted block
 - **lore_agent_stats** — health, memory count, episode count, facts, searches, daily breakdown
+- **lore_versions** — which build of every Lore part runs (`GET /api/versions`, read from `lore.service_versions`, which lore-api, stations and the lore-mcp gateway write at start, plus the UI's `/api/version`, the floor's `/version` with its live clusters' subsystem, the migrations and what is on the floor); `lore_update` and the SessionStart hook compare the laptop adapter with its `latest.build`
 
 Memory is stored in the PostgreSQL `memory` schema (tables:
 `memories`, `memory_versions`, `facts`, `fact_conflicts`, `episodes`,
@@ -298,17 +299,17 @@ Every Claude Code session connected to Lore MUST follow this order:
    Call `lore_write_episode` with raw observations for passive fact
    extraction.
 
-This workflow is enforced via the system prompt injected by
-`install.sh`. The install script configures hooks that remind
-agents to follow this order.
+This workflow is carried by the MCP server's `instructions`
+(`SERVER_INSTRUCTIONS`, `apps/mcp-server/src/transport/build-mcp-server.ts`),
+which Claude Code delivers every session. The install script configures hooks
+that remind agents to follow this order.
 
 ## Developer Setup
 
 `install.sh` runs once per machine. It configures:
 - MCP server (serves context for ALL onboarded repos)
 - Skills (/lore-feature, /lore-pr)
-- Hooks (SessionStart syncs context, Stop captures episode)
-- System prompt (enforces lore_assemble_context + lore_search_memory workflow)
+- Hooks (SessionStart merges settings and prints one line when the adapter is behind the deployed build, `scripts/lore-version-check.mjs`; Stop captures episode)
 - Agent ID (~/.lore/agent-id)
 
 No per-repo install needed. The MCP server auto-detects which repo
