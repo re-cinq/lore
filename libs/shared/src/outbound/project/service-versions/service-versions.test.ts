@@ -5,7 +5,7 @@ import { PgServiceVersions } from "./service-versions-pg.js";
 import {
   FLOOR_CLIENT,
   readPackageVersions,
-  recordServiceStart,
+  reportServiceStart,
   serviceStart,
   withSharedFloorClient,
 } from "./package-versions.js";
@@ -129,13 +129,26 @@ describe("serviceStart", () => {
   });
 });
 
-describe("recordServiceStart", () => {
-  it("records the start on the port", async () => {
+describe("reportServiceStart", () => {
+  const report = {
+    service: "stations",
+    required: createRequire(import.meta.url),
+    bundled: [FLOOR_CLIENT],
+  };
+
+  it("records the service's build with the bundled packages it resolves", async () => {
     const versions = new InMemoryServiceVersions();
 
-    await recordServiceStart(versions, apiStart);
+    await reportServiceStart(versions, report, { LORE_BUILD_SHA: "abc1234" });
 
-    expect(await versions.list()).toEqual([apiStart]);
+    expect(await versions.list()).toEqual([
+      {
+        service: "stations",
+        build: "abc1234",
+        packages: { [FLOOR_CLIENT]: expect.any(String) },
+        startedAt: expect.any(Date),
+      },
+    ]);
   });
 
   it("resolves when the write fails", async () => {
@@ -146,6 +159,8 @@ describe("recordServiceStart", () => {
       list: async () => [],
     };
 
-    await expect(recordServiceStart(broken, apiStart)).resolves.toBe(undefined);
+    await expect(reportServiceStart(broken, report, {})).resolves.toBe(
+      undefined,
+    );
   });
 });

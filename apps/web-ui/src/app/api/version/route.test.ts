@@ -10,10 +10,7 @@ afterEach(() => {
 describe("GET /api/version", () => {
   it("answers the build sha and the planning packages baked in at build time", async () => {
     vi.stubEnv("LORE_UI_VERSION", "abc1234");
-    vi.stubEnv(
-      "LORE_UI_PACKAGES",
-      '{"@re-cinq/planning-editor":"0.16.0"}',
-    );
+    vi.stubEnv("LORE_UI_PACKAGES", '{"@re-cinq/planning-editor":"0.16.0"}');
 
     expect(await GET().json()).toEqual({
       version: "abc1234",

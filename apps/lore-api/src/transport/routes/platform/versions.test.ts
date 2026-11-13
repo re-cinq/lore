@@ -25,7 +25,12 @@ function serve(pool: ReturnType<typeof makePool> | null) {
   }));
   server.auth.strategy("bearer-scope", "stub");
   server.auth.default("bearer-scope");
-  server.route(versionsRoute(() => pool as never, () => allDown));
+  server.route(
+    versionsRoute(
+      () => pool as never,
+      () => allDown,
+    ),
+  );
   server.route(serviceVersionsRoute(() => pool as never));
 
   return server;

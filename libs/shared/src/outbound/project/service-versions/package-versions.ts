@@ -62,14 +62,26 @@ export function serviceStart(
   };
 }
 
-/** Writes a service's start; a failed write is logged and the service boots on, shown as unreported by GET /api/versions. */
-export async function recordServiceStart(
+export interface ServiceReport {
+  service: string;
+  /** `createRequire(import.meta.url)` of the service's own module, so each package is the copy the service runs. */
+  required: NodeJS.Require;
+  bundled: string[];
+}
+
+/** Writes the service's row when it starts; a failed write is logged and the service boots on, shown as unreported by GET /api/versions. */
+export async function reportServiceStart(
   versions: ServiceVersionsPort,
-  start: ServiceVersion,
+  { service, required, bundled }: ServiceReport,
+  env: Partial<Record<"LORE_BUILD_SHA", string>> = process.env,
 ): Promise<void> {
+  const packages = withSharedFloorClient(
+    readPackageVersions(required, bundled),
+  );
+
   try {
-    await versions.record(start);
+    await versions.record(serviceStart(service, packages, env));
   } catch (err) {
-    console.error(`[${start.service}] failed to record its version:`, err);
+    console.error(`[${service}] failed to record its version:`, err);
   }
 }

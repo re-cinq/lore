@@ -76,7 +76,10 @@ describe("versionsAnswer", () => {
         migration: "0129_service_versions.sql",
         floorMigration: "floor/0009_x.ts",
       },
-      onFloor: { pipelines: [{ id: "merge", hash: "h1" }], agentDefinitions: 31 },
+      onFloor: {
+        pipelines: [{ id: "merge", hash: "h1" }],
+        agentDefinitions: 31,
+      },
       agentImage: "ghcr.io/x/agent:1",
     });
   });

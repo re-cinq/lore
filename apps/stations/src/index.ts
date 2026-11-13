@@ -7,7 +7,8 @@ import {
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
-import { reportStationsVersion } from "./app/report-version.js";
+import { createRequire } from "node:module";
+import { reportServiceStart } from "@re-cinq/lore-shared/project/service-versions/package-versions.js";
 import { PgServiceVersions } from "@re-cinq/lore-shared/project/service-versions/service-versions-pg.js";
 import { startStationDrain } from "./events/loop-boot.js";
 import {
@@ -46,12 +47,19 @@ import { STATIONS_SUBSCRIBER } from "./events/subscriptions.js";
 
 const PORT = requiredPort(process.env, "PORT");
 
+// The bundled packages GET /api/versions lists for stations, as this module resolves them.
+const STATIONS_REPORT = {
+  service: "stations",
+  required: createRequire(import.meta.url),
+  bundled: ["@re-cinq/floor-client", "@re-cinq/floor-station"],
+};
+
 // How long shutdown waits for the event queue to drain — long enough for a backlog, short enough not to hold a rollout past its grace period.
 async function main(): Promise<void> {
   const metrics = startServiceMetrics();
 
   initPool();
-  await reportStationsVersion(new PgServiceVersions(getPool()));
+  await reportServiceStart(new PgServiceVersions(getPool()), STATIONS_REPORT);
   observeBusQueueDepth(() => deliveries().pendingCount(STATIONS_SUBSCRIBER));
   // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });

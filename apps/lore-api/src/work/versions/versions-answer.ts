@@ -4,18 +4,14 @@ import type { ServiceVersion } from "@re-cinq/lore-shared/models/service-version
 
 // GET /api/versions: which build of every Lore part runs. Each source answers alone, so one that fails shows its `{error}` and the rest still answer.
 
-export const LORE_SERVICES = ["lore-api", "stations", "lore-mcp"] as const;
-
 const ErrorSchema = z.object({ error: z.string() });
+const orError = <T extends z.ZodType>(schema: T) =>
+  z.union([schema, ErrorSchema]);
 const Packages = z.record(z.string(), z.string());
-
-const ServiceSchema = z.object({
-  build: z.string(),
-  startedAt: z.date(),
-  packages: Packages,
-});
-const UiSchema = z.object({ build: z.string(), packages: Packages });
-
+const ServiceEntry = orError(
+  z.object({ build: z.string(), startedAt: z.date(), packages: Packages }),
+);
+const UiEntry = orError(z.object({ build: z.string(), packages: Packages }));
 // The floor lists its live clusters from a release this one may predate: read it defensively and keep what parses.
 const ClusterSchema = z.object({
   id: z.string(),
@@ -23,50 +19,54 @@ const ClusterSchema = z.object({
   subsystem: z.unknown().nullable(),
   lastSeenAt: z.string(),
 });
-const FloorVersionWire = z.object({
-  sha: z.string(),
-  schemaVersion: z.number(),
-  clusters: z.array(z.unknown()).optional(),
-});
-const FloorSchema = z.object({
-  build: z.string(),
-  schemaVersion: z.number(),
-  clusters: z.array(ClusterSchema),
-});
-const DatabaseSchema = z.object({
-  migration: z.string().nullable(),
-  floorMigration: z.string().nullable(),
-});
-const OnFloorSchema = z.object({
-  pipelines: z.array(z.object({ id: z.string(), hash: z.string().nullable() })),
-  agentDefinitions: z.number(),
-});
+const FloorEntry = orError(
+  z.object({
+    build: z.string(),
+    schemaVersion: z.number(),
+    clusters: z.array(ClusterSchema),
+  }),
+);
+const DatabaseEntry = orError(
+  z.object({
+    migration: z.string().nullable(),
+    floorMigration: z.string().nullable(),
+  }),
+);
+const OnFloorEntry = orError(
+  z.object({
+    pipelines: z.array(
+      z.object({ id: z.string(), hash: z.string().nullable() }),
+    ),
+    agentDefinitions: z.number(),
+  }),
+);
 
 export const VersionsSchema = z.object({
   lore: z.object({
-    "lore-api": z.union([ServiceSchema, ErrorSchema]),
-    stations: z.union([ServiceSchema, ErrorSchema]),
-    "lore-mcp": z.union([ServiceSchema, ErrorSchema]),
-    "lore-ui": z.union([UiSchema, ErrorSchema]),
+    "lore-api": ServiceEntry,
+    stations: ServiceEntry,
+    "lore-mcp": ServiceEntry,
+    "lore-ui": UiEntry,
   }),
   latest: z.object({ build: z.string() }),
-  floor: z.union([FloorSchema, ErrorSchema]),
-  database: z.union([DatabaseSchema, ErrorSchema]),
-  onFloor: z.union([OnFloorSchema, ErrorSchema]),
+  floor: FloorEntry,
+  database: DatabaseEntry,
+  onFloor: OnFloorEntry,
   agentImage: z.string().nullable(),
 });
 
 export type Versions = z.infer<typeof VersionsSchema>;
 type Failed = z.infer<typeof ErrorSchema>;
-type ServiceEntry = z.infer<typeof ServiceSchema> | Failed;
+type Answered<Part> = Exclude<Part, Failed>;
+type ServiceAnswer = Versions["lore"]["lore-api"];
 
 export interface VersionSources {
   services(): Promise<ServiceVersion[]>;
-  ui(): Promise<z.infer<typeof UiSchema>>;
+  ui(): Promise<Answered<Versions["lore"]["lore-ui"]>>;
   /** The floor's raw `GET /version`. */
   floorVersion(): Promise<unknown>;
-  migrations(): Promise<z.infer<typeof DatabaseSchema>>;
-  onFloor(): Promise<z.infer<typeof OnFloorSchema>>;
+  migrations(): Promise<Answered<Versions["database"]>>;
+  onFloor(): Promise<Answered<Versions["onFloor"]>>;
   env: Partial<Record<"LORE_BUILD_SHA" | "LORE_AGENT_IMAGE", string>>;
 }
 
@@ -101,8 +101,8 @@ async function settled<T>(read: () => Promise<T>): Promise<T | Failed> {
 
 function loreServices(
   rows: ServiceVersion[] | Failed,
-): Record<(typeof LORE_SERVICES)[number], ServiceEntry> {
-  const entryOf = (service: string): ServiceEntry => {
+): Record<"lore-api" | "stations" | "lore-mcp", ServiceAnswer> {
+  const entryOf = (service: string): ServiceAnswer => {
     if ("error" in rows) {
       return rows;
     }
@@ -120,7 +120,13 @@ function loreServices(
   };
 }
 
-function floorOf(raw: unknown): z.infer<typeof FloorSchema> {
+const FloorVersionWire = z.object({
+  sha: z.string(),
+  schemaVersion: z.number(),
+  clusters: z.array(z.unknown()).optional(),
+});
+
+function floorOf(raw: unknown): Answered<Versions["floor"]> {
   const wire = FloorVersionWire.parse(raw);
   const clusters = (wire.clusters ?? []).flatMap((cluster) => {
     const parsed = ClusterSchema.safeParse(cluster);

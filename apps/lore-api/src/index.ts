@@ -14,8 +14,22 @@ import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-def
 import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
-import { reportLoreApiVersion } from "./app/report-version.js";
+import { createRequire } from "node:module";
+import { reportServiceStart } from "@re-cinq/lore-shared/project/service-versions/package-versions.js";
 import { PgServiceVersions } from "@re-cinq/lore-shared/project/service-versions/service-versions-pg.js";
+
+// The bundled packages GET /api/versions lists for lore-api, as this module resolves them.
+const LORE_API_REPORT = {
+  service: "lore-api",
+  required: createRequire(import.meta.url),
+  bundled: [
+    "@re-cinq/floor-client",
+    "@re-cinq/floor-pipeline",
+    "@re-cinq/planning-document",
+    "@re-cinq/planning-sync",
+    "@re-cinq/planning-yjs",
+  ],
+};
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };
@@ -42,11 +56,16 @@ async function main() {
   await seedFloor();
 
   if (state.pool) {
-    await migrateFloor(state.pool);
-    await reportLoreApiVersion(new PgServiceVersions(state.pool));
+    await migrateAndReport(state.pool);
   }
 
   await startHttpServer(getPool);
+}
+
+/** The floor's migrations, then lore-api's row in lore.service_versions: the build it runs. */
+async function migrateAndReport(pool: Pool): Promise<void> {
+  await migrateFloor(pool);
+  await reportServiceStart(new PgServiceVersions(pool), LORE_API_REPORT);
 }
 
 /** One pool reaches four consumers: the three server-core module singletons plus the LLM usage sink. */

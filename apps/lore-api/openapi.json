@@ -11586,7 +11586,7 @@
       "post": {
         "operationId": "post_api_service-versions",
         "summary": "POST /api/service-versions",
-        "tags": ["Other"],
+        "tags": ["Analytics"],
         "security": [
           {
             "bearerAuth": []
@@ -13066,7 +13066,7 @@
       "get": {
         "operationId": "get_api_versions",
         "summary": "GET /api/versions",
-        "tags": ["Other"],
+        "tags": ["Analytics"],
         "security": [
           {
             "bearerAuth": []
