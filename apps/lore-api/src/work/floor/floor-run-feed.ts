@@ -37,14 +37,19 @@ export class FloorRunFeeds {
     return this.deps.highWaterMark ?? HIGH_WATER_MARK;
   }
 
-  /** Settles once the viewer has the snapshot and the replay; the live frames keep flowing behind it. */
+  /** Settles once the viewer has the snapshot and the replay; the live frames keep flowing behind it. Never rejects: a floor that fails the snapshot read ends this viewer, not the process. */
   private async relay(
     run: AssemblyRunRecord,
     watch: RunWatch,
     viewer: FloorViewer,
   ): Promise<void> {
-    const visits = await this.deps.runs.listStationRuns(run.id);
+    const visits = await this.deps.runs
+      .listStationRuns(run.id)
+      .catch(() => null);
 
+    if (!visits) {
+      return endUnread(watch, viewer);
+    }
     viewer.send([runStatusFrame(run), ...visits.map(nodeStatusFrame)]);
 
     return new Promise<void>((caughtUp) => {
@@ -54,6 +59,11 @@ export class FloorRunFeeds {
       });
     });
   }
+}
+
+function endUnread(watch: RunWatch, viewer: FloorViewer): void {
+  viewer.fail();
+  watch.stop();
 }
 
 async function follow(
