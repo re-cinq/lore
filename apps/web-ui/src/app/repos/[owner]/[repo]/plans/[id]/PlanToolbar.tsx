@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import Link from "next/link";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import ActionMenu from "@/components/ActionMenu";
@@ -6,6 +6,7 @@ import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import type { PlanStory } from "@/lib/api/plans";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import { canRegenerate } from "@/lib/plan-run-phase";
+import { useBleedToScroller } from "@/lib/use-bleed-to-scroller";
 import { useScrolledPast } from "@/lib/use-scrolled-past";
 import PlanStatusBadge from "../PlanStatusBadge";
 import { planRunSummary, planRunTone, type PlanRun } from "./PlanRunCard";
@@ -39,7 +40,8 @@ const REGENERATE = {
 
 /** The plan page's one bar of controls, pinned to the window's top: what the plan is, what its run is doing, and what can be done to it. It names the plan once the plan's own heading has scrolled away. */
 export default function PlanToolbar(props: PlanToolbarProps) {
-  const { meta, barRef } = props;
+  const { meta } = props;
+  const barRef = useMeasuredBar(props.barRef);
   const { sentinelRef, scrolled } = useScrolledPast<HTMLDivElement>();
 
   return (
@@ -57,6 +59,16 @@ export default function PlanToolbar(props: PlanToolbarProps) {
       </div>
     </>
   );
+}
+
+// The page measures the bar's height through its ref; the bar measures how far its paint reaches.
+function useMeasuredBar(barRef?: RefObject<HTMLDivElement | null>) {
+  const ownRef = useRef<HTMLDivElement>(null);
+  const ref = barRef ?? ownRef;
+
+  useBleedToScroller(ref);
+
+  return ref;
 }
 
 function ToolbarActions(props: PlanToolbarProps) {
