@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import type { ComponentProps } from "react";
+import { createRef, type ComponentProps } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanToolbar from "./PlanToolbar";
@@ -218,16 +218,13 @@ describe("PlanToolbar", () => {
     ).toEqual(["/assembly-runs/r1"]);
   });
 
-  it("says the spec work did not deliver and offers no Regenerate plan", () => {
+  it("leaves the failed spec work to the warning and offers no Regenerate plan", () => {
     renderToolbar({ run: FAILED_RUN, state: "spec-work-failed" });
 
     expect({
-      text: screen.getByText(/did not deliver/).textContent,
+      text: screen.queryByText(/did not deliver/),
       regenerate: screen.queryByRole("button", { name: "Regenerate plan" }),
-    }).toEqual({
-      text: "The spec work did not deliver. Retry it from the approved plan, or reopen the plan to change it first.",
-      regenerate: null,
-    });
+    }).toEqual({ text: null, regenerate: null });
   });
 
   it("says a reopened plan updates its spec PR on the next approval", () => {
@@ -267,7 +264,7 @@ describe("PlanToolbar regenerate", () => {
     ).toBeNull();
   });
 
-  it("draws Regenerate plan neutral while its popup stays red", () => {
+  it("draws Regenerate plan as a secondary button while its popup stays red", () => {
     renderToolbar({ run: FAILED_RUN });
     const trigger = screen.getByRole("button", { name: "Regenerate plan" });
 
@@ -276,7 +273,7 @@ describe("PlanToolbar regenerate", () => {
     expect({
       trigger: trigger.className,
       confirm: screen.getByRole("button", { name: "Regenerate" }).className,
-    }).toEqual({ trigger: "", confirm: "danger" });
+    }).toEqual({ trigger: "btn-secondary", confirm: "danger" });
   });
 
   it("regenerates the failed plan only after the confirmation popup, then refreshes", async () => {
@@ -388,5 +385,34 @@ describe("PlanToolbar actions menu", () => {
     });
 
     expect(deletePlan).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PlanToolbar bar", () => {
+  it("names the plan in the bar", () => {
+    renderToolbar();
+
+    expect(screen.getByText("Faster checkout").tagName).toBe("STRONG");
+  });
+
+  it("leaves a failed pass to the warning", () => {
+    renderToolbar({
+      run: {
+        ...RUN,
+        nodes: [{ ...RUN.nodes[0], outcome: "failed" }, RUN.nodes[1]],
+      },
+    });
+
+    expect(screen.queryByText(/last pass failed/)).toBeNull();
+  });
+
+  it("hands the bar element to the page to measure", () => {
+    const barRef = createRef<HTMLDivElement>();
+
+    renderToolbar({ barRef });
+
+    expect(barRef.current?.contains(screen.getByText("Faster checkout"))).toBe(
+      true,
+    );
   });
 });

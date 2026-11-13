@@ -6,6 +6,7 @@ import {
   PlanEditor,
   transportFor,
   type ProviderTransport,
+  type RefineFailure,
 } from "@re-cinq/planning-editor";
 import { FormError } from "@/components/FormError";
 import type { LiveSocketClient } from "@/lib/live-socket/client";
@@ -28,6 +29,8 @@ interface PlanEditorPanelProps extends PlanActions {
   prNumber: number | null;
   prTitle: string | null;
   prUnresolvedThreads: number | null;
+  /** Told which sections' refines failed, and why, each time that list changes. */
+  onRefineFailures: (failures: readonly RefineFailure[]) => void;
 }
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {
@@ -55,19 +58,18 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
   const { meta, user, transport, refine, ...actions } = props;
   const { refusal, ask } = useRefineAsk(refine, props.state);
-  const outlineActions = { ...actions, canApprove, refusal };
+  const outline = { ...actions, canApprove, refusal };
 
   return (
     <>
       <PlanBlockAnchor />
       <FramedPlanEditor
-        transport={transport}
-        user={user}
+        {...{ transport, user, onRefine: ask }}
         readOnly={meta.status === "approved"}
         validationPhase="approval"
         onValidation={(report) => setCanApprove(report.passed)}
-        onRefine={ask}
-        outlineFooter={<PlanOutlineActions {...outlineActions} />}
+        onRefineFailures={actions.onRefineFailures}
+        outlineFooter={<PlanOutlineActions {...outline} />}
       />
     </>
   );

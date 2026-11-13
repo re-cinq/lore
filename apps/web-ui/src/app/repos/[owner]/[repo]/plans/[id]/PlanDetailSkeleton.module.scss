@@ -2,13 +2,20 @@
 
 /* Mirrors PlanToolbar.module.scss. */
 .toolbar {
+  --bar-bleed: 100vmax;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
   padding-block: var(--space-3);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow:
+    0 0 0 var(--bar-bleed) var(--bg),
+    0 1px 0 var(--bar-bleed) var(--border);
+  clip-path: inset(
+    0 calc(-1 * var(--bar-bleed)) -1px calc(-1 * var(--bar-bleed))
+  );
 }
 
 .toolbarActions {

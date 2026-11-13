@@ -186,9 +186,10 @@ option {
 .main-content {
   --main-max: 1336px;
   --main-pad-x: var(--space-7);
+  --main-pad-y: var(--space-6);
   flex: 1;
   overflow-y: auto;
-  padding-block: var(--space-6);
+  padding-block: var(--main-pad-y);
   padding-inline: max(
     var(--main-pad-x),
     calc((100% - var(--main-max)) / 2 + var(--main-pad-x))
@@ -1236,7 +1237,7 @@ textarea:focus-visible,
 
   .main-content {
     --main-pad-x: var(--space-5);
-    padding-block: var(--space-5);
+    --main-pad-y: var(--space-5);
   }
 
   .main-content h1 {

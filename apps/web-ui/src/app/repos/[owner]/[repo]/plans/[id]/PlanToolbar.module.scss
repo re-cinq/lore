@@ -1,6 +1,9 @@
 .toolbar {
+  --bar-bleed: 100vmax;
+  --toolbar-bg: var(--bg);
   position: sticky;
-  top: 0;
+  /* A sticky box pins inside the scroller's padding; the negative offset takes it to the window's edge. */
+  top: calc(-1 * var(--main-pad-y, 0px));
   z-index: var(--z-sticky);
   display: flex;
   flex-wrap: wrap;
@@ -8,11 +11,63 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
   padding-block: var(--space-3);
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+
+  /* The bar's box stays in the column; its paint reaches the content area's edges. A shadow adds no scrollable overflow, unlike a 100vw width or a negative margin. The paint is a layer of its own, so the clip that trims it does not clip the actions menu's panel. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--toolbar-bg);
+    box-shadow:
+      0 0 0 var(--bar-bleed) var(--toolbar-bg),
+      0 1px 0 var(--bar-bleed) var(--border);
+    clip-path: inset(
+      0 calc(-1 * var(--bar-bleed)) calc(-1 * var(--space-5))
+        calc(-1 * var(--bar-bleed))
+    );
+    transition:
+      background-color var(--transition),
+      box-shadow var(--transition);
+  }
 
   p {
     margin: 0;
+  }
+
+  /* The bar's content is drawn over its paint layer. */
+  > * {
+    position: relative;
+    z-index: var(--z-raised);
+  }
+
+  /* Scrolled, the bar lifts off the page: a surface with a shadow under its whole width, since in some themes the page and the surface share a colour. */
+  &[data-scrolled] {
+    --toolbar-bg: var(--bg-surface);
+
+    &::before {
+      box-shadow:
+        0 0 0 var(--bar-bleed) var(--toolbar-bg),
+        0 1px 0 var(--bar-bleed) var(--border),
+        0 var(--space-1) var(--space-3) var(--bar-bleed)
+          color-mix(in srgb, var(--text) 12%, transparent);
+    }
+  }
+}
+
+.title {
+  visibility: hidden;
+  width: 0;
+  margin-left: calc(-1 * var(--space-3));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .toolbar[data-scrolled] & {
+    visibility: visible;
+    width: auto;
+    margin-left: 0;
+    max-width: 24rem;
   }
 }
 

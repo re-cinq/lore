@@ -7,6 +7,7 @@ import PlanDetailStory from "./PlanDetailStory";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
+vi.mock("@/components/Icon", () => ({ default: () => <i /> }));
 vi.mock("./PlanWorkspace", () => ({ default: () => null }));
 
 const META: PlanMeta = {

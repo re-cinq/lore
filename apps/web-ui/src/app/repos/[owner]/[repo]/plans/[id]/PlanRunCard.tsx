@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { AssemblyRunNode } from "@/lib/assembly-run-rows";
 import type { PlanPageState } from "@/lib/plan-page-state";
-import { planRunPhase } from "@/lib/plan-run-phase";
+import { planRunPhase, type PlanRunPhase } from "@/lib/plan-run-phase";
 import type { PlanActions } from "./plan-actions";
 import ReopenPlanButton from "./ReopenPlanButton";
 import styles from "./PlanRunCard.module.scss";
@@ -128,4 +128,20 @@ export function planRunSummary(
   }
 
   return STATE_TEXT[state] ?? planRunPhase(run, run.nodes).text;
+}
+
+/** How the summary reads: a failed run, a failed pass and failed spec work are the ones the page warns about instead of printing. */
+export function planRunTone(
+  run: PlanRun | null,
+  state: PlanPageState,
+): PlanRunPhase["tone"] | undefined {
+  if (!run) {
+    return undefined;
+  }
+
+  if (state in STATE_TEXT) {
+    return state === "spec-work-failed" ? "failed" : "waiting";
+  }
+
+  return planRunPhase(run, run.nodes).tone;
 }

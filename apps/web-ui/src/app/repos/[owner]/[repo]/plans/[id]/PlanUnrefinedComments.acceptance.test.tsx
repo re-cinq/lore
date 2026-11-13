@@ -80,6 +80,7 @@ describe("PlanEditorPanel", () => {
         prNumber={null}
         prTitle={null}
         prUnresolvedThreads={null}
+        onRefineFailures={() => {}}
         refine={async () => ({})}
         openSocket={async () => ({ documentName: "test", token: "tok" })}
         approve={async () => ({})}
