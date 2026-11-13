@@ -45,7 +45,7 @@ import { storeCitable, storeMarkdown } from "./plan-blobs.js";
 export interface PlanFloor extends PlanLineFloor {
   /** `cancel` beyond the reads: reopening a plan ends the spec work writing specs from it. */
   runs: Pick<FloorClient["runs"], "list" | "cancel">;
-  lines: Pick<FloorClient["lines"], "start">;
+  lines: Pick<FloorClient["lines"], "start" | "version">;
   events: Pick<FloorClient["events"], "post">;
   blobs: Pick<FloorClient["blobs"], "put">;
 }

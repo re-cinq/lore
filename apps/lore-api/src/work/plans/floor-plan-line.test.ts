@@ -105,11 +105,13 @@ function scene(
     pulls?: SpecReviewReads;
     specPrState?: "open" | "closed" | "merged" | null;
     savedStory?: SavedStory;
+    lineNodes?: string[];
   } = {},
 ) {
   const recorded = recordedPlanFloor({
     runs: given.runs ?? [planRun()],
     visits: { "run-open": given.visits ?? [] },
+    lineNodes: given.lineNodes,
   });
   const branchesFor: string[] = [];
   const asks: RefineAsk[] = [];
@@ -993,6 +995,25 @@ describe("sketchFloorPlan", () => {
       runId: "run-new",
       start: started("sketch"),
     });
+  });
+
+  it("cancels plan p1's run on a line version without sketch and starts a run at sketch", async () => {
+    const { deps, requests } = scene({
+      visits: ON_AUTHOR,
+      lineNodes: ["analyze", "author"],
+    });
+
+    await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect(posts(requests)).toEqual([
+      {
+        method: "POST",
+        path: "/assembly-runs/run-open/cancel",
+        body: { reason: "redrawn on the current planning line" },
+      },
+      expect.objectContaining({ path: "/blobs" }),
+      started("sketch"),
+    ]);
   });
 
   it("refuses to sketch an approved plan", async () => {

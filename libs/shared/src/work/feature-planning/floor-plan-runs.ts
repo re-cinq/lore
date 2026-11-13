@@ -32,6 +32,8 @@ export interface FloorPlanLine extends Omit<
   parkedMerged: ParkedVisit | null;
   /** The number of the user story the run was started for, as its `story_issue` start item; null when it names none. */
   storyIssue: number | null;
+  /** The version of the line the run walks: a run started before a node was added cannot be asked for it. */
+  lineHash: string;
 }
 
 export interface PlanKey {
@@ -112,6 +114,7 @@ export function planLineOf(run: RunView, visits: VisitView[]): FloorPlanLine {
     parkedMerged: open ? parkedVisit(visits, MERGED_NODE) : null,
     merged: visits.some(mergedSucceeded),
     storyIssue: storyIssueOf(run),
+    lineHash: run.lineHash,
   };
 }
 
