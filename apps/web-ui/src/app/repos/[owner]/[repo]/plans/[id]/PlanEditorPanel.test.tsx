@@ -78,6 +78,17 @@ describe("PlanEditorPanel", () => {
     }).toEqual({ opened: 1, destroyed: 0 });
   });
 
+  it("draws the editor's shape, named Connecting…, while plan p1's socket opens", () => {
+    const view = render(
+      <PlanEditorPanel {...props(() => new Promise(() => {}))} />,
+    );
+
+    expect({
+      status: view.queryByRole("status", { name: "Connecting…" }) !== null,
+      text: view.queryByText("Connecting…"),
+    }).toEqual({ status: true, text: null });
+  });
+
   it("wraps the editor in an element of its own, which sets the plan page's narrower padding", async () => {
     const view = render(
       <PlanEditorPanel {...props(async () => ({ documentName: "plan:p1" }))} />,
