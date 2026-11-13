@@ -8,6 +8,7 @@ export const PLANNING_LINE = "feature-planning";
 export const AGENT_STEPS: Readonly<Record<string, string>> = {
   analyze: "writing the plan",
   validate: "checking the plan",
+  sketch: "drawing the prototype",
   "analyse-specs": "writing the spec",
   draft: "writing the spec",
   write: "writing the spec",

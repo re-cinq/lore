@@ -30,6 +30,7 @@ interface Station {
   description?: string;
   agent_definition?: string;
   result_required?: boolean;
+  conversation?: string;
   outcomes: string[];
   needs: Need[];
   produces: Array<{ name: string; kind: string; path?: string }>;
@@ -1037,7 +1038,7 @@ describe("the floor pipelines shipped in this folder", () => {
 });
 
 describe("the feature-planning pipeline", () => {
-  it("grounds the plan between plan-pass-end and author, reading the default branch and nothing from the bag", () => {
+  it("grounds the plan between plan-pass-end and sketch-due, reading the default branch and nothing from the bag", () => {
     const { line, stations } = pipelineOf("feature-planning");
     const node = line.nodes.find((each) => each.id === "plan-grounding");
 
@@ -1052,9 +1053,53 @@ describe("the feature-planning pipeline", () => {
       station: "plan-grounding",
       base: { target: "base" },
       from: [["plan-grounding", "always"]],
-      to: [["author", "always"]],
+      to: [["sketch-due", "always"]],
       planMd: undefined,
       target: { name: "target", kind: "git", path: "target", access: "read" },
+    });
+  });
+
+  it("sends a plan from sketch-due to the sketch agent on changes_requested and to author on success or failed", () => {
+    const { line } = pipelineOf("feature-planning");
+
+    expect({
+      due: edgesOn(line, "sketch-due").map((edge) => [edge.to, edge.on]),
+      sketch: edgesOn(line, "sketch").map((edge) => [edge.to, edge.on]),
+      passEnd: edgesOn(line, "sketch-pass-end").map((edge) => [
+        edge.to,
+        edge.on,
+      ]),
+    }).toEqual({
+      due: [
+        ["author", "success"],
+        ["sketch", "changes_requested"],
+        ["author", "failed"],
+      ],
+      sketch: [["sketch-pass-end", "always"]],
+      passEnd: [["author", "always"]],
+    });
+  });
+
+  it("runs the sketch agent on the default branch, fresh on every visit, with refine optional", () => {
+    const { line, stations } = pipelineOf("feature-planning");
+    const node = line.nodes.find((each) => each.id === "sketch");
+    const station = stations["plan-sketch"];
+
+    expect({
+      station: node?.station,
+      bind: node?.bind,
+      passEnd: line.nodes.find((each) => each.id === "sketch-pass-end")
+        ?.station,
+      conversation: station?.conversation,
+      refine: needOf(station, "refine"),
+      description: needOf(station, "description"),
+    }).toEqual({
+      station: "plan-sketch",
+      bind: { target: "base" },
+      passEnd: "plan-pass-end",
+      conversation: undefined,
+      refine: { name: "refine", kind: "value", optional: true },
+      description: undefined,
     });
   });
 
@@ -1090,6 +1135,9 @@ describe("the feature-planning pipeline", () => {
         "qa-questions",
         "qa-recheck",
         "rework",
+        "sketch",
+        "sketch-due",
+        "sketch-pass-end",
         "spec-findings",
         "split-sections",
         "validate",
@@ -1507,6 +1555,7 @@ describe("the feature-planning pipeline", () => {
   it("tells every feature-planning agent to pass repo on every lore call", () => {
     const agents = [
       "plan-analyze",
+      "plan-sketch",
       "plan-validate",
       "spec-analysis",
       "spec-rework",

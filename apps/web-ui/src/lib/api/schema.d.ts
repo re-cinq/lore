@@ -2003,6 +2003,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/prototype": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/prototype */
+    post: operations["post_api_repos_owner_repo_plans_id_prototype"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/refine": {
     parameters: {
       query?: never;
@@ -4812,6 +4829,9 @@ export interface components {
     };
     PlanOpenedForAuthor: {
       reopened: boolean;
+    };
+    PlanPrototypeStarted: {
+      run_id: string;
     };
     PlanRefineAsked: {
       slot: string;
@@ -10218,6 +10238,44 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_prototype: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Runs the sketch agent over a draft plan: it draws the Prototype section on the plan's run, or on a run opened for it when the plan has none; refused for an approved plan and while an agent is working on it */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanPrototypeStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

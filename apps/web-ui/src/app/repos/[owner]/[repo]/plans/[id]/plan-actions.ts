@@ -23,6 +23,8 @@ export interface PlanActions {
   reworkSpecs: () => Outcome;
   /** Runs the outline's validation again ahead of approval. */
   validate: () => Outcome;
+  /** The sketch agent draws the Prototype section; an error is the refusal to show under the button. */
+  generatePrototype: () => Outcome;
   /** The facts a RunStreamFrame never carries — read fresh once the live page's own fold says they may have changed, so the page need not re-render to show them. */
   refreshRunFacts: () => Promise<{ run: PlanRun | null } | { error: string }>;
 }

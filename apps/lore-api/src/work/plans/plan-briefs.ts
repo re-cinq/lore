@@ -127,6 +127,11 @@ function oneLine(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/** Someone asked for the Prototype section to be drawn: a run opened for it alone carries this as its brief. */
+export function sketchBrief(plan: PlanView): string {
+  return `Draw the Prototype section of the live plan "${plan.title}".`;
+}
+
 /** The approved plan, handed to the spec work that follows approval. */
 export function approvedBrief(plan: PlanView): string {
   return `The approved plan "${plan.title}" is in plan.md. It is settled: map it onto this repository's specs; do not re-open it.`;

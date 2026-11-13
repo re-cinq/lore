@@ -52,6 +52,7 @@ const actions = {
   retrySpecWork: async () => ({}),
   reworkSpecs: async () => ({}),
   validate: async () => ({}),
+  generatePrototype: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
   story: null,
   saveStory: async () => ({}),

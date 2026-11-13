@@ -44,6 +44,25 @@ export function sectionsOf(projection: unknown): PlanSections {
   };
 }
 
+/** Each section of a plan by its slot, with the types of the blocks it holds. */
+export type PlanBlockTypes = { slot: string; blockTypes: string[] }[];
+
+export function blockTypesOf(projection: unknown): PlanBlockTypes {
+  const { sections } = planProjectionSchema.parse(projection).json;
+
+  return sections.map(({ slot, blocks }) => ({
+    slot,
+    blockTypes: blocks.map((block) => block.type),
+  }));
+}
+
+/** The plan as it stands right now, read as its sections' block types. */
+export async function planBlockTypes(planId: string): Promise<PlanBlockTypes> {
+  return blockTypesOf(
+    await (await requestPlan(planId, { method: "GET" })).json(),
+  );
+}
+
 /** Who the plan's people see the findings from; a station reconciles only the findings it posted. */
 export function planEditorAs(actor: string): PlanEditor {
   return {

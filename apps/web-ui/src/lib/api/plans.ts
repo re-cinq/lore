@@ -134,6 +134,18 @@ export function validatePlan(
   });
 }
 
+/** Asks the sketch agent to draw the plan's Prototype section; lore-api refuses an approved plan and one an agent is working on. */
+export function askPrototype(
+  repo: string,
+  planId: string,
+  actor: string,
+): Promise<ApiResult<{ run_id: string }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/prototype`, {
+    method: "POST",
+    body: { actor },
+  });
+}
+
 /** A short-lived token that opens the plan's socket as this person; the caller has already checked their access to the repo. */
 export function mintCollabToken(
   repo: string,

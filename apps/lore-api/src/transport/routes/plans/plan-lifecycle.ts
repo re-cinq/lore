@@ -47,6 +47,7 @@ export function planLifecycleRoutes(ports: PlanLifecyclePorts): ServerRoute[] {
     lifecycle("spec-work", SPEC_WORK_OPTIONS, serveSpecWork),
     lifecycle("spec-rework", SPEC_REWORK_OPTIONS, serveSpecRework),
     lifecycle("validate", VALIDATE_OPTIONS, serveValidate),
+    lifecycle("prototype", PROTOTYPE_OPTIONS, servePrototype),
     lifecycle("author-waiting", AUTHOR_WAITING_OPTIONS, serveAuthorWaiting),
   ];
 }
@@ -151,6 +152,24 @@ const VALIDATE_OPTIONS = zodResponse(
   },
 );
 
+const PlanPrototypeBody = z.object({ actor: z.string().min(1) });
+const PlanPrototypeSchema = z.object({ run_id: z.string() });
+
+const PROTOTYPE_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    validate: { payload: zodValidate(PlanPrototypeBody) },
+  },
+  PlanPrototypeSchema,
+  {
+    name: "PlanPrototypeStarted",
+    status: 202,
+    description:
+      "Runs the sketch agent over a draft plan: it draws the Prototype section on the plan's run, or on a run opened for it when the plan has none; refused for an approved plan and while an agent is working on it",
+    errors: [404, 409],
+  },
+);
+
 const AuthorWaitingSchema = z.object({ reopened: z.boolean() });
 
 const AUTHOR_WAITING_OPTIONS = zodResponse(
@@ -226,8 +245,8 @@ async function serveSpecWork(
     .code(202);
 }
 
-// The two routes that ask for a run by hand answer the same way: the run's id once it is asked for.
-function servesRun(verb: "reworkSpec" | "validate"): Serve {
+// The routes that ask for a run by hand answer the same way: the run's id once it is asked for.
+function servesRun(verb: "reworkSpec" | "validate" | "sketch"): Serve {
   return async (ports, pool, request, h) => {
     const { plan, verbs } = await planWithVerbs(ports, pool, request);
     const { actor } = request.payload as z.infer<typeof SpecReworkBody>;
@@ -239,6 +258,8 @@ function servesRun(verb: "reworkSpec" | "validate"): Serve {
 const serveSpecRework = servesRun("reworkSpec");
 
 const serveValidate = servesRun("validate");
+
+const servePrototype = servesRun("sketch");
 
 // The plan the path names, with the verbs of the engine that holds its planning line.
 async function planWithVerbs(

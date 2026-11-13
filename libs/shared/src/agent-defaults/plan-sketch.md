@@ -113,7 +113,3 @@ under the same id.
 When you are done, stop: every sketch is already in the live plan.
 End your final message with the line
 `LORE_NODE_RESULT: {"outcome":"success"}`.
-
-## This round
-
-{description}
