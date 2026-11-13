@@ -26,7 +26,7 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration@854d3711](../../../apps/lore-api/src/app/build-server.ts#L99)).
+([registration@854d3711](../../../apps/lore-api/src/app/build-server.ts#L100)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
