@@ -125,6 +125,7 @@ describe("readFloorMigrations", () => {
         "floor/0006_spec_tickets_settled_statements",
         "floor/0007_station_skills",
         "floor/0008_plan_agents_read_user_story",
+        "floor/0009_plan_sketches_downstream",
       ],
       unshipped: [],
     });
@@ -202,6 +203,19 @@ describe("floor/0008_plan_agents_read_user_story", () => {
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt plan-analyze",
       "prompt plan-validate",
+    ]);
+  });
+});
+
+describe("floor/0009_plan_sketches_downstream", () => {
+  it("writes the shipped prompts of plan-analyze, spec-draft, spec-rework and spec-tickets-decompose, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0009_plan_sketches_downstream");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt plan-analyze",
+      "prompt spec-draft",
+      "prompt spec-rework",
+      "prompt spec-tickets-decompose",
     ]);
   });
 });

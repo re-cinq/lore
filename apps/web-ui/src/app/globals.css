@@ -733,21 +733,6 @@ pre {
   color: var(--text-muted);
 }
 
-/* Inline mockup SVGs (DOMPurify-sanitized in MockupSection). White surface keeps
-   light-designed diagrams legible in dark mode; svg scales to the card width. */
-.mockup-svg {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  overflow: auto;
-}
-.mockup-svg svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 0 auto;
-}
 .spec-card input:focus,
 .spec-card select:focus,
 .spec-card textarea:focus {

@@ -16,6 +16,10 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
     tone: "working",
     text: "The planning agent is drafting the plan.",
   },
+  sketch: {
+    tone: "working",
+    text: "The sketch agent is drawing the prototype.",
+  },
   author: {
     tone: "waiting",
     text: "Waiting for you: refine sections or approve the plan.",

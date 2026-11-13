@@ -41,8 +41,33 @@ function noticeMessages({
 
   return [
     ...refineFailures.map(refineMessage),
+    ...sketchMessages(run, refineFailures),
     ...runMessages(run, state, refineFailures),
   ];
+}
+
+// The newest agent pass decides: a sketch that failed and was not since redrawn or overtaken by a planning pass. A failed Refine of the Prototype section already says so in its own words.
+function sketchMessages(
+  run: PlanRun | null,
+  refineFailures: readonly RefineFailure[],
+): string[] {
+  const lastPass = run?.nodes.findLast((visit) =>
+    AGENT_PASSES.has(visit.nodeId),
+  );
+
+  if (lastPass?.nodeId !== "sketch" || lastPass.outcome !== "failed") {
+    return [];
+  }
+
+  return refineFailures.some(({ slot }) => slot === "prototype")
+    ? []
+    : [sketchMessage(lastPass.failureDetail)];
+}
+
+const AGENT_PASSES = new Set(["analyze", "sketch"]);
+
+function sketchMessage(reason: string | null | undefined): string {
+  return `The agent could not draw the prototype: ${reason ?? "no reason was recorded"}. Generate it again from the Prototype section.`;
 }
 
 function refineMessage({ title, reason }: RefineFailure): string {

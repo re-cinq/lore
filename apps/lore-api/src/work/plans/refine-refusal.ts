@@ -9,12 +9,14 @@ export type RefinableLine = Pick<PlanLine, "status" | "outcome" | "open">;
 
 const OPEN_STATUSES = new Set(["queued", "running", "open"]);
 const SUCCESS_OUTCOMES = new Set(["completed", "success"]);
-// The nodes of a drafting pass: the agent writing, the pass settling, a validation someone asked for and the findings it delivers. Each of them is editing the plan, so none of them may be joined.
+// The nodes of a drafting pass: the agent writing, the pass settling, a validation someone asked for and the findings it delivers, and the sketch agent drawing with the pass that settles it. Each of them is editing the plan, so none of them may be joined.
 const DRAFTING_NODES = new Set([
   "analyze",
   "plan-pass-end",
   "validate",
   "plan-findings",
+  "sketch",
+  "sketch-pass-end",
 ]);
 
 /** Whether a drafting pass has the plan right now, which is the one thing that stops a Refine starting its own. */

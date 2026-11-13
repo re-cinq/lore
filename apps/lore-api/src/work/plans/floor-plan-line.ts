@@ -36,21 +36,11 @@ import {
   type PlanRef,
   type SpecPrState,
 } from "./planning-line.js";
-import {
-  AGENT_STILL_WORKING,
-  agentHasThePlan,
-  approvedRefineRefusal,
-} from "./refine-refusal.js";
-import { askNode } from "../floor/run-node-by-hand.js";
 import type { RefineAsk } from "./refine-asks.js";
 import type { PlanStories } from "./plan-stories.js";
 import { storyOf } from "./plan-story.js";
 import { type SpecReviewReads } from "./spec-rework.js";
 import { storeCitable, storeMarkdown } from "./plan-blobs.js";
-
-/** The node whose agent refines a section, and the start event it declares. */
-const ANALYZE_NODE = "analyze";
-const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
 
 export interface PlanFloor extends PlanLineFloor {
   /** `cancel` beyond the reads: reopening a plan ends the spec work writing specs from it. */
@@ -129,42 +119,6 @@ async function answerAuthorWithDraft(
     },
     actor,
   );
-}
-
-/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
-export async function askFloorRefine(
-  deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
-): Promise<void> {
-  const line = await floorPlanLineState(deps.floor, keyOf(plan));
-
-  enforceTrue(
-    plan.status !== "approved",
-    apiError(409),
-    approvedRefineRefusal(line),
-  );
-  enforceTrue(!agentHasThePlan(line), apiError(409), AGENT_STILL_WORKING);
-
-  await deps.recordRefineAsk(askOf(plan, refine, brief));
-  await (line
-    ? askNode(deps.floor, { event: ANALYZE_EVENT, runId: line.lineId, actor })
-    : startRunToRefineAt(deps, { plan, planMarkdown, brief }));
-}
-
-// No run to start a node on, so the ask opens one; the agent reads the ask the same way.
-async function startRunToRefineAt(
-  deps: FloorPlanDeps,
-  { plan, planMarkdown, brief }: FloorPlanMarkdown,
-): Promise<void> {
-  const planMd = await storeMarkdown(deps.floor, planMarkdown);
-
-  await startPlanRun(deps, null, { plan, planMd, brief });
-}
-
-function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {
-  const { slot, title, baseHash, inputs, uses } = refine;
-
-  return { planId: plan.id, slot, title, baseHash, inputs, uses, brief };
 }
 
 /** The refusal for an approval, before the plan's status flips. */
@@ -328,8 +282,8 @@ interface PlanRunStart {
   entry?: string;
 }
 
-// A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis.
-async function startPlanRun(
+// A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis, or a person asked for one agent and the run opens at it.
+export async function startPlanRun(
   deps: FloorPlanDeps,
   previous: FloorPlanLine | null,
   start: PlanRunStart,

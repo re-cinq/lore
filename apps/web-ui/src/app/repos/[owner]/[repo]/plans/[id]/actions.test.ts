@@ -28,6 +28,7 @@ const {
   openPlanSocketAction,
   refinePlanAction,
   draftAgainAction,
+  generatePrototypeAction,
   reopenPlanAction,
   retrySpecWorkAction,
   reworkSpecsAction,
@@ -266,6 +267,32 @@ describe("reworkSpecsAction", () => {
 
     expect(await reworkSpecsAction("re-cinq/lore", "p1")).toEqual({
       error: "Nothing on the spec PR is waiting for the writer.",
+    });
+  });
+});
+
+describe("generatePrototypeAction", () => {
+  it("asks the sketch agent to draw plan p1's Prototype section in gedaiu's name", async () => {
+    answer(202, { run_id: "r1" });
+
+    expect({
+      result: await generatePrototypeAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+      body: JSON.parse(
+        String((fetchMock.mock.calls[0][1] as RequestInit).body),
+      ) as unknown,
+    }).toEqual({
+      result: {},
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/prototype",
+      body: { actor: "gedaiu" },
+    });
+  });
+
+  it("reports lore-api's reason when the planning agent is still working on plan p1", async () => {
+    answer(409, { error: "the planning agent is still working on this plan" });
+
+    expect(await generatePrototypeAction("re-cinq/lore", "p1")).toEqual({
+      error: "The planning agent is still working on this plan.",
     });
   });
 });

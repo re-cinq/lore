@@ -3,6 +3,7 @@ import type { RunningStation } from "@re-cinq/floor-station";
 import { startPlanPassEndStation } from "./plan-pass-end/station.js";
 import { startPlanFindingsStation } from "./plan-findings/station.js";
 import { startPlanGroundingStation } from "./plan-grounding/station.js";
+import { startPlanSketchDueStation } from "./plan-sketch-due/station.js";
 import { startOpenSpecPrStation } from "./open-spec-pr/station.js";
 import { startAssembleStation } from "./assemble/station.js";
 import { startSpecFindingsStation } from "./spec-findings/station.js";
@@ -15,6 +16,7 @@ export function startPlanningStations(): RunningStation[] {
     startPlanPassEndStation(),
     startPlanFindingsStation(),
     startPlanGroundingStation(),
+    startPlanSketchDueStation(),
     startSpecFindingsStation(),
     startSplitSectionsStation(),
     startAssembleStation(),

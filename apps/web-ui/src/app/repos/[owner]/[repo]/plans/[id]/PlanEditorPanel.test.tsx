@@ -2,13 +2,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ComponentProps } from "react";
 import { render, waitFor } from "@testing-library/react";
+import type { PlanEditorAdapters } from "@re-cinq/planning-editor";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanEditorPanel from "./PlanEditorPanel";
 
 const destroy = vi.fn();
 const client = {};
 const editorProps = vi.hoisted(
-  () => ({}) as { onRefineFailures?: (failures: unknown[]) => void },
+  () =>
+    ({}) as {
+      onRefineFailures?: (failures: unknown[]) => void;
+      adapters?: PlanEditorAdapters;
+      onGeneratePrototype?: () => Promise<void>;
+    },
 );
 
 vi.mock("@/lib/live-socket/LiveSocketProvider", () => ({
@@ -19,7 +25,7 @@ vi.mock("@/lib/live-socket/plan-provider", () => ({
 }));
 vi.mock("@re-cinq/planning-editor", () => ({
   PlanEditor: (received: typeof editorProps) => {
-    editorProps.onRefineFailures = received.onRefineFailures;
+    Object.assign(editorProps, received);
 
     return <p>editor</p>;
   },
@@ -95,5 +101,61 @@ describe("PlanEditorPanel", () => {
     editorProps.onRefineFailures?.([{ slot: "scope" }]);
 
     expect(onRefineFailures).toHaveBeenCalledWith([{ slot: "scope" }]);
+  });
+
+  it("hands the editor a sketch renderer", async () => {
+    const view = render(
+      <PlanEditorPanel {...props(async () => ({ documentName: "plan:p1" }))} />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+    const sketch = render(
+      <>
+        {editorProps.adapters?.renderMockup?.({
+          kind: "states",
+          caption: "Run states",
+          format: "text",
+          markup: "draft -> approved",
+          height: 120,
+        })}
+      </>,
+    );
+
+    expect(sketch.container.querySelector("pre")?.textContent).toBe(
+      "draft -> approved",
+    );
+  });
+
+  it("rejects Generate prototype with lore-api's refusal", async () => {
+    const generatePrototype = async () => ({
+      error: "The plan is approved.",
+    });
+    const view = render(
+      <PlanEditorPanel
+        {...props(async () => ({ documentName: "plan:p1" }))}
+        generatePrototype={generatePrototype}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+
+    await expect(editorProps.onGeneratePrototype?.()).rejects.toThrow(
+      new Error("The plan is approved."),
+    );
+  });
+
+  it("resolves Generate prototype when the sketch agent was started", async () => {
+    const generatePrototype = vi.fn(async () => ({}));
+    const view = render(
+      <PlanEditorPanel
+        {...props(async () => ({ documentName: "plan:p1" }))}
+        generatePrototype={generatePrototype}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+
+    await expect(editorProps.onGeneratePrototype?.()).resolves.toBeUndefined();
+    expect(generatePrototype).toHaveBeenCalledOnce();
   });
 });

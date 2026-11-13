@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
+import {
+  askFloorRefine,
+  reworkFloorSpec,
+  sketchFloorPlan,
+  validateFloorPlan,
+} from "./floor-plan-by-hand.js";
 import { floorPlanVerbs } from "./floor-plan-verbs.js";
 import type { Report, RunView, VisitView } from "@re-cinq/floor-client";
 import {
@@ -11,7 +16,6 @@ import {
 import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import {
   approveFloorPlan,
-  askFloorRefine,
   decideFloorApproval,
   reopenFloorPlan,
   startFloorDrafting,
@@ -352,6 +356,30 @@ describe("askFloorRefine", () => {
       message: "the planning agent is still working on this plan",
     });
     expect({ posts: posts(requests), asks }).toEqual({ posts: [], asks: [] });
+  });
+
+  it("sends a Refine of the Prototype section to the sketch node", async () => {
+    const { deps, requests, asks } = scene({ visits: ON_AUTHOR });
+
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: { ...REFINE, slot: "prototype", title: "Prototype" },
+      actor: "ana",
+    });
+
+    expect({ post: posts(requests).at(-1), asked: asks.at(0)?.slot }).toEqual({
+      post: {
+        method: "POST",
+        path: "/events",
+        body: {
+          name: "node.sketch.start",
+          payload: { runId: "run-open", requestedBy: "ana" },
+        },
+      },
+      asked: "prototype",
+    });
   });
 
   it("starts a run when the plan has none, since there is no run to start a node on", async () => {
@@ -929,6 +957,63 @@ describe("validateFloorPlan", () => {
     ).rejects.toMatchObject({
       output: { statusCode: 409 },
       message: "the plan has no planning line yet",
+    });
+  });
+});
+
+describe("sketchFloorPlan", () => {
+  const ASK = { plan: DRAFT, planMarkdown: MARKDOWN, brief: BRIEF };
+
+  it("starts the sketch node on plan p1's open run", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    const runId = await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect({ runId, posts: posts(requests) }).toEqual({
+      runId: "run-open",
+      posts: [
+        {
+          method: "POST",
+          path: "/events",
+          body: {
+            name: "node.sketch.start",
+            payload: { runId: "run-open", requestedBy: "gedaiu" },
+          },
+        },
+      ],
+    });
+  });
+
+  it("starts a run at sketch for a plan with no run", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    const runId = await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect({ runId, start: posts(requests).at(-1) }).toEqual({
+      runId: "run-new",
+      start: started("sketch"),
+    });
+  });
+
+  it("refuses to sketch an approved plan", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await expect(
+      sketchFloorPlan(deps, { ...ASK, plan: APPROVED, actor: "gedaiu" }),
+    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+    expect(posts(requests)).toEqual([]);
+  });
+
+  it("refuses to sketch while the sketch agent still draws plan p1", async () => {
+    const { deps } = scene({
+      visits: [planVisit("author", SUCCESS), planVisit("sketch", null)],
+    });
+
+    await expect(
+      sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" }),
+    ).rejects.toMatchObject({
+      output: { statusCode: 409 },
+      message: "the planning agent is still working on this plan",
     });
   });
 });

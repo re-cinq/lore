@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   approvePlan,
+  askPrototype,
   askRefine,
   deletePlan,
   mintCollabToken,
@@ -158,6 +159,14 @@ export async function validatePlanAction(
   planId: string,
 ): Promise<{ error?: string }> {
   return inUsersName(fullName, planId, validatePlan);
+}
+
+/** The sketch agent draws the plan's Prototype section. */
+export async function generatePrototypeAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  return inUsersName(fullName, planId, askPrototype);
 }
 
 export async function refinePlanAction(

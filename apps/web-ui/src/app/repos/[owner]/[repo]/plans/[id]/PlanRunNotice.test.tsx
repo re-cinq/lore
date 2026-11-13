@@ -79,6 +79,51 @@ describe("PlanRunNotice", () => {
     );
   });
 
+  it("warns that the prototype could not be drawn when the sketch visit failed", () => {
+    render(
+      <PlanRunNotice
+        run={{
+          ...RUN,
+          nodes: [
+            { ...VISIT, nodeId: "analyze", outcome: "success" },
+            {
+              ...VISIT,
+              nodeId: "sketch",
+              outcome: "failed",
+              failureDetail: "model quota exhausted",
+            },
+            { ...VISIT, nodeId: "author", outcome: null },
+          ],
+        }}
+        state="writing"
+        refineFailures={[]}
+      />,
+    );
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The agent could not draw the prototype: model quota exhausted. Generate it again from the Prototype section.",
+    );
+  });
+
+  it("says nothing of a failed sketch once a later analyze pass succeeded", () => {
+    const { container } = render(
+      <PlanRunNotice
+        run={{
+          ...RUN,
+          nodes: [
+            { ...VISIT, nodeId: "sketch", outcome: "failed" },
+            { ...VISIT, nodeId: "analyze", outcome: "success" },
+            { ...VISIT, nodeId: "author", outcome: null },
+          ],
+        }}
+        state="writing"
+        refineFailures={[]}
+      />,
+    );
+
+    expect(container.textContent).toBe("");
+  });
+
   it("says nothing while the agent is drafting", () => {
     const { container } = render(
       <PlanRunNotice
