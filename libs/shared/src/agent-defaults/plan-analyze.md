@@ -188,7 +188,10 @@ The op catalogue (every op is one JSON object with its `op` name):
   `kpiId` when you revise it; give a new KPI a fresh `kpiId`.
 - `set-prototype` `{prototype: {"maturity":
   "none|click-dummy|running-prototype|pre-prod", "url": "",
-  "agreedBy": "", "notes": ""}}`.
+  "agreedBy": "", "notes": ""}}`. The Prototype section is the sketch
+  agent's: another agent draws its diagrams and screen sketches after
+  you. Do not write into that section. Send `set-prototype` only with
+  a prototype URL a person gave in the plan, a comment or an answer.
 - `add-question` `{slot, "questionId": "q-…", "question": "…",
   "why": "…"}`, optionally `"kind": "choice"` with `"options": ["…",
   "…"]` — ask what only a person can decide, in the section it

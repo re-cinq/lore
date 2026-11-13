@@ -3,15 +3,16 @@ import { planMetaSchema, type PlanMeta } from "@re-cinq/planning-document";
 import { readPlan, readPlanStory, type PlanStory } from "@/lib/api/plans";
 import { planUserOf, type PlanSession } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
-import { planRunFor } from "./plan-run-facts";
-import PlanDetailView from "./PlanDetailView";
+import PlanDetailLive from "./PlanDetailLive";
+import { planPageTokens } from "./plan-page-tokens";
 import {
   approvePlanAction,
   deletePlanAction,
   draftAgainAction,
+  generatePrototypeAction,
+  mintPlanRunTokenAction,
   openPlanSocketAction,
   refinePlanAction,
-  refreshPlanRunFactsAction,
   removePlanStoryAction,
   reopenPlanAction,
   retrySpecWorkAction,
@@ -27,14 +28,15 @@ export default async function PlanDetailPage({
 }) {
   const { owner, repo, id } = await params;
   const fullName = `${owner}/${repo}`;
-  const { meta, run, user, story } = await planPage(fullName, id);
+  const { meta, user, story, tokens } = await planPage(fullName, id);
 
   return (
-    <PlanDetailView
+    <PlanDetailLive
       meta={meta}
-      run={run}
       user={user}
       story={story}
+      collabSocket={tokens?.collab ?? null}
+      planRunToken={tokens?.planRun ?? null}
       {...boundActions(fullName, id)}
     />
   );
@@ -44,6 +46,7 @@ export default async function PlanDetailPage({
 function boundActions(fullName: string, id: string) {
   return {
     openSocket: openPlanSocketAction.bind(null, fullName, id),
+    mintPlanRunToken: mintPlanRunTokenAction.bind(null, fullName, id),
     approve: approvePlanAction.bind(null, fullName, id),
     refine: refinePlanAction.bind(null, fullName, id),
     draftAgain: draftAgainAction.bind(null, fullName, id),
@@ -51,25 +54,28 @@ function boundActions(fullName: string, id: string) {
     retrySpecWork: retrySpecWorkAction.bind(null, fullName, id),
     reworkSpecs: reworkSpecsAction.bind(null, fullName, id),
     validate: validatePlanAction.bind(null, fullName, id),
+    generatePrototype: generatePrototypeAction.bind(null, fullName, id),
     deletePlan: deletePlanAction.bind(null, fullName, id),
     saveStory: savePlanStoryAction.bind(null, fullName, id),
     removeStory: removePlanStoryAction.bind(null, fullName, id),
-    refreshRunFacts: refreshPlanRunFactsAction.bind(null, fullName, id),
   };
 }
 
-// The plan, its story, its run and who is looking. The story is read with the plan, and a plan under another repo is not found before the run is read.
+// The plan, its story, who is looking, and the tokens their channels open with. The plan comes first, so a plan under another repo is not found before a token is minted; no run, visit or PR is read here (specs/plan-detail-fast-open FR3).
 async function planPage(fullName: string, planId: string) {
-  const [meta, story] = await Promise.all([
+  const [meta, story, session] = await Promise.all([
     repoPlanMeta(fullName, planId),
     storyOf(planId),
-  ]);
-  const [run, session] = await Promise.all([
-    planRunFor(fullName, planId),
     getSession(),
   ]);
+  const user = planUserOf(session as PlanSession | null);
 
-  return { meta, story, run, user: planUserOf(session as PlanSession | null) };
+  return {
+    meta,
+    story,
+    user,
+    tokens: await planPageTokens(fullName, planId, user),
+  };
 }
 
 // A story that cannot be read is shown as none linked rather than failing the plan page.

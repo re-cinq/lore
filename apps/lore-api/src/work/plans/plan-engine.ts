@@ -24,10 +24,11 @@ export interface PlanVerbs {
   startSpecWork(plan: PlanSubject, createdBy: string): Promise<string>;
   reworkSpec(plan: PlanSubject, actor: string): Promise<string>;
   validate(plan: PlanSubject, actor: string): Promise<string>;
+  sketch(plan: PlanSubject, actor: string): Promise<string>;
 }
 
 /** The verbs that hand the plan's content to its line; the rest only read where the line is and report to it. */
 export type PlanContentVerbs = Pick<
   PlanVerbs,
-  "draft" | "refine" | "handOverApproved" | "startSpecWork"
+  "draft" | "refine" | "sketch" | "handOverApproved" | "startSpecWork"
 >;

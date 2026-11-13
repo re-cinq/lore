@@ -439,10 +439,6 @@ export default tseslint.config(
   {
     files: [
       "apps/web-ui/src/app/repos/**/graph/**",
-      // `*`, not the literal `[id]` segment: minimatch reads `[id]` as a character
-      // class, so the bracketed form silently matched nothing and the file kept
-      // reporting.
-      "apps/web-ui/src/app/repos/**/features/*/MockupSection.tsx",
       "apps/web-ui/src/app/**/icon.tsx",
     ],
     rules: { "re-lint/no-inline-styles": "off" },

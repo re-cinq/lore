@@ -40,6 +40,21 @@ line:
       station: plan-grounding
       bind:
         target: base
+    # Deterministic: reads the live plan and sends it to the sketch agent only
+    # while its Prototype section holds no sketch and no prototype link.
+    - id: sketch-due
+      station: plan-sketch-due
+    # The sketch agent draws the Prototype section. Reached from sketch-due, by
+    # hand with `node.sketch.start` (the plan page's Generate prototype, or a
+    # Refine of that section), or as the entry of a run opened for it.
+    - id: sketch
+      station: plan-sketch
+      bind:
+        target: base
+    # The same station as plan-pass-end: a Refine of the Prototype section is
+    # settled from the sketch visit, so its person is told when the round died.
+    - id: sketch-pass-end
+      station: plan-pass-end
     - id: author
       station: plan-author
     # No inbound edge — the plan page's own Validate button fires this event while
@@ -161,6 +176,22 @@ line:
     # Grounding never holds the plan back: its findings are on the plan, and the
     # blockers among them are what Approve already refuses on.
     - from: plan-grounding
+      to: sketch-due
+      on: always
+    - from: sketch-due
+      to: author
+      on: success
+    - from: sketch-due
+      to: sketch
+      on: changes_requested
+    # A plan that could not be read is drawn nothing; the author waits as before.
+    - from: sketch-due
+      to: author
+      on: failed
+    - from: sketch
+      to: sketch-pass-end
+      on: always
+    - from: sketch-pass-end
       to: author
       on: always
     # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
@@ -415,6 +446,39 @@ stations:
       # Present only on a Refine round — the person who clicked Refine on the plan
       # page produced it when `author` answered changes_requested; a first draft
       # has none.
+      - name: refine
+        kind: value
+        optional: true
+    produces: []
+  plan-sketch-due:
+    description: Checks without AI whether the plan's Prototype section is still empty. An empty one goes to the sketch agent; one holding a sketch or a prototype link goes straight back to the plan's people.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: plan_id
+        kind: value
+    produces: []
+  plan-sketch:
+    description: An AI agent draws the plan's Prototype section, diagrams of its architecture, flows and data and sketches of the screens it changes, and writes nothing else.
+    kind: agent
+    agent_definition: plan-sketch
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    result_required: true
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: plan_id
+        kind: value
+      # Present only after a Refine round; the ask itself is read live through
+      # lore_plan_read, since a start by hand carries no items.
       - name: refine
         kind: value
         optional: true

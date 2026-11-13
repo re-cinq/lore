@@ -1,17 +1,53 @@
-// The two plan verbs that ask the floor for one node by hand (ADR-049): the validate station over a draft, and the spec writer again while its PR waits. Each posts the start event the node declares and answers with the run it asked.
+// The plan verbs that ask the floor for one node by hand (ADR-049): the validate station over a draft, the sketch agent over its Prototype section, and the spec writer again while its PR waits. Each posts the start event the node declares and answers with the run it asked.
 
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
+import {
+  floorPlanLineState,
+  type FloorPlanLine,
+} from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { askNode } from "../floor/run-node-by-hand.js";
-import { keyOf, type FloorPlanDeps } from "./floor-plan-line.js";
+import {
+  keyOf,
+  startPlanRun,
+  type FloorPlanDeps,
+  type FloorPlanMarkdown,
+  type FloorRefineInput,
+} from "./floor-plan-line.js";
 import type { PlanSubject } from "./plan-engine.js";
+import type { RefineRequest } from "./plan-briefs.js";
+import type { PlanRef } from "./planning-line.js";
+import type { RefineAsk } from "./refine-asks.js";
+import {
+  AGENT_STILL_WORKING,
+  agentHasThePlan,
+  approvedRefineRefusal,
+} from "./refine-refusal.js";
+import { storeMarkdown } from "./plan-blobs.js";
 import { assertValidatable } from "./plan-validate.js";
 import {
   SPEC_PR_NOT_WAITING,
   assertReworkable,
   gatherOpenReview,
 } from "./spec-rework.js";
+
+/** A node a person starts by hand: the start event it declares, and the entry a run opens at when the plan has none (the line's own entry when absent). */
+export interface HandStartedNode {
+  event: string;
+  entry?: string;
+}
+
+/** The node whose agent refines a section. */
+const ANALYZE: HandStartedNode = { event: "node.analyze.start" };
+
+/** The node whose agent draws the Prototype section. */
+const SKETCH: HandStartedNode = {
+  event: "node.sketch.start",
+  entry: "sketch",
+};
+
+/** The section the sketch agent owns: its Refine goes to that agent rather than the planning agent. */
+const PROTOTYPE_SLOT = "prototype";
 
 const VALIDATE_EVENT = "manual.plan.validate";
 const REWRITE_EVENT = "node.rework.start";
@@ -56,4 +92,66 @@ export async function reworkFloorSpec(
   });
 
   return line.lineId;
+}
+
+/** Runs the sketch agent over the plan's Prototype section: refused as a Refine is, it starts the `sketch` node on the plan's run, or opens a run at it when the plan has none. The run's id. */
+export async function sketchFloorPlan(
+  deps: FloorPlanDeps,
+  ask: FloorPlanMarkdown & { actor: string },
+): Promise<string> {
+  const line = await refinableLine(deps, ask.plan);
+
+  return startByHand(deps, line, SKETCH, ask);
+}
+
+/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
+export async function askFloorRefine(
+  deps: FloorPlanDeps,
+  { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
+): Promise<void> {
+  const line = await refinableLine(deps, plan);
+  const node = refine.slot === PROTOTYPE_SLOT ? SKETCH : ANALYZE;
+
+  await deps.recordRefineAsk(askOf(plan, refine, brief));
+  await startByHand(deps, line, node, { plan, planMarkdown, brief, actor });
+}
+
+/** The plan's line, once neither its approval nor a drafting pass holding it refuses a person's ask for an agent. */
+export async function refinableLine(
+  deps: FloorPlanDeps,
+  plan: PlanSubject,
+): Promise<FloorPlanLine | null> {
+  const line = await floorPlanLineState(deps.floor, keyOf(plan));
+
+  enforceTrue(
+    plan.status !== "approved",
+    apiError(409),
+    approvedRefineRefusal(line),
+  );
+  enforceTrue(!agentHasThePlan(line), apiError(409), AGENT_STILL_WORKING);
+
+  return line;
+}
+
+/** Starts the node by hand on the plan's run, or, with no run to start a node on, opens one at the node; the agent reads the ask the same way. The run's id. */
+export async function startByHand(
+  deps: FloorPlanDeps,
+  line: FloorPlanLine | null,
+  { event, entry }: HandStartedNode,
+  { actor, ...start }: FloorPlanMarkdown & { actor: string },
+): Promise<string> {
+  if (line) {
+    await askNode(deps.floor, { event, runId: line.lineId, actor });
+
+    return line.lineId;
+  }
+  const planMd = await storeMarkdown(deps.floor, start.planMarkdown);
+
+  return startPlanRun(deps, null, { ...start, planMd, entry });
+}
+
+function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {
+  const { slot, title, baseHash, inputs, uses } = refine;
+
+  return { planId: plan.id, slot, title, baseHash, inputs, uses, brief };
 }

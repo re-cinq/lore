@@ -131,7 +131,7 @@ A throwing assembly counts `outcome=error` and returns 500. *(2026-10-31)* ([val
 
 The trace the report reads is kept in memory only; the response carries it only when `debug` is set. *(2026-10-31)* ([validated by omits the trace from the response when debug is not set @00068335](../../../apps/lore-api/src/transport/routes/context/context.test.ts#L404))
 
-The route is registered as `GET /api/context`, and as `POST /api/context` with the same fields in a JSON body (2026-11-05). ([implemented by @9b41324d](../../../apps/lore-api/src/app/build-server.ts#L104), [implemented by @b85d46d2](../../../apps/lore-api/src/transport/routes/context/context.ts#L63))
+The route is registered as `GET /api/context`, and as `POST /api/context` with the same fields in a JSON body (2026-11-05). ([implemented by @9b41324d](../../../apps/lore-api/src/app/build-server.ts#L106), [implemented by @b85d46d2](../../../apps/lore-api/src/transport/routes/context/context.ts#L63))
 
 ## Out of Scope
 

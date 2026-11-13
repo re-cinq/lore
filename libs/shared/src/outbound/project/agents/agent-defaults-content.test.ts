@@ -952,6 +952,91 @@ describe("the planning recipes check a plan against what the platform has (issue
   });
 });
 
+describe("the sketch agent", () => {
+  it("tells the sketch agent to write each sketch with add-mockup", () => {
+    const prompt = promptOnOneLine("plan-sketch");
+
+    expect({
+      planIdSlot: prompt.includes("lore_plan_read {plan_id}"),
+      addMockup: prompt.includes('"op": "add-mockup"'),
+      idForm: prompt.includes("m-<kind>-<n>"),
+      removeBlock: prompt.includes('"op": "remove-block", "slot": "prototype"'),
+      neverSetPrototype: prompt.includes("Never send `set-prototype`"),
+      passRepo: prompt.includes(
+        "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+      ),
+      result: prompt.includes('LORE_NODE_RESULT: {"outcome":"success"}'),
+    }).toEqual({
+      planIdSlot: true,
+      addMockup: true,
+      idForm: true,
+      removeBlock: true,
+      neverSetPrototype: true,
+      passRepo: true,
+      result: true,
+    });
+  });
+
+  it("links the seven prototype skills to the sketch agent", () => {
+    expect(SHIPPED.get("plan-sketch")?.config?.skills).toEqual([
+      "lore-context",
+      "prototype-architecture",
+      "prototype-flows",
+      "prototype-ui",
+      "prototype-data-model",
+      "prototype-states",
+      "prototype-api",
+      "prototype-text-output",
+    ]);
+  });
+
+  it("tells plan-analyze to leave the Prototype section to the sketch agent unless a person gave a prototype URL", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      sketchAgentsSection: prompt.includes(
+        "The Prototype section is the sketch agent's",
+      ),
+      urlOnly: prompt.includes(
+        "Send `set-prototype` only with a prototype URL a person gave",
+      ),
+    }).toEqual({ sketchAgentsSection: true, urlOnly: true });
+  });
+});
+
+describe("the plan's sketches downstream", () => {
+  const writers = ["spec-draft", "spec-rework"];
+
+  it("tells spec-draft to copy mermaid sketches into the spec", () => {
+    expect(
+      writers.map((name) =>
+        promptOnOneLine(name).includes(
+          "Put each `mockup-mermaid` sketch into that section as a ```mermaid block",
+        ),
+      ),
+    ).toEqual([true, true]);
+  });
+
+  it("tells spec-draft to save screen sketches under sketches/", () => {
+    expect(
+      writers.map((name) =>
+        promptOnOneLine(name).includes(
+          "`specs/<feature>/sketches/<mockupId>.<html|svg|txt>`",
+        ),
+      ),
+    ).toEqual([true, true]);
+  });
+
+  it("tells the ticket decomposer to name a ticket's sketch file", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      readsSketches: prompt.includes("`sketches/` folder beside the spec"),
+      namesFile: prompt.includes("names its sketch file"),
+    }).toEqual({ readsSketches: true, namesFile: true });
+  });
+});
+
 describe("the loop's recipes on a repository whose toolchain the pod lacks", () => {
   it("has dod, tdd-round and fix-ci leave a toolchain the pod lacks to CI instead of hunting for one", () => {
     const dod = promptOnOneLine("loop-dod");

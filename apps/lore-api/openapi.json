@@ -8966,6 +8966,100 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/plans/{id}/prototype": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_prototype",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/prototype",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "Runs the sketch agent over a draft plan: it draws the Prototype section on the plan's run, or on a run opened for it when the plan has none; refused for an approved plan and while an agent is working on it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanPrototypeStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["actor"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/plans/{id}/refine": {
       "post": {
         "operationId": "post_api_repos_owner_repo_plans_id_refine",
@@ -20097,6 +20191,16 @@
           }
         },
         "required": ["reopened"],
+        "additionalProperties": false
+      },
+      "PlanPrototypeStarted": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": ["run_id"],
         "additionalProperties": false
       },
       "PlanRefineAsked": {

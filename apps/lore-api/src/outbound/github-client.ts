@@ -9,6 +9,8 @@ const APP_ID = process.env.GITHUB_APP_ID || "";
 const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY || "";
 const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID || "";
 
+let appAuth: ReturnType<typeof createAppAuth> | null = null;
+
 export function isGitHubConfigured(): boolean {
   return (
     !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID) || !!process.env.GITHUB_TOKEN
@@ -52,12 +54,7 @@ function appAuthOctokit(): Octokit {
 export async function getGitHubToken(): Promise<string | null> {
   if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
     try {
-      const auth = createAppAuth({
-        appId: APP_ID,
-        privateKey: PRIVATE_KEY,
-        installationId: INSTALLATION_ID,
-      });
-      const { token } = await auth({ type: "installation" });
+      const { token } = await sharedAppAuth()({ type: "installation" });
 
       return token;
     } catch {
@@ -66,6 +63,17 @@ export async function getGitHubToken(): Promise<string | null> {
   }
 
   return process.env.GITHUB_TOKEN || null;
+}
+
+/** One App auth per process: it caches the installation token and renews it before it expires, so a read does not start by asking GitHub for a new one. */
+function sharedAppAuth(): ReturnType<typeof createAppAuth> {
+  appAuth ??= createAppAuth({
+    appId: APP_ID,
+    privateKey: PRIVATE_KEY,
+    installationId: INSTALLATION_ID,
+  });
+
+  return appAuth;
 }
 
 // ── Convenience helpers ─────────────────────────────────────────────

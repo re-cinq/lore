@@ -48,3 +48,21 @@ export function PlanBodySkeleton() {
     </div>
   );
 }
+
+/** Everything under the toolbar while the page waits for its run: what is loading is named once for assistive technology, and the shapes stay hidden. */
+export function PlanRunLoading() {
+  return (
+    <div role="status" aria-label="Loading the planning run">
+      <PlanBodySkeleton />
+    </div>
+  );
+}
+
+/** The editor's own waits (its code, its connection) in the editor's shape, named by `label`. */
+export function PlanBodyLoading({ label }: { label: string }) {
+  return (
+    <div role="status" aria-label={label}>
+      <PlanBodySkeleton />
+    </div>
+  );
+}

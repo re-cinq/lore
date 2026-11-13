@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import type { RefineFailure } from "@re-cinq/planning-editor";
 import { Alert } from "@/components/Alert";
@@ -9,16 +9,22 @@ import { planPageState, type PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import { useElementHeight } from "@/lib/use-element-height";
 import DraftingPlan from "./DraftingPlan";
+import { PlanRunLoading } from "./PlanDetailSkeleton";
 import PlanRunCard, { type PlanRun } from "./PlanRunCard";
+import PlanRunError from "./PlanRunError";
 import PlanRunNotice from "./PlanRunNotice";
 import PlanToolbar from "./PlanToolbar";
-import { usePlanRunLive } from "./usePlanRunLive";
-import PlanWorkspace from "./PlanWorkspace";
+import type { PlanRunState } from "./usePlanRunChannel";
+import PlanWorkspace, { preloadPlanEditor } from "./PlanWorkspace";
 import type { PlanActions } from "./plan-actions";
 
 interface PlanDetailViewProps extends PlanActions {
   meta: PlanMeta;
+  /** The plan's run as its channel last described it; read only once `runState` is `known`. */
   run: PlanRun | null;
+  runState: PlanRunState;
+  /** Opens the run's channel again after it failed. */
+  retryRun: () => void;
   user: PlanUser | null;
   draftAgain: () => Promise<{ error?: string }>;
   deletePlan: () => Promise<{ error?: string }>;
@@ -31,9 +37,13 @@ interface PlanDetailViewProps extends PlanActions {
 type ToolbarOnlyProps =
   "draftAgain" | "deletePlan" | "saveStory" | "removeStory";
 
-// Everything below reads the live `run`, folded from the socket, never the seed the server rendered once — no router.refresh().
+type RunProps = "run" | "runState" | "retryRun";
+
+// The toolbar is drawn from the plan alone, at once; what the run decides waits for the run's channel, and the editor never opens before the page knows no draft is being written (specs/plan-detail-fast-open SC-004).
 export default function PlanDetailView(props: PlanDetailViewProps) {
   const { ref: barRef, height: barHeight } = useElementHeight<HTMLDivElement>();
+
+  useEffect(preloadPlanEditor, []);
 
   return (
     <div style={{ ["--plan-toolbar-height" as string]: `${barHeight}px` }}>
@@ -42,21 +52,46 @@ export default function PlanDetailView(props: PlanDetailViewProps) {
   );
 }
 
-// The toolbar reads the whole page's props; the parts below it take only theirs.
+// The toolbar reads the whole page's props; the parts below it take only theirs. Everything reads the run its channel folded, never a seed the server rendered once.
 function PlanDetailContent({
-  run: seed,
+  run,
+  runState,
+  retryRun,
   barRef,
   ...props
 }: PlanDetailViewProps & { barRef: RefObject<HTMLDivElement | null> }) {
-  const run = usePlanRunLive(seed, props.refreshRunFacts);
   const state = planPageState(props.meta.status, run);
+  const runInBar = { run, state, barRef, runPending: PENDING[runState] };
 
   return (
     <>
-      <PlanToolbar {...props} run={run} state={state} barRef={barRef} />
-      <PlanBelowToolbar {...belowOf(props)} run={run} state={state} />
+      <PlanToolbar {...props} {...runInBar} />
+      <RunSection runState={runState} retryRun={retryRun}>
+        <PlanBelowToolbar {...belowOf(props)} run={run} state={state} />
+      </RunSection>
     </>
   );
+}
+
+const PENDING: Record<PlanRunState, "loading" | "failed" | undefined> = {
+  unknown: "loading",
+  failed: "failed",
+  known: undefined,
+};
+
+/** Skeletons while the run is unknown and an error when it could not be read: until then nothing that depends on the run is drawn, the editor least of all. */
+function RunSection({
+  runState,
+  retryRun,
+  children,
+}: Pick<PlanDetailViewProps, "runState" | "retryRun"> & {
+  children: ReactNode;
+}) {
+  if (runState === "unknown") {
+    return <PlanRunLoading />;
+  }
+
+  return runState === "failed" ? <PlanRunError retry={retryRun} /> : children;
 }
 
 function belowOf({
@@ -65,14 +100,17 @@ function belowOf({
   saveStory: _saveStory,
   removeStory: _removeStory,
   ...below
-}: Omit<PlanDetailViewProps, "run">): Omit<
+}: Omit<PlanDetailViewProps, RunProps>): Omit<
   PlanDetailViewProps,
-  ToolbarOnlyProps | "run"
+  ToolbarOnlyProps | RunProps
 > {
   return below;
 }
 
-type PlanBelowToolbarProps = Omit<PlanDetailViewProps, ToolbarOnlyProps> & {
+type PlanBelowToolbarProps = Omit<
+  PlanDetailViewProps,
+  ToolbarOnlyProps | "runState" | "retryRun"
+> & {
   state: PlanPageState;
 };
 
@@ -95,7 +133,7 @@ function PlanBelowToolbar({ state, ...below }: PlanBelowToolbarProps) {
   );
 }
 
-type PlanBodyProps = Omit<PlanDetailViewProps, ToolbarOnlyProps> & {
+type PlanBodyProps = Omit<PlanBelowToolbarProps, "state"> & {
   state: PlanPageState;
   onRefineFailures: (failures: readonly RefineFailure[]) => void;
 };

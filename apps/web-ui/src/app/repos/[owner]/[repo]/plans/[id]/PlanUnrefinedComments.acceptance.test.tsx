@@ -91,7 +91,7 @@ describe("PlanEditorPanel", () => {
         retrySpecWork={async () => ({})}
         reworkSpecs={async () => ({})}
         validate={async () => ({})}
-        refreshRunFacts={async () => ({ run: null })}
+        generatePrototype={async () => ({})}
       />,
     );
 

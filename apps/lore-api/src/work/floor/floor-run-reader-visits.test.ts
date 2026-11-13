@@ -129,12 +129,12 @@ const ANSWERS: Record<string, unknown> = {
   },
 };
 
-function reader() {
-  const recorded = recordedFloor(
-    (request: FloorRequest) => ANSWERS[request.path],
-  );
+function recorded() {
+  return recordedFloor((request: FloorRequest) => ANSWERS[request.path]);
+}
 
-  return new FloorRunReader(recorded.floor);
+function reader() {
+  return new FloorRunReader(recorded().floor);
 }
 
 describe("FloorRunReader visits", () => {
@@ -144,6 +144,18 @@ describe("FloorRunReader visits", () => {
     expect(visits.find((visit) => visit.nodeId === "author")?.routeUrl).toBe(
       "/repos/re-cinq/lore/plans/plan-7",
     );
+  });
+
+  it("lists run-1's visits from the floor once", async () => {
+    const floor = recorded();
+
+    await new FloorRunReader(floor.floor).listStationRuns("run-1");
+
+    expect(
+      floor.requests.filter(
+        (request) => request.path === "/station-runs?run=run-1",
+      ),
+    ).toHaveLength(1);
   });
 
   it("draws the author node with plan-author's description, and the code-review node without one", async () => {

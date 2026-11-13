@@ -4,9 +4,15 @@ import {
   approvedBrief,
   draftBrief,
   refineBrief,
+  sketchBrief,
   type RefineRequest,
 } from "./plan-briefs.js";
-import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
+import {
+  askFloorRefine,
+  reworkFloorSpec,
+  sketchFloorPlan,
+  validateFloorPlan,
+} from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
 import type {
@@ -16,7 +22,6 @@ import type {
 } from "./plan-engine.js";
 import {
   approveFloorPlan,
-  askFloorRefine,
   decideFloorApproval,
   keyOf,
   reopenFloorPlan,
@@ -48,7 +53,11 @@ function markdownVerbs(
     return { plan, ...snapshot, brief: briefOf(snapshot) };
   };
 
-  return { ...draftingVerbs(deps, briefed), ...approvalVerbs(deps, briefed) };
+  return {
+    ...draftingVerbs(deps, briefed),
+    sketch: sketchVerb(deps, briefed),
+    ...approvalVerbs(deps, briefed),
+  };
 }
 
 /** The two verbs a plan still being written serves: the draft, and one section's Refine. */
@@ -70,6 +79,18 @@ function draftingVerbs(
         actor: refine.actor,
       }),
   };
+}
+
+/** The sketch agent over a plan still being written: a run opened for it alone is briefed to draw. */
+function sketchVerb(
+  deps: FloorPlanDeps,
+  briefed: Briefed,
+): PlanContentVerbs["sketch"] {
+  return async (plan, actor) =>
+    sketchFloorPlan(deps, {
+      ...(await briefed(plan, () => sketchBrief(plan))),
+      actor,
+    });
 }
 
 const draftBriefOf =

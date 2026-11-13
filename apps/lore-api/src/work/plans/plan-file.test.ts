@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { planToMarkdown, templateFor } from "@re-cinq/planning-document";
+import {
+  agentOpsSchema,
+  applyOps,
+  planToMarkdown,
+  templateFor,
+} from "@re-cinq/planning-document";
 import {
   planMeta,
   planWith,
@@ -107,6 +112,35 @@ describe("planSnapshot", () => {
         { slot: "scope", text: "Only the web checkout.", link: true },
       ],
     });
+  });
+
+  it("hands sketch m-flow-1 to plan.md as a mockup-mermaid fence in the Prototype section and cites only the prose", async () => {
+    const [addMockup] = agentOpsSchema.parse([
+      {
+        op: "add-mockup",
+        mockup: {
+          mockupId: "m-flow-1",
+          kind: "flow",
+          format: "mermaid",
+          caption: "Run of the loop",
+          markup: "flowchart LR\n  pick --> implement",
+        },
+      },
+    ]);
+    const sketched = applyOps(BLOCKS, [addMockup]);
+    const snapshot = await planSnapshot(
+      PLAN,
+      { livePlan: async () => ({ meta: META, blocks: sketched }) },
+      "https://lore.example",
+    );
+    const prototype = snapshot.planMarkdown.split("<!-- slot:prototype -->")[1];
+
+    expect({
+      fence: prototype?.includes(
+        "```mockup-mermaid\nflowchart LR\n  pick --> implement\n```",
+      ),
+      cited: snapshot.citablePlan?.blocks.map((block) => block.slot),
+    }).toEqual({ fence: true, cited: ["intent", "scope"] });
   });
 
   it("answers the plan's unresolved findings with their slot and severity, and not the resolved one", async () => {

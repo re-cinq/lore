@@ -213,6 +213,44 @@ describe("the plan routes on a plan the floor holds", () => {
     expect(writes(requests)).toEqual(["/events"]);
   });
 
+  it("answers prototype with 202 and run-open, where the floor is asked to start the sketch node", async () => {
+    const { server, requests } = subject({ visits: ON_AUTHOR });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), writes: writes(requests) }).toEqual({
+      answer: { status: 202, body: { run_id: "run-open" } },
+      writes: ["/events"],
+    });
+  });
+
+  it("answers prototype with 202 and run-new when the plan has no planning run", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), start: requests.at(-1)?.body }).toMatchObject(
+      {
+        answer: { status: 202, body: { run_id: "run-new" } },
+        start: { entry: "sketch" },
+      },
+    );
+  });
+
+  it("answers prototype with 409 while the planning agent is still working on the plan", async () => {
+    const { server, requests } = subject({ visits: WHILE_ANALYZING });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), writes: writes(requests) }).toEqual({
+      answer: {
+        status: 409,
+        body: { error: "the planning agent is still working on this plan" },
+      },
+      writes: [],
+    });
+  });
+
   it("answers spec-rework with 409 for a plan with no planning run", async () => {
     const { server, requests } = subject({ runs: false, status: "approved" });
 

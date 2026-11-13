@@ -96,6 +96,18 @@ describe("planPassEndHandle", () => {
     expect(ended.at(0)?.outcome).toBe("changes_requested");
   });
 
+  it("settles a Refine from the sketch visit when it ended last", async () => {
+    const { handle, ended } = scene("run-1", [
+      { nodeId: "analyze", report: { outcome: "success" } },
+      { nodeId: "plan-pass-end", report: { outcome: "success" } },
+      { nodeId: "sketch", report: { outcome: "failed" } },
+    ]);
+
+    await handle(brief, TOOLS);
+
+    expect(ended.at(0)?.outcome).toBe("failed");
+  });
+
   it("posts a missing outcome when the floor names no run for this visit, so the section is told rather than left waiting", async () => {
     const { handle, ended } = scene(null, []);
 

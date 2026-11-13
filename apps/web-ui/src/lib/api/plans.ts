@@ -134,6 +134,18 @@ export function validatePlan(
   });
 }
 
+/** Asks the sketch agent to draw the plan's Prototype section; lore-api refuses an approved plan and one an agent is working on. */
+export function askPrototype(
+  repo: string,
+  planId: string,
+  actor: string,
+): Promise<ApiResult<{ run_id: string }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/prototype`, {
+    method: "POST",
+    body: { actor },
+  });
+}
+
 /** A short-lived token that opens the plan's socket as this person; the caller has already checked their access to the repo. */
 export function mintCollabToken(
   repo: string,
@@ -148,6 +160,21 @@ export function mintCollabToken(
       method: "POST",
       body: { user, role },
     },
+  );
+}
+
+export type PlanRunStreamToken = components["schemas"]["PlanRunStreamToken"];
+
+/** A short-lived token that opens this plan's `plan-run` channel of the live socket as this person; the caller has already checked their access to the repo. */
+export function mintPlanRunToken(
+  repo: string,
+  planId: string,
+  user: { id: string; name: string },
+): Promise<ApiResult<PlanRunStreamToken>> {
+  return apiFetch(
+    "lore-api",
+    `/api/repos/${repo}/plans/${planId}/run-stream-token`,
+    { method: "POST", body: { user } },
   );
 }
 
