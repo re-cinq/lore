@@ -207,7 +207,7 @@ lore-api:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "4b69d3c"
+    tag: "3fb7b1c"
   env:
     PORT: "3000"
     CONTEXT_PATH: /context
