@@ -73,7 +73,7 @@ export async function readUiVersion(
 }
 
 const LATEST_MIGRATIONS_SQL = `
-  SELECT max(version) FILTER (WHERE version NOT LIKE 'floor/%') AS migration,
+  SELECT max(version) FILTER (WHERE version ~ '^[0-9]{4}_.*[.]sql$') AS migration,
          max(version) FILTER (WHERE version LIKE 'floor/%') AS floor_migration
     FROM lore.schema_migrations`;
 
