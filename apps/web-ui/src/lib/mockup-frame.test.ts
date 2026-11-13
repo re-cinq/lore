@@ -6,6 +6,7 @@ import {
   MOCKUP_HTML_CONFIG,
   MOCKUP_SVG_CONFIG,
   mermaidFrameHeight,
+  mermaidSize,
   mockupFrameSrcdoc,
   mockupHeight,
   sanitizeMockupMarkup,
@@ -88,6 +89,19 @@ describe("mermaidFrameHeight", () => {
 
   it("returns null for an svg with no viewBox", () => {
     expect(mermaidFrameHeight("<svg><g/></svg>")).toBeNull();
+  });
+});
+
+describe("mermaidSize", () => {
+  it("reads 2400 by 300.5 from the viewBox", () => {
+    expect(mermaidSize('<svg viewBox="-8 -8 2400 300.5">')).toEqual({
+      width: 2400,
+      height: 300.5,
+    });
+  });
+
+  it("reads no size from an svg with no viewBox", () => {
+    expect(mermaidSize("<svg><g/></svg>")).toBeNull();
   });
 });
 
