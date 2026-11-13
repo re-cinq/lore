@@ -8,8 +8,8 @@ tested-value + expected-outcome (no "should").
 
 ## Phase 0 — Dgraph up + schema
 
-- [ ] T001 Add a `lore-dgraph` standalone container to `scripts/dev-local.sh` (publish `:8080`/`:9080`, bind-mount `.lore-dgraphdata`, health-probe `:8080/health`, ACL off locally). Idempotent create/start matching the `lore-postgres` block.
-- [ ] T002 Write `scripts/infra/setup-memory-dgraph-schema.sh` applying the DQL type system + predicate/index defs from `data-model.md`. Invoke it from `dev-local.sh` after the container is healthy.
+- [ ] T001 Add a `lore-dgraph` standalone service to the docker compose file `infra/compose.yaml`, beside `lore-postgres` (HTTP published on host port `8081`, set by `DGRAPH_HTTP_PORT`, because `:8080` is taken in the full local stack; gRPC on `:9080`; bind-mount `.lore-dgraphdata`; healthcheck on the container's `:8080/health`; ACL off locally). `docker compose up -d --wait` is idempotent. *(amended 2026-11-13: was a container in `scripts/dev-local.sh` on `:8080`; that script is gone and `npm start` runs compose)*
+- [ ] T002 Write `scripts/infra/setup-memory-dgraph-schema.sh` applying the DQL type system + predicate/index defs from `data-model.md`. `npm start` runs it after the containers are healthy when `LORE_DGRAPH_HTTP` is set (`scripts/dev/steps.ts`); the script defaults to `DGRAPH_HTTP=http://localhost:8081`.
 - [ ] T003 [P] Test: running `setup-memory-dgraph-schema.sh` twice leaves the schema unchanged (second run no-op); the HNSW + xid-upsert indexes are present.
 - [ ] T004 Build `shared/src/dgraph-client.ts` — `dgraph-js` gRPC wrapper exposing `query(dql, vars)` + `mutate(upsertBlock)`; connection config from env.
 - [ ] T005 [P] Test `shared/src/__tests__/dgraph-client.test.ts` against the real container — a trivial upsert then read round-trips.

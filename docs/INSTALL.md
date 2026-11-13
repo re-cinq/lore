@@ -63,7 +63,7 @@ These are **assumed, not installed**, by Lore's chart; on our GKE they come from
 | ---- | ---- | ----- |
 | **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`deploy/chart/charts/ui-helm/migrations/`) |
 | **floor Postgres** | a **second database and role**, never shared with Lore: floor owns its schema (tables `events`, `blobs`, `definitions`) and migrates it on every install. Any Postgres; the role may create tables | the same server is fine. The floor chart never deploys one ([floor install doc](https://github.com/re-cinq/floor/blob/main/docs/install.md)) |
-| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. Only a manifest, no chart: see 4.1 |
+| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. The chart renders it when `platform.dgraph` is set: see 4.1 |
 | Backups | in-cluster Postgres: an object-storage bucket for barman (GCS, S3 or Azure Blob) with write access from the `lore-db` namespace; managed Postgres: its own backups | ours: GCS bucket, 30-day lifecycle, daily `ScheduledBackup` at 02:00 |
 | StorageClass | any ReadWriteOnce class for the two 50Gi volumes (and 10Gi for Prometheus) | ours: `standard-rwo` (pd-balanced) |
 
@@ -428,7 +428,7 @@ Our GKE: the cluster's add-ons and cloud resources come back from re-cinq/infras
 
 What a non-re-cinq install hits today. Each is an open issue; the doc keeps the list until the fix lands.
 
-1. **Helm-only install is assembled by hand** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The floor NetworkPolicy and the cluster add-ons are not in the chart, and the umbrella values default the Postgres host to the CNPG Service and carry `GCP_PROJECT`. Section 4.1 lists what to set up by hand.
+1. **Helm-only install needs two values overridden** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The chart renders the ingresses, the `ExternalSecret` objects, Dgraph and the agent pods' egress policy to the MCP gateway (4.1). What is left: the subchart values default the Postgres host to the CNPG Service, and the reference values file carries `GCP_PROJECT`. Section 4.1 step 5 says what to set.
 2. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). A second `EmbeddingProvider` at 768 dimensions is the fix.
 3. The schema scripts `scripts/infra/setup-*.sh` reach Postgres through `kubectl exec` into a CNPG pod; a managed server needs the `psql` shim ([#3904](https://github.com/re-cinq/lore/issues/3904)).
 4. Two gaps ([#3905](https://github.com/re-cinq/lore/issues/3905)): `lore-stations` references `ghcr-pull-secret` but it is mirrored only into `lore-api`, `lore-ui` and `utopia`; lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.

@@ -311,18 +311,19 @@ their schedules:
 | Job | Shape | New home |
 |---|---|---|
 | `context_reindex` | tree-sitter chunking + embeddings over a checkout | **retired 2026-09-08** — no replacement; the merge-time ingest assembly line is the only ingestion |
-| `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | **deleted 2026-10-02** with Lore's own Floor, never a Station — context evals are a nightly GitHub Actions job that asks lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443) |
+| `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | **deleted 2026-10-02** with Lore's own Floor, never a Station — context evals are run from a developer machine (`scripts/context-evals/`), never on a schedule, and ask lore-api to write a question from each sampled document, assemble the context, and judge the answer (#2443) *(amended 2026-11-13)* |
 | `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | **deleted 2026-10-02** with Lore's own Floor, never a Station — the new evals keep no stored baseline, and migration 0101 dropped `pipeline.eval_runs` and `pipeline.context_core_history` |
 | `consolidation` | Haiku pattern-extraction over recent facts | a **Station** |
-| `importance_decay` | half-life scoring + DB writes | **`lore-api`** |
-| `memory_ttl` | one `DELETE` | **`lore-api`** |
-| `anthropic_cost_sync` | Anthropic Admin API import + row writes | **`lore-api`** |
+| `importance_decay` | half-life scoring + DB writes | a **service station** (`importance-decay`), posted to by a courier CronJob *(amended 2026-11-13)* |
+| `memory_ttl` | one `DELETE` | a **service station** (`memory-ttl`), posted to by a courier CronJob *(amended 2026-11-13)* |
+| `anthropic_cost_sync` | Anthropic Admin API import + row writes | a **service station** (`anthropic-cost-sync`), posted to by a courier CronJob *(amended 2026-11-13)* |
 
 Note what this does to the "isolated failure domain" and "per-run logs" arguments
 the original decision made for CronJobs: a Station delivers both, plus a run row,
 a timeline, and the same retry semantics as every other node — strictly more than
-a CronJob offers. The two jobs that go to `lore-api` keep their schedule but lose
-a pod each, which is the point: neither ever needed one.
+a CronJob offers. The jobs that are one operation keep their schedule but lose
+their own image: a courier CronJob (`stations-helm` `courierJobs`) is a `curl`
+pod that posts to the station *(amended 2026-11-13)*.
 
 `delivery/job-runner.ts` is expected to end up empty and be deleted; when it does,
 the Floor's Dockerfile no longer needs to ship the batch job tree.
@@ -346,3 +347,57 @@ stretches without a new mechanism:
 - A run whose agent never reports (a dead pod) writes no watermark, so the
   next tick would start it again; the fan-out caps a subject at three runs a
   day, which is the bound the cadence gives it.
+
+## Amendment (2026-11-13): where every scheduled job went, and no Actions station
+
+Lore's own Floor was deleted on 2026-10-02 (`specs/external-floor` FR16,
+[ADR-049](./ADR-049-external-floor.md)). The split this ADR drew between the
+resident scheduler and per-job CronJob pods no longer describes two runtimes.
+One scheduler is left: the stations service emits every `cron.<job>.tick`
+(`libs/shared/src/work/scheduler/cron-emitters.ts`) and answers each one, with
+a sweep or by starting a run on the external floor. This section is the one
+list of where each old job went. It replaces the job lists above where they
+differ.
+
+The nine ticks the Floor answered in its own process:
+
+| Job | Today | Why |
+|---|---|---|
+| `merge_check` | stations sweep `merge-check`, on `cron.merge_check.tick` every minute | it reads and writes rows; it needs no pod and no assembly line |
+| `events_prune` | stations sweep `bus-prune`, on `cron.events_prune.tick` hourly | bus housekeeping sits beside the bus (`specs/external-floor` FR16.5) |
+| `approval_check` | deleted 2026-10-02, sweep and tick (`specs/external-floor` FR16.12) | it served the approval gate of the old walk |
+| `stale_task_check` | deleted with `apps/floor` | it recovered tasks of the Floor's own worker. The `loop-reap` sweep (`cron.loop_reap.tick`) fails an implementation-loop task that is stuck running with no floor run |
+| `lease_reaper` | deleted with `apps/floor`; no sweep replaced it | nothing under `apps/` takes a lease any more |
+| `assembly_line_reaper` | deleted with `apps/floor` | a run's position and its timeouts belong to the external floor |
+| `agent_watcher_reconcile` | deleted with `apps/floor` | Lore creates no `Agent` custom resource; the external floor runs every agent pod |
+| `feature_planning_reaper` | gone; nothing emits or answers its tick | the `feature-planning` line runs on the external floor |
+| `spec_task_executor` | deleted 2026-10-07 (`specs/external-floor` FR15.0) | it was a second dispatcher with no per-repo switch. A plan's tasks are tickets of the implementation loop |
+
+No tick that only the old Floor answered is emitted any more. ([validated by names no tick that only the old Floor answered: stale_task_check, assembly_line_reaper, agent_watcher_reconcile, lease_reaper, llm_credit_probe @25e74173](libs/shared/src/work/scheduler/cron-emitters.test.ts#L22), [validated by names no tick for spec_task_executor, the second dispatcher the backlog implementation loop replaced @c8cd2a68](libs/shared/src/work/scheduler/cron-emitters.test.ts#L35))
+
+The batch jobs this ADR moved to CronJobs:
+
+| Job | Today |
+|---|---|
+| `memory_ttl`, `importance_decay`, `anthropic_cost_sync`, `consolidation` | stations sweeps, each posted to by a courier CronJob at its old hour (2026-08 table above) |
+| `context_reindex` | retired 2026-09-08 (amendment above) |
+| `eval_runner`, `context_core_builder`, `autoresearch` | deleted 2026-10-02 (2026-08 table above) |
+| `gap_detection`, `spec_drift`, `spec_coverage_validate`, `spec_coverage_backfill` | deleted 2026-10-02 (`specs/external-floor` FR16.6). The `spec-upkeep` line on the external floor fixes drift and adds links, started weekly by `cron.spec_upkeep.tick`. Gap detection has no replacement yet (#2333) |
+
+So the rule is by shape, not by cadence. Work that needs an agent, a workspace
+or a pull request is a line on the external floor, started by a tick sweep
+(`implementation_loop`, `spec_upkeep`, `auto_merge`, `issue_triage`,
+`daily_digest`, `changelog`). Work that is a query and a few writes is a
+stations sweep. Nothing is scheduled inside lore-api, and no job has an image of
+its own.
+
+**GitHub Actions.** Lore builds no CI runner and has no station that dispatches
+a GitHub Actions workflow. A repository's own workflows run its tests and post
+the results (`lore-tests.yml`, `lore-ingest.yml`). A line that needs the CI
+verdict waits at a human station (`await-ci`, `await-pr`, `await-merge`) that
+the `pr-ready-check` sweep answers from GitHub's check state, so no dispatch,
+result, auth or isolation contract with Actions exists. The `github_action`
+node type is retired: it was a node of the old walk that gated on CI
+([ADR-031](./ADR-031-agent-station-crds.md) D3), it was deleted with that
+engine, and a floor pipeline file has only `agent`, `service` and `human`
+stations.
