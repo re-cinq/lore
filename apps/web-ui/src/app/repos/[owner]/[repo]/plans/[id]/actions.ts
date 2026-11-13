@@ -7,6 +7,7 @@ import {
   askRefine,
   deletePlan,
   mintCollabToken,
+  mintPlanRunToken,
   reopenPlan,
   savePlanStory,
   startDrafting,
@@ -21,23 +22,24 @@ import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import type { PlanSocket } from "./plan-actions";
-import { planRunFor } from "./plan-run-facts";
-import type { PlanRun } from "./PlanRunCard";
 
 type Allowed = { user: PlanUser } | { error: string };
 
-/** The facts a `RunStreamFrame` never carries — the spec analysis's question, the spec PR's title and unresolved threads — read fresh when the live page's node/run folding says they may have changed. Never used to redraw the whole page; see usePlanRunLive. */
-export async function refreshPlanRunFactsAction(
+/** A fresh token for this plan's `plan-run` channel, for every reopen after the one the page rendered with. */
+export async function mintPlanRunTokenAction(
   fullName: string,
   planId: string,
-): Promise<{ run: PlanRun | null } | { error: string }> {
+): Promise<{ token: string } | { error: string }> {
   const allowed = await allowedUser(fullName);
 
   if ("error" in allowed) {
     return allowed;
   }
+  const minted = await mintPlanRunToken(fullName, planId, allowed.user);
 
-  return { run: await planRunFor(fullName, planId) };
+  return minted.status === "ok"
+    ? { token: minted.data.token }
+    : { error: "Could not load the planning run." };
 }
 
 export async function openPlanSocketAction(

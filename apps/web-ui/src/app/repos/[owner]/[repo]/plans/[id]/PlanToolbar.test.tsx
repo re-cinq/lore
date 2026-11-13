@@ -461,3 +461,26 @@ describe("PlanToolbar user story", () => {
     ).toEqual(["/assembly-runs/r1"]);
   });
 });
+
+describe("PlanToolbar before the run is known", () => {
+  it("summarizes no run and offers neither Open the run nor Regenerate plan while the run loads", () => {
+    renderToolbar({ run: null, state: "writing", runPending: "loading" });
+
+    expect({
+      noRunYet: screen.queryByText(/No planning run yet/),
+      openRun: screen.queryByRole("link", { name: /Open the run/ }),
+      regenerate: screen.queryByRole("button", { name: "Regenerate plan" }),
+      menu:
+        screen.queryByRole("button", { name: "More plan actions" }) !== null,
+    }).toEqual({ noRunYet: null, openRun: null, regenerate: null, menu: true });
+  });
+
+  it("leaves a run that could not be loaded to the error below the bar", () => {
+    renderToolbar({ run: null, state: "writing", runPending: "failed" });
+
+    expect({
+      noRunYet: screen.queryByText(/No planning run yet/),
+      regenerate: screen.queryByRole("button", { name: "Regenerate plan" }),
+    }).toEqual({ noRunYet: null, regenerate: null });
+  });
+});

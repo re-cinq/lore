@@ -16,12 +16,6 @@ vi.mock("@/lib/user-repo-access", () => ({
   userCanAccessRepo: () => canAccess(),
 }));
 
-const planRunFor = vi.fn();
-
-vi.mock("./plan-run-facts", () => ({
-  planRunFor: (...args: unknown[]) => planRunFor(...args),
-}));
-
 const {
   approvePlanAction,
   deletePlanAction,
@@ -32,7 +26,7 @@ const {
   reopenPlanAction,
   retrySpecWorkAction,
   reworkSpecsAction,
-  refreshPlanRunFactsAction,
+  mintPlanRunTokenAction,
   savePlanStoryAction,
   removePlanStoryAction,
 } = await import("./actions");
@@ -54,7 +48,6 @@ beforeEach(() => {
   canAccess.mockResolvedValue(true);
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
-  planRunFor.mockReset();
 });
 
 afterEach(() => {
@@ -369,27 +362,36 @@ describe("draftAgainAction", () => {
   });
 });
 
-describe("refreshPlanRunFactsAction", () => {
-  it("hands back plan p1's freshly-read run for gedaiu", async () => {
-    const run = { id: "r1", status: "running" };
-
-    planRunFor.mockResolvedValue(run);
+describe("mintPlanRunTokenAction", () => {
+  it("mints gedaiu a plan-run token for plan p1 of re-cinq/lore", async () => {
+    answer(200, { token: "t2", expires_at: "2026-11-06T10:10:00.000Z" });
 
     expect({
-      result: await refreshPlanRunFactsAction("re-cinq/lore", "p1"),
-      calledWith: planRunFor.mock.calls[0],
-    }).toEqual({ result: { run }, calledWith: ["re-cinq/lore", "p1"] });
+      result: await mintPlanRunTokenAction("re-cinq/lore", "p1"),
+      url: String(fetchMock.mock.calls[0][0]),
+    }).toEqual({
+      result: { token: "t2" },
+      url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/run-stream-token",
+    });
   });
 
-  it("reads nothing for someone GitHub does not let see the repo", async () => {
+  it("mints no plan-run token for someone GitHub does not let see the repo", async () => {
     canAccess.mockResolvedValue(false);
 
     expect({
-      result: await refreshPlanRunFactsAction("re-cinq/lore", "p1"),
-      calls: planRunFor.mock.calls.length,
+      result: await mintPlanRunTokenAction("re-cinq/lore", "p1"),
+      fetched: fetchMock.mock.calls.length,
     }).toEqual({
       result: { error: "You do not have access to this repo." },
-      calls: 0,
+      fetched: 0,
+    });
+  });
+
+  it("says the run could not be loaded when lore-api refuses the mint", async () => {
+    answer(404, { error: "plan not found" });
+
+    expect(await mintPlanRunTokenAction("re-cinq/lore", "p1")).toEqual({
+      error: "Could not load the planning run.",
     });
   });
 });

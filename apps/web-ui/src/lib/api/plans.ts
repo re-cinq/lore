@@ -163,6 +163,21 @@ export function mintCollabToken(
   );
 }
 
+export type PlanRunStreamToken = components["schemas"]["PlanRunStreamToken"];
+
+/** A short-lived token that opens this plan's `plan-run` channel of the live socket as this person; the caller has already checked their access to the repo. */
+export function mintPlanRunToken(
+  repo: string,
+  planId: string,
+  user: { id: string; name: string },
+): Promise<ApiResult<PlanRunStreamToken>> {
+  return apiFetch(
+    "lore-api",
+    `/api/repos/${repo}/plans/${planId}/run-stream-token`,
+    { method: "POST", body: { user } },
+  );
+}
+
 /** Writes what the author already knows into the new plan's intent, as an ordinary agent edit people then see in the document. */
 export function seedPlan(
   planId: string,
