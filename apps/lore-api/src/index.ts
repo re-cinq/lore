@@ -14,6 +14,8 @@ import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-def
 import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
+import { reportLoreApiVersion } from "./app/report-version.js";
+import { PgServiceVersions } from "@re-cinq/lore-shared/project/service-versions/service-versions-pg.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };
@@ -41,6 +43,7 @@ async function main() {
 
   if (state.pool) {
     await migrateFloor(state.pool);
+    await reportLoreApiVersion(new PgServiceVersions(state.pool));
   }
 
   await startHttpServer(getPool);

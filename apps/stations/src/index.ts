@@ -7,6 +7,8 @@ import {
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./transport/server.js";
+import { reportStationsVersion } from "./app/report-version.js";
+import { PgServiceVersions } from "@re-cinq/lore-shared/project/service-versions/service-versions-pg.js";
 import { startStationDrain } from "./events/loop-boot.js";
 import {
   deliveries,
@@ -49,6 +51,7 @@ async function main(): Promise<void> {
   const metrics = startServiceMetrics();
 
   initPool();
+  await reportStationsVersion(new PgServiceVersions(getPool()));
   observeBusQueueDepth(() => deliveries().pendingCount(STATIONS_SUBSCRIBER));
   // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });

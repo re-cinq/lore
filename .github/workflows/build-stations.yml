@@ -29,7 +29,16 @@ env:
   IMAGE_NAME: re-cinq/lore-stations
 
 jobs:
+  sha:
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.sha.outputs.short_sha }}
+    steps:
+      - id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: sha
     uses: ./.github/workflows/_build-image.yml
     permissions:
       contents: read
@@ -37,6 +46,7 @@ jobs:
     with:
       image_name: re-cinq/lore-stations
       dockerfile: apps/stations/Dockerfile
+      build_args: GIT_SHA=${{ needs.sha.outputs.short_sha }}
     secrets: inherit
 
   deploy:

@@ -11582,6 +11582,81 @@
         ]
       }
     },
+    "/api/service-versions": {
+      "post": {
+        "operationId": "post_api_service-versions",
+        "summary": "POST /api/service-versions",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The lore-mcp gateway's start was recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceVersionRecorded"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "service": {
+                    "type": "string",
+                    "const": "lore-mcp"
+                  },
+                  "build": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "packages": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["service", "build", "packages"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/session-summary": {
       "post": {
         "operationId": "post_api_session-summary",
@@ -12985,6 +13060,44 @@
           }
         },
         "x-required-scope": "admin"
+      }
+    },
+    "/api/versions": {
+      "get": {
+        "operationId": "get_api_versions",
+        "summary": "GET /api/versions",
+        "tags": ["Other"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The build every Lore service runs, the floor and its clusters, the database schema, what is on the floor and the agent image; a source that fails answers its own error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Versions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
       }
     },
     "/api/webhook/github": {
@@ -22283,6 +22396,17 @@
         "required": ["results"],
         "additionalProperties": false
       },
+      "ServiceVersionRecorded": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
       "SessionSummaryResult": {
         "anyOf": [
           {
@@ -25497,6 +25621,305 @@
           "updated",
           "unchanged",
           "failed"
+        ],
+        "additionalProperties": false
+      },
+      "Versions": {
+        "type": "object",
+        "properties": {
+          "lore": {
+            "type": "object",
+            "properties": {
+              "lore-api": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "build": {
+                        "type": "string"
+                      },
+                      "startedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "packages": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["build", "startedAt", "packages"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["error"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "stations": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "build": {
+                        "type": "string"
+                      },
+                      "startedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "packages": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["build", "startedAt", "packages"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["error"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "lore-mcp": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "build": {
+                        "type": "string"
+                      },
+                      "startedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "packages": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["build", "startedAt", "packages"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["error"],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "lore-ui": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "build": {
+                        "type": "string"
+                      },
+                      "packages": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["build", "packages"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "error": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["error"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["lore-api", "stations", "lore-mcp", "lore-ui"],
+            "additionalProperties": false
+          },
+          "latest": {
+            "type": "object",
+            "properties": {
+              "build": {
+                "type": "string"
+              }
+            },
+            "required": ["build"],
+            "additionalProperties": false
+          },
+          "floor": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "build": {
+                    "type": "string"
+                  },
+                  "schemaVersion": {
+                    "type": "number"
+                  },
+                  "clusters": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "build": {
+                          "type": ["string", "null"]
+                        },
+                        "subsystem": {
+                          "anyOf": [
+                            {},
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastSeenAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "build", "subsystem", "lastSeenAt"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["build", "schemaVersion", "clusters"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": ["error"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "database": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "migration": {
+                    "type": ["string", "null"]
+                  },
+                  "floorMigration": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": ["migration", "floorMigration"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": ["error"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "onFloor": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "pipelines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "hash": {
+                          "type": ["string", "null"]
+                        }
+                      },
+                      "required": ["id", "hash"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "agentDefinitions": {
+                    "type": "number"
+                  }
+                },
+                "required": ["pipelines", "agentDefinitions"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": ["error"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "agentImage": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "lore",
+          "latest",
+          "floor",
+          "database",
+          "onFloor",
+          "agentImage"
         ],
         "additionalProperties": false
       },

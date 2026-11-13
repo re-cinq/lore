@@ -4,6 +4,10 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { healthzRoute } from "./routes/healthz/healthz.js";
 import { llmStatusRoute } from "./routes/platform/llm-status.js";
+import {
+  serviceVersionsRoute,
+  versionsRoute,
+} from "./routes/platform/versions.js";
 import { distRoute } from "./routes/dist/dist.js";
 import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
@@ -160,11 +164,13 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The service describing and serving itself: health, model status, the binary, and the OpenAPI docs. */
+/** The service describing and serving itself: health, model status, the versions of every part, the binary, and the OpenAPI docs. */
 function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     healthzRoute(getPool),
     llmStatusRoute(getPool),
+    versionsRoute(getPool),
+    serviceVersionsRoute(getPool),
     distRoute(),
     openApiJsonRoute(getPool, routeList),
     docsRoute(getPool, routeList),
