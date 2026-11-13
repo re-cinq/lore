@@ -37,7 +37,7 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 - **Method + path**: `POST /api/task`
 - **Auth scope**: `task`. `getRequiredScope` finds no `SCOPE_OVERRIDES` match and
   the first `ROUTE_SCOPES` prefix hit is `/api/task` → `"task"`
-  ([scope map @843e714d](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L37)). The legacy
+  ([scope map @843e714d](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L33)). The legacy
   `LORE_INGEST_TOKEN` and any `admin`-scoped token also pass. Rate-limit bucket
   is `task` (60/min).
 - **Body**: JSON object. The `action` field is the discriminator.
@@ -142,7 +142,7 @@ Cancelling an unknown task id answers 404 rather than reporting success. ([valid
 
 Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task @d684af3a](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L132))
 
-A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition @d492c271](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L276))
+A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition @d492c271](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L252))
 
 A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running @cae05f0f](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
 
@@ -160,17 +160,17 @@ A `revise` action queues nothing and answers `409`, pointing at a review that re
 
 `set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority @c1cc901b](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L206))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority @4e97e632](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L292))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority @4e97e632](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L268))
 
-`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400 @b2c7ef11](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L306))
+`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400 @b2c7ef11](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L282))
 
 A body with a `task_id` and a `status` but no `action` changes nothing and is refused like any body that names no action. ([validated by answers 400 with where the work goes now for a status-only body @ad5d090e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L218))
 
-No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now @3da0ea7e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L249), [validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
+No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now @3da0ea7e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L225), [validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L239))
 
-Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500 @324140cb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
+Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500 @324140cb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L246))
 
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts@a945c5d2`](apps/lore-api/src/transport/http/rate-limit.test.ts#L86))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts@a945c5d2`](apps/lore-api/src/transport/http/rate-limit.test.ts#L85))
 
 ## Out of Scope
 

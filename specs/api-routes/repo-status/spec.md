@@ -96,7 +96,7 @@ A throwing query returns `{ onboarded: false, error }` with status 200. ([valida
 
 A `repo` param that is not `owner/name` is rejected with 400. ([validated by `repo-status.test.ts@777eaa55`](apps/lore-api/src/transport/routes/repos/repo-status.test.ts#L119))
 
-The route counts against the `default` rate bucket, each request counted exactly once: the 200th passes and the 201st trips 429. ([validated by `rate-limit.test.ts@d30de75a`](apps/lore-api/src/transport/http/rate-limit.test.ts#L104))
+The route counts against the `default` rate bucket, each request counted exactly once: the 200th passes and the 201st trips 429. ([validated by `rate-limit.test.ts@d30de75a`](apps/lore-api/src/transport/http/rate-limit.test.ts#L103))
 
 The route is registered as a `GET /api/repo-status` prefix match. ([implemented by @f7fc50e1](../../../apps/lore-api/src/app/build-server.ts#L101), [implemented by @06de89a2](../../../apps/lore-api/src/transport/routes/repos/repo-status.ts#L13))
 
