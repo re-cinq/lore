@@ -30,6 +30,25 @@ export const RunStatusSchema = z.object({
   finished_at: z.date().nullable(),
 });
 
+/** What the plan page shows of the plan's current planning run beyond its status (specs/plan-detail-fast-open FR4): the user story it was started for, its spec PR as GitHub last described it, and the spec analysis's question. Sent whole in every `plan_run` message, so a frame never has to be merged into the one before it. */
+export const PlanRunFactsSchema = RunStatusSchema.pick({
+  id: true,
+  status: true,
+  outcome: true,
+  reason: true,
+}).extend({
+  issue_url: z.string().nullable(),
+  issue_number: z.number().nullable(),
+  pr_url: z.string().nullable(),
+  pr_number: z.number().nullable(),
+  pr_title: z.string().nullable(),
+  /** Null when GitHub would not say, so a failed read never passes for a PR with no open threads. */
+  pr_unresolved_threads: z.number().nullable(),
+  spec_plan_summary: z.string().nullable(),
+});
+
+export type PlanRunFacts = z.infer<typeof PlanRunFactsSchema>;
+
 const TaskEventWireSchema = wireSchema(TaskEventSchema, TASK_EVENT_COLUMNS);
 
 /** GitHub's own PR status read (`fetchPrStatus`) at one moment; the field names inside `status` are GitHub's. */

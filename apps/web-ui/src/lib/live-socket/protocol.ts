@@ -11,13 +11,20 @@ export type ClosedReason = Extract<
 
 export type RunListFrame = components["schemas"]["RunListFrame"];
 
-export type ChannelKind = "run" | "plan" | "runs";
+/** A plan's current planning run as its `plan-run` channel describes it; null before one started. */
+export type PlanRunFacts = Extract<
+  LiveServerMessage,
+  { type: "plan_run" }
+>["run"];
+
+export type ChannelKind = "run" | "plan" | "runs" | "plan-run";
 
 const SERVER_TYPES: ReadonlySet<string> = new Set<LiveServerMessage["type"]>([
   "opened",
   "frame",
   "data",
   "runs",
+  "plan_run",
   "closed",
   "error",
 ]);

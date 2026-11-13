@@ -1,8 +1,11 @@
-// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames, the run list's changes and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
+// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames, the run list's changes, a plan's current run and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
 
 import { z } from "zod";
 import { FloorRunRowSchema } from "../floor/floor-run-rows.js";
-import { RunStreamFrameSchema } from "./run-stream-frame.js";
+import {
+  PlanRunFactsSchema,
+  RunStreamFrameSchema,
+} from "./run-stream-frame.js";
 
 export const LIVE_SOCKET_PATH = "/api/ws";
 
@@ -17,7 +20,7 @@ const Channel = z.string().min(1).max(64);
 /** Base64 of the tunnelled bytes; JSON has no binary. */
 const Bytes = z.string();
 
-// A plain union: two `open` shapes share the discriminator and differ on `kind`.
+// A plain union: the `open` shapes share the discriminator and differ on `kind`.
 export const LiveClientMessageSchema = z.union([
   z.object({
     type: z.literal("open"),
@@ -37,6 +40,14 @@ export const LiveClientMessageSchema = z.union([
     type: z.literal("open"),
     channel: Channel,
     kind: z.literal("runs"),
+    subject: z.string().min(1),
+    token: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("open"),
+    channel: Channel,
+    kind: z.literal("plan-run"),
+    /** The plan's id. */
     subject: z.string().min(1),
     token: z.string().min(1),
   }),
@@ -83,6 +94,12 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("runs"),
     channel: Channel,
     frame: RunListFrameSchema,
+  }),
+  /** The plan's current planning run, or null before one started; sent first on a `plan-run` channel and again whenever its facts change or another run takes over. */
+  z.object({
+    type: z.literal("plan_run"),
+    channel: Channel,
+    run: PlanRunFactsSchema.nullable(),
   }),
   z.object({ type: z.literal("data"), channel: Channel, data: Bytes }),
   z.object({

@@ -10,6 +10,7 @@ import {
   type LiveSocketMount,
 } from "./live-socket.js";
 import type { CollabServer, TunnelSocket } from "./plan-channel.js";
+import type { PlanRunChannelDeps } from "./plan-run-channel.js";
 import {
   base64ToBytes,
   bytesToBase64,
@@ -99,6 +100,16 @@ describe("the live socket", () => {
       after,
     });
 
+  const planRunDeps = (): PlanRunChannelDeps => ({
+    verifyToken: tokens.verify,
+    planExists: async (planId) => planId === "p1",
+    planRuns: async () => [seed.run],
+    runs: seed.runs,
+    prStatus: async () => ({ title: "Spec: checkout", unresolved_threads: 0 }),
+    feeds,
+    watch: null,
+  });
+
   beforeEach(async () => {
     seed = await seedRun();
     tokens = memoryLiveTokens();
@@ -110,6 +121,7 @@ describe("the live socket", () => {
     mount = mountLiveSocket(http, {
       run: { verifyToken: tokens.verify, runs: seed.runs, feeds },
       runs: { verifyToken: tokens.verify, feed: null },
+      planRun: planRunDeps(),
       collab: echoingCollabThatRefusesOnByte(),
       pingMs: 50,
       log: () => {},
@@ -325,6 +337,7 @@ describe("the live socket", () => {
     mount = mountLiveSocket(http, {
       run: { verifyToken: tokens.verify, runs: seed.runs, feeds },
       runs: { verifyToken: tokens.verify, feed: null },
+      planRun: planRunDeps(),
       collab: echoingCollabThatRefusesOnByte(),
       log: () => {},
       ...extra,
@@ -393,6 +406,43 @@ describe("the live socket", () => {
       type: "error",
       channel: "b",
       code: "rate_limited",
+    });
+  });
+
+  it("opens plan p1's plan-run channel: opened, the run's facts with its spec PR, then its status and visits with no agent event and no ci_check", async () => {
+    await insertAgentEvents(seed.events, 3);
+    const c = await connect();
+
+    c.send({
+      type: "open",
+      channel: "pr",
+      kind: "plan-run",
+      subject: "p1",
+      token: tokens.mint({
+        kind: "plan-run",
+        subject: "p1",
+        user: { id: "ana", name: "Ana" },
+      }),
+    });
+
+    expect({
+      opened: await c.next(),
+      facts: await c.next(),
+      then: await untilCatchup(c),
+    }).toMatchObject({
+      opened: { type: "opened", channel: "pr" },
+      facts: {
+        type: "plan_run",
+        channel: "pr",
+        run: { id: seed.run.id, pr_number: 12, pr_title: "Spec: checkout" },
+      },
+      then: [
+        "run_status",
+        "node_status",
+        "task_event",
+        "task_event",
+        "catchup_complete",
+      ],
     });
   });
 });

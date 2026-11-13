@@ -73,6 +73,21 @@ describe("parseClientMessage", () => {
     ]);
   });
 
+  it("reads a plan-run open of plan p1 with its token, and refuses one without a token", () => {
+    const open = {
+      type: "open",
+      channel: "c2",
+      kind: "plan-run",
+      subject: "p1",
+      token: "t-2",
+    };
+
+    expect([
+      parseClientMessage(JSON.stringify(open)),
+      parseClientMessage(JSON.stringify({ ...open, token: undefined })),
+    ]).toEqual([open, null]);
+  });
+
   it("returns null for non-JSON, an unknown type, a run open without a token, and a non-numeric cursor", () => {
     expect(
       [
@@ -93,6 +108,24 @@ describe("server messages", () => {
         type: "frame",
         channel: "c",
         frame: { type: "catchup_complete", last_id: "3" },
+      },
+      { type: "plan_run", channel: "c", run: null },
+      {
+        type: "plan_run",
+        channel: "c",
+        run: {
+          id: "run-1",
+          status: "running",
+          outcome: null,
+          reason: null,
+          issue_url: "https://github.com/o/r/issues/4",
+          issue_number: 4,
+          pr_url: "https://github.com/o/r/pull/7",
+          pr_number: 7,
+          pr_title: "Spec: checkout",
+          pr_unresolved_threads: 2,
+          spec_plan_summary: null,
+        },
       },
       { type: "data", channel: "p", data: "AQI=" },
       { type: "closed", channel: "c", reason: "slow" },

@@ -37,6 +37,15 @@ describe("the runs channel", () => {
       },
       collab: { handleConnection: unused },
       runs: { verifyToken: tokens.verify, feed },
+      planRun: {
+        verifyToken: tokens.verify,
+        planExists: unused,
+        planRuns: unused,
+        runs: { getById: unused },
+        prStatus: unused,
+        feeds: { join: unused },
+        watch: null,
+      },
       pingMs: 50,
       log: () => {},
     });

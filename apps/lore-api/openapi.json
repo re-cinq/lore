@@ -9268,6 +9268,108 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/plans/{id}/run-stream-token": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_run-stream-token",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/run-stream-token",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A short-lived token that opens this plan's plan-run channel of the live socket (/api/ws) as one person: the plan's current planning run, followed across runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanRunStreamToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["user"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/plans/{id}/spec-rework": {
       "post": {
         "operationId": "post_api_repos_owner_repo_plans_id_spec-rework",
@@ -18027,6 +18129,34 @@
             "properties": {
               "type": {
                 "type": "string",
+                "const": "open"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "const": "plan-run"
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["type", "channel", "kind", "subject", "token"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
                 "const": "watch"
               },
               "channel": {
@@ -18711,6 +18841,81 @@
               }
             },
             "required": ["type", "channel", "frame"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "plan_run"
+              },
+              "channel": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "run": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "outcome": {
+                        "type": ["string", "null"]
+                      },
+                      "reason": {
+                        "type": ["string", "null"]
+                      },
+                      "issue_url": {
+                        "type": ["string", "null"]
+                      },
+                      "issue_number": {
+                        "type": ["number", "null"]
+                      },
+                      "pr_url": {
+                        "type": ["string", "null"]
+                      },
+                      "pr_number": {
+                        "type": ["number", "null"]
+                      },
+                      "pr_title": {
+                        "type": ["string", "null"]
+                      },
+                      "pr_unresolved_threads": {
+                        "type": ["number", "null"]
+                      },
+                      "spec_plan_summary": {
+                        "type": ["string", "null"]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "status",
+                      "outcome",
+                      "reason",
+                      "issue_url",
+                      "issue_number",
+                      "pr_url",
+                      "pr_number",
+                      "pr_title",
+                      "pr_unresolved_threads",
+                      "spec_plan_summary"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["type", "channel", "run"],
             "additionalProperties": false
           },
           {
@@ -20106,6 +20311,20 @@
           "createdBy",
           "updatedAt"
         ],
+        "additionalProperties": false
+      },
+      "PlanRunStreamToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["token", "expires_at"],
         "additionalProperties": false
       },
       "PlanSpecReworkStarted": {
