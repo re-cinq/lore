@@ -231,10 +231,10 @@ export class FloorRunReader {
     if (!found) {
       return [];
     }
-    const [run, facts, visits] = await Promise.all([
-      this.recordOf(found.run),
+    const visits = await this.floor.stationRuns.list({ run: runId });
+    const [run, facts] = await Promise.all([
+      this.recordOf(found.run, visits),
       this.lineFactsOf(found.run),
-      this.floor.stationRuns.list({ run: runId }),
     ]);
 
     return visits.map((visit) =>
@@ -289,9 +289,13 @@ export class FloorRunReader {
     return costsByRunOf(this.floor.costs, runs);
   }
 
-  async recordOf(run: RunView): Promise<AssemblyRunRecord> {
+  /** The run as a record; `known` is its visits when the caller already read them, so they are not read twice. */
+  async recordOf(
+    run: RunView,
+    known?: VisitView[],
+  ): Promise<AssemblyRunRecord> {
     const [visits, graph] = await Promise.all([
-      this.floor.stationRuns.list({ run: run.id }),
+      known ?? this.floor.stationRuns.list({ run: run.id }),
       this.graphOf(run),
     ]);
 
