@@ -24,6 +24,7 @@ import {
   approvedRefineRefusal,
 } from "./refine-refusal.js";
 import { storeMarkdown } from "./plan-blobs.js";
+import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import { assertValidatable } from "./plan-validate.js";
 import {
   SPEC_PR_NOT_WAITING,
@@ -133,21 +134,45 @@ export async function refinableLine(
   return line;
 }
 
-/** Starts the node by hand on the plan's run, or, with no run to start a node on, opens one at the node; the agent reads the ask the same way. The run's id. */
+const OUTDATED_RUN = "redrawn on the current planning line";
+
+/** Starts the node by hand on the plan's run, or, with no run that has the node, opens one at it; the agent reads the ask the same way. A run on a line version older than the node is cancelled first, since the floor would ignore the start and join the new run to it. The run's id. */
 export async function startByHand(
   deps: FloorPlanDeps,
   line: FloorPlanLine | null,
-  { event, entry }: HandStartedNode,
+  node: HandStartedNode,
   { actor, ...start }: FloorPlanMarkdown & { actor: string },
 ): Promise<string> {
-  if (line) {
-    await askNode(deps.floor, { event, runId: line.lineId, actor });
+  const { event, entry } = node;
+  const { floor } = deps;
+
+  if (line && (await walksNode(floor, line, node))) {
+    await askNode(floor, { event, runId: line.lineId, actor });
 
     return line.lineId;
   }
-  const planMd = await storeMarkdown(deps.floor, start.planMarkdown);
 
-  return startPlanRun(deps, null, { ...start, planMd, entry });
+  if (line?.status === "open") {
+    await floor.runs.cancel(line.lineId, OUTDATED_RUN);
+  }
+  const planMd = await storeMarkdown(floor, start.planMarkdown);
+
+  return startPlanRun(deps, line, { ...start, planMd, entry });
+}
+
+// A node with no entry of its own is on every version of the line.
+async function walksNode(
+  { lines }: FloorPlanDeps["floor"],
+  line: FloorPlanLine,
+  { entry }: HandStartedNode,
+): Promise<boolean> {
+  if (!entry) {
+    return true;
+  }
+  const version = await lines.version(PLANNING_DEFINITION, line.lineHash);
+  const nodes = version?.body.nodes ?? [];
+
+  return nodes.some((node) => node.id === entry);
 }
 
 function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {

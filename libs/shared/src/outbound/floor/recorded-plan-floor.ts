@@ -11,7 +11,11 @@ export interface PlanFloorScene {
   runs?: RunView[];
   /** The visits of each run, by run id, oldest first. */
   visits?: Record<string, VisitView[]>;
+  /** The node ids of the line version every run walks; the planning line's own nodes when absent. */
+  lineNodes?: string[];
 }
+
+const PLANNING_NODES = ["analyze", "sketch", "author"];
 
 export const PLAN_BLOB_HASH = "blob-1";
 
@@ -93,12 +97,20 @@ function answerOf(request: FloorRequest, scene: PlanFloorScene): unknown {
   const url = new URL(request.path, "http://floor.test");
   const answer =
     ANSWERS[url.pathname] ??
+    (url.pathname.includes("/versions/") ? lineVersionOf : undefined) ??
     (url.pathname.endsWith("/start") ? startedOf : eventPosted);
 
   return answer(url, scene);
 }
 
 const eventPosted: Answer = () => ({ id: "event-1" });
+
+const lineVersionOf: Answer = (_url, scene) => ({
+  body: {
+    nodes: (scene.lineNodes ?? PLANNING_NODES).map((id) => ({ id })),
+    edges: [],
+  },
+});
 
 // A start on a subject that has an open run joins it, as the floor does.
 const startedOf: Answer = (_url, scene) => {
