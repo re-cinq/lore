@@ -70,8 +70,8 @@ _(Added 2026-10-01.)_ Where an external floor is configured, the weekly backfill
 
 ## Acceptance Criteria
 
-1. The runner claims a pending task before GKE picks it up.
-   ([validated by claims-pending.test.ts:91](path/to/claims-pending.test.ts#L91))
+1. A lease held by one holder is refused to a second.
+   ([validated by `lease-backends.test.ts@28540d65`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L45))
 2. Tasks survive rollout restarts via the lease backend.
    ([validated by `lease-backends.test.ts@36c9466c`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L14),
    [`lease-backends.test.ts@7b23ea8c`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L142))
@@ -255,7 +255,7 @@ Author commits, opens PR.
           ([validated by lease-backend.test.ts:42](...))
     -  3. The runner re-queues a stale task after 30 minutes.
     +  3. The runner re-queues a stale task after 30 minutes.
-    +     ([validated by requeues-stale.test.ts:146](path/to/requeues-stale.test.ts#L146))
+    +     ([validated by requeues-stale.test.ts:146](...))
 
   Author reviews, merges (or rejects with a comment explaining why
   the suggestion misses).
