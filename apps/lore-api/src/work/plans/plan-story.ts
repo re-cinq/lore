@@ -1,5 +1,6 @@
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { IssueRef } from "@re-cinq/lore-shared";
 import type { PlanStories, SavedStory } from "./plan-stories.js";
 
 /** The one rule for which user story a plan has: what a person saved on the plan wins, a removal included, and a plan nobody saved a story on keeps the one its newest run carries. */
@@ -70,9 +71,56 @@ async function currentStory(
 function viewOf(repo: string, issueNumber: number | null): PlanStoryView {
   return {
     issueNumber,
-    issueUrl:
-      issueNumber === null
-        ? null
-        : `https://github.com/${repo}/issues/${issueNumber}`,
+    issueUrl: issueNumber === null ? null : issueUrlOf(repo, issueNumber),
   };
+}
+
+/** The plan's user story as its planning agents read it beside the plan; title, state and body are null when GitHub could not be read. */
+export interface PlanStoryContext {
+  number: number;
+  url: string;
+  title: string | null;
+  state: string | null;
+  body: string | null;
+}
+
+export type ReadIssue = (
+  repo: string,
+  number: number,
+) => Promise<IssueRef | null>;
+
+const MAX_STORY_CHARS = 8000;
+
+/** The issue's own words, cut to what a prompt can carry. A failed GitHub read keeps the story's number and link, so reading the plan never fails on it. */
+export async function planStoryContext(
+  planId: string,
+  ports: PlanStoryPorts,
+  readIssue: ReadIssue,
+): Promise<PlanStoryContext | null> {
+  const plan = await knownPlan(planId, ports);
+  const number = await currentStory(plan, ports);
+
+  if (number === null) {
+    return null;
+  }
+  const issue = await readIssue(plan.repo, number).catch(() => null);
+
+  return { number, url: issueUrlOf(plan.repo, number), ...wordsOf(issue) };
+}
+
+function wordsOf(issue: IssueRef | null) {
+  if (!issue) {
+    return { title: null, state: null, body: null };
+  }
+  const body = issue.body ?? "";
+
+  return {
+    title: issue.title,
+    state: issue.state,
+    body: body.slice(0, MAX_STORY_CHARS),
+  };
+}
+
+function issueUrlOf(repo: string, number: number): string {
+  return `https://github.com/${repo}/issues/${number}`;
 }
