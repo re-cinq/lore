@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import Link from "next/link";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import ActionMenu from "@/components/ActionMenu";
@@ -6,8 +7,9 @@ import Icon from "@/components/Icon";
 import { storyField } from "@/lib/plan-input";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import { canRegenerate } from "@/lib/plan-run-phase";
+import { useScrolledPast } from "@/lib/use-scrolled-past";
 import PlanStatusBadge from "../PlanStatusBadge";
-import { planRunSummary, type PlanRun } from "./PlanRunCard";
+import { planRunSummary, planRunTone, type PlanRun } from "./PlanRunCard";
 import styles from "./PlanToolbar.module.scss";
 
 type Outcome = Promise<{ error?: string }>;
@@ -21,6 +23,8 @@ interface PlanToolbarProps {
   meta: PlanMeta;
   run: PlanRun | null;
   state: PlanPageState;
+  /** Attached to the bar so the page can keep the editor's outline below it. */
+  barRef?: RefObject<HTMLDivElement | null>;
   /** The user story typed for a run that carries none; without it the toolbar offers no field. */
   story?: StoryInput;
   /** A fresh planning run, offered while the plan is being written. */
@@ -35,17 +39,26 @@ const REGENERATE = {
   tone: "danger",
 } as const;
 
-/** The plan page's one row of controls: what the plan is, what its run is doing, and what can be done to it. */
+/** The plan page's one bar of controls, pinned to the window's top: what the plan is, what its run is doing, and what can be done to it. It names the plan once the plan's own heading has scrolled away. */
 export default function PlanToolbar(props: PlanToolbarProps) {
-  const { meta, run, story } = props;
+  const { meta, run, story, barRef } = props;
+  const { sentinelRef, scrolled } = useScrolledPast<HTMLDivElement>();
 
   return (
-    <div className={styles.toolbar}>
-      <PlanStatusBadge status={meta.status} />
-      <PlanFacts meta={meta} run={run} />
-      {!run?.issueUrl && story && <StoryField repo={meta.repo} {...story} />}
-      <ToolbarActions {...props} />
-    </div>
+    <>
+      <div ref={sentinelRef} aria-hidden="true" />
+      <div
+        ref={barRef}
+        className={styles.toolbar}
+        data-scrolled={scrolled ? "" : undefined}
+      >
+        <PlanStatusBadge status={meta.status} />
+        <strong className={styles.title}>{meta.title}</strong>
+        <PlanFacts meta={meta} run={run} />
+        {!run?.issueUrl && story && <StoryField repo={meta.repo} {...story} />}
+        <ToolbarActions {...props} />
+      </div>
+    </>
   );
 }
 
@@ -54,7 +67,7 @@ function ToolbarActions(props: PlanToolbarProps) {
 
   return (
     <div className={styles.actions}>
-      <span className="meta">{planRunSummary(run, state)}</span>
+      <RunSummary run={run} state={state} />
       {run && <RunLink run={run} />}
       {offersRegenerate(run, state) && (
         <RegeneratePlan draftAgain={draftAgain} />
@@ -67,6 +80,13 @@ function ToolbarActions(props: PlanToolbarProps) {
         />
       </ActionMenu>
     </div>
+  );
+}
+
+// A failure is the warning's to say, above the editor.
+function RunSummary({ run, state }: Pick<PlanToolbarProps, "run" | "state">) {
+  return planRunTone(run, state) === "failed" ? null : (
+    <span className="meta">{planRunSummary(run, state)}</span>
   );
 }
 
@@ -146,7 +166,7 @@ function RegeneratePlan({ draftAgain }: { draftAgain: () => Outcome }) {
       action={draftAgain}
       label="Regenerate plan"
       question={REGENERATE}
-      buttonClassName=""
+      buttonClassName="btn-secondary"
     />
   );
 }
