@@ -15,11 +15,11 @@ are a reading of the source, not of production.
 | needs a person | 17 | code exists; what is left is live evidence or a decision | take out of the loop's queue |
 | spec text | 22 | the code is right, the spec is stale | one spec edit per spec |
 | test only | 14 | behaviour exists; a test or link is missing | one ticket per spec, or spec upkeep |
-| real | 48 | behaviour is missing or wrong | keep, as about 20 pieces of work |
+| real | 48 | behaviour is missing or wrong | keep, as 21 pieces of work |
 
 **74 of the 175 can be closed today** with no work. Another 53 are not work
 for the implementation loop (a person, or a spec edit, or a missing test).
-**48 are real, and they are about 20 pieces of work, not 48.**
+**48 are real, and they are 21 pieces of work, not 48.**
 
 Of the 110 tickets still in the loop's queue, 43 are retired, done or
 duplicate: the loop would have opened a pull request for each.
