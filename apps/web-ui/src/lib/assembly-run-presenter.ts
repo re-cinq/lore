@@ -1,12 +1,12 @@
 // Pure presentation helpers for the run-keyed assembly-line views — no DB/React, so formatting rules stay unit-testable (precedent: task-presenter.ts).
 const EM_DASH = "—";
 
-const RELATIVE_UNITS: { secs: number; name: string }[] = [
-  { secs: 31_536_000, name: "year" },
-  { secs: 2_592_000, name: "month" },
-  { secs: 86_400, name: "day" },
-  { secs: 3_600, name: "hour" },
-  { secs: 60, name: "minute" },
+const RELATIVE_UNITS: { secs: number; name: string; short: string }[] = [
+  { secs: 31_536_000, name: "year", short: "y" },
+  { secs: 2_592_000, name: "month", short: "mo" },
+  { secs: 86_400, name: "day", short: "d" },
+  { secs: 3_600, name: "hour", short: "h" },
+  { secs: 60, name: "minute", short: "m" },
 ];
 
 export function formatRelativeTime(
@@ -24,6 +24,17 @@ export function formatRelativeTime(
   }
 
   return "just now";
+}
+
+/** An age in its shortest form (`8h`, `30d`), for a figure scanned across a grid. */
+export function formatShortAge(
+  iso: string,
+  nowMs: number = Date.now(),
+): string {
+  const secs = Math.floor((nowMs - new Date(iso).getTime()) / 1000);
+  const unit = RELATIVE_UNITS.find((candidate) => secs >= candidate.secs);
+
+  return unit ? `${Math.floor(secs / unit.secs)}${unit.short}` : "now";
 }
 
 /** A finished-run duration in `42s` / `11m 55s` form; em-dash when unknown. */

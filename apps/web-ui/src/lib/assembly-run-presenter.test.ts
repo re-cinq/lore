@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatRelativeTime,
   formatDuration,
+  formatShortAge,
   runHeaderVisual,
   runStatusVisual,
 } from "./assembly-run-presenter";
@@ -23,6 +24,33 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(new Date(now - 5_000).toISOString(), now)).toBe(
       "just now",
     );
+  });
+});
+
+describe("formatShortAge", () => {
+  const now = Date.parse("2026-07-14T12:00:00Z");
+  const at = (ms: number) => new Date(now - ms).toISOString();
+
+  it("renders 8 hours as 8h, 20 days as 20d and 400 days as 1y", () => {
+    const ages = {
+      minute: formatShortAge(at(90_000), now),
+      hours: formatShortAge(at(8 * 3_600_000), now),
+      days: formatShortAge(at(20 * 86_400_000), now),
+      months: formatShortAge(at(60 * 86_400_000), now),
+      year: formatShortAge(at(400 * 86_400_000), now),
+    };
+
+    expect(ages).toEqual({
+      minute: "1m",
+      hours: "8h",
+      days: "20d",
+      months: "2mo",
+      year: "1y",
+    });
+  });
+
+  it("renders now under a minute", () => {
+    expect(formatShortAge(at(5_000), now)).toBe("now");
   });
 });
 
