@@ -1,6 +1,6 @@
 .toolbar {
   --bar-bleed: 100vmax;
-  --toolbar-bg: var(--bg);
+  --toolbar-bg: color-mix(in srgb, var(--bg) 88%, transparent);
   position: sticky;
   /* A sticky box pins inside the scroller's padding; the negative offset takes it to the window's edge. */
   top: calc(-1 * var(--main-pad-y, 0px));
@@ -12,16 +12,14 @@
   margin-bottom: var(--space-4);
   padding-block: var(--space-3);
 
-  /* The bar's box stays in the column; its paint reaches the content area's edges. A shadow adds no scrollable overflow, unlike a 100vw width or a negative margin. The paint is a layer of its own, so the clip that trims it does not clip the actions menu's panel. */
+  /* The bar's box stays in the column; its paint reaches the content area's edges. A shadow adds no scrollable overflow, unlike a 100vw width or a negative margin. The paint is a layer of its own, so the clip that trims it does not clip the actions menu's panel. The fill is translucent, so the page shows faintly through it. */
   &::before {
     content: "";
     position: absolute;
     inset: 0;
     pointer-events: none;
     background: var(--toolbar-bg);
-    box-shadow:
-      0 0 0 var(--bar-bleed) var(--toolbar-bg),
-      0 1px 0 var(--bar-bleed) var(--border);
+    box-shadow: 0 0 0 var(--bar-bleed) var(--toolbar-bg);
     clip-path: inset(
       0 calc(-1 * var(--bar-bleed)) calc(-1 * var(--space-5))
         calc(-1 * var(--bar-bleed))
@@ -29,6 +27,20 @@
     transition:
       background-color var(--transition),
       box-shadow var(--transition);
+  }
+
+  /* The bottom border, its own full-width line: under a translucent fill a border drawn as a shadow would show through the whole bar. */
+  &::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 1px;
+    pointer-events: none;
+    background: var(--border-hover);
+    box-shadow: 0 0 0 var(--bar-bleed) var(--border-hover);
+    clip-path: inset(0 calc(-1 * var(--bar-bleed)));
   }
 
   p {
@@ -43,14 +55,13 @@
 
   /* Scrolled, the bar lifts off the page: a surface with a shadow under its whole width, since in some themes the page and the surface share a colour. */
   &[data-scrolled] {
-    --toolbar-bg: var(--bg-surface);
+    --toolbar-bg: color-mix(in srgb, var(--bg-surface) 82%, transparent);
 
     &::before {
       box-shadow:
         0 0 0 var(--bar-bleed) var(--toolbar-bg),
-        0 1px 0 var(--bar-bleed) var(--border),
         0 var(--space-1) var(--space-3) var(--bar-bleed)
-          color-mix(in srgb, var(--text) 12%, transparent);
+          color-mix(in srgb, var(--text) 10%, transparent);
     }
   }
 }
