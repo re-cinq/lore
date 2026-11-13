@@ -1,25 +1,5 @@
 # Feature Specification: Autonomous Review Loop
 
-
-> **Widened to all open PRs — the `code-review` assembly line ([ADR-012](../../adrs/ADR-012-autonomous-review-loop.md)).**
-> The loop below closes on Lore's **own** implementation PRs. The `code-review` assembly
-> line (`review → post-review → done` on the external floor, `libs/assembly-lines/src/floor-pipelines/code-review.yaml`, [ADR-049](../../adrs/ADR-049-external-floor.md))
-> extends the same `auto_review` opt-in to **any open PR, including human-authored**, driven
-> by PR-lifecycle webhooks on the event bus instead of the `pr-created` hook:
-> - **PR opened / reopened / ready_for_review** → start a review pass + post a "review has
->   started" PR comment linking `${LORE_UI_URL}/assembly-runs/<id>`.
-> - **Review pass** → the `review` node's findings are posted by the `post-review` station
->   as **line-level** inline comments in one review.
-> - **A human's request-changes review** → a `code-review-reply` run that **decides per
->   comment**: commit and push a fix, or answer, each in the thread of the comment it answers
->   (`specs/external-floor` FR5.6).
-> - **PR closed** → cancel any open code-review run for that PR.
->
-> An assembly line runs once to completion, so "engaged as long as the PR is open" is the
-> choreography re-invoking the line per webhook**, not one long-lived line. Bot-authored
-> PRs (except Lore's own App login) and bot comments are skipped (loop guard). Handlers: `libs/shared/src/work/review/floor-review-start.ts`
-> and `apps/stations/src/events/floor-review-handlers.ts`.
-
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Autonomous Review Loop                   |
@@ -29,146 +9,76 @@
 | Owner          | Platform Engineering                     |
 | Target         | 3-5 days                                 |
 
-The Autonomous Review Loop closes the loop on agent-authored PRs: after an implementation PR is opened, a review agent clones the branch, checks it against the spec and conventions, posts inline comments, and either approves or requests changes for another iteration.
+Lore reviews every open pull request of a repository that has `auto_review` on, whoever wrote it. The `code-review` assembly line on the external floor ([ADR-012](../../adrs/ADR-012-autonomous-review-loop.md), [ADR-049](../../adrs/ADR-049-external-floor.md)) gives the first, deep review. `code-review-recheck` judges each later push. `code-review-reply` answers a request-changes review from a trusted reviewer, with a fix or with a reply. The pull request's lifecycle events start and cancel those runs, and Lore's stations post each verdict as one review and as the `lore/code-review` check.
 
 ## Problem Statement
 
-When an implementation task creates a PR via the external floor, the PR
-sits waiting for a human developer to review. The agent did the work
-but the loop is open — no one validates the output against the spec,
-conventions, or code quality until a human gets to it.
+A pull request waits for a person to review it. Until someone gets to it, nothing checks the change against the spec, the conventions or the code around it. A pull request an agent opened waits the same way as a person's.
+
+## Background
+
+This spec began in 2026-04 as the Floor watcher's review-and-fix loop for Lore's own pull requests. The watcher created a review task for each pull request it opened and read `APPROVED` or `CHANGES_REQUESTED` from the review agent's stdout. On changes requested it created an `implementation` fix task carrying the feedback, for at most two rounds, and then handed the pull request to a person.
+
+The `code-review` assembly line (ADR-012 amendment, 2026-07) widened the same `auto_review` opt-in to every open pull request and became the sole reviewer. A Haiku triage station that read comments was removed on 2026-09-30. The watcher's loop last ran on 2026-06-01 and was deleted on 2026-10-01 (#2417, #2418). The watcher and Lore's own Floor were deleted on 2026-10-02 (#2431). Three modules this spec once pinned went with them: the check publisher (`pr-check.ts`), the branch-overlap guard (`advance-line.ts`) and the dark-factory merge gates (`auto-merge.ts`). The stations and specs named below do their work now. `plan.md` and `tasks.md` record the original design.
 
 ## Solution: Close the Loop via Assembly Line
 
-Every step runs on the external floor as an assembly line.
-No in-process LLM calls in the agent.
+Every step is a station of an assembly line on the external floor. The review agents run in the floor's pods, and Lore's own stations make no model call. An assembly line runs once to completion, so a pull request stays reviewed for as long as it is open because each event starts a new run, not because one run lives that long.
 
 ```
-                    ┌─────────────────────────────┐
-                    │                             │
-                    ▼                             │
-Implementation → Assembly Line → PR created      │
-                                        │        │
-                                        ▼        │
-                            auto_review enabled?  │
-                              │           │       │
-                             no          yes      │
-                              │           │       │
-                              ▼           ▼       │
-                          hand to    Starts       │
-                          human      review line  │
-                                     (floor run)  │
-                                        │         │
-                                        ▼         │
-                              Claude Code reviews  │
-                              PR in cloned repo:   │
-                              - reads spec         │
-                              - reads diff         │
-                              - checks conventions │
-                              - posts PR comments  │
-                              - writes APPROVED or │
-                                CHANGES_REQUESTED  │
-                                   to stdout       │
-                                        │         │
-                                   ┌────┴────┐    │
-                                   │         │    │
-                              approved  changes   │
-                                   │    requested │
-                                   ▼         │    │
-                              mark task      │    │
-                              reviewed       │    │
-                              PR ready       │    │
-                                        iteration < 2?
-                                          │       │
-                                         yes      no
-                                          │       │
-                                          │       ▼
-                                          │   escalate to
-                                          │   human review
-                                          │
-                                          └───────┘
-                                    new implementation
-                                    task with
-                                    review feedback
+github.pull_request.opened / reopened / ready_for_review / synchronize
+    auto_review on, pull request open, not a draft, author a person or Lore's own App
+    |- no review has run -----> code-review:          review -> post-review -> done
+    `- a review has run ------> code-review-recheck:  recheck -> post-review -> done
+                                (once CI is green; an approval a rebase did not touch is carried)
+github.check_suite.completed -> the re-check that waited for CI
+"@lore review" comment, or the run page's Trigger review button
+    `-------------------------> code-review, forced past the draft check and auto_review
+github.pull_request_review.submitted (changes requested, trusted reviewer)
+    `-------------------------> code-review-reply:    read-review -> reply -> post-reply -> done
+github.pull_request.closed ---> cancel the open review runs as pr_closed
+a review run settles ---------> lore-run-settled:     settle -> done
 ```
 
-
-These statements pin the `code-review` choreography (`libs/shared/src/work/review/floor-review-start.ts`)
-and the webhook/verdict plumbing it rides on.
+These statements pin the choreography (`apps/stations/src/events/floor-review-handlers.ts`, `libs/shared/src/work/review/floor-review-start.ts`) and the webhook mapping it rides on. `specs/external-floor` owns the floor mechanics: the pipeline files (FR2), the starts and cancels (FR4) and the station contracts (FR5).
 
 1. `autoReviewEnabled` gates every automatic start on the per-repo `auto_review` setting (an `@lore review` asked for by hand passes it, as the run page's button does): `true` only for
    the boolean `true`, `false` when the flag is absent, `false`, or the settings are null, and it
    parses a JSON-string settings blob. ([validated by `auto-review-enabled.test.ts@79259980`](libs/shared/src/domain/loops/auto-review-enabled.test.ts#L5), [`auto-review-enabled.test.ts@ca61abd4`](libs/shared/src/domain/loops/auto-review-enabled.test.ts#L9), [`auto-review-enabled.test.ts@e77e4009`](libs/shared/src/domain/loops/auto-review-enabled.test.ts#L15))
 
-1a. **The code-review loop on the Loops tab** *(added 2026-10-23)*. Code review is the `review` entry of the loop registry (`libs/shared/src/domain/loops/loop-kinds.ts`, specs/implementation-loop FR7), with the top-level `auto_review` flag as its switch, so the repo's Loops tab (`/repos/{owner}/{repo}/loops?loop=review`) shows it beside the implementation loop and issue triage with the same pill and the same On/Off button; `PUT /api/repos/{owner}/{repo}/loops/review` flips the flag and the Settings tab no longer carries an auto-review switch. The page reads `GET /api/repos/{owner}/{repo}/code-review`, which lists the repo's open pull requests and the newest thirty runs of each review line (`code-review`, `code-review-recheck`, `code-review-reply`, read as the run list reads them through a `line` filter on the floor run pages, so each row carries its Stages); an open pull request none of those runs names is asked for by its review's subject, `pr_url:<url>`, so a review older than the window still places it *(amended 2026-10-27: on a busy repository the thirty newest reviews reach back a day, and every pull request reviewed before that read as unreviewed)* and answers the Loops tab's shared sections *(amended 2026-10-23; it answered Current, Open pull requests and Recently reviewed)*: **Current**, the pull requests a review run is working now; **Backlog**, open pull requests no review has looked at (`unreviewed`, or `draft` for a draft, which the gate skips); **Parked**, open pull requests whose newest review did not pass (changes requested, or the run failed); **Awaiting merge**, open pull requests whose newest review passed; **Recently addressed**, the newest ten settled runs, named by number when their pull request is no longer open. A repo that is not onboarded is a 404 before any GitHub read. ([validated by answers review from the top-level auto_review flag, off by default @b2658bfd](libs/shared/src/domain/loops/loop-enabled.test.ts#L37), [validated by lists implementation, review, merge, triage, upkeep, digest then tickets with their full names @d15715c2](libs/shared/src/domain/loops/loop-enabled.test.ts#L91), [validated by GET lists implementation, review, merge and digest off and triage, upkeep and tickets on for a repo with empty settings @edeff4cd](apps/lore-api/src/transport/routes/loops/loops.test.ts#L70), [validated by PUT review on writes the top-level auto_review flag @f38c8e8b](apps/lore-api/src/transport/routes/loops/loops.test.ts#L253), [validated by reads the open pull requests and thirty runs of each review line, and answers the queues @668285e9](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L67), [validated by answers 404 for a repo that is not onboarded without reading pull requests @3ae21882](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L141), [validated by puts #3449, reviewed before the thirty newest runs, under awaiting merge and keeps the never-reviewed #3279 in the backlog @5efb0370](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L121), [validated by parks open #8 whose newest review requested changes and open #9 whose review failed @3ac80e0d](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L94), [validated by puts #7 with a running review under current and the unreviewed #8 and draft #9 in the backlog @e68d1ec5](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L46), [validated by puts open #8 whose newest review passed under awaiting merge, and lists it under recent too @fd3f8706](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L66), [validated by names a settled run's pull request from its number when it is no longer open, and keeps recent to ten @9d0cb5dc](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L115), [validated by asks for the code-review runs of re-cinq/lore when the query names a line @f91e5007](apps/lore-api/src/transport/routes/floor/floor-runs.test.ts#L37), [validated by narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running, one pull request's by subject @bb6ea4c7](apps/lore-api/src/work/floor/floor-run-query.test.ts#L120), [validated by ?loop=review shows the code-review switch and the board of code review alone @29868834](apps/web-ui/src/app/repos/[owner]/[repo]/loops/LoopsPage.test.tsx#L115), [validated by reads code review through its client and names it when lore-api answers HTTP 502 @a565aef0](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/read-loop.test.ts#L23), [validated by shows Parked and Awaiting merge only when a loop has a row there @65939989](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L107), [validated by says above the Backlog which shown loops are switched off, and what fills an empty backlog for each @9dedbeb0](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L153), [validated by reads /api/repos/re-cinq/lore/code-review from lore-api @1a888477](apps/web-ui/src/lib/api/code-review.test.ts#L22), [validated by draws a review row as its pull request, tagged with its review line, and a triage row as its issue with its label as the state @9b854598](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L168))
+1a. **The code-review loop on the Loops tab** *(added 2026-10-23)*. Code review is the `review` entry of the loop registry (`libs/shared/src/domain/loops/loop-kinds.ts`, specs/implementation-loop FR7), with the top-level `auto_review` flag as its switch, so the repo's Loops tab (`/repos/{owner}/{repo}/loops?loop=review`) shows it beside the implementation loop and issue triage with the same pill and the same On/Off button; `PUT /api/repos/{owner}/{repo}/loops/review` flips the flag and the Settings tab no longer carries an auto-review switch. The page reads `GET /api/repos/{owner}/{repo}/code-review`, which lists the repo's open pull requests and the newest thirty runs of each review line (`code-review`, `code-review-recheck`, `code-review-reply`, read as the run list reads them through a `line` filter on the floor run pages, so each row carries its Stages); an open pull request none of those runs names is asked for by its review's subject, `pr_url:<url>`, so a review older than the window still places it *(amended 2026-10-27: on a busy repository the thirty newest reviews reach back a day, and every pull request reviewed before that read as unreviewed)* and answers the Loops tab's shared sections *(amended 2026-10-23; it answered Current, Open pull requests and Recently reviewed)*: **Current**, the pull requests a review run is working now; **Backlog**, open pull requests no review has looked at (`unreviewed`, or `draft` for a draft, which the gate skips); **Parked**, open pull requests whose newest review did not pass (changes requested, or the run failed); **Awaiting merge**, open pull requests whose newest review passed; **Recently addressed**, the newest ten settled runs, named by number when their pull request is no longer open. A repo that is not onboarded is a 404 before any GitHub read. ([validated by answers review from the top-level auto_review flag, off by default @b2658bfd](libs/shared/src/domain/loops/loop-enabled.test.ts#L37), [validated by lists implementation, review, merge, triage, upkeep, digest then tickets with their full names @d15715c2](libs/shared/src/domain/loops/loop-enabled.test.ts#L91), [validated by GET lists implementation, review, merge and digest off and triage, upkeep and tickets on for a repo with empty settings @edeff4cd](apps/lore-api/src/transport/routes/loops/loops.test.ts#L70), [validated by PUT review on writes the top-level auto_review flag @f38c8e8b](apps/lore-api/src/transport/routes/loops/loops.test.ts#L253), [validated by reads the open pull requests and thirty runs of each review line, and answers the queues @668285e9](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L67), [validated by answers 404 for a repo that is not onboarded without reading pull requests @3ae21882](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L141), [validated by puts #3449, reviewed before the thirty newest runs, under awaiting merge and keeps the never-reviewed #3279 in the backlog @5efb0370](apps/lore-api/src/transport/routes/code-review/code-review.test.ts#L121), [validated by parks open #8 whose newest review requested changes and open #9 whose review failed @3ac80e0d](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L94), [validated by puts #7 with a running review under current and the unreviewed #8 and draft #9 in the backlog @e68d1ec5](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L46), [validated by puts open #8 whose newest review passed under awaiting merge, and lists it under recent too @fd3f8706](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L66), [validated by names a settled run's pull request from its number when it is no longer open, and keeps recent to ten @9d0cb5dc](apps/lore-api/src/transport/routes/code-review/review-queues.test.ts#L115), [validated by asks for the code-review runs of re-cinq/lore when the query names a line @f91e5007](apps/lore-api/src/transport/routes/floor/floor-runs.test.ts#L37), [validated by narrows a page to the code-review runs of github.com/re-cinq/lore, open ones for status running, one pull request's by subject @bb6ea4c7](apps/lore-api/src/work/floor/floor-run-query.test.ts#L120), [validated by ?loop=review shows the code-review switch and the board of code review alone @29868834](apps/web-ui/src/app/repos/[owner]/[repo]/loops/LoopsPage.test.tsx#L115), [validated by reads code review through its client and names it when lore-api answers HTTP 502 @a565aef0](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/read-loop.test.ts#L23), [validated by shows Parked and Awaiting merge only when a loop has a row there @65939989](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L107), [validated by says above the Backlog which shown loops are switched off, and what fills an empty backlog for each @80d94b8a](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L142), [validated by reads /api/repos/re-cinq/lore/code-review from lore-api @1a888477](apps/web-ui/src/lib/api/code-review.test.ts#L22), [validated by draws a review row as its pull request, tagged with its review line, and a triage row as its issue with its label as the state @9b854598](apps/web-ui/src/app/repos/[owner]/[repo]/loops/board/board.test.ts#L168))
 
-2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (except for Lore's own App login, which receives a review) and the bot's own comment or review never starts a pass. ([validated by starts nothing when the lore bot comments @lore review @e9774299](apps/stations/src/events/floor-review-handlers.test.ts#L159), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554))
+2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (except for Lore's own App login, which receives a review) and the bot's own comment or review never starts a pass. ([validated by starts nothing when the lore bot comments @lore review @e9774299](apps/stations/src/events/floor-review-handlers.test.ts#L159), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554), [validated by decideReviewOnOpen lets a PR by Lore's own App through while refusing other bots @5a04fdae](libs/shared/src/work/review/code-review-decisions.test.ts#L61))
 
 3. On PR open/reopen/ready: the stations service starts a `code-review` run on the external floor only
    for an open, non-draft PR with auto-review on (an automatic start skips a draft; a review asked for by hand does not), and posts a started-comment linking the
    run page; it does nothing when auto-review is off. ([validated by starts code-review when a pull request opens in a repository with auto_review on @d7a570b7](apps/stations/src/events/floor-review-handlers.test.ts#L105), [validated by asks the floor nothing when auto_review is off @27926309](apps/stations/src/events/floor-review-handlers.test.ts#L113), [validated by announces run-new with a link to its run page @a76d18f4](libs/shared/src/work/review/floor-review-start.test.ts#L188), [validated by starts nothing for a draft pull request @b7f953c1](libs/shared/src/work/review/floor-review-start.test.ts#L206))
 
-4. On a human review that requests changes: `startReply` starts a `code-review-reply` run carrying the
-   review id and the `address` intent, only for a reviewer with write standing on an open, non-draft PR
-   with auto-review on; an approval, a bot's review and a stranger's start nothing. ([validated by starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks @9e2ce82e](libs/shared/src/work/review/floor-review-start.test.ts#L536), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554), [validated by starts code-review-reply for a MEMBER's request-changes review 99 @0cf497f4](apps/stations/src/events/floor-review-handlers.test.ts#L170), [validated by starts nothing for a request-changes review from a stranger with association NONE @54d52ff1](apps/stations/src/events/floor-review-handlers.test.ts#L185), [validated by starts nothing for an approving review @ebf675c3](apps/stations/src/events/floor-review-handlers.test.ts#L198))
+4. On a human review that requests changes: `startReply` starts a `code-review-reply` run carrying the review id and no intent, only for a reviewer with write standing on an open, non-draft PR with auto-review on; an approval, a bot's review and a stranger's start nothing. ([validated by starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks @9e2ce82e](libs/shared/src/work/review/floor-review-start.test.ts#L536), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554), [validated by starts code-review-reply for a MEMBER's request-changes review 99 @0cf497f4](apps/stations/src/events/floor-review-handlers.test.ts#L170), [validated by starts nothing for a request-changes review from a stranger with association NONE @54d52ff1](apps/stations/src/events/floor-review-handlers.test.ts#L185), [validated by starts nothing for an approving review @ebf675c3](apps/stations/src/events/floor-review-handlers.test.ts#L198), [validated by decideReviewOnReply starts only for an open, non-draft PR with a human comment @2a375238](libs/shared/src/work/review/code-review-decisions.test.ts#L79))
 
 5. On PR close: `closeReviewsForPr` cancels any open code-review run for that PR with reason `pr_closed`. ([validated by cancels the open runs of pull request 412 as pr_closed and leaves the finished one @0970d046](libs/shared/src/work/review/floor-review-start.test.ts#L582), [validated by cancels the open review of a closed pull request even with auto_review off @9fa36fa5](apps/stations/src/events/floor-review-handlers.test.ts#L211))
 
-6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
-   `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
-   so code-review can finish its line. ([validated by maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels, and to github.tracker.changed under the delivery's utopia key @a1200b39](libs/shared/src/outbound/project/events/github-map.test.ts#L24), [`github-map.test.ts@e15c6e27`](libs/shared/src/outbound/project/events/github-map.test.ts#L62))
+6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying `merged`/`branch`/`merge_commit_sha`/`labels`, for a merged and for a closed-without-merge PR alike, so the close handler can cancel the pull request's open review runs. ([validated by maps closed+merged to github.pull_request.closed carrying merged/branch/base_ref/sha/labels, and to github.tracker.changed under the delivery's utopia key @a1200b39](libs/shared/src/outbound/project/events/github-map.test.ts#L24), [`github-map.test.ts@e15c6e27`](libs/shared/src/outbound/project/events/github-map.test.ts#L62))
 
-7. A human reply arrives as a created `pull_request_review_comment` mapped to
-   `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
-   ignored. ([validated by `github-map.test.ts@35a3a0a9`](libs/shared/src/outbound/project/events/github-map.test.ts#L231), [`github-map.test.ts@d852e2c0`](libs/shared/src/outbound/project/events/github-map.test.ts#L264), [`github-map.test.ts@10b14c4b`](libs/shared/src/outbound/project/events/github-map.test.ts#L297))
+7. A created `pull_request_review_comment` is mapped to `github.pull_request_review_comment.created` with its author, id and body, and with `in_reply_to_id` when it is a thread reply; a non-created review comment is ignored. The comment handler acts on it only when it asks for `@lore review`. ([validated by `github-map.test.ts@35a3a0a9`](libs/shared/src/outbound/project/events/github-map.test.ts#L231), [`github-map.test.ts@d852e2c0`](libs/shared/src/outbound/project/events/github-map.test.ts#L264), [`github-map.test.ts@10b14c4b`](libs/shared/src/outbound/project/events/github-map.test.ts#L297))
 
-8. _(Retired 2026-10-01.)_ The Floor watcher no longer parses a review verdict from an agent's stdout: nothing acts on one since its fix loop was removed (#2328). A review node's verdict is still read by the station contract's `parseReviewVerdict`.
+8. `post-review` reads the review agent's verdict from the `REVIEW_FINDINGS` block when it parses, and otherwise from the `REVIEW_RESULT` line through the station contract's `parseReviewVerdict`. Nothing parses a verdict from a pod's stdout. ([validated by reads success and zero findings from an approved findings block @608ae882](apps/stations/src/code-review/post-review/review-check.test.ts#L11), [validated by reads changes_requested from a bare REVIEW_RESULT line with no block @98eddf17](apps/stations/src/code-review/post-review/review-check.test.ts#L18))
 
 
+## Validated behavior: code-review line overhaul (2026-07)
 
-## Validated behavior — code-review line overhaul (2026-07)
-
-The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep** first review on open / out-of-draft / first push, then a **fast `code-review-recheck`** on every later push (re-review on explicit `@lore review`); a comment starts a review only when it asks for one with `@lore review` (the Haiku triage station was removed on 2026-09-30); both reviews render structured findings as Conventional Comments and submit a **formal `APPROVE` / `REQUEST_CHANGES` verdict** (2026-08 amendment), the signal the dark-factory auto-merge gate reads; a fix is made only in answer to a request-changes review from a trusted reviewer; a completed `lore/code-review` check carries the verdict. Each behaviour below is pinned to its test.
+Each behaviour below is pinned to its test.
 
 ### `apps/lore-api/src/transport/routes/floor/review-start.test.ts`
 
 - starts a forced code-review for a draft pull request, since a click is forced past the gate. ([validated by starts code-review for draft pull request 412, since a click is forced past the gate @bec3be0d](apps/lore-api/src/transport/routes/floor/review-start.test.ts#L45))
 - answers `{started: null}` and starts nothing for a closed pull request. ([validated by answers null and starts nothing for a closed pull request @b56ad6b4](apps/lore-api/src/transport/routes/floor/review-start.test.ts#L58))
 
-### `apps/floor/src/work/assembly-run/pr-check.test.ts`
+### The `lore/code-review` check and the merge
 
-- returns null when the line carries no pr_number.
-- returns null when the line carries no head_sha.
-- maps a running line to an in_progress check named lore/<definition>.
-- keeps a running line in_progress even when a node already recorded changes_requested.
-- maps a changes_requested line outcome to a neutral conclusion.
-- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict.
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested.
-- maps a completed line to a success conclusion.
-- maps a failed line to a failure conclusion.
-- maps a failed line with a changes_requested node to a failure conclusion.
-- maps a pr_closed outcome to a cancelled conclusion.
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion.
-- adds a details_url to the Lore UI when a uiUrl is given.
-- maps an iteration_max outcome to a failure conclusion.
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name.
-
-### `apps/floor/src/work/assembly-run/advance-line.test.ts`
-
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs).
-
-### `apps/floor/src/work/merge/auto-merge.test.ts`
-
-- merges when all gates pass.
-- deferred:dark_mode_off when not enabled (overrides everything).
-- deferred:no_changes for an empty PR before path-allowlist check.
-- deferred:review_in_flight while a code-review line is open.
-- deferred:human_review when human changes requested.
-- deferred:ci_failed when require_green_ci and CI red.
-- deferred:bot_changes_requested when bot did not APPROVE.
-- deferred:trust_too_low when repo has no trust set.
-- reports CI status as failed when CI red.
-- reports bot review as CHANGES_REQUESTED when not approved.
+- `post-review` publishes each verdict as the completed `lore/code-review` check on the head sha, `success` for an approval and `neutral` for changes requested (`specs/external-floor` FR5.3 owns the check). ([validated by concludes success on the lore/code-review check for the success verdict @3430252e](apps/stations/src/code-review/post-review/review-check.test.ts#L26), [validated by concludes neutral for the changes_requested verdict @197078fd](apps/stations/src/code-review/post-review/review-check.test.ts#L43), [validated by creates the review, upserts the neutral check and reports success with the summary and url @5a0850a1](apps/stations/src/code-review/post-review/station.test.ts#L124))
+- A `code-review` or `code-review-recheck` run that settles as `failed`, `error` or `iteration_max` leaves a failed `lore/code-review` check, a re-check's under that same name, so a required branch-protection check is refreshed on every push and never stranded under a second name; a cancelled run and a successful run publish nothing from `run-settled` (`specs/external-floor` FR5.7, and FR5.8 for a spent model budget). ([validated by fails the check on sha-1 of re-cinq/lore for a code-review run settled as error @0c610fa4](apps/stations/src/code-review/run-settled/station.test.ts#L107), [validated by publishes nothing for a code-review run settled as success @6cfea08c](apps/stations/src/code-review/run-settled/station.test.ts#L124), [validated by publishes a broken re-check under lore/code-review @0c8eaa02](apps/stations/src/code-review/run-settled/run-settled.test.ts#L77), [validated by is true for code-review settled as iteration_max, its retry spent @f15738d0](apps/stations/src/code-review/run-settled/run-settled.test.ts#L45), [validated by is false for code-review settled as cancelled @370fb0c0](apps/stations/src/code-review/run-settled/run-settled.test.ts#L37))
+- The review arms no merge. Where the base branch's rule asks for an approval, an approving verdict is posted as a `COMMENT` review and the auto-merge loop gives the approval that counts; where the rule asks for none, the review submits `APPROVE`. The merge gates are owned by [specs/protected-branch-merge/spec.md](../protected-branch-merge/spec.md). ([validated by given a branch requiring approval, when review approves, then it posts a comment review and arms nothing @9353c4db](apps/stations/src/code-review/post-review/station.test.ts#L258), [validated by given an unprotected branch, when review approves, then it submits APPROVE @41d80376](apps/stations/src/code-review/post-review/station.test.ts#L274))
 
 ### `libs/shared/src/work/review/floor-review-start.test.ts` and `apps/stations/src/events/floor-review-handlers.test.ts`
 
@@ -178,7 +88,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A comment event carries GitHub's `author_association` for its author as `comment_author_association`. ([validated by maps a PR issue_comment.created carrying the comment author, its MEMBER standing, id and body @11681bbe](libs/shared/src/outbound/project/events/github-map.test.ts#L191), [validated by maps a created pull_request_review_comment carrying the comment author, its NONE standing, id and body @35a3a0a9](libs/shared/src/outbound/project/events/github-map.test.ts#L231))
 - A submitted review that requests changes starts a `code-review-reply` run with the review's id and no intent: the agent reads what each comment asks. ([validated by starts code-review-reply for review 99 with the repository, the pull request and the review, and no intent: the agent reads what each comment asks @9e2ce82e](libs/shared/src/work/review/floor-review-start.test.ts#L536), [validated by starts code-review-reply for a MEMBER's request-changes review 99 @0cf497f4](apps/stations/src/events/floor-review-handlers.test.ts#L170))
 - A request-changes review from a stranger with no write standing, an approving review and a bot's own submitted review start nothing (loop guard). ([validated by starts nothing for a request-changes review from a stranger with association NONE @54d52ff1](apps/stations/src/events/floor-review-handlers.test.ts#L185), [validated by starts nothing for an approving review @ebf675c3](apps/stations/src/events/floor-review-handlers.test.ts#L198), [validated by starts no reply for a review the lore bot submitted @ba9bd0bc](libs/shared/src/work/review/floor-review-start.test.ts#L554))
-- A push to a pull request no review has run on starts `code-review`, and a push to an already-reviewed one starts a `code-review-recheck` naming the sha the last verdict judged (the fast re-check replaces the old first-review-only skip), once CI is green on it *(amended 2026-10-26, #3601: until then a completed check suite starts it, `specs/external-floor` FR2.9b)*. Whether a review has run is read from the review line by the pull request's subject, and its re-checks and replies from their own lines, never from a window over every run of the repository: on a busy repository that window lost a review within hours, and a push to a reviewed pull request then started nothing *(amended 2026-10-24)*. ([validated by finds the code-review of #412 from yesterday morning though the repository's 200 newest runs are another line's @8c44669e](libs/shared/src/work/review/floor-review-runs.test.ts#L46), [validated by reads #412's re-checks and replies from their own lines, leaving another pull request's out @2e810a5f](libs/shared/src/work/review/floor-review-runs.test.ts#L54), [validated by starts code-review for a pull request no review has run on @7e10d821](libs/shared/src/work/review/floor-review-start.test.ts#L317), [validated by starts a re-check that names sha-old as the last judged commit @4db1f14e](libs/shared/src/work/review/floor-review-start.test.ts#L327))
+- A push to a pull request no review has run on starts `code-review`, and a push to an already-reviewed one starts a `code-review-recheck` naming the sha the last verdict judged (the fast re-check replaces the old first-review-only skip), once CI is green on it *(amended 2026-10-26, #3601: until then a completed check suite starts it, `specs/external-floor` FR2.9b)*. Whether a review has run is read from the review line by the pull request's subject, and its re-checks and replies from their own lines, never from a window over every run of the repository: on a busy repository that window lost a review within hours, and a push to a reviewed pull request then started nothing *(amended 2026-10-24)*. ([validated by finds the code-review of #412 from yesterday morning though the repository's 200 newest runs are another line's @8c44669e](libs/shared/src/work/review/floor-review-runs.test.ts#L46), [validated by reads #412's re-checks and replies from their own lines, leaving another pull request's out @2e810a5f](libs/shared/src/work/review/floor-review-runs.test.ts#L54), [validated by starts code-review for a pull request no review has run on @7e10d821](libs/shared/src/work/review/floor-review-start.test.ts#L317), [validated by starts a re-check that names sha-old as the last judged commit @4db1f14e](libs/shared/src/work/review/floor-review-start.test.ts#L327), [validated by starts code-review-recheck for pull request 412 when a check suite completes on its head after a review finished, since a re-check waits for CI @104ad371](apps/stations/src/events/floor-review-handlers.test.ts#L255), [validated by starts no first review from a check suite on a pull request no review ran on, and nothing when the suite names no pull request or auto_review is off @599d9a7d](apps/stations/src/events/floor-review-handlers.test.ts#L268), [validated by re-checks sha-new only once its CI is green, in a repository whose judged sha-old carried CI, and not while it runs or is red, since a red build brings another push @efa6494c](libs/shared/src/work/review/floor-review-start.test.ts#L708))
 - skips a draft PR when the start is automatic. ([validated by starts nothing for a draft pull request @b7f953c1](libs/shared/src/work/review/floor-review-start.test.ts#L206))
 - The `read-review` station composes the review body with its inline comments into one feedback text. ([validated by joins body Please fix and inline comment 1 into one text @77ca5648](apps/stations/src/code-review/read-review/read-review.test.ts#L76), [validated by produces body plus inline comment 700 for review 55 on PR 412 of re-cinq/lore @9a94f95f](apps/stations/src/code-review/read-review/station.test.ts#L69))
 - A review with neither body nor comments yields a fixed fallback sentence. ([validated by returns the fallback when body is blank and there are no inline comments @a2a3c5f4](apps/stations/src/code-review/read-review/read-review.test.ts#L82), [validated by produces the fallback text when review_id is empty @054075ce](apps/stations/src/code-review/read-review/station.test.ts#L102))
@@ -189,7 +99,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `apps/stations/src/code-review/post-review/post-review.test.ts`
 
 - posts one REQUEST_CHANGES review (the formal verdict, always on) with a rendered comment per in-diff finding and a summary. ([validated by posts one REQUEST_CHANGES review with a rendered comment per commentable finding @03291bb6](apps/stations/src/code-review/post-review/post-review.test.ts#L94))
-- partitions findings by diff hunk — a finding on a commentable line stays inline, one on an uninlineable line folds into overflow. ([validated by keeps findings on commentable lines inline and folds the rest into overflow @600df422](apps/stations/src/code-review/post-review/post-review.test.ts#L79))
+- partitions findings by diff hunk: a finding on a commentable line stays inline, one on an uninlineable line folds into overflow. ([validated by keeps findings on commentable lines inline and folds the rest into overflow @600df422](apps/stations/src/code-review/post-review/post-review.test.ts#L79))
 - A finding on a line GitHub cannot inline (an unchanged line, or a file outside the diff) is folded into the review body, because one such inline comment 422s the whole atomic review. ([validated by folds the finding on line 99 into the body under the out-of-hunk heading and inlines only line 12 @e1930edd](apps/stations/src/code-review/post-review/post-review.test.ts#L135))
 - When GitHub rejects the atomic review post, the findings are rendered in the body of the same verdict review, and when every review shape is refused the review is delivered as one plain comment rather than silently dropped. ([validated by keeps REQUEST_CHANGES and renders the finding in the body when GitHub rejects the inline comment @31a6ff79](apps/stations/src/code-review/post-review/post-review.test.ts#L157), [validated by posts one plain issue comment when every review shape is refused @a46344ba](apps/stations/src/code-review/post-review/post-review.test.ts#L195))
 - posts when the output carries a REVIEW_FINDINGS block. ([validated by posts when the output carries a REVIEW_FINDINGS block @bfd544b2](apps/stations/src/code-review/post-review/post-review.test.ts#L270))
@@ -213,8 +123,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 - The `post-review` station posts a review agent's findings as one review against the pull request its `pr_url` names. ([validated by creates the review, upserts the neutral check and reports success with the summary and url @5a0850a1](apps/stations/src/code-review/post-review/station.test.ts#L124))
 - A `pr_url` that is not a pull request fails the `post-review` visit. ([validated by throws when the pr_url is not a pull request @1f46baa6](apps/stations/src/code-review/post-review/station.test.ts#L229))
-- A verdict that reaches no parseable findings fails the `post-review` visit rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by posts nothing for CHANGES_REQUESTED without a findings block @c73498f6](apps/stations/src/code-review/post-review/post-review.test.ts#L294), [validated by throws when the output has no verdict @0e185464](apps/stations/src/code-review/post-review/station.test.ts#L219))
-- A post that no route can deliver — every review shape and the plain comment refused — fails the `post-review` visit rather than being swallowed. ([validated by throws when every review shape and the plain comment are refused @604353d6](apps/stations/src/code-review/post-review/station.test.ts#L211))
+- A verdict that reaches no parseable findings fails the `post-review` visit rather than passing silently: that state is indistinguishable from a clean review at the PR. ([validated by posts nothing for CHANGES_REQUESTED without a findings block @c73498f6](apps/stations/src/code-review/post-review/post-review.test.ts#L294), [validated by throws when the output has no verdict @0e185464](apps/stations/src/code-review/post-review/station.test.ts#L219))
+- A post that no route can deliver (every review shape and the plain comment refused) fails the `post-review` visit rather than being swallowed. ([validated by throws when every review shape and the plain comment are refused @604353d6](apps/stations/src/code-review/post-review/station.test.ts#L211))
 - A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (posting is handled by the `post-reply` station, not the agent) and its answers to the review's line comments as a `REVIEW_THREAD_REPLIES` block; the `post-reply` station posts each answer under the comment it names. ([validated by replies under comment 88 when the run carries review_id 99, the review that comment belongs to @ee355fa7](apps/stations/src/code-review/post-reply/station.test.ts#L76), [validated by replies under comments 88 and 89 of review 99 and resolves only T1, the thread of the reply marked resolved @2a8bafe6](apps/stations/src/code-review/post-reply/post-reply.test.ts#L137))
 - A refine reply that answers no line comment is a plain PR comment. ([validated by comments on PR 412 and produces reply_url when the agent answered no line comment @280f6fd6](apps/stations/src/code-review/post-reply/station.test.ts#L56), [validated by comments on PR 412 with the stamped reply when the agent answered no line comment @61eb5e6c](apps/stations/src/code-review/post-reply/post-reply.test.ts#L122))
 - A refine node that emits no reply block fails the `post-reply` visit rather than passing silently. ([validated by throws when the output has no REVIEW_REPLY block @86b592a2](apps/stations/src/code-review/post-reply/post-reply.test.ts#L320), [validated by rejects when the agent output has no REVIEW_REPLY block @dbcda3c9](apps/stations/src/code-review/post-reply/station.test.ts#L99))
@@ -230,12 +140,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 - posts the repo and pr_number to the review-trigger proxy. ([validated by @e0de79d4](apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx#L7))
 
-### `libs/assembly-lines/src/loader.test.ts`
+### `libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts`
 
 - code-review is a `review → post-review → done` graph with no refine node. ([validated by walks code-review from review through post-review to done, with no refine node @dd5fe29e](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L856))
-- gap-fill is a linear flow with retrospective + done as exit pair.
-- assemblyLinesDir actually exists on disk (sanity check).
 - code-review-recheck is a Gemini 4 Argon `recheck → post-review → done` graph routing every verdict to `post-review`. ([validated by walks code-review-recheck through recheck, post-review and done on gemini-4-argon with edges for changes_requested, failed and success @1ff09a9f](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L895))
+- `code-review` keys its runs on `pr_url`, `code-review-recheck` on `head_sha` and `code-review-reply` on `review_id`, so a re-check never joins an open review and a push that lands while a review or reply is open still gets its own verdict (`specs/external-floor` FR2.3). ([validated by keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once @74cf4ee3](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L943))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
 
@@ -295,9 +204,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/work/review/review-findings.test.ts`
 
-- accepts the OTHER findings schema this repo defines — the `/code-review`
+- accepts the OTHER findings schema this repo defines (the `/code-review`
   skill's and `ReportFindings`' `file`/`category`/`short_summary`/`summary`/
-  `failure_scenario` — because the reviewer reads this codebase and reliably
+  `failure_scenario`) because the reviewer reads this codebase and reliably
   emits that shape when reviewing it. Three PRs on 2026-09-01 (#1698, #1699,
   #1703) each produced a well-formed block of VALID JSON whose every finding
   failed the shape check, so the node reported the findings lost and a real
@@ -308,9 +217,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   strictness is the point), and a finding carrying neither spelling of a
   required field still yields null.
   ([validated by @2bfb49d4](libs/shared/src/work/review/review-findings.test.ts#L162), [validated by @09a3b970](libs/shared/src/work/review/review-findings.test.ts#L176), [validated by @35d6ea80](libs/shared/src/work/review/review-findings.test.ts#L184), [validated by @0365a4f8](libs/shared/src/work/review/review-findings.test.ts#L193), [validated by @2c1a6991](libs/shared/src/work/review/review-findings.test.ts#L211))
-- A `decoration` the contract does not name — a model writing `"none"` for "no decoration", as Gemini did on the first review the external floor ran (HALEngine#123, 2026-09-30), which lost four findings to that one word — is dropped and its finding kept; a named decoration is kept as written. ([validated by keeps the finding and drops the decoration none @e59fce56](libs/shared/src/work/review/review-findings.test.ts#L292), [validated by keeps the decoration non-blocking as written @4cd04da3](libs/shared/src/work/review/review-findings.test.ts#L298))
-- A finding written as one `message` — Gemini's shape on #2143's recheck
-  (2026-09-23), which lost every finding and failed the run — reads its
+- A `decoration` the contract does not name (a model writing `"none"` for "no decoration", as Gemini did on the first review the external floor ran (HALEngine#123, 2026-09-30), which lost four findings to that one word) is dropped and its finding kept; a named decoration is kept as written. ([validated by keeps the finding and drops the decoration none @e59fce56](libs/shared/src/work/review/review-findings.test.ts#L292), [validated by keeps the decoration non-blocking as written @4cd04da3](libs/shared/src/work/review/review-findings.test.ts#L298))
+- A finding written as one `message` (Gemini's shape on #2143's recheck
+  (2026-09-23), which lost every finding and failed the run) reads its
   opening sentence as the `subject` (the whole first line when that sentence
   is too short to be one, and never empty) and the whole text as the
   discussion.
@@ -352,7 +261,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   it as its reviewer: for every spec statement the PR adds or changes, one line on
   what a person using that surface sees differently, compared with the statements
   beside it and the page or route that renders it, and a mismatch is a `question`
-  finding rather than silence — a spec written in the same PR as its code proves
+  finding rather than silence: a spec written in the same PR as its code proves
   nothing about intent (the #2130 replay approved a fresh-run design twice).
   ([validated by asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence @bba4e8b4](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1556))
 - Lint, types, formatting and tests are CI's verdict, read through
@@ -373,7 +282,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns null when the block is not valid JSON that a quote/newline repair
   pass can recover either. ([validated by @90962e04](libs/shared/src/work/review/review-findings.test.ts#L46))
 - recovers a finding whose narrative field carries a quote the model forgot to
-  escape — #1401 reproduced verbatim: a well-formed block with one broken
+  escape. #1401 reproduced verbatim: a well-formed block with one broken
   string killed `JSON.parse` outright and discarded every finding, including
   the blocking one. A quote is read as closing the string only when the next
   non-whitespace character is one JSON allows there (`,` `}` `]` `:` or end of
@@ -382,17 +291,17 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   ([validated by @c209a056](libs/shared/src/work/review/review-findings.test.ts#L50))
 - recovers a finding whose narrative field carries a literal newline, escaping
   it the same way. ([validated by @eaebe033](libs/shared/src/work/review/review-findings.test.ts#L59))
-- recovers a finding whose suggestion carries a literal tab the same way — a
+- recovers a finding whose suggestion carries a literal tab the same way: a
   tabbed-indented code snippet is a raw control character JSON forbids
   unescaped in a string, exactly like a raw newline. ([validated by @3e9847e9](libs/shared/src/work/review/review-findings.test.ts#L68))
 - recovers every finding when several each carry an unescaped quote, not just
   the first. ([validated by @48148ffd](libs/shared/src/work/review/review-findings.test.ts#L77))
 - does not let the repair pass turn genuinely broken JSON into a false
-  positive — missing quotes around a key or value stay unparseable. ([validated by @1f65277b](libs/shared/src/work/review/review-findings.test.ts#L90))
+  positive: missing quotes around a key or value stay unparseable. ([validated by @1f65277b](libs/shared/src/work/review/review-findings.test.ts#L90))
 - returns null when a finding has an unknown label. ([validated by @dadb67a7](libs/shared/src/work/review/review-findings.test.ts#L96))
 - returns null when the verdict is missing. ([validated by @8e362446](libs/shared/src/work/review/review-findings.test.ts#L107))
 - treats an optional field written as `null` as absent, because that is what a
-  model means by it — read as a value, ONE null failed its type check and the
+  model means by it: read as a value, ONE null failed its type check and the
   ENTIRE block was discarded, so a review that found ten things posted none and
   its node failed with the findings lost. ([validated by @72186a13](libs/shared/src/work/review/review-findings.test.ts#L124))
 - keeps every other finding when one carries a null optional. ([validated by @dc8f8cb3](libs/shared/src/work/review/review-findings.test.ts#L130))
@@ -407,4 +316,5 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/agent-image/agent-image.acceptance.test.ts`
 
-- The agent image includes the GitHub CLI (`gh`) so review-mode entrypoints can post PR comments with `gh pr review`. ([validated by agent-image has gh CLI installed](apps/agent-image/agent-image.acceptance.test.ts#L5))
+- The agent image (`apps/agent-image/Dockerfile`) installs the GitHub CLI (`gh`). ([validated by agent-image has gh CLI installed @be4c0e83](apps/agent-image/agent-image.acceptance.test.ts#L5))
+- The review agents post nothing themselves and are told not to use `gh`: the `post-review` and `post-reply` stations post for them.
