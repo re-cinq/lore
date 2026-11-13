@@ -24,6 +24,8 @@ RUN npm run build --workspace=@re-cinq/lore-stations
 FROM node:22-slim
 WORKDIR /app
 
+ARG GIT_SHA=dev
+ENV LORE_BUILD_SHA=$GIT_SHA
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 

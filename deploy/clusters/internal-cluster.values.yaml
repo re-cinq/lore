@@ -224,6 +224,8 @@ lore-api:
     LORE_WEBHOOK_URL: https://lore-events.gcp.re-cinq.com/api/events
     LORE_API_URL: https://lore-api.gcp.re-cinq.com
     LORE_UI_URL: https://lore.gcp.re-cinq.com
+    # GET /api/versions reads the UI's build from its public /api/version in-cluster.
+    LORE_UI_INTERNAL_URL: http://lore-ui.lore-ui.svc.cluster.local:3000
     # GKE Autopilot general-purpose, europe-west1; /spend's estimate rates.
     LORE_GKE_CPU_HOUR_USD: "0.0489"
     LORE_GKE_MEM_GIB_HOUR_USD: "0.0054"

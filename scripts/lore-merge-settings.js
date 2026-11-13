@@ -73,13 +73,37 @@ function deduplicateHooks(hooks, event) {
   });
 }
 
-module.exports = { hasHook, removeHooksMatching, deduplicateHooks };
+const SYNC_HOOK_COMMAND =
+  "node ~/.re-cinq/lore/scripts/lore-merge-settings.js 2>/dev/null; node ~/.re-cinq/lore/scripts/lore-version-check.mjs 2>/dev/null; echo '[lore] Context and task state synced'";
+const SYNC_HOOK_PATTERN = /lore-merge-settings/;
+
+function stripLorePrompt(settings) {
+  if (!settings.systemPromptSuffix) {
+    return;
+  }
+  const rest = settings.systemPromptSuffix
+    .replace(
+      /\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+      "",
+    )
+    .replace(
+      /\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+      "",
+    )
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (rest) {
+    settings.systemPromptSuffix = rest;
+  } else {
+    delete settings.systemPromptSuffix;
+  }
+}
 
 // --- main -------------------------------------------------------------------
 
-function main() {
-  const settings = readSettings();
-
+/** Lore's hooks, env and status line merged into a user's Claude Code settings. */
+function mergeLoreSettings(settings) {
   // Clean out legacy beads/bd hooks from all events
   const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
 
@@ -110,22 +134,19 @@ function main() {
     settings.hooks = {};
   }
 
-  // Context sync on session start
-  if (!hasHook(settings.hooks, "SessionStart", "lore-merge-settings")) {
-    if (!Array.isArray(settings.hooks.SessionStart)) {
-      settings.hooks.SessionStart = [];
-    }
-    settings.hooks.SessionStart.push({
-      matcher: "",
-      hooks: [
-        {
-          type: "command",
-          command:
-            "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; node ~/.re-cinq/lore/scripts/lore-merge-settings.js 2>/dev/null; echo '[lore] Context and task state synced'",
-        },
-      ],
-    });
+  // Context sync on session start. It no longer pulls the checkout: a pull
+  // without a rebuild hid how far the built adapter is behind. It prints one
+  // line instead when the adapter is behind the deployed build; lore_update
+  // pulls and rebuilds. Older installs' pulling hook is replaced.
+  removeHooksMatching(settings.hooks, "SessionStart", SYNC_HOOK_PATTERN);
+
+  if (!Array.isArray(settings.hooks.SessionStart)) {
+    settings.hooks.SessionStart = [];
   }
+  settings.hooks.SessionStart.push({
+    matcher: "",
+    hooks: [{ type: "command", command: SYNC_HOOK_COMMAND }],
+  });
 
   // Status cache (feeds the status line with pipeline metrics)
   if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
@@ -141,38 +162,9 @@ function main() {
     });
   }
 
-  // System prompt injection — tells Claude Code to use Lore automatically
-  // Always overwrite to keep instructions current
-  const lorePrompt = `
-IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules strictly:
-
-1. FIRST ACTION: Call lore_assemble_context with a query describing what the user wants. This loads conventions, ADRs, memories, facts, and graph relationships in one call. Do not skip this.
-
-2. BEFORE PLANNING OR BUILDING: Call lore_search_memory to check if this problem was already solved, if there are known gotchas, or if a previous session left relevant learnings. Search with multiple queries if needed — try exact terms, likely key names (e.g. "deployment-gotchas-{date}"), and broader descriptions. Never assume "no memory exists" after one failed search.
-
-3. DURING WORK: Use lore_search_context for patterns and history. Use lore_query_graph to understand entity relationships. Use lore_create_pipeline_task to delegate work to agents on GKE (API cost).
-
-4. BEFORE SESSION ENDS: Call lore_write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call lore_write_episode with raw session observations for passive fact extraction.
-
-5. MCP SELF-UPDATE: If lore_assemble_context output contains "lore_mcp_update_available", tell the user their local Lore MCP is behind origin/main and offer to run the lore_update tool. Call lore_update ONLY after the user agrees; it rebuilds the adapter, and the user must restart Claude Code afterward to load the new code.`;
-
-  // Always replace — strip ALL old Lore prompts and write fresh
-  if (settings.systemPromptSuffix) {
-    // Remove all Lore-injected blocks (may be stacked from multiple installs)
-    settings.systemPromptSuffix = settings.systemPromptSuffix
-      .replace(
-        /\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
-        "",
-      )
-      .replace(
-        /\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
-        "",
-      )
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
-  settings.systemPromptSuffix =
-    (settings.systemPromptSuffix || "") + lorePrompt;
+  // The Lore rules now reach every session as the MCP server's instructions;
+  // Claude Code never read systemPromptSuffix. Strip what older installs wrote.
+  stripLorePrompt(settings);
 
   // Session summary reminder on stop. The guard needle is the [lore:stop-learnings]
   // tag, not the human-readable message, so rewording the message cannot silently
@@ -227,10 +219,20 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
     command: path.join(loreDir, "scripts", "lore-statusline.sh"),
   };
 
-  // 4. write
-  writeSettings(settings);
+  return settings;
+}
+
+function main() {
+  writeSettings(mergeLoreSettings(readSettings()));
   console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);
 }
+
+module.exports = {
+  hasHook,
+  removeHooksMatching,
+  deduplicateHooks,
+  mergeLoreSettings,
+};
 
 if (require.main === module) {
   main();

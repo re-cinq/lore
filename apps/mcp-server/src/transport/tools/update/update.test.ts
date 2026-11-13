@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { writeFileSync } from "node:fs";
 import { toolHandlers } from "../shared/tool-test-helpers.js";
 import { registerUpdateTool } from "./update.js";
@@ -25,6 +25,7 @@ const sandbox = await vi.hoisted(async () => {
   git(origin, "commit -q --allow-empty -m one");
   git(root, `clone -q ${origin} ${checkout}`);
   git(origin, "commit -q --allow-empty -m two");
+  git(checkout, "fetch -q origin");
   mkdirSync(`${checkout}/scripts`);
   write(`${checkout}/scripts/lore-update.sh`, "echo rebuilt\n");
   mkdirSync(`${root}/.lore`);
@@ -39,18 +40,34 @@ const sandbox = await vi.hoisted(async () => {
 });
 const update = toolHandlers(registerUpdateTool, "full")["lore_update"];
 
+beforeEach(() => {
+  vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+  vi.stubEnv("LORE_INGEST_TOKEN", "tok");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ latest: { build: sandbox.remoteSha.slice(0, 7) } }),
+    })),
+  );
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
 describe("lore_update", () => {
-  it("names the 1 commit the build is behind before the updater's output", async () => {
+  it("names the deployed build and the 1 commit the adapter is behind before the updater's output", async () => {
     writeFileSync(sandbox.marker, sandbox.builtSha);
 
     const result = await update({});
 
     expect(result.content[0].text).toBe(
-      "Updating — 1 commit(s) behind origin/main.\nrebuilt\n\nRestart Claude Code to load the rebuilt MCP, and reload the VS Code window if the extension was installed.",
+      `Updating — behind the deployed version (${sandbox.builtSha.slice(0, 7)} → ${sandbox.remoteSha.slice(0, 7)}), 1 commit(s).\nrebuilt\n\nRestart Claude Code to load the rebuilt MCP, and reload the VS Code window if the extension was installed.`,
     );
   });
 
-  it("prints only the updater's output when the build is at origin/main", async () => {
+  it("prints only the updater's output when the adapter is the deployed build", async () => {
     writeFileSync(sandbox.marker, sandbox.remoteSha);
 
     const result = await update({});
