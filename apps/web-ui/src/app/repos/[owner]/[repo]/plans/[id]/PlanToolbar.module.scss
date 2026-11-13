@@ -1,6 +1,5 @@
 .toolbar {
-  --bar-bleed: 100vmax;
-  --toolbar-bg: color-mix(in srgb, var(--bg) 88%, transparent);
+  --toolbar-bg: color-mix(in srgb, var(--bg) 80%, transparent);
   position: sticky;
   /* A sticky box pins inside the scroller's padding; the negative offset takes it to the window's edge. */
   top: calc(-1 * var(--main-pad-y, 0px));
@@ -12,35 +11,22 @@
   margin-bottom: var(--space-4);
   padding-block: var(--space-3);
 
-  /* The bar's box stays in the column; its paint reaches the content area's edges. A shadow adds no scrollable overflow, unlike a 100vw width or a negative margin. The paint is a layer of its own, so the clip that trims it does not clip the actions menu's panel. The fill is translucent, so the page shows faintly through it. */
+  /* The bar's box stays in the column; this layer spans the scroller's whole visible width (--bleed-left and --bleed-right are measured), so its fill, its blur of what scrolls under it and its bottom border all start and end at the same edges. */
   &::before {
     content: "";
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: calc(-1 * var(--bleed-right, 0px));
+    bottom: 0;
+    left: calc(-1 * var(--bleed-left, 0px));
     pointer-events: none;
     background: var(--toolbar-bg);
-    box-shadow: 0 0 0 var(--bar-bleed) var(--toolbar-bg);
-    clip-path: inset(
-      0 calc(-1 * var(--bar-bleed)) calc(-1 * var(--space-5))
-        calc(-1 * var(--bar-bleed))
-    );
+    border-bottom: 1px solid var(--border-hover);
+    -webkit-backdrop-filter: blur(var(--space-3));
+    backdrop-filter: blur(var(--space-3));
     transition:
       background-color var(--transition),
       box-shadow var(--transition);
-  }
-
-  /* The bottom border, its own full-width line: under a translucent fill a border drawn as a shadow would show through the whole bar. */
-  &::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 1px;
-    pointer-events: none;
-    background: var(--border-hover);
-    box-shadow: 0 0 0 var(--bar-bleed) var(--border-hover);
-    clip-path: inset(0 calc(-1 * var(--bar-bleed)));
   }
 
   p {
@@ -53,15 +39,12 @@
     z-index: var(--z-raised);
   }
 
-  /* Scrolled, the bar lifts off the page: a surface with a shadow under its whole width, since in some themes the page and the surface share a colour. */
+  /* Scrolled, the bar lifts off the page with a shadow, since in some themes the page and the surface share a colour. */
   &[data-scrolled] {
-    --toolbar-bg: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+    --toolbar-bg: color-mix(in srgb, var(--bg-surface) 75%, transparent);
 
     &::before {
-      box-shadow:
-        0 0 0 var(--bar-bleed) var(--toolbar-bg),
-        0 var(--space-1) var(--space-3) var(--bar-bleed)
-          color-mix(in srgb, var(--text) 10%, transparent);
+      box-shadow: var(--shadow);
     }
   }
 }
