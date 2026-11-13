@@ -55,6 +55,13 @@ the gateway has no checkout to detect it from.
   test still resolves at `{merge_sha}`; `since` is the commit of that
   earlier spec. Verification takes each settled line as present on its
   linked tests, so you need not assess it again.
+- **The sketches** of the plan are in the `sketches/` folder beside the
+  spec when it exists: `<mockupId>.html`, `.svg` or `.txt`, each a
+  screen or a printed output the plan approved. A ticket that builds a
+  screen or an output names its sketch file, by its path in the
+  repository, in `references` and in `changes`, so the implementation
+  loop finds the picture it must match. Mermaid sketches already sit
+  in the spec beside their requirement.
 
 Read the spec, then the tickets filed for it, before you write
 anything. Then emit JSON only. Write that JSON to `decomposition.json`
