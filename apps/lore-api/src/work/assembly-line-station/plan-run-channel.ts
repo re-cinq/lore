@@ -146,9 +146,16 @@ class PlanRunChannel implements PlanRunListener {
     return { receive: () => {}, close: () => this.close() };
   }
 
+  // Asked again once its turn comes: a resync queued before it may already have moved onto this run.
   started(run: AssemblyRunRecord): void {
-    if (run.id !== this.followed?.run.id) {
-      this.enqueue(async () => this.follow(await withFacts(run, this.deps)));
+    const isNew = () => run.id !== this.followed?.run.id;
+
+    if (isNew()) {
+      this.enqueue(async () => {
+        if (isNew()) {
+          this.follow(await withFacts(run, this.deps));
+        }
+      });
     }
   }
 
@@ -198,11 +205,17 @@ class PlanRunChannel implements PlanRunListener {
     }
   }
 
+  // A re-read the old run's visits asked for is moot: the switch reads the new run's facts itself.
   private leaveFeed(): void {
     this.generation += 1;
     this.caughtUp = false;
     this.membership?.leave();
     this.membership = null;
+
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   private sink(generation: number): FrameSink {
@@ -300,11 +313,6 @@ class PlanRunChannel implements PlanRunListener {
     this.closed = true;
     this.stopWatching();
     this.leaveFeed();
-
-    if (this.refreshTimer) {
-      clearTimeout(this.refreshTimer);
-      this.refreshTimer = null;
-    }
   }
 }
 

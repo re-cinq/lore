@@ -300,6 +300,39 @@ describe("openPlanRunChannel", () => {
     expect(s.feeds.joined.at(-1)?.runId).toBe(second);
   });
 
+  it("joins run-2's feed once when its start arrives after a resync already moved there", async () => {
+    const s = await setup();
+    const first = await s.start();
+
+    await s.open();
+    const second = await s.start();
+
+    s.watch.listeners[0].resync();
+    s.watch.listeners[0].started((await s.runs.getById(second))!);
+    await settled();
+
+    expect(s.feeds.joined.map(({ runId, left }) => ({ runId, left }))).toEqual([
+      { runId: first, left: true },
+      { runId: second, left: false },
+    ]);
+  });
+
+  it("drops run-1's pending re-read when the channel switches to run-2", async () => {
+    const s = await setup({ refreshMs: 30 });
+
+    await s.start({ pr_number: 7 });
+    await s.open();
+    const second = await s.start({ pr_number: 8 });
+    const { sink } = s.feeds.joined[0];
+
+    sink.send({ type: "catchup_complete", last_id: "0" });
+    sink.send(node("success"));
+    s.watch.listeners[0].started((await s.runs.getById(second))!);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(s.prReads).toEqual([7, 8]);
+  });
+
   it("closes with server when the floor's feed of starts is lost, and stops watching", async () => {
     const s = await setup();
 
