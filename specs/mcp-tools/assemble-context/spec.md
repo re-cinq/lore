@@ -125,7 +125,7 @@ stdio adapter still reads its checkout's git remote.
 
 *(added 2026-10-01, #2344)* An explicit `repo` must be an owner/name (letters, digits, dots, dashes, underscores, no `..`, one slash) or the tool answers "Invalid repo" before any API call, so a caller-supplied value can never reshape the API path it is interpolated into; this holds for every tool that takes `repo`. On a laptop outside a checkout the call is answered with "Could not detect repo" instead of proxying an empty repo.
 
-*(added 2026-10-11, #2344)* A pod has no checkout to name its repo from, so the brief that starts or resumes a planning run leads with `repo: "owner/name"` on its own line, the repo its prompt tells it to pass on every Lore call. ([validated by `leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore's tools` @fdf18173](apps/lore-api/src/work/plans/floor-plan-line.test.ts#L662))
+*(added 2026-10-11, #2344)* A pod has no checkout to name its repo from, so the brief that starts or resumes a planning run leads with `repo: "owner/name"` on its own line, the repo its prompt tells it to pass on every Lore call. ([validated by `leads the brief with repo: "re-cinq/lore", the repo the agent passes to Lore's tools` @fdf18173](apps/lore-api/src/work/plans/floor-plan-line.test.ts#L665))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
 a raw chunk fetch when it is absent.
