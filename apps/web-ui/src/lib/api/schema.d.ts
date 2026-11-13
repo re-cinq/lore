@@ -959,6 +959,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/inbox": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/inbox */
+    get: operations["get_api_inbox"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/inbox/items/{item_id}/state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/inbox/items/{item_id}/state */
+    put: operations["put_api_inbox_items_item_id_state"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/ingest": {
     parameters: {
       query?: never;
@@ -1240,6 +1274,23 @@ export interface paths {
     };
     /** GET /api/repos */
     get: operations["get_api_repos"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/available": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/available */
+    get: operations["get_api_repos_available"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1884,6 +1935,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/approve */
+    post: operations["post_api_repos_owner_repo_plans_id_approve"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/author-waiting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/author-waiting */
+    post: operations["post_api_repos_owner_repo_plans_id_author-waiting"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
     parameters: {
       query?: never;
@@ -1935,6 +2020,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/reopen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/reopen */
+    post: operations["post_api_repos_owner_repo_plans_id_reopen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/run-stream-token": {
     parameters: {
       query?: never;
@@ -1946,6 +2048,57 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/plans/{id}/run-stream-token */
     post: operations["post_api_repos_owner_repo_plans_id_run-stream-token"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/spec-rework": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/spec-rework */
+    post: operations["post_api_repos_owner_repo_plans_id_spec-rework"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/spec-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/spec-work */
+    post: operations["post_api_repos_owner_repo_plans_id_spec-work"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/validate */
+    post: operations["post_api_repos_owner_repo_plans_id_validate"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2528,26 +2681,6 @@ export interface paths {
     get: operations["get_api_task-stats"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task-turns/{taskId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * POST /api/task-turns/{taskId}
-     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
-     */
-    post: operations["post_api_task-turns_taskId"];
     delete?: never;
     options?: never;
     head?: never;
@@ -3243,6 +3376,11 @@ export interface components {
         blocked: string | null;
       }[];
     };
+    AvailableRepos: {
+      full_name: string;
+      owner: string;
+      name: string;
+    }[];
     BlobPreviews: {
       previews: {
         [key: string]: {
@@ -3933,6 +4071,28 @@ export interface components {
           | null;
         unblocks_count?: number;
       }[];
+    };
+    InboxItemStateSaved: {
+      /** @constant */
+      ok: true;
+    };
+    InboxPage: {
+      items: {
+        id: string;
+        /** @enum {string} */
+        kind:
+          "plan_review" | "spec_pr" | "triage" | "onboarding_pr" | "failed_run";
+        repo: string;
+        title: string;
+        detail?: string;
+        waiting_since: string;
+        open_url?: string | null;
+        state?: string;
+      }[];
+      counts: {
+        [key: string]: number;
+      };
+      next_cursor: string | null;
     };
     IncidentRecorded: {
       /** @constant */
@@ -4644,6 +4804,35 @@ export interface components {
     PipelineAnalytics: {
       [key: string]: unknown;
     };
+    PlanApproved: {
+      /** @constant */
+      schemaVersion: 1;
+      id: string;
+      repo: string;
+      /** @enum {string} */
+      type:
+        | "feature"
+        | "ui-change"
+        | "performance"
+        | "refactor"
+        | "incident-response";
+      templateVersion: number;
+      title: string;
+      /** @enum {string} */
+      status: "draft" | "in-review" | "approved" | "superseded";
+      approval: {
+        /** @enum {string} */
+        mode: "manual" | "automatic";
+        approvedBy: string;
+        /** Format: date-time */
+        approvedAt: string;
+        version: number;
+      } | null;
+      version: number;
+      createdBy: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
     PlanCollabToken: {
       token: string;
       documentName: string;
@@ -4665,13 +4854,54 @@ export interface components {
         updatedAt: string;
       }[];
     };
+    PlanOpenedForAuthor: {
+      reopened: boolean;
+    };
     PlanRefineAsked: {
       slot: string;
+    };
+    PlanReopened: {
+      /** @constant */
+      schemaVersion: 1;
+      id: string;
+      repo: string;
+      /** @enum {string} */
+      type:
+        | "feature"
+        | "ui-change"
+        | "performance"
+        | "refactor"
+        | "incident-response";
+      templateVersion: number;
+      title: string;
+      /** @enum {string} */
+      status: "draft" | "in-review" | "approved" | "superseded";
+      approval: {
+        /** @enum {string} */
+        mode: "manual" | "automatic";
+        approvedBy: string;
+        /** Format: date-time */
+        approvedAt: string;
+        version: number;
+      } | null;
+      version: number;
+      createdBy: string;
+      /** Format: date-time */
+      updatedAt: string;
     };
     PlanRunStreamToken: {
       token: string;
       /** Format: date-time */
       expires_at: string;
+    };
+    PlanSpecReworkStarted: {
+      run_id: string;
+    };
+    PlanSpecWorkStarted: {
+      task_id: string;
+    };
+    PlanValidateStarted: {
+      run_id: string;
     };
     PlatformLlmStatus: {
       degraded: boolean;
@@ -5896,10 +6126,6 @@ export interface components {
     TraceRead: {
       [key: string]: unknown;
     };
-    TurnsRelayed: {
-      forwarded: number;
-      skipped: number;
-    };
     UtopiaBackfillSummary: {
       commit: string;
       documents: number;
@@ -6297,6 +6523,28 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
+          skills?: string[] | null;
+          adjust_skill_models?: boolean | null;
         };
       };
     };
@@ -7863,6 +8111,66 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  get_api_inbox: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of inbox items aggregated from plan and onboarding sources */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InboxPage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  put_api_inbox_items_item_id_state: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          person: string;
+          handled?: boolean;
+          snoozed_until?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description The per-person inbox item state was saved */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InboxItemStateSaved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   post_api_ingest: {
     parameters: {
       query?: never;
@@ -8137,6 +8445,7 @@ export interface operations {
     parameters: {
       query: {
         q: string;
+        repo?: string;
       };
       header?: never;
       path?: never;
@@ -8400,6 +8709,30 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  get_api_repos_available: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description GitHub App repos not yet onboarded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AvailableRepos"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   get_api_repos_owner_repo: {
     parameters: {
       query?: never;
@@ -8488,6 +8821,28 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
+          skills?: string[] | null;
+          adjust_skill_models?: boolean | null;
         };
       };
     };
@@ -8572,6 +8927,28 @@ export interface operations {
               [key: string]: string;
             };
           } | null;
+          mcp_servers?:
+            | {
+                name: string;
+                /** @enum {string} */
+                transport: "stdio" | "http" | "sse";
+                command?: string;
+                args?: string[];
+                /** Format: uri */
+                url?: string;
+                headers_secret?: string;
+                headers?: {
+                  name: string;
+                  ref: string;
+                }[];
+                env?: {
+                  name: string;
+                  ref: string;
+                }[];
+              }[]
+            | null;
+          skills?: string[] | null;
+          adjust_skill_models?: boolean | null;
         };
       };
     };
@@ -9746,6 +10123,75 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  post_api_repos_owner_repo_plans_id_approve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          approvedBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The plan is approved and its planning line moves on to the spec work; refused while the planning agent is still writing it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanApproved"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_author-waiting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The planning line parked on the plan's author: an approved plan is reopened so its people can answer; any other plan is left as it is */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanOpenedForAuthor"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_repos_owner_repo_plans_id_collab-token": {
     parameters: {
       query?: never;
@@ -9804,7 +10250,6 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
-          storyIssue?: number;
         };
       };
     };
@@ -9847,7 +10292,6 @@ export interface operations {
           baseHash: string;
           inputs: unknown;
           uses: unknown;
-          storyIssue?: number;
         };
       };
     };
@@ -9859,6 +10303,44 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["PlanRefineAsked"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_reopen: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reopenedBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The approved plan is open for writing again; an open spec PR is sent back to the author */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanReopened"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -9906,6 +10388,120 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_spec-rework": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The spec writer runs again in the same line with the spec PR's unresolved review: the specs are amended on the PR's branch, and whatever contradicts the plan comes back to it as questions */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanSpecReworkStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_repos_owner_repo_plans_id_spec-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          createdBy: string;
+        };
+      };
+    };
+    responses: {
+      /** @description A fresh spec pass for an approved plan whose line is not running: after a failed pass, or to revise merged specs */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanSpecWorkStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_validate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Runs the plan validator over a draft plan parked on its author; findings land in the plan */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanValidateStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
@@ -10996,10 +11592,7 @@ export interface operations {
         "application/json": {
           action?: string;
           task_id?: string;
-          status?: string;
           priority?: string;
-          pr_url?: string;
-          error?: string;
         };
       };
     };
@@ -11133,38 +11726,6 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_task-turns_taskId": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        taskId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/x-ndjson": string;
-      };
-    };
-    responses: {
-      /** @description Turns accepted from a local runner */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TurnsRelayed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

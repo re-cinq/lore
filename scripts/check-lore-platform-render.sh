@@ -4,18 +4,18 @@
 # check for CI and local dev. Two renders:
 #   1. defaults      — the chart as checked out; every subchart must emit
 #                      resources (# Source: paths use chart NAMES, not dirs)
-#   2. deploy flags  — the exact flags scripts/ci/deploy-lore-platform.sh
+#   2. deploy flags  — the exact flags the old CI helm deploy
 #                      passes on every deploy (keep the two in sync): the
 #                      disabled lore-db ownership-reconciler must NOT render
 # Regenerate/inspect locally with:
 #
 #   helm template lore-platform \
-#     infra/terraform/modules/gke-mcp/lore-platform \
+#     deploy/chart \
 #     --namespace lore-floor --include-crds
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-chart="$repo/infra/terraform/modules/gke-mcp/lore-platform"
+chart="$repo/deploy/chart"
 
 echo "[lore] helm lint (umbrella + subcharts)"
 helm lint --with-subcharts "$chart"
@@ -49,7 +49,7 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 
-echo "[lore] helm template (deploy-lore-platform.sh flags)"
+echo "[lore] helm template (deploy flags)"
 deploy_out="$(helm template lore-platform "$chart" \
 	--namespace lore-floor --include-crds \
 	--set lore-db-helm.ownershipReconciler.enabled=false)"

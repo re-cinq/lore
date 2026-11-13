@@ -25,7 +25,7 @@ const LIST_PIPELINE_TASKS_INPUT = {
 export function registerListPipelineTasksTool(server: McpServer) {
   server.tool(
     "lore_list_pipeline_tasks",
-    "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.",
+    "Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_task_group for one feature's group.",
     LIST_PIPELINE_TASKS_INPUT,
     async (args) => {
       try {

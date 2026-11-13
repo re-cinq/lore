@@ -7,7 +7,7 @@ import { llmStatusRoute } from "./routes/platform/llm-status.js";
 import { distRoute } from "./routes/dist/dist.js";
 import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
-import { reposRoute } from "./routes/repos/repos.js";
+import { reposRoutes } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
@@ -39,7 +39,6 @@ import {
   taskLogsGetRoute,
   taskLogsPostRoute,
 } from "./routes/tasks/task-logs.js";
-import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
@@ -88,6 +87,7 @@ import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
 import { planRunStreamTokenRoute } from "./routes/plans/plan-run-stream-token.js";
+import { planLifecycleRoutes } from "./routes/plans/plan-lifecycle.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
@@ -119,6 +119,7 @@ import { storedRunHistoryOf } from "../work/floor/stored-run-history-pg.js";
 import { githubInstallationsRoute } from "./routes/github-installations/record-installation.js";
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 import { skillDefinitionsRoutes } from "./routes/skill-definitions/skills.js";
+import { inboxRoutes } from "./routes/inbox/inbox-routes.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -140,6 +141,7 @@ export function routeList(
     ...skillDefinitionsRoutes(getPool),
     ...analyticsRoutes(getPool),
     ...traceRoutes(getPool),
+    ...inboxRoutes(getPool),
   ];
 }
 
@@ -173,7 +175,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
-    reposRoute(getPool),
+    ...reposRoutes(getPool),
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
@@ -236,8 +238,8 @@ function backlogRoutes(
 ): ServerRoute[] {
   return [
     taskLogsPostRoute(),
-    taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),
+    ...planLifecycleRoutes({ ...plans, service: plans.service!, getPool }),
     ...implementationLoopRoutes(getPool),
     ...loopsRoutes(getPool),
     changelogRoute(getPool),

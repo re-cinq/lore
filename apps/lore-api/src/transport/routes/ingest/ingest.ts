@@ -60,6 +60,7 @@ async function serveIngest(
     const result = await ingestPosted(pool, request.payload as IngestBody);
 
     if (anyFileLanded(result.results)) {
+      await markIngested(pool, repo);
       // The store converges on the merge that changed the tree, so a rename's old path cannot outlive it. Merge-time ingest is the only ingestion path since #1880, which is why nothing was reconciling.
       void reconcileOrphanChunks(pool, repo, commit).catch((err) =>
         console.warn("[ingest] reconcile skipped:", errorMessage(err)),
@@ -72,6 +73,15 @@ async function serveIngest(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+function markIngested(pool: Pool, repo: string): Promise<void> {
+  return pool
+    .query(
+      "UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1",
+      [repo],
+    )
+    .then(() => undefined);
 }
 
 /** Docs among the posted files are mirrored to Utopia once stored, on a deployment that has one. */

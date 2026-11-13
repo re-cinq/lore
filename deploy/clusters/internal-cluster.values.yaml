@@ -1,0 +1,303 @@
+# re:cinq's internal cluster. Argo CD deploys the umbrella with these values
+# on every merge to main (re-cinq/infrastructure, docs/deploying.md). Image
+# tags under <subchart>.image.tag are bumped by the build workflows.
+
+platform:
+  gcpProject: re-cinq-internal
+  # Secrets live in re-cinq-internal's Secret Manager (re-cinq/infrastructure,
+  # projects/internal/secrets.tf), read through the default store.
+  secretStore: gcp-secret-manager
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx-ingress
+  namespaces: [lore-api, lore-floor, lore-ui, lore-db, lore-stations, lore-dgraph]
+  legacyWebhookHost: lore-webhook.gcp.re-cinq.com
+  database:
+    image: ghcr.io/cloudnative-pg/postgresql:16-bookworm
+    size: 50Gi
+    resources:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {cpu: "2", memory: 4Gi}
+    backupBucket: lore-db-backups-re-cinq-internal
+    backupServerName: lore-db-internal
+    backupRetention: 7d
+    backupSchedule: "0 0 2 * * *"
+    backupServiceAccount: lore-db-backup@re-cinq-internal.iam.gserviceaccount.com
+    # Migration from n8n-cluster: born from its lore-db primary with
+    # pg_basebackup, streaming as a replica until the cutover flips replica
+    # to false (deploy/README.md). Leave host set afterwards.
+    restore:
+      host: 104.155.23.201
+      replica: false
+  dgraph:
+    image: dgraph/standalone:v24.0.0
+    storageClass: standard-rwo
+    storageSize: 50Gi
+    resources:
+      requests: {cpu: "1", memory: 4Gi}
+      limits: {cpu: "4", memory: 16Gi}
+  ingresses:
+    - name: lore-api
+      namespace: lore-api
+      host: lore-api.gcp.re-cinq.com
+      service: lore-api
+      port: 3000
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    - name: lore-mcp
+      namespace: lore-api
+      host: lore-mcp.gcp.re-cinq.com
+      service: lore-mcp-gateway
+      port: 8080
+    - name: lore-ui
+      namespace: lore-ui
+      host: lore.gcp.re-cinq.com
+      service: lore-ui
+      port: 3000
+    # GitHub deliveries: the public path is rewritten onto lore-api's route so
+    # no repository's hook needs re-registering.
+    - name: lore-webhook
+      namespace: lore-api
+      host: lore-events.gcp.re-cinq.com
+      service: lore-api
+      port: 3000
+      path: /api/events
+      pathType: Exact
+      certificate: lore-webhook
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: 25m
+        nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github
+    - name: lore-floor-webhook-github
+      namespace: lore-floor
+      host: lore-webhook.gcp.re-cinq.com
+      service: lore-api-webhook
+      port: 3000
+      path: /api/webhook/github
+      pathType: Exact
+      tlsSecret: lore-floor-webhook-tls
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: 25m
+  # Secret Manager keys are named on the right; the Kubernetes Secret and its
+  # keys on the left. Values are never in git.
+  externalSecrets:
+    # lore-db
+    - name: lore-db-credentials
+      namespace: lore-db
+      template:
+        type: kubernetes.io/basic-auth
+        data: {username: lore, password: "{{ .password }}"}
+      keys: {password: lore-db-password}
+    # lore-api
+    - name: lore-anthropic-key
+      namespace: lore-api
+      keys: {anthropic-api-key: lore-anthropic-api-key, anthropic-admin-key: lore-anthropic-admin-api-key}
+    - name: github-app-credentials
+      namespace: lore-api
+      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id}
+    - name: lore-api-db-password
+      namespace: lore-api
+      keys: {password: lore-db-password}
+    - name: lore-ingest-token
+      namespace: lore-api
+      keys: {token: lore-ingest-token}
+    - name: lore-agent-internal-token
+      namespace: lore-api
+      keys: {token: lore-agent-internal-token}
+    - name: lore-webhook-secret
+      namespace: lore-api
+      keys: {secret: lore-webhook-secret}
+    - name: ghcr-pull-secret
+      namespace: lore-api
+      template:
+        type: kubernetes.io/dockerconfigjson
+        data: {.dockerconfigjson: "{{ .dockerconfigjson }}"}
+      keys: {dockerconfigjson: lore-ghcr-pull-secret}
+    - name: lore-slack-credentials
+      namespace: lore-api
+      keys: {signing-secret: lore-slack-signing-secret, bot-token: lore-slack-bot-token}
+    - name: lore-github-oauth
+      namespace: lore-api
+      keys: {client-id: lore-github-oauth-client-id, client-secret: lore-github-oauth-client-secret}
+    - name: floor-service-token
+      namespace: lore-api
+      keys: {token: lore-floor-service-token}
+    - name: floor-git-credential-token
+      namespace: lore-api
+      keys: {token: lore-floor-git-credential-token}
+    - name: utopia-token
+      namespace: lore-api
+      keys: {token: lore-utopia-lore-api-token}
+    # lore-ui
+    - name: github-app-credentials
+      namespace: lore-ui
+      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id}
+    - name: lore-db-password
+      namespace: lore-ui
+      keys: {password: lore-db-password}
+    - name: ghcr-pull-secret
+      namespace: lore-ui
+      template:
+        type: kubernetes.io/dockerconfigjson
+        data: {.dockerconfigjson: "{{ .dockerconfigjson }}"}
+      keys: {dockerconfigjson: lore-ghcr-pull-secret}
+    # lore-stations
+    - name: lore-stations-db-password
+      namespace: lore-stations
+      keys: {password: lore-db-password}
+    - name: lore-agent-internal-token
+      namespace: lore-stations
+      keys: {token: lore-agent-internal-token}
+    - name: lore-ingest-token
+      namespace: lore-stations
+      keys: {token: lore-ingest-token}
+    - name: lore-stations-github-app
+      namespace: lore-stations
+      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id}
+    - name: lore-stations-anthropic-key
+      namespace: lore-stations
+      keys: {anthropic-api-key: lore-anthropic-api-key, anthropic-admin-key: lore-anthropic-admin-api-key}
+    - name: lore-stations-slack
+      namespace: lore-stations
+      keys: {bot-token: lore-slack-bot-token}
+    - name: floor-service-token
+      namespace: lore-stations
+      keys: {token: lore-floor-service-token}
+    - name: lore-reviewer-app
+      namespace: lore-stations
+      keys: {app-id: lore-reviewer-app-id, private-key: lore-reviewer-app-private-key, installation-id: lore-reviewer-app-installation-id}
+    # The floor (re-cinq/floor, namespace floor) reads its tokens and its
+    # database password from here; its chart only takes existing Secrets.
+    - name: floor-api
+      namespace: floor
+      keys: {serviceToken: lore-floor-service-token, visitTokenSecret: floor-visit-token-secret, gitCredentialToken: lore-floor-git-credential-token}
+    - name: floor-postgres
+      namespace: floor
+      template:
+        data: {connectionString: "postgres://floor:{{ .password }}@lore-db-rw.lore-db.svc.cluster.local:5432/floor"}
+      keys: {password: floor-db-password}
+    - name: ghcr
+      namespace: floor
+      template:
+        type: kubernetes.io/dockerconfigjson
+        data: {.dockerconfigjson: "{{ .dockerconfigjson }}"}
+      keys: {dockerconfigjson: lore-ghcr-pull-secret}
+    # The floor's agent pods, in the ai-agent-subsystem's namespace: merged into
+    # the agent-secrets Secret the floor's cluster agent writes to. Each model
+    # family's credential sits under the key the agent reads by default; on
+    # n8n-cluster the two model keys were added by hand.
+    - name: floor-agent-secrets-lore-mcp
+      namespace: ai-agents
+      target: agent-secrets
+      creationPolicy: Merge
+      template:
+        engineVersion: v2
+        data:
+          lore-mcp-auth: "Bearer {{ .LORE_INGEST_TOKEN }}"
+          ANTHROPIC_API_KEY: "{{ .ANTHROPIC_API_KEY }}"
+          GEMINI_API_KEY: "{{ .GEMINI_API_KEY }}"
+      keys:
+        LORE_INGEST_TOKEN: lore-ingest-token
+        ANTHROPIC_API_KEY: lore-anthropic-api-key
+        GEMINI_API_KEY: lore-gemini-api-key
+        # ---- Lore API (lore-api namespace)
+  monitoring: {enabled: true}
+lore-api:
+  replicaCount: 1
+  gcpProject: re-cinq-internal
+  image:
+    repository: ghcr.io/re-cinq/lore-api
+    tag: "0a5f252"
+  env:
+    PORT: "3000"
+    CONTEXT_PATH: /context
+    LORE_TEAM: platform
+    GCP_PROJECT: re-cinq-internal
+    LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+    LORE_DB_PORT: "5432"
+    LORE_DB_NAME: lore
+    LORE_DB_USER: lore
+    LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+    # In-cluster: Dataplane V2 short-circuits the public VIP into the run-pod
+    # egress policy's except-list.
+    LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
+    LORE_WEBHOOK_URL: https://lore-events.gcp.re-cinq.com/api/events
+    LORE_API_URL: https://lore-api.gcp.re-cinq.com
+    LORE_UI_URL: https://lore.gcp.re-cinq.com
+    # GKE Autopilot general-purpose, europe-west1; /spend's estimate rates.
+    LORE_GKE_CPU_HOUR_USD: "0.0489"
+    LORE_GKE_MEM_GIB_HOUR_USD: "0.0054"
+    GITHUB_ORG: re-cinq
+  dbPasswordSecret: {name: lore-api-db-password, key: password}
+  ingestTokenSecret: {name: lore-ingest-token, key: token}
+  githubAppSecret:
+    name: github-app-credentials
+    appIdKey: app-id
+    privateKeyKey: private-key
+    installationIdKey: installation-id
+  webhookSecret: {name: lore-webhook-secret, key: secret}
+  internalTokenSecret: {name: lore-agent-internal-token, key: token}
+  githubOAuthSecret: {name: lore-github-oauth}
+  anthropicAdminKeySecret: {name: lore-anthropic-key, key: anthropic-admin-key}
+  floor:
+    enabled: true
+    skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+  utopia:
+    enabled: true
+    apiUrl: http://utopia.utopia.svc.cluster.local
+    tokenSecret: utopia-token
+    workspaceId: 01a1229e-f998-7f62-a694-8f3ea4f4dd25
+# ---- MCP gateway (lore-api namespace)
+lore-mcp-gateway:
+  image:
+    repository: ghcr.io/re-cinq/lore-mcp
+    tag: "0a5f252"
+# ---- Web UI (lore-ui namespace)
+lore-ui:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/re-cinq/lore-ui
+    tag: "5dbac24"
+  env:
+    LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+    LORE_DB_PORT: "5432"
+    LORE_DB_NAME: lore
+    LORE_DB_USER: lore
+    GITHUB_ALLOWED_ORG: ""
+    NEXTAUTH_URL: ""
+    GITHUB_APP_SLUG: lore-agent
+    LORE_LOG_BUCKET: lore-task-logs-re-cinq-internal
+    LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
+    LORE_API_PUBLIC_URL: https://lore-api.gcp.re-cinq.com
+    LORE_WS_URL: wss://lore-api.gcp.re-cinq.com/api/ws
+    HEADLAMP_URL: https://headlamp.gcp.re-cinq.com
+    GRAFANA_URL: https://grafana.gcp.re-cinq.com
+    UTOPIA_URL: https://utopia.gcp.re-cinq.com
+  dbPasswordSecret: {name: lore-db-password, key: password}
+  githubAppSecret: {name: github-app-credentials}
+  migrations: {enabled: true}
+# ---- lore-db ownership reconciler (lore-db namespace). Argo CD syncs as
+# cluster admin, so the hook that CI could not run now runs on every sync.
+lore-db-helm:
+  cluster: {name: lore-db}
+  ownershipReconciler: {enabled: true}
+# ---- Stations (lore-stations namespace)
+lore-stations:
+  image:
+    repository: ghcr.io/re-cinq/lore-stations
+    tag: "0a5f252"
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
+  env:
+    LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+    LORE_DB_PORT: "5432"
+    LORE_DB_NAME: lore
+    LORE_DB_USER: lore
+    PORT: "8080"
+    LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
+    LORE_UI_URL: https://lore.gcp.re-cinq.com
+    LORE_GCP_BILLING_PROJECT: re-cinq-internal
+    LORE_GCP_BILLING_DATASET: billing_export
+  anthropicAdminKeySecret: {name: lore-stations-anthropic-key, key: anthropic-admin-key}
+  floor: {enabled: true}

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   createPlan,
+  savePlanStory,
   seedPlan,
   startDrafting,
   type DraftingRequest,
@@ -14,6 +15,7 @@ import { getSession } from "@/lib/session";
 
 export interface CreatePlanState {
   error?: string;
+  planId?: string;
 }
 
 // The repo is bound on the server (NewPlanPage), never read from the form.
@@ -27,7 +29,8 @@ export async function createPlanAction(
   if ("error" in request) {
     return request;
   }
-  const created = await createSeededPlan(fullName, request);
+  // A retry carries the already-created plan ID; skip creation to avoid a duplicate.
+  const created = await createSeededPlan(fullName, request, _prev?.planId);
 
   if ("error" in created) {
     return created;
@@ -35,10 +38,68 @@ export async function createPlanAction(
   redirect(`/repos/${fullName}/plans/${created.id}`);
 }
 
-// The plan in lore-api, with what the author already knew written into its intent, and the planning agent asked for its first draft.
+// The plan in lore-api, with what the author already knew written into its intent and the story it named saved, and the planning agent asked for its first draft.
 async function createSeededPlan(
   fullName: string,
   { input, user }: { input: NewPlanInput; user: PlanUser },
+  existingPlanId?: string,
+): Promise<{ id: string } | { error: string; planId?: string }> {
+  const resolved = await planIdOf(fullName, input, user, existingPlanId);
+
+  if ("error" in resolved) {
+    return resolved;
+  }
+
+  return seedAndDraft(fullName, resolved.id, input, user);
+}
+
+async function seedAndDraft(
+  fullName: string,
+  id: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string; planId: string }> {
+  const setupError =
+    (await seedIntent(id, user.id, input.description)) ??
+    (await saveStory(id, user.id, input.storyIssue));
+
+  if (setupError !== null) {
+    return { error: failureOf(setupError), planId: id };
+  }
+  const request = draftingRequestOf(input, user);
+  const drafted = await startDrafting(fullName, id, request);
+
+  return drafted.status === "ok"
+    ? { id }
+    : { error: failureOf(drafted), planId: id };
+}
+
+// Resolves to an existing plan ID on retry, or creates a fresh plan.
+async function planIdOf(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+  existingPlanId?: string,
+): Promise<{ id: string } | { error: string }> {
+  if (existingPlanId) {
+    return { id: existingPlanId };
+  }
+
+  return freshPlanId(fullName, input, user);
+}
+
+async function freshPlanId(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string }> {
+  return planRecord(fullName, input, user);
+}
+
+async function planRecord(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
 ): Promise<{ id: string } | { error: string }> {
   const created = await createPlan({
     repo: fullName,
@@ -50,23 +111,17 @@ async function createSeededPlan(
   if (created.status !== "ok") {
     return { error: failureOf(created) };
   }
-  const { id } = created.data.meta;
 
-  await seedIntent(id, user.id, input.description);
-  await startDrafting(fullName, id, draftingRequestOf(input, user));
+  const { id } = created.data.meta;
 
   return { id };
 }
 
 function draftingRequestOf(
-  { description, storyIssue }: NewPlanInput,
+  { description }: NewPlanInput,
   user: PlanUser,
 ): DraftingRequest {
-  return {
-    known: description,
-    createdBy: user.id,
-    ...(storyIssue ? { storyIssue } : {}),
-  };
+  return { known: description, createdBy: user.id };
 }
 
 // A valid form from a signed-in person, or what is wrong with it.
@@ -89,16 +144,37 @@ async function seedIntent(
   planId: string,
   actor: string,
   description: string,
-): Promise<void> {
-  if (description) {
-    await seedPlan(planId, actor, [description]);
+): Promise<Exclude<ApiResult<unknown>, { status: "ok" }> | null> {
+  if (!description) {
+    return null;
   }
+  const result = await seedPlan(planId, actor, [description]);
+
+  return result.status !== "ok" ? result : null;
+}
+
+// The story the form named is saved on the plan before the draft, so the planning run starts with it.
+async function saveStory(
+  planId: string,
+  actor: string,
+  storyIssue: number | undefined,
+): Promise<Exclude<ApiResult<unknown>, { status: "ok" }> | null> {
+  if (storyIssue === undefined) {
+    return null;
+  }
+  const result = await savePlanStory(planId, storyIssue, actor);
+
+  return result.status !== "ok" ? result : null;
 }
 
 function failureOf(
   result: Exclude<ApiResult<unknown>, { status: "ok" }>,
 ): string {
-  return result.status === "unconfigured"
-    ? "The plans API is not configured (LORE_API_URL / token)."
-    : result.message;
+  if (result.status === "unconfigured") {
+    return "The plans API is not configured (LORE_API_URL / token).";
+  }
+
+  return (
+    (result.body as { message?: string } | undefined)?.message ?? result.message
+  );
 }

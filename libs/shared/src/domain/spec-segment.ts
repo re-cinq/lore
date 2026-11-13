@@ -20,6 +20,8 @@ export interface Statement {
   enclosingHeading: string | null;
   /** 1-based source line; optional for hand-built doubles in tests. */
   line?: number;
+  /** The bold label the statement's paragraph opens with, without its colon (`Why this priority` for `**Why this priority:** …`); every sentence of that paragraph carries it, so a rule about the label reaches them all. */
+  leadIn?: string;
 }
 
 export interface Classification {
@@ -122,6 +124,7 @@ class StatementAccumulator {
     }
     const para = this.paragraphLines.join(" ");
     const startLine = this.paragraphStartLine;
+    const leadIn = paragraphLeadIn(para);
 
     this.paragraphLines = [];
 
@@ -132,6 +135,7 @@ class StatementAccumulator {
         kind: "sentence",
         enclosingHeading: this.currentHeading,
         line: startLine,
+        ...(leadIn === undefined ? {} : { leadIn }),
       });
     }
   }
@@ -217,6 +221,13 @@ class StatementAccumulator {
   }
 }
 
+/** The bold label a paragraph opens with, without its colon, or undefined when it opens with anything else. */
+function paragraphLeadIn(paragraph: string): string | undefined {
+  const label = /^\s*\*\*([^*]+)\*\*/.exec(paragraph)?.[1];
+
+  return label?.replace(/:\s*$/, "").trim();
+}
+
 export function segmentStatements(content: string): Statement[] {
   const lines = content.split(/\r?\n/);
   const accumulator = new StatementAccumulator();
@@ -250,6 +261,18 @@ const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
     match: /rationale|why\b|alternatives?\s*(considered)?|consequences/i,
     category: "rationale",
   },
+  // Only a heading that is just Sources or References: "Context Sources" or "Source Files" can head requirements.
+  {
+    match:
+      /^(?:\d+(?:\.\d+)*[.)]?\s+)?(?:sources?|references?)(?:\s*(?:and|&)\s*(?:sources?|references?))?\s*$/i,
+    category: "background",
+  },
+];
+
+/** Spec-kit's user-story lead-ins, matched against the label a statement's paragraph opens with, so every sentence of the paragraph follows it. */
+const LEAD_IN_RULES: { match: RegExp; category: UntestableCategory }[] = [
+  { match: /^why this priority$/i, category: "rationale" },
+  { match: /^independent test$/i, category: "background" },
 ];
 
 /** Content rules: Decision/See ADR/See spec always untestable (narrow anchors). */
@@ -258,6 +281,12 @@ const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   {
     match: /^\s*\(?see\b[^.!?]*\b(adr|spec|section|fr|§)\b/i,
     category: "rationale",
+  },
+  // A statement that is only a bold label (`**Acceptance Scenarios:**`, `**Crash guard**`) heads the ones below it; bold that ends a sentence or names an RFC 2119 keyword is a requirement in bold, and stays.
+  {
+    match:
+      /^\s*\*\*(?![^*]*\b(?:MUST|SHALL|SHOULD|MAY|REQUIRED)\b)[^*.!?]{1,80}\*\*\s*:?\s*$/,
+    category: "background",
   },
 ];
 
@@ -286,15 +315,28 @@ export function classifyByHeuristic(
   statement: Statement,
   introOrdinals: Set<number>,
 ): Classification {
-  const heading = statement.enclosingHeading;
   const category = introOrdinals.has(statement.ordinal)
     ? "intro"
-    : (matchRuleCategory(CONTENT_RULES, statement.text) ??
-      (heading ? matchRuleCategory(SECTION_RULES, heading) : null));
+    : ruleCategory(statement);
 
   return category
     ? { testability: "untestable", category, matchedBySection: true }
     : { testability: "testable", category: null, matchedBySection: false };
+}
+
+/** The first rule a statement falls under: its own text, then the label its paragraph opens with, then its section's heading. */
+function ruleCategory({
+  text,
+  leadIn,
+  enclosingHeading,
+}: Statement): UntestableCategory | null {
+  return (
+    matchRuleCategory(CONTENT_RULES, text) ??
+    (leadIn === undefined ? null : matchRuleCategory(LEAD_IN_RULES, leadIn)) ??
+    (enclosingHeading
+      ? matchRuleCategory(SECTION_RULES, enclosingHeading)
+      : null)
+  );
 }
 
 function matchRuleCategory(

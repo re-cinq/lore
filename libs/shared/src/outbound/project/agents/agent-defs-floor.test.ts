@@ -168,6 +168,192 @@ describe("FloorAgentDefs", () => {
     ).toEqual({ test_policy: "none", pod_resources: podResources });
   });
 
+  it("sets the search MCP server inside the otto variant's config, keeping test_policy", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+    const mcpServers = [
+      { name: "search", transport: "http", url: "https://search.test/mcp" },
+    ];
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      { mcpServers, inheritedConfig: null },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", mcp_servers: mcpServers });
+  });
+
+  it("sets the skills cli-design inside the otto variant's config, keeping test_policy", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      { skills: ["cli-design"], inheritedConfig: null },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills: ["cli-design"] });
+  });
+
+  it("removes the org default's skills lore-context when the write is null, keeping test_policy", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": LOOP_TDD });
+
+    await defs.updateOrg(
+      "loop-tdd",
+      {},
+      { skills: null, inheritedConfig: null },
+    );
+
+    expect((await floor.get("loop-tdd"))?.body.settings.config).toEqual({
+      test_policy: "scoped",
+    });
+  });
+
+  it("keeps the org default's skills lore-context when the write names only mcp_servers", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": LOOP_TDD });
+
+    await defs.updateOrg(
+      "loop-tdd",
+      {},
+      { mcpServers: null, inheritedConfig: null },
+    );
+
+    expect((await floor.get("loop-tdd"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+      test_policy: "scoped",
+    });
+  });
+
+  it("sets skills_source https://skills.test with the skills cli-design when no layer has one", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        skills: ["cli-design"],
+        skillsSource: "https://skills.test",
+        inheritedConfig: null,
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({
+      test_policy: "none",
+      skills: ["cli-design"],
+      skills_source: "https://skills.test",
+    });
+  });
+
+  it("keeps the org's skills_source https://org.skills when otto adds cli-design", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        skills: ["cli-design"],
+        skillsSource: "https://skills.test",
+        inheritedConfig: { skills_source: "https://org.skills" },
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills: ["cli-design"] });
+  });
+
+  it("writes no skills_source when otto's skills are the empty list", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        skills: [],
+        skillsSource: "https://skills.test",
+        inheritedConfig: null,
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills: [] });
+  });
+
+  it("stores https://skills.test/verbatim on the org default when adjusting turns off", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": LOOP_TDD });
+
+    await defs.updateOrg(
+      "loop-tdd",
+      {},
+      {
+        adjustSkillModels: false,
+        skillsSource: "https://skills.test",
+        inheritedConfig: null,
+      },
+    );
+
+    expect((await floor.get("loop-tdd"))?.body.settings.config).toEqual({
+      skills: ["lore-context"],
+      test_policy: "scoped",
+      skills_source: "https://skills.test/verbatim",
+    });
+  });
+
+  it("stores https://org.skills on otto's variant when adjusting turns on over an org default of https://org.skills/verbatim", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        adjustSkillModels: true,
+        inheritedConfig: { skills_source: "https://org.skills/verbatim" },
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills_source: "https://org.skills" });
+  });
+
+  it("leaves skills_source https://org.skills/verbatim alone when the write names no adjusting", async () => {
+    const { floor, defs } = await floorWith({ "loop-tdd": ottoVariant });
+
+    await defs.update(
+      "re-cinq/otto",
+      "loop-tdd",
+      {},
+      {
+        skills: ["cli-design"],
+        inheritedConfig: { skills_source: "https://org.skills/verbatim" },
+      },
+    );
+
+    expect(
+      (await floor.get("loop-tdd"))?.body.variants?.["github.com/re-cinq/otto"]
+        .config,
+    ).toEqual({ test_policy: "none", skills: ["cli-design"] });
+  });
+
   it("creates a github.com/re-cinq/lore variant of loop-tdd with model claude-sonnet-4-6", async () => {
     const { defs } = await floorWith({ "loop-tdd": LOOP_TDD });
 

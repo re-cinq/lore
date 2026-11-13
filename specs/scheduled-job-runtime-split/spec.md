@@ -9,380 +9,220 @@
 | ADR      | [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md) |
 | Supersedes | Scheduling portion of `5-lore-agent` (Problem #5, FR-6, SC#2) |
 
-This runtime split runs Lore's periodic work under two profiles — sub-minute, hot-path, webhook-coupled jobs stay in the always-on agent's in-process scheduler while heavy, infrequent batch jobs move to isolated Kubernetes CronJobs — so each batch job gets its own resource limits, retries, timeouts, missed-run catch-up, and run history.
+Lore's periodic work is scheduled in two ways. The stations service emits a `cron.<job>.tick` event for every job that reads many rows or starts runs, and answers each tick with a sweep. A courier CronJob posts `POST /api/stations/<name>` for every job that is one data operation. No scheduled job has an image of its own, and nothing is scheduled inside lore-api.
 
 ## Problem Statement
 
-`Spec 5-lore-agent` deliberately consolidated all
-periodic work into a single in-process `node-cron` scheduler inside the
-always-on `lore-agent` process. Its Problem #5 framed "scattered scheduling
-across K8s CronJobs and MCP polling loops" as the defect; its Vision promised to
-"run all scheduled maintenance jobs from one place"; FR-6 defined the in-process
-scheduler; and Success Criterion #2 required the jobs run **"without K8s CronJob
-configuration."** That was the right call **for the 5 jobs that existed then**.
+A scheduled job needs three things: something that fires it on time, a place
+where its code runs, and a record that it ran. The first design gave every job
+all three in one process, and the second gave every heavy job a pod of its
+own. Both tied the place the code lives to the way the job is fired.
 
-The agent now registers **16** jobs (`agent/src/index.ts`), and they fall into
-two profiles the single in-process scheduler serves equally badly at the heavy
-end:
+Jobs differ by shape, not by cadence:
 
-- **Hot-path ticks** — `merge_check`, `approval_check` and `loretask_watcher`
-  run `*/1 * * * *`; `review_reactor` / `stale_task_check`
-  are frequent safety nets. These belong in-process: a pod-per-tick is pure
-  churn, and several are coupled to the agent's webhook trigger endpoints and
-  warm in-memory state (DB pool, Octokit client, prompt-cache break tracker).
-- **Heavy batch jobs** — `gap_detection`, `spec_drift`,
-  `spec_test_linker`, `eval_runner`, `context_core_builder`, `autoresearch`,
-  `memory_ttl`, `importance_decay`, `consolidation` run weekly/daily, are
-  LLM-cost-spiky and long, and share none of the warm state.
+- A job that needs an agent, a workspace or a pull request is a run of a line
+  on the external floor. Only its start is scheduled.
+- A job that is a query and a few writes runs beside the database, in the
+  stations service. It needs no pod and no line.
+- A job that is one data operation, started at a fixed hour, needs a timer and
+  nothing else.
 
-Running the heavy batch jobs in-process has concrete costs:
+## Background
 
-1. **Single-replica pin.** In-process crons double-fire on a second replica
-   (no leader election), so `lore-agent` is stuck at `replicas: 1` — no HA.
-2. **Missed-run catch-up is app-bespoke and single-pod-bound.** The scheduler
-   has a `checkMissedRuns()` that, *at startup*, re-runs a job whose last
-   `pipeline.job_runs` entry predates its previous scheduled tick — but it only
-   fires when the single agent pod comes back, and it is custom code rather than
-   a platform guarantee. K8s `startingDeadlineSeconds` provides the same
-   catch-up natively and independently of the agent's lifecycle.
-3. **No isolation.** A long LLM-heavy batch run shares CPU/memory with the
-   webhook hot path; a hang or memory spike degrades trigger handling.
-4. **No independent controls.** No per-job retry/backoff, timeout, concurrency
-   policy, resource limits, per-run pod logs, or run history.
-5. **No on-demand trigger.** Re-running a job today requires `kubectl exec`-ing
-   into the agent pod and invoking the compiled module by hand.
+This spec was written on 2026-06-02 for Lore's own Floor (`apps/floor`). The
+Floor ran sub-minute jobs in an in-process `node-cron` scheduler and ran heavy
+batch jobs as Kubernetes CronJob pods built from its own image, each started
+through a generic `job-runner` CLI. The runner recorded every run in
+`pipeline.job_runs` and stored the pod's output in GCS.
+
+Three amendments changed that design before it was removed:
+
+- 2026-07: the detection family (`gap_detection`, `spec_drift`,
+  `spec_coverage_validate`, `spec_coverage_backfill`) became assembly lines
+  started by `cron.<job>.tick` events.
+- 2026-08: the batch jobs were re-homed by shape. The single-operation jobs
+  became stations posted to by a courier CronJob.
+- 2026-09-08: `context_reindex` was retired. Ingestion is merge-time CI only.
+
+Lore's own Floor was deleted on 2026-10-02 (`specs/external-floor` FR16,
+ADR-049). The `job-runner` CLI, the per-job CronJob pods, the `floor-helm`
+chart and the detection family went with it. The jobs that are gone:
+
+| Job | What happened |
+|-----|---------------|
+| `eval_runner` | deleted 2026-10-02. It skipped every night because `promptfoo` was not in the image. Context evals are run from a developer machine (`scripts/context-evals/`), never on a schedule |
+| `context_core_builder` | deleted 2026-10-02. It promoted nothing. Migration 0101 dropped its tables |
+| `autoresearch` | deleted with the eval jobs it depended on |
+| `context_reindex` | retired 2026-09-08, no replacement |
+| `gap_detection` | deleted 2026-10-02 (`specs/external-floor` FR16.6). No replacement yet (#2333) |
+| `spec_drift`, `spec_coverage_validate`, `spec_coverage_backfill` | deleted 2026-10-02. The `spec-upkeep` line on the external floor fixes drift and adds links |
+| `approval_check` | deleted 2026-10-02 (`specs/external-floor` FR16.12) |
+| `stale_task_check`, `lease_reaper`, `assembly_line_reaper`, `agent_watcher_reconcile`, `loretask_watcher`, `review_reactor` | deleted with the Floor or before it. They served the Floor's own worker and walk |
+| `spec_task_executor` | deleted 2026-10-07 (`specs/external-floor` FR15.0). A plan's tasks are tickets of the implementation loop |
+
+ADR-019's amendment of 2026-11-13 holds the full list with the reason for each
+job.
 
 ## Solution
 
-A **hybrid runtime split**, recorded in [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md):
+One scheduler is left, and it lives in the stations service
+(`apps/stations/src/index.ts`, `startCronTicks`). It does no work itself. It
+inserts tick events into `pipeline.events`, and the stations service's own
+drain answers them.
 
-- **Keep in-process** (the agent's `node-cron` scheduler): sub-minute,
-  hot-path, and webhook-coupled jobs.
-- **Move heavy/infrequent batch jobs to Kubernetes CronJobs** — each runs in its
-  own pod via a generic `job-runner` CLI entrypoint on the existing agent image,
-  scheduled by templated Helm CronJob manifests.
-- **Signal the split structurally**: `agent/src/jobs/scheduled/` (in-process) vs
-  `agent/src/jobs/cron/` (K8s CronJob), each with a `README.md` stating the
-  runtime and container so the difference is obvious from the tree.
+- **Tick jobs.** `CRON_EMITTERS` (`libs/shared/src/work/scheduler/cron-emitters.ts`)
+  lists every tick with its schedule. A sweep under `apps/stations/src/work/`
+  declares the tick in its `manifest.ts` and runs when the tick is delivered.
+  A sweep either does the work itself or starts runs on the external floor.
+- **Courier jobs.** `courierJobs` in
+  `deploy/chart/charts/stations-helm/values.yaml` lists each single-operation
+  job with its schedule. Kubernetes fires a `curl` pod that posts
+  `POST /api/stations/<name>` and exits. The sweep runs in the stations
+  service.
 
-The structured split is the point: each batch job gets isolation, its own
-resource/retry/timeout/history controls, `startingDeadlineSeconds` catch-up,
-per-run pod logs, and a free `kubectl create job --from=cronjob/<name>` manual
-trigger — without disturbing the in-process jobs that genuinely benefit from the
-resident process.
-
-### Design decisions (locked)
+### Design decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Split axis | **Cadence + coupling**: sub-minute / hot-path / webhook-coupled → in-process; ≥hourly, heavy, independent → CronJob | Matches where the cost actually is; avoids pod-per-minute churn |
-| Runner | **One generic `job-runner` CLI** (`node dist/job-runner.js <jobName>`), reusing the `runner-cli.ts` pattern | One image, one dispatch table; no per-job entrypoint or image |
-| Image | **Reuse the agent image** (already baked `/app/dist`) | No new build; CronJob overrides `command`, Deployment unchanged |
-| Helm | **One templated `cronjob.yaml`** looping a `cronJobs` values list; env via a shared `_env.tpl` reused by the Deployment | DRY — CronJob and Deployment env can't drift |
-| CronJob policy | `concurrencyPolicy: Forbid`, `startingDeadlineSeconds`, `successfulJobsHistoryLimit`/`failedJobsHistoryLimit`, `restartPolicy: Never` + `backoffLimit` | Matches the old "jobs don't overlap" rule (5-lore-agent SC) and adds missed-run catch-up |
-| Pod resources | Mandatory `requests` + `limits` + `activeDeadlineSeconds` per CronJob; default in values, per-job overridable | Heavy LLM/embedding jobs must be bounded and time-capped; the agent's 512Mi is too small for some — no unbounded pods |
-| Folder reorg | `jobs/cron/` + `jobs/scheduled/`, each with a `README.md` | Structural, obvious signal of runtime/container per the request |
-| Cutover | Remove each migrated job's `registerJob` line in the **same release** that adds its CronJob | No window where a job runs twice or not at all |
+| Split axis | **Shape**: work with an agent, a workspace or a pull request is a line on the external floor; a query and a few writes is a stations sweep | The place the code lives no longer follows from how the job is fired (ADR-019, 2026-08 and 2026-11-13 amendments) |
+| Tick or courier | A sweep that other code also starts by event, or that runs more often than hourly, hangs off a tick. A single data operation at a fixed hour is a courier job | A tick is an event anything can emit. A courier job keeps its schedule, history and missed-run catch-up in Kubernetes |
+| Tick emitter | The stations service, one replica | It answers every tick, so it emits them too (`specs/external-floor` FR16) |
+| Tick dedupe | One event per job per minute slot, by `dedupe_key` | Two processes that both emit during a rollout produce one event |
+| Courier image | `curlimages/curl`, pinned by digest | The pod holds the org ingest token, and a tag can be repointed |
+| Courier policy | `concurrencyPolicy: Forbid`, `startingDeadlineSeconds`, bounded history, `restartPolicy: Never`, `backoffLimit: 2`, `activeDeadlineSeconds: 120`, fixed `requests` and `limits` | A wedged pod cannot start a second run, and no pod runs unbounded |
+| Run of the work | In the stations service, beside the database | A single statement needs no pod of its own |
 
 ### Job classification
 
-| Job | Schedule | Runtime | Folder |
-|-----|----------|---------|--------|
-| `eval_runner` | `0 3 * * *` | **deleted 2026-10-02** with Lore's own Floor; context evals are a nightly GitHub Actions job that asks lore-api (#2443) | — |
-| `context_core_builder` | `0 4 * * *` | **deleted 2026-10-02** with Lore's own Floor; the new evals keep no stored baseline (migration 0101 dropped its tables) | — |
-| `importance_decay` | `0 5 * * *` | **CronJob** | `cron/` |
-| `consolidation` | `30 5 * * *` | **CronJob** | `cron/` |
-| `autoresearch` | `0 6 * * 1` | **deleted** with the eval jobs it depended on | — |
-| `gap_detection` | `0 9 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
-| `spec_drift` | `0 10 * * 1` | **event-driven assembly line** (2026-07 amendment) | `jobs/detect/` |
-| `spec_test_linker` | `0 11 * * 1` | **event-driven assembly line** (2026-07 amendment; split into `spec_coverage_validate` daily + `spec_coverage_backfill` weekly by spec-test-coverage v3) | `jobs/detect/` |
-| `memory_ttl` | `0 * * * *` | **CronJob** | `cron/` |
-| `merge_check` | `*/1 * * * *` | in-process | `scheduled/` |
-| `approval_check` | `*/1 * * * *` | in-process | `scheduled/` |
-| `loretask_watcher` | `*/1 * * * *` | in-process | `scheduled/` |
-| `review_reactor` | `7 7-17 * * 1-5` | in-process (webhook safety net) | `scheduled/` |
-| `stale_task_check` | `17 * * * *` | in-process | `scheduled/` |
+Tick jobs. The stations service emits the tick and the named sweep answers it.
 
-#### 2026-07 amendment — detection family as event-driven assembly lines
+| Tick | Schedule (UTC) | Sweep | What the sweep does |
+|------|----------------|-------|---------------------|
+| `merge_check` | `*/1 * * * *` | `merge-check` | reads merged and closed pull requests and settles their tasks |
+| `pr_ready_check` | `*/2 * * * *` | `pr-ready-check` | answers the parked CI and merge waits of floor runs |
+| `issue_triage` | `*/2 * * * *` | `issue-triage-tick` | starts `issue-triage` runs on the external floor |
+| `implementation_loop` | `*/5 * * * *` | `loop-tick` | starts `implementation-loop` runs on the external floor |
+| `auto_merge` | `*/5 * * * *` | `auto-merge-tick` | starts `auto-merge` runs on the external floor |
+| `loop_reap` | `*/15 * * * *` | `loop-reap` | fails a loop task stuck running with no floor run |
+| `daily_digest` | `*/15 * * * *` | `digest-tick` | starts a `daily-digest` run per Slack channel that is due |
+| `events_prune` | `0 * * * *` | `bus-prune` | prunes handled deliveries and old agent telemetry |
+| `telemetry_prune` | `43 3 * * *` | `telemetry-prune` | 14-day reap of `agent_run_events` and `pod_log_chunks` |
+| `pr_blocked_reasons_prune` | `53 3 * * *` | `pr-blocked-reasons-prune` | 30-day purge of closed rows in `pipeline.pr_blocked_reasons` |
+| `utopia_backfill` | `30 2 * * 0` | `utopia-backfill-tick` | posts the Utopia backfill for every onboarded repo |
+| `webhook_ensure` | `0 3 * * 1` | `webhook-ensure-tick` | points every onboarded repo's webhook at Lore again |
+| `changelog` | `0 6 * * 1` | `changelog-tick` | starts a `weekly-changelog` run per onboarded repo |
+| `spec_upkeep` | `0 10 * * 1` | `spec-upkeep-tick` | starts a `spec-upkeep` run per onboarded repo |
 
-The detection family (`gap_detection`, `spec_drift`, `spec_coverage_validate`,
-`spec_coverage_backfill`) no longer runs as K8s CronJobs. Each job is an
-assembly-line definition with a deterministic `detect` node
-(`libs/assembly-lines/src/assembly-lines/*.yaml`); an in-process cron emitter
-inserts `cron.<job>.tick` at the same cadence, and the tick handler
-(`apps/floor/src/work/detect/fan-out.ts`) starts one per-repo assembly line via
-`assemblyLines().start()`. Runs are repo-less (no clone; the branch name is a
-lease key) and each writes a `pipeline.job_runs` row named `<job>:<repo>`.
-Rationale and controls mapping: ADR-019 amendment.
+Courier jobs. Kubernetes fires the post and the named sweep does the work.
 
-Manual trigger (replaces `kubectl create job` for these four):
-
-```sql
--- full fan-out
-INSERT INTO pipeline.events (event_name, source, params)
-VALUES ('cron.spec_drift.tick', 'cron', '{}');
--- single repo
-INSERT INTO pipeline.events (event_name, source, params)
-VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
-```
+| Job | Schedule (UTC) | Sweep | What the sweep does |
+|-----|----------------|-------|---------------------|
+| `memory_ttl` | `0 * * * *` | `memory-ttl` | expires memories whose TTL has passed |
+| `importance_decay` | `0 5 * * *` | `importance-decay` | scores and evicts memories past the per-agent cap, ages unretrieved facts |
+| `consolidation` | `30 5 * * *` | `consolidation` | asks a model for patterns in the last 7 days of facts, per repo |
+| `anthropic_cost_sync` | `0 7 * * *` | `anthropic-cost-sync` | imports the Anthropic daily cost report |
+| `gcp_cost_sync` | `0 8 * * *` | `gcp-cost-sync` | imports the GCP daily billing report |
 
 ## Architecture
 
 ```
-┌─ lore-agent Deployment (replicas: 1, always-on) ──────────────────┐
-│  node dist/index.js                                               │
-│   • HTTP: /healthz, /api/trigger/{review-reactor,auto-merge}      │
-│   • node-cron scheduler → jobs/scheduled/* (6 hot-path jobs)      │
-│   • warm state: DB pool, Octokit, prompt-cache tracker            │
+┌─ lore-stations Deployment (replicas: 1) ──────────────────────────┐
+│  scheduler (every 30 s)                                           │
+│   • for each CRON_EMITTERS entry that is due:                     │
+│       job_runs row → insert cron.<job>.tick → close the row       │
+│  drain                                                            │
+│   • claims cron.<job>.tick → runs the sweep that declares it      │
+│       sweep does the work, or starts runs on the external floor   │
+│  HTTP                                                             │
+│   • POST /api/stations/<name> → runs the sweep, answers a summary │
 └───────────────────────────────────────────────────────────────────┘
-
-┌─ Kubernetes CronJobs (one pod per run, isolated) ─────────────────┐
-│  CronJob spec-test-linker  →  node dist/job-runner.js spec_test_linker │
-│  CronJob spec-drift        →  node dist/job-runner.js spec_drift       │
-│  … 10 total, schedules from the table above                       │
-│   • same agent image, same env/secrets/SA (shared _env.tpl)       │
-│   • concurrencyPolicy: Forbid, startingDeadlineSeconds, history   │
-│   • job-runner.js: initPool() → dispatch[jobName]() → exit 0/1    │
+                     ▲
+┌─ Courier CronJobs (lore-stations-courier-<name>, curl) ───────────┐
+│  one per courierJobs entry: POST /api/stations/<name>, then exit  │
 └───────────────────────────────────────────────────────────────────┘
-                manual run: kubectl create job --from=cronjob/<name>
 ```
 
 ## Functional Requirements
 
-- **FR1 — Generic runner.** `agent/src/job-runner.ts` compiles to
-  `dist/job-runner.js`, takes a job name argv, calls `initPool()`, dispatches to
-  the matching batch-job function, logs its summary, and exits `0` on success or
-  non-zero on error. Unknown job name → non-zero with a clear message.
-- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it @24a33ecc](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts@60279ead`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L196))
-- **FR1a — Run tracking parity.** The runner records each run in
-  `pipeline.job_runs` exactly as the in-process scheduler's `runJob` does: insert
-  a `running` row on start, update to `completed` with `result_summary` (the
-  job's summary string) on success, or `failed` with `error` on exception. This
-  keeps CronJob runs visible in the web-ui `/analytics` view and preserves
-  history/observability parity with in-process jobs — without it, migrated jobs
-  silently disappear from run tracking. The runner's exit code follows the
-  outcome. (The k8s CronJob's `startingDeadlineSeconds` replaces the scheduler's
-  app-level `checkMissedRuns` catch-up for these jobs.)
-- **FR1b — Keep the run output.** `result_summary` is a one-line string; the
-  full run output must be retained, not left to ephemeral pod stdout. The runner
-  captures its stdout/stderr, redacts it, and persists it via the existing GCS
-  log-storage path (`agent/src/lib/log-storage.ts` — same bucket, redaction, and
-  CMEK encryption as task pod logs), under a job-run key
-  (`__job_runs__/<job_name>/<run_id>/output.log`). `pipeline.job_runs` gains a
-  `log_path` reference, and the output is retrievable in the UI / via MCP exactly
-  like task logs (`lore_get_task_logs` → a `lore_get_job_logs` sibling). This applies to
-  the CronJob path, where each pod's entire stdout is one job's output;
-  per-job-isolated capture for the shared in-process scheduler is noted as a
-  follow-up (see Limitations).
-- **FR2 — One CronJob per batch job.** Each of the 10 batch jobs has a K8s
-  CronJob with the schedule from the classification table, `concurrencyPolicy:
-  Forbid`, a `startingDeadlineSeconds`, and bounded job history.
-- **FR2a — Bounded resources + timeout (required).** Every CronJob pod sets
-  resource `requests` **and** `limits` (CPU + memory) and an
-  `activeDeadlineSeconds` wall-clock cap so a hung or runaway LLM-heavy run is
-  killed rather than consuming the node indefinitely. A default block lives in
-  `values.yaml`, **per-job overridable** (the LLM/embedding-heavy jobs get
-  higher memory/longer deadlines than the lightweight cleanups like
-  `memory_ttl`; `eval_runner` and `autoresearch` were the examples until they
-  were deleted on 2026-10-02). No CronJob ships
-  without explicit `limits` — the migration must not leave an unbounded pod on
-  the cluster. `backoffLimit` caps retries.
-- **FR3 — No env drift.** CronJob pods reuse the agent image and the *same*
-  environment, secrets, and `serviceAccountName` as the Deployment, sourced from
-  a shared Helm template (`_env.tpl`).
-- **FR4 — De-register migrated jobs.** The 10 migrated jobs are removed from the
-  in-process scheduler (`registerJob` lines deleted from `index.ts`) so they run
-  only as CronJobs.
-- **FR5 — In-process jobs unchanged.** The 6 remaining jobs keep their existing
-  in-process registration and behavior.
-- **FR6 — Structural reorg.** Batch jobs live in `agent/src/jobs/cron/`,
-  in-process jobs in `agent/src/jobs/scheduled/`; each folder has a `README.md`
-  stating its runtime and container. All importers updated; agent typechecks and
-  unit tests pass.
-- **FR7 — On-demand run.** Any batch job can be run ad hoc with
-  `kubectl create job --from=cronjob/<name>`, retiring the pod-exec workaround.
-- **FR8 — Atomic cutover.** Adding a job's CronJob and removing its `registerJob`
-  line ship in the same release, so no job ever runs both in-process and as a
-  CronJob, nor neither.
-
-- **FR8 — A courier CronJob starts a line; it does not run the job.** A scheduled
-  job that is not coordination work does not need to live in a coordinator. The
-  schedule stays in Kubernetes, the work moves into an assembly line, and the pod
-  between them carries one message and holds no business logic. This removes the
-  reason four batch jobs live in `apps/floor`: they were there because the Floor's
-  image was what the alarm launched, not because the Floor coordinates them.
-- **FR8.1 to FR8.3** *(retired 2026-10-02)*: `POST /api/assembly-runs`, the
-  endpoint a courier posted to start a line, is removed. No courier job ever
-  posted to it, and the engine that walked the run it queued is deleted. A
-  scheduled line is started on the external floor by a tick in the stations
-  service (`specs/external-floor` FR7.13, FR16.2); a courier posts a station
-  (FR9).
-
-- **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
-  assembly-line node types are a closed set (`agent`, `validate`, `gate`,
-  `retrospective`, `github_action`, `detect`, `ingest`,
-  `issues`, human stations) and none of them is "do a data operation". A
-  one-node line for a single `DELETE` would put a station pod and a Floor walk
-  between the alarm and one statement, so the courier posts
-  `POST /api/stations/<name>` instead and the station runs it next to the
-  database it writes. Work with steps still starts a line — only the courier's
-  path differs.
-
-  *(Amended 2026-08-25.)* That endpoint was `POST /api/maintenance/<job>` on
-  lore-api, which meant lore-api resolved the station registry and executed
-  another app's handlers to serve it. The stations service already answers
-  `POST /api/stations/<name>` for the very same modules, so the route was
-  redundant rather than misplaced: it is deleted, and the courier — and its
-  schedule — moved to the chart of the service that does the work.
-- **FR9.1 — The endpoint runs the job named in the path and returns its
-  summary.** `200` with `{ job, summary }`, the summary being the one-line
-  string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `stations.test.ts@cad8d2ea`](apps/stations/src/transport/routes/stations.test.ts#L98))
-- **FR9.2 — A failing job answers with a status and nothing else.** The
-  courier's only channel is an HTTP status, and a job's error can carry
-  connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran @a9f34a58](apps/stations/src/transport/routes/stations.test.ts#L101), [`stations.test.ts@ecc7f5c3`](apps/stations/src/transport/routes/stations.test.ts#L110))
-- **FR9.4 — Importance decay follows the same route.** Scoring memories against
-  the half-life model and evicting past the per-agent cap is scoring plus
-  database writes, so it runs in lore-api. Behaviour is carried over unchanged:
-  only the count above the cap is evicted, the highest-scoring memory survives,
-  an agent under the cap loses nothing, one `importance-decay` audit entry is
-  written per agent evicted from, and the summary names memories, facts and
-  stale transitions, reporting zero for each path with nothing to do. Ageing
-  facts to `stale` stays non-fatal — failing the run over it would leave a
-  completed eviction unreported. Memories are scored against one clock read
-  once for the whole batch, so two agents cannot rank the same memory
-  differently within a run. ([validated by `importance-decay.test.ts@03c0b955`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L37), [`importance-decay.test.ts@83ab60e8`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L49), [`importance-decay.test.ts@e7b81fee`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L59), [`importance-decay.test.ts@6ac50ca4`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L72), [`importance-decay.test.ts@4eff9618`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L84), [`importance-decay.test.ts@87e747a7`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L111), [`importance-decay.test.ts@a4e5d90c`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L132))
-- **FR9.5 — The Anthropic cost sync follows, credential and all.** Reading the
-  Anthropic org billing reports and upserting daily rows is an import, not
-  coordination, so it runs in lore-api; the `ANTHROPIC_ADMIN_KEY` secret
-  reference moves to that deployment with it and stays optional, so an unset key
-  makes the job report a skip rather than fail. ([validated by `anthropic-cost-sync.test.ts@71e31aa3`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10))
-- **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
-  `expireMemories()` call, and the CronJob pod built from the Floor's image that
-  ran them, are deleted; the schedule is unchanged. The registry in
-  `maintenance.ts` is where the remaining data jobs land as they follow.
-
-- **FR10 — The chart's job names and the dispatch map may not drift.** Every
-  `cronJobs[].job` in `floor-helm/values.yaml` MUST resolve in the runner's
-  dispatch map, and every dispatch entry MUST have a chart CronJob. Nothing tied
-  the two together, so they drifted in both directions at once: `autoresearch`
-  kept a weekly CronJob for months after its handler was gone — scheduling a pod
-  that pulled the image, requested bumped resources, and exited on
-  `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
-  simply never run and never say so. A scheduled failure and a silent no-op are
-  both worse than a build error.
+- **FR1: The stations service emits every tick.** At boot `startCronTicks` (`apps/stations/src/index.ts`) registers each `CRON_EMITTERS` entry with the scheduler from `createCronScheduler`, and the registered job inserts one `cron.<name>.tick` event with source `cron`. ([validated by inserts cron.merge_check.tick keyed on its minute, so a tick two processes emit is one event @bbcded20](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L149))
+- **FR1.1: A tick is one event per minute slot.** The event's `dedupe_key` is `cron:<name>:<minute>`, so a tick that two processes emit in the same minute is stored once. ([validated by inserts cron.merge_check.tick keyed on its minute, so a tick two processes emit is one event @bbcded20](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L149))
+- **FR1.2: The scheduler decides what is due from `pipeline.job_runs`.** A job is due when it has no recorded run, or when its last run started before its latest cron slot. A job whose last run is after that slot is left alone, which is how two processes take turns during a rollout. ([validated by leaves a job alone whose last recorded run is after its latest cron slot, which is how two processes take turns @932d8d7f](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L132))
+- **FR1.3: The scheduler catches up on start.** `start()` runs every job that is already due, then checks again every 30 seconds. A tick missed while the process was down is emitted once when it comes back.
+- **FR1.4: No tick is emitted for a job that is gone.** `CRON_EMITTERS` names no tick for the detection family, for the jobs only the old Floor answered, or for `spec_task_executor`. ([validated by names no tick for gap_detection, spec_drift, spec_coverage_backfill or spec_coverage_validate, whose lines only the old Floor walked @2982c8a8](libs/shared/src/work/scheduler/cron-emitters.test.ts#L5), [validated by names no tick that only the old Floor answered: stale_task_check, assembly_line_reaper, agent_watcher_reconcile, lease_reaper, llm_credit_probe @25e74173](libs/shared/src/work/scheduler/cron-emitters.test.ts#L22), [validated by names no tick for spec_task_executor, the second dispatcher the backlog implementation loop replaced @c8cd2a68](libs/shared/src/work/scheduler/cron-emitters.test.ts#L35))
+- **FR2: Every tick emit is a `pipeline.job_runs` row.** The scheduler inserts a `running` row named after the emitter, then closes it `completed` with the summary `emitted cron.<name>.tick`, or `failed` with the error. The row records that the tick was emitted, not that the sweep finished. ([validated by completes the run with the handler result on success @6c47b67f](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61), [validated by inserts a running row and returns the new run id @0d689710](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L23))
+- **FR2.1: A job_run is settled once.** `complete` and `fail` are guarded on `completed_at IS NULL`, so the first writer decides and a later writer changes nothing. ([validated by keeps the winner's completed verdict when a loser then fails it @24a33ecc](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts@60279ead`](libs/shared/src/outbound/project/job-runs/job-runs.test.ts#L196))
+- **FR2.2: Tick emits show on `/analytics`.** The web UI's job-runs table lists each row with its duration and result summary, and shows the error in place of the result for a failed run. ([validated by renders job runs with seconds duration, result summary and a logs view link @80ad95c5](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L265), [validated by renders a minutes duration and shows the error in place of the result when a job failed @7a203293](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L280))
+- **FR2.3: No scheduled run stores its output.** Nothing writes `pipeline.job_runs.log_path` any more: the runner that captured a pod's output is gone. A sweep's log lines are in the stations pod log, and the job-run page says that no `log_path` is recorded. ([validated by shows in-process message when no log_path is recorded and logs are null @3ebd798a](apps/web-ui/src/app/job-runs/[id]/JobRunView.test.tsx#L97))
+- **FR2.4: The output of older runs stays readable.** `GET /api/job-run-logs` on lore-api reads `__job_runs__/<job_name>/<run_id>/output.log` from the log bucket and answers empty and incomplete when the file does not exist. The `lore_get_job_logs` MCP tool reads that route. ([validated by returns the file content when it exists @527a67cb](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L51), [validated by returns empty and incomplete when the file does not exist @c85274d9](apps/lore-api/src/transport/routes/tasks/job-run-logs.test.ts#L44), [validated by returns the job output read from /api/job-run-logs for context_reindex run r1 @eabbc71b](apps/mcp-server/src/transport/tools/pipeline/get-job-logs.test.ts#L34))
+- **FR3: A tick is answered by the one sweep that declares it.** A sweep's `manifest.ts` names its tick in an `event` trigger. The stations service subscribes to every event name a manifest declares and maps a handler for each. ([validated by claims every event name a station's manifest declares @fc76fb42](apps/stations/src/events/subscriptions.test.ts#L7), [validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival @3f9a76a1](apps/stations/src/events/subscriptions.test.ts#L31), [validated by claims the merge-check and pr-ready-check ticks, so no other service has to start those sweeps @887e88f4](apps/stations/src/events/subscriptions.test.ts#L107))
+- **FR3.1: One event name belongs to one sweep.** Two sweeps never declare the same tick, so two do not race for it. ([validated by subscribes each event name to one station, so two do not race for it @f3be5513](apps/stations/src/work/registry.test.ts#L52))
+- **FR3.2: Every sweep folder is registered.** A folder under `apps/stations/src/work/` that is missing from the registry fails the registry test. ([validated by registers every station folder, so adding one and forgetting the barrel fails here @52f4daf8](apps/stations/src/work/registry.test.ts#L15))
+- **FR3.3: Every emitted tick has a sweep.** Each of the 14 `CRON_EMITTERS` entries is declared by one sweep's manifest, as the classification table lists.
+- **FR4: Work with steps is a run on the external floor, started by a tick sweep.** The sweep reads which repositories are due and calls the floor. It runs no agent and opens no pull request itself. `spec-upkeep-tick` is the example: it starts one `spec-upkeep` run per repository, keyed on the day. ([validated by starts one spec-upkeep run per repository, on that day's branch and keyed on the day @624e4d79](libs/shared/src/work/spec-upkeep/floor-spec-upkeep.test.ts#L49), [validated by still names cron.spec_upkeep.tick, the weekly line that replaced the drift and backfill fan-outs @23c8116b](libs/shared/src/work/scheduler/cron-emitters.test.ts#L18))
+- **FR4.1: A tick that names a repository runs for that repository only.** A `repo` in the tick's params restricts the spec-upkeep sweep to it. ([validated by starts only acme/gears when the tick names that repository @e6b8d934](libs/shared/src/work/spec-upkeep/floor-spec-upkeep.test.ts#L94))
+- **FR4.2: Without a floor a line-starting sweep starts nothing.** `runSpecUpkeepTick` answers a summary that says no external floor is configured.
+- **FR5: A courier CronJob posts a station. It does not run the job.** `templates/courier-cronjob.yaml` in `deploy/chart/charts/stations-helm` renders one CronJob per `courierJobs` entry, named `lore-stations-courier-<name>`. The pod runs `curl` once against the entry's `path` on the stations service and holds no business logic.
+- **FR5.1: Courier policy.** Every courier CronJob sets `concurrencyPolicy: Forbid`, `startingDeadlineSeconds` (300 by default), bounded job history, `restartPolicy: Never`, `backoffLimit: 2` and `activeDeadlineSeconds: 120`.
+- **FR5.2: Courier pods are bounded.** Every courier pod sets CPU and memory `requests` and `limits` (10m / 32Mi, 100m / 64Mi), runs as non-root with a read-only root filesystem and no capabilities, and mounts no service account token.
+- **FR5.3: The token never appears in argv.** The pod writes the bearer header from `LORE_INGEST_TOKEN` to a curl config file with a shell builtin, then runs `curl --config`.
+- **FR5.4: A slow sweep sets its own post time and retries.** An entry may set `maxTimeSeconds` (30 by default) and `retries` (3 by default). `consolidation` sets 110 seconds and 0 retries, because a retried post would store the same patterns twice.
+- **FR5.5: The chart renders in CI.** `scripts/check-charts.sh` lints and renders the stations chart with the fixture `infra/chart-ci-values/stations-helm.yaml`, which carries one courier entry with a body and one without.
+- **FR6: `POST /api/stations/<name>` runs the named sweep and returns its summary.** The answer is `200` with `{ job, summary }`, where `summary` is the sweep's one-line result. ([validated by runs the named station and returns the summary it reported @5dd32784](apps/stations/src/transport/routes/stations.test.ts#L30), [validated by includes the station name as 'job' in the 200 body, so a courier or operator can confirm which station ran @a9f34a58](apps/stations/src/transport/routes/stations.test.ts#L101))
+- **FR6.1: An unknown name is `404`.** A courier typo must not read as success. ([validated by refuses a name no station answers to, rather than 500-ing on undefined @b27d6454](apps/stations/src/transport/routes/stations.test.ts#L40))
+- **FR6.2: A caller with no bearer token is refused with `401`.** ([validated by refuses a caller with no bearer token @6e739045](apps/stations/src/transport/routes/stations.test.ts#L47))
+- **FR6.3: A failing sweep answers `500` and nothing else.** The courier's only channel is an HTTP status, and a job's error can carry connection strings and hostnames. The detail is logged in the stations service and never returned. ([`stations.test.ts@ecc7f5c3`](apps/stations/src/transport/routes/stations.test.ts#L110))
+- **FR6.4: A sweep does not run twice at once.** A post that arrives while the same sweep is running is refused with `409`. The latch is freed when the run ends, whether it succeeded or failed. ([validated by refuses a second concurrent run of the same station @1e50d84c](apps/stations/src/transport/routes/stations.test.ts#L56), [validated by frees the latch after a run so the next tick is not locked out forever @c2c50248](apps/stations/src/transport/routes/stations.test.ts#L81), [validated by frees the latch after a FAILED run, so one error does not wedge the station @7bf71029](apps/stations/src/transport/routes/stations.test.ts#L87))
+- **FR6.5: The request body is the sweep's params.** A JSON object body is handed to the sweep, and a post with no body hands it empty params. ([validated by hands the JSON body {repo: re-cinq/lore, weeks: 8} to the station as its params @67732d24](apps/stations/src/transport/routes/stations.test.ts#L131), [validated by hands empty params to the station when the request has no body @a0c6df70](apps/stations/src/transport/routes/stations.test.ts#L154))
+- **FR6.6: Only a sweep with an `http` trigger answers by URL.** The route's registry holds every sweep whose manifest declares `{ kind: "http" }` and no other. ([validated by answers to every station in the shared registry that declares an http trigger @4a2638e4](apps/stations/src/events/runner/service-stations.test.ts#L16), [validated by does not expose a station that declares no http trigger, so a node cannot be run by URL @eb1cc54b](apps/stations/src/events/runner/service-stations.test.ts#L26))
+- **FR6.7: A courier-posted run writes no `pipeline.job_runs` row.** Its record is the Kubernetes Job history and the stations pod log. The summary goes back in the HTTP answer only.
+- **FR7: On-demand run.** Any sweep with an `http` trigger can be run by posting `POST /api/stations/<name>` with the ingest token. A courier job can also be run with `kubectl create job --from=cronjob/lore-stations-courier-<name>`. A tick job can also be run by inserting its `cron.<job>.tick` event into `pipeline.events`.
+- **FR8: A courier job's schedule lives in the chart.** The sweep's manifest also carries the schedule as a `cron` trigger, for the reader. Nothing in the stations service fires on it, and nothing checks that the two agree. A manifest's schedule has five fields. ([validated by declares a cron schedule with five fields, so the emitter can read it @eaaf12b1](apps/stations/src/work/registry.test.ts#L41))
+- **FR9: `memory-ttl` expires memories whose `expires_at` has passed and reports the count.** ([validated by expires only memories whose expires_at has passed @a00664d5](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L367), [validated by runs a registry station against the host this process supplies @6da896f7](apps/stations/src/events/runner/service-stations.test.ts#L36))
+- **FR9.1: `importance-decay` evicts past the per-agent cap and ages facts.** Only the count above the cap is evicted, the highest-scoring memory survives, an agent under the cap loses nothing, one `importance-decay` audit entry is written per agent evicted from, and the summary names memories, facts and stale transitions, reporting zero for each path with nothing to do. Ageing facts to `stale` is non-fatal, so a completed eviction is still reported. ([validated by `importance-decay.test.ts@03c0b955`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L37), [`importance-decay.test.ts@83ab60e8`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L49), [`importance-decay.test.ts@e7b81fee`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L59), [`importance-decay.test.ts@6ac50ca4`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L72), [`importance-decay.test.ts@4eff9618`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L84), [`importance-decay.test.ts@87e747a7`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L111), [`importance-decay.test.ts@a4e5d90c`](apps/stations/src/work/importance-decay/importance-decay.test.ts#L132))
+- **FR9.2: A failed fact purge does not stop `importance-decay`.** Memories are still evicted and stale facts still transition when the purge of invalidated facts throws. ([validated by still evicts memories and transitions stale facts when the purge throws @903563e1](apps/stations/src/work/importance-decay/importance-decay.test.ts#L154))
+- **FR9.3: `anthropic-cost-sync` skips without its key.** `ANTHROPIC_ADMIN_KEY` is an optional secret reference on the stations deployment (`anthropicAdminKeySecret`). With the key unset the sweep reports a skip and does not fail. ([validated by `anthropic-cost-sync.test.ts@71e31aa3`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10))
+- **FR9.4: `gcp-cost-sync` skips without its billing settings.** With either of the two billing env vars unset the sweep reports a skip and does not fail. ([validated by returns a skip summary without throwing when the billing env is unset @5bf3b1ae](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L6), [validated by skips when only one of the two billing env vars is set @8e663bb4](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L12))
+- **FR9.5: `consolidation` skips when it has nothing to do.** It calls no model without `ANTHROPIC_API_KEY`, and it skips when the last 7 days hold fewer than 5 valid facts. ([validated by skips, calling no model, when no ANTHROPIC_API_KEY is set @2ec80f71](apps/stations/src/work/consolidation/consolidation.test.ts#L10), [validated by skips with 0 recent facts, 5 being the least worth consolidating @a1303d40](apps/stations/src/work/consolidation/consolidation.test.ts#L18))
+- **FR9.6: `consolidation` keeps only the model's `PATTERN:` lines.** Prose around them is dropped, a `NONE` reply yields nothing, and a pattern of 10 characters or fewer is dropped. ([validated by extracts PATTERN: prefixed lines and drops the prose around them @5a7f4b6a](apps/stations/src/work/consolidation/consolidation.test.ts#L28), [validated by returns nothing for a NONE reply, which carries no prefix @400635ce](apps/stations/src/work/consolidation/consolidation.test.ts#L42), [validated by keeps 11 characters and drops 10, the filter being length > 10 @fbc60b53](apps/stations/src/work/consolidation/consolidation.test.ts#L46))
 
 ## Acceptance Criteria
 
-1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes
-   the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
-   an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
-   null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-  
-
-1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
-   then `completed` (with `result_summary`) or `failed` (with `error`) — so a
-   CronJob run appears in the web-ui `/analytics` view identically to an
-   in-process run. `startJobRun` opens a `running` row and returns the run id, `completeJobRun`
-   stamps `completed` with the `result_summary`, and `failJobRun` stamps `failed` with the error.
-  
-
-1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
-   CMEK-encrypted) and retrievable via the UI / MCP, referenced by
-   `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. `jobRunLogKey` builds the
-   `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
-   the `log_path` when provided.
-
-1c. The in-process scheduler clears a job's in-flight marker on every failure
-   path: a rejected run start (`pipeline.job_runs` insert failure) is logged
-   without a phantom failure record and the job runs again on the next tick
-   instead of staying wedged for the process lifetime; a handler failure passes
-   its message to the run's failure and likewise leaves the job re-eligible; a
-   successful run completes with the handler result. Since 2026-10-02 the
-   scheduler is shared code run by the stations service (`specs/external-floor` FR16).
-   ([validated by runs the job again on the next tick after starting its run rejects @c5ed91a7](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail @92050202](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again @038eec62](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114), [validated by completes the run with the handler result on success @6c47b67f](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L61))
-
-2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
-   prior in-process schedules.
-3. CronJob pods carry the same env vars, secret refs, and service account as the
-   Deployment, rendered from the shared Helm env template (no duplicated literals).
-4. The 10 `registerJob` lines for migrated jobs are removed from `index.ts`; the
-   6 in-process registrations remain.
-5. CronJobs set `concurrencyPolicy: Forbid` and a `startingDeadlineSeconds`, so
-   runs never overlap and a tick missed during a brief outage still fires.
-5a. Every rendered CronJob has non-empty resource `requests` and `limits` plus an
-   `activeDeadlineSeconds`; none ship unbounded. Heavy jobs render with higher
-   memory/deadline than the lightweight cleanups, via per-job overrides.
-6. `agent/src/jobs/cron/` and `agent/src/jobs/scheduled/` exist, each with a
-   `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
-   pass after the move.
-7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release.
-
-9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
-   result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
-   `anthropic_cost_sync` returns a skip summary when `ANTHROPIC_ADMIN_KEY` is unset, and otherwise
-   parses the Admin cost/usage report: cents-string amount → dollars, 1h + 5m ephemeral
-   cache-creation buckets summed, cost joined to tokens per date+model. ([validated by `anthropic-cost-sync.test.ts@71e31aa3`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts@eef9a9a5`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts@9b93008f`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts@075d8caf`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts@b5b96229`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92))
-
-10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
-   `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the
-   overlap-guard key), the handler pre-creates a `pipeline.job_runs` row (`<job_ref>:<repo>`) and
-   starts one line per target repo with that branch + `args.job_run_id`, restricts to `params.repo`
-   without enumerating when a single repo is given, starts nothing when there are no target repos, and
-   fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. The spec-scoped
-   target lists (`activeSpecRepos`/`specRepos`) enumerate repos across every provisioned chunk schema
-   (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
-   `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
-   UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. *(Removed 2026-10-02: the fan-out and its four ticks are gone, `specs/external-floor` FR16.6. Kept as the record of what ran.)*
-
-11. `context_reindex` was retired on 2026-09-08 (ADR-019 amendment): the CronJob, the job
-   code, its verification / chunker-heal / never-ingested-backfill sweeps and the stale-content
-   gap they fed are gone; ingestion is merge-time CI only. What survives is legacy relocation
-   (issue #979, FR-20.21 in `specs/1-lore-platform/spec.md`), now driven by the
-   `internal.repo.team_changed` handler rather than a nightly pass: any rows a team-resolved repo
-   still holds in `org_shared.chunks` move into its resolved schema, and a relocation targeting
-   `org_shared` itself is refused ([validated by `chunks.test.ts@a5f32c65`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts@c13bc53d`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L667), [`chunks.test.ts@3a76936a`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L678))
+1. The scheduler clears a job's in-flight marker on every failure path. A rejected run start (a `pipeline.job_runs` insert failure) is logged with no failure record, and the job runs again on the next check. A handler failure passes its message to the run's failure and leaves the job due again. ([validated by runs the job again on the next tick after starting its run rejects @c5ed91a7](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L76), [validated by records no failure when starting the run itself rejects, since there is no row to fail @92050202](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L100), [validated by fails the run with the handler's error and leaves the job due again @038eec62](libs/shared/src/work/scheduler/cron-scheduler.test.ts#L114))
+2. Five courier CronJobs render from `courierJobs`, one per courier job in the classification table, with the schedules listed there.
+3. Fourteen ticks are emitted, one per tick job in the classification table, with the schedules listed there. ([validated by schedules webhook_ensure weekly on Monday at 03:00 UTC @53052053](libs/shared/src/work/scheduler/cron-emitters.test.ts#L39), [validated by schedules utopia_backfill weekly on Sunday at 02:30 UTC @8c20fe8f](libs/shared/src/work/scheduler/cron-emitters.test.ts#L45))
+4. The Anthropic cost sync parses the Admin cost and usage reports: the cents-string amount becomes dollars, the 1h and 5m ephemeral cache-creation buckets are summed, and cost is joined to tokens per date and model. ([validated by `anthropic-cost.test.ts@eef9a9a5`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts@9b93008f`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts@075d8caf`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L73), [`anthropic-cost.test.ts@b5b96229`](apps/stations/src/work/anthropic-cost-sync/anthropic-cost.test.ts#L92))
+5. What survives of `context_reindex` is legacy relocation (issue #979, FR-20.21 in `specs/1-lore-platform/spec.md`), driven by the `internal.repo.team_changed` handler in the stations service: any rows a team-resolved repo still holds in `org_shared.chunks` move into its resolved schema, and a relocation that targets `org_shared` itself is refused. ([validated by `chunks.test.ts@a5f32c65`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L604), [`chunks.test.ts@c13bc53d`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L667), [`chunks.test.ts@3a76936a`](libs/shared/src/outbound/project/chunks/chunks.test.ts#L678), [validated by moves re-cinq/lore's legacy org_shared rows into platform, the schema its team resolves to @eba11ff8](apps/stations/src/events/team-changed.test.ts#L26), [validated by relocates nothing for a repository whose team resolves to org_shared @05f119f7](apps/stations/src/events/team-changed.test.ts#L37))
 
 ## File Changes
 
-| File | Change |
-|------|--------|
-| `agent/src/job-runner.ts` | New: CLI entrypoint + dispatch table for the 10 batch jobs; records `pipeline.job_runs` + persists output to GCS |
-| `agent/src/lib/job-run.ts` | New: shared run bookkeeping (`pipeline.job_runs` insert/update) extracted from `scheduler.ts`, reused by the runner |
-| `agent/src/lib/log-storage.ts` | Add `writeJobRunLogs`/`readJobRunLogs` (job-run-keyed) alongside the task-log helpers |
-| `terraform/modules/gke-mcp/ui-helm/migrations/NNNN_job_runs_log_path.sql` | New: `ALTER TABLE pipeline.job_runs ADD COLUMN log_path TEXT` (idempotent) |
-| `mcp-server` + `web-ui` | `lore_get_job_logs` MCP tool + a job-run log view (mirrors `lore_get_task_logs` / `TaskLogs.tsx`); `/analytics` job_runs rows link to the output |
-| `agent/src/jobs/cron/*.ts` | Moved: the 10 batch jobs (+ `spec-drift-rules.ts`, test files); import depth fixed |
-| `agent/src/jobs/cron/README.md` | New: "each file runs as its own K8s CronJob pod (separate container)" |
-| `agent/src/jobs/scheduled/*.ts` | Moved: the 6 in-process jobs; import depth fixed |
-| `agent/src/jobs/scheduled/README.md` | New: "runs in-process inside the lore-agent container via node-cron" |
-| `agent/src/index.ts` | Remove 10 `registerJob` + imports; repoint the 6 in-process imports to `scheduled/` |
-| `agent/src/health.ts` | Repoint `review-reactor` import to `scheduled/` |
-| `agent/Dockerfile` | No change — `dist/job-runner.js` is baked with the rest of `dist/` |
-| `terraform/modules/gke-mcp/agent-helm/templates/_env.tpl` | New: shared env block (define) |
-| `terraform/modules/gke-mcp/agent-helm/templates/deployment.yaml` | Use the shared `_env.tpl` |
-| `terraform/modules/gke-mcp/agent-helm/templates/cronjob.yaml` | New: templated CronJob per `cronJobs` values entry |
-| `terraform/modules/gke-mcp/agent-helm/values.yaml` | New `cronJobs` list (name, schedule, job) + CronJob defaults |
+Where the scheduling code lives today.
+
+| File | Role |
+|------|------|
+| `libs/shared/src/work/scheduler/cron-emitters.ts` | `CRON_EMITTERS`: every tick with its schedule |
+| `libs/shared/src/work/scheduler/cron-scheduler.ts` | `createCronScheduler` (due check, run tracking) and `registerCronEmitters` (tick insert) |
+| `libs/shared/src/outbound/project/job-runs/` | `JobRunsPort` with its Postgres adapter and in-memory double |
+| `apps/stations/src/index.ts` | `startCronTicks`: wires the scheduler to the event reporter at boot |
+| `apps/stations/src/work/<sweep>/manifest.ts` | a sweep's name and triggers (`event`, `cron`, `http`) |
+| `apps/stations/src/work/registry.ts` | every sweep, by name |
+| `apps/stations/src/events/subscriptions.ts` | the event names the service claims, derived from the manifests |
+| `apps/stations/src/transport/routes/stations.ts` | `POST /api/stations/{name}` |
+| `deploy/chart/charts/stations-helm/values.yaml` | `courierJobs` and the courier image |
+| `deploy/chart/charts/stations-helm/templates/courier-cronjob.yaml` | one CronJob per `courierJobs` entry |
+| `infra/chart-ci-values/stations-helm.yaml` | the CI fixture `scripts/check-charts.sh` renders |
 
 ## Limitations & Open Questions
 
-1. **HA is not unlocked by this change.** The 6 remaining in-process crons still
-   double-fire on a second replica, so `lore-agent` stays `replicas: 1`.
-   Leader election (or moving the watchers to a leader-elected controller) is a
-   separate, larger effort — out of scope here.
-2. **Borderline jobs stay in-process.** `review_reactor` (the webhook safety net)
-   and `stale_task_check` are left in-process for now; revisit if they grow heavy.
-3. **Cold-start cache loss.** CronJob pods don't share the agent's in-memory
-   prompt-cache break tracker, so the first LLM call each run is a cache write.
-   Acceptable at weekly/daily cadence; noted for cost accounting.
-4. **In-process output capture.** Full-output retention (FR1b) is clean for
-   CronJobs (one job per pod = one stdout). Capturing per-job-isolated output
-   inside the shared in-process scheduler — where multiple jobs and the webhook
-   handlers interleave on one stdout — needs per-handler stream interception and
-   is racy; left as a follow-up. In-process runs keep `result_summary`/`error`
-   in `job_runs` plus the agent pod log in Cloud Logging.
-5. **Schedule source of truth.** Schedules now live in `values.yaml` rather than
-   `index.ts`. The classification table here is the reference; keep them in sync.
+1. **The stations service runs one replica.** Each sweep's latch against a
+   second concurrent run is per process, so a second replica would not share
+   it. The tick emitter itself is safe on two processes (FR1.1, FR1.2).
+2. **A courier run has no row.** A courier-posted sweep leaves no
+   `pipeline.job_runs` row, so `/analytics` shows tick emits only. Should a
+   courier run be recorded there?
+3. **A tick's row is not the sweep's result.** The row closes when the event is
+   inserted. A sweep that fails afterwards is retried and dead-lettered by the
+   event bus, and the hourly `bus-prune` sweep reports dead letters.
+4. **Two places hold a courier job's schedule.** The chart fires on its own
+   value and the manifest's `cron` trigger is not read. Should one be derived
+   from the other, or checked against it?
+5. **Gap detection has no replacement yet** (#2333).

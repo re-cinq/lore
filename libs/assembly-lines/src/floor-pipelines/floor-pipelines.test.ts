@@ -125,7 +125,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks spec-tickets from load-tickets through decompose and issues to issue-coverage and done, keyed on the run key", () => {
+  it("walks spec-tickets from load-tickets through decompose, verify-implementation and issues to issue-coverage and done, keyed on the run key", () => {
     const { line } = pipelineOf("spec-tickets");
     const forward = line.edges
       .filter((edge) => edge.on === "success")
@@ -174,6 +174,45 @@ describe("the floor pipelines shipped in this folder", () => {
         kind: "file",
         path: "existing-tickets.json",
       },
+    });
+  });
+
+  it("hands the lines spec-tickets-load settles at the merge to decompose as a file its prompt names, and to verify, both optional", () => {
+    const { stations } = pipelineOf("spec-tickets");
+    const load = stations["spec-tickets-load"];
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      merge: needOf(load, "merge_sha"),
+      listed: load.produces,
+      decompose: needOf(
+        stations["spec-tickets-decompose"],
+        "settled_statements",
+      ),
+      verify: needOf(stations["spec-tickets-verify"], "settled_statements"),
+      named: prompt.includes("/workspace/settled-statements.json"),
+    }).toEqual({
+      merge: { name: "merge_sha", kind: "value" },
+      listed: [
+        {
+          name: "existing_tickets",
+          kind: "file",
+          path: "existing-tickets.json",
+        },
+        {
+          name: "settled_statements",
+          kind: "file",
+          path: "settled-statements.json",
+        },
+      ],
+      decompose: {
+        name: "settled_statements",
+        kind: "file",
+        path: "settled-statements.json",
+        optional: true,
+      },
+      verify: { name: "settled_statements", kind: "file", optional: true },
+      named: true,
     });
   });
 
@@ -1081,7 +1120,7 @@ describe("the feature-planning pipeline", () => {
     });
   });
 
-  it("retries every failed planning agent once before the run fails, and no service station", () => {
+  it("retries every failed planning agent but the write branches once before the run fails, and no service station", () => {
     const { line } = pipelineOf("feature-planning");
     const retried = line.edges
       .filter((edge) => edge.on === "failed" && edge.from === edge.to)
@@ -1095,7 +1134,6 @@ describe("the feature-planning pipeline", () => {
       "qa-generate:1",
       "qa-recheck:1",
       "rework:1",
-      "write:1",
     ]);
   });
 
@@ -1121,14 +1159,14 @@ describe("the feature-planning pipeline", () => {
       ],
       fromWrite: [
         { from: "write", to: "assemble", on: "success" },
-        { from: "write", to: "write", on: "failed", iteration_max: 1 },
+        { from: "write", to: "assemble", on: "failed" },
       ],
       fromAssemble: [
         {
           from: "assemble",
           to: "split-sections",
           on: "retry",
-          iteration_max: 2,
+          iteration_max: 5,
         },
         { from: "assemble", to: "qa-answer", on: "success" },
         { from: "assemble", to: "failed", on: "failed" },
@@ -1255,7 +1293,7 @@ describe("the feature-planning pipeline", () => {
       body: "spec-write",
       intoSplit: [
         "draft:success:-",
-        "assemble:retry:2",
+        "assemble:retry:5",
         "qa-gate:changes_requested:5",
       ],
     });
@@ -2094,5 +2132,18 @@ it("routes rejected implementation evidence back three times and gives filing an
     filing: { name: "verified_decomposition" },
     coverage: { name: "verified_decomposition" },
     summary: [{ name: "ticketing_result", kind: "file" }],
+  });
+});
+
+it("sends a write pod that failed to the assemble join, and never back to write, whose retried visit would have no item", () => {
+  const { line } = pipelineOf("feature-planning");
+  const fromWrite = edgesOn(line, "write");
+
+  expect({
+    onFailed: fromWrite.filter((edge) => edge.on === "failed"),
+    intoWrite: line.edges.filter((edge) => edge.to === "write"),
+  }).toEqual({
+    onFailed: [{ from: "write", to: "assemble", on: "failed" }],
+    intoWrite: [{ from: "split-sections", to: "write", on: "success" }],
   });
 });

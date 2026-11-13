@@ -1,0 +1,42 @@
+# Lore platform umbrella — values are nested under each subchart's chart name.
+#
+# Runtime config (env, secret refs) and image tags come from the cluster's
+# values file, deploy/clusters/<cluster>.values.yaml, which Argo CD applies on
+# every merge; the build workflows bump the image tags in it.
+#
+# The defaults that matter for standalone rendering (namespaces, image repos,
+# replica counts, resources, default env) live in each subchart's own
+# values.yaml under charts/. This file only documents the structure and pins
+# the per-subchart namespaces so the umbrella's multi-namespace layout is
+# explicit at the top level.
+
+lore-api:
+  namespace: lore-api
+
+lore-ui:
+  namespace: lore-ui
+
+lore-db-helm:
+  namespace: lore-db
+
+# Platform objects the applications need on a cluster: namespaces, secrets,
+# ingresses, the database and the graph store. Empty by default; a cluster's
+# file under ../clusters/ fills them. database and dgraph render only when set.
+platform:
+  gcpProject: ""
+  secretStore: gcp-secret-manager
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx-ingress
+  namespaces: []
+  legacyWebhookHost: ""
+  externalSecrets: []
+  ingresses: []
+  # database.restore.host: another CNPG primary to be born from, as its
+  # streaming_replica user with the TLS client certificate in secrets
+  # legacy-db-replication (tls.crt, tls.key) and legacy-db-ca (ca.crt) in
+  # the lore-db namespace. replica keeps streaming until set to false.
+  database: null
+  dgraph: null
+  # ServiceMonitors and Grafana dashboards, for a cluster that runs the
+  # Prometheus operator (re-cinq/infrastructure, docs/deploying.md).
+  monitoring: { enabled: false }

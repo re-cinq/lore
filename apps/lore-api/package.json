@@ -2,6 +2,7 @@
   "name": "@re-cinq/lore-api",
   "version": "0.1.0",
   "description": "Lore API — HTTPS REST backend serving org context, ingest, tasks, and webhooks",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

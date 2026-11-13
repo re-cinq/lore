@@ -17,6 +17,7 @@ const MERGE: SpecMerge = {
   merged: true,
   baseRef: "main",
   mergeCommitSha: "abc123",
+  branch: "feature/widgets",
 };
 
 const IN_PROGRESS = "| Status | In Progress |\n\nA statement.";
@@ -371,3 +372,33 @@ function patchOf(before: string, after: string): string {
     `+- **FR1**: ${after}`,
   ].join("\n");
 }
+
+describe("startSpecTicketRuns on a spec merged from a plan's branch", () => {
+  it("starts the run with source plan p1 for a spec merged from lore/feature-planning/p1", async () => {
+    const { deps, started } = scene({ "specs/a/spec.md": IN_PROGRESS });
+
+    await startSpecTicketRuns(
+      { ...MERGE, branch: "lore/feature-planning/p1" },
+      deps,
+    );
+
+    expect(started().map((request) => request.body)).toMatchObject([
+      { startItems: { source_plan_id: { kind: "value", ref: "p1" } } },
+    ]);
+  });
+
+  it("starts the run with no source plan for a spec merged from a person's branch", async () => {
+    const { deps, started } = scene({ "specs/a/spec.md": IN_PROGRESS });
+
+    await startSpecTicketRuns(MERGE, deps);
+
+    const { startItems } = started()[0]?.body as { startItems: object };
+
+    expect(Object.keys(startItems)).toEqual([
+      "target",
+      "spec_path",
+      "merge_sha",
+      "key",
+    ]);
+  });
+});

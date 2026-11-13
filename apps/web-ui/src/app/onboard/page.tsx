@@ -1,5 +1,9 @@
 export const dynamic = "force-dynamic";
-import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
+import {
+  listAllRepos,
+  listAvailableRepos,
+  reposOrThrow,
+} from "@/lib/api/repos";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
@@ -9,12 +13,22 @@ import OnboardView, { type OnboardState } from "./OnboardView";
 const REPO_SLUG = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 
 export default async function OnboardPage() {
-  const repoList = reposOrThrow(await listAllRepos());
-  const onboarded = repoList.repos.map((repo) => ({
+  const [repos, availableResult] = await Promise.all([
+    listAllRepos(),
+    listAvailableRepos(),
+  ]);
+  const onboarded = reposOrThrow(repos).repos.map((repo) => ({
     full_name: repo.full_name,
   }));
+  const available = availableResult.status === "ok" ? availableResult.data : [];
 
-  return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
+  return (
+    <OnboardView
+      onboarded={onboarded}
+      available={available}
+      onboardRepoAction={onboardRepo}
+    />
+  );
 }
 
 async function onboardRepo(

@@ -275,4 +275,25 @@ describe("parseDecomposition", () => {
       undefined,
     ]);
   });
+
+  it("keeps a missing statement's trimmed reason, and drops a blank one", () => {
+    const statement = { file: "specs/widget/spec.md", status: "missing" };
+    const { statements } = parseDecomposition({
+      statements: [
+        { ...statement, line: 5, reason: "  The test checks another prop. " },
+        { ...statement, line: 6, reason: "  " },
+      ],
+      stories: [],
+    });
+
+    expect(statements).toEqual([
+      {
+        ...statement,
+        line: 5,
+        evidence: [],
+        reason: "The test checks another prop.",
+      },
+      { ...statement, line: 6, evidence: [] },
+    ]);
+  });
 });

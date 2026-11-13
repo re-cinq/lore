@@ -51,9 +51,17 @@ export function pipelineProblems(
     ...agentDeclarationProblems(checked, prompts),
     ...unkeyedLine(checked),
     ...undeclaredBags(checked),
+    ...allNodeProblems(checked, prompts),
+    ...graphRuleProblems(checked),
+    ...unboundedRetries(checked),
+    ...unresolvableConversationKeys(checked),
+  ];
+}
+
+function graphRuleProblems(checked: Checked): PipelineProblem[] {
+  return [
     ...ambiguousEdges(checked),
     ...undeclaredOutcomes(checked),
-    ...allNodeProblems(checked, prompts),
     ...danglingEdges(checked),
     ...deadEnds(checked),
     ...unreachableNodes(checked),
@@ -297,4 +305,41 @@ function namesOf(bagItems: { name?: string }[]): string[] {
   return bagItems
     .map((bagItem) => bagItem.name)
     .filter((name): name is string => typeof name === "string");
+}
+
+// specs/7-feature-planning FR-15.7: a walk revisiting a node needs iteration_max to bound the loop.
+function unboundedRetries(checked: Checked): PipelineProblem[] {
+  const { edges } = checked.line;
+  const backEdges = edges.filter(
+    (edge) => edge.from === edge.to && edge.iteration_max === undefined,
+  );
+
+  return backEdges.map((edge) =>
+    problem(
+      checked,
+      edge.from,
+      "unbounded-retry",
+      `node "${edge.from}" has a back-edge to itself with no iteration_max; the walk would retry without bound`,
+    ),
+  );
+}
+
+// specs/7-feature-planning FR-15.2: conversation_key must name a declared arg so the floor can key the conversation.
+function unresolvableConversationKeys(checked: Checked): PipelineProblem[] {
+  const argNames = new Set(Object.keys(checked.line.args));
+
+  return Object.entries(checked.stations)
+    .filter(
+      ([, station]) =>
+        station.conversation_key !== undefined &&
+        !argNames.has(station.conversation_key),
+    )
+    .map(([name, station]) =>
+      problem(
+        checked,
+        undefined,
+        "unresolvable-conversation-key",
+        `station "${name}" sets conversation_key to "${station.conversation_key}", which is not a declared arg`,
+      ),
+    );
 }

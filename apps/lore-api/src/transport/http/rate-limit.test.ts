@@ -38,13 +38,26 @@ describe("rate-limit ext", () => {
     expect(rateLimit("default")).toBe(true);
   });
 
-  it("routes /api/webhook/slack and /api/task-turns/x to webhook and turns buckets, and /api/webhook/github and /healthz to unlimited", async () => {
+  it("routes a person's session token on /api/repos/re-cinq/otto/loops to the 600/min session bucket, and a service token to the 200/min default", async () => {
+    const { bucketFor, personBucketFor } = await import("./rate-limit.js");
+    const { rateLimit } = await import("./auth.js");
+
+    expect(personBucketFor("/api/repos/re-cinq/otto/loops")).toBe("session");
+    expect(bucketFor("/api/repos/re-cinq/otto/loops")).toBe("default");
+    expect(personBucketFor("/api/task")).toBe("task");
+
+    for (let i = 0; i < 600; i++) {
+      expect(rateLimit("session", "token:person")).toBe(true);
+    }
+    expect(rateLimit("session", "token:person")).toBe(false);
+  });
+
+  it("routes /api/webhook/slack to the webhook bucket, and /api/webhook/github and /healthz to unlimited", async () => {
     const { bucketFor } = await import("./rate-limit.js");
 
     expect(bucketFor("/api/webhook/slack")).toBe("webhook");
     expect(bucketFor("/api/webhook/github")).toBe("unlimited");
     expect(bucketFor("/healthz")).toBe("unlimited");
-    expect(bucketFor("/api/task-turns/abc-123")).toBe("turns");
     expect(bucketFor("/api/task")).toBe("task");
     expect(bucketFor("/api/task/abc-123")).toBe("task");
     expect(bucketFor("/api/tasks")).toBe("task");

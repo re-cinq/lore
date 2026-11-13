@@ -32,7 +32,7 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
   },
 };
 
-const LAST_PASS_FAILED: PlanRunPhase = {
+export const LAST_PASS_FAILED: PlanRunPhase = {
   tone: "failed",
   text: "The planning agent's last pass failed. Refine a section or regenerate the plan to ask again.",
 };

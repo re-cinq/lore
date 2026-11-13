@@ -78,12 +78,6 @@ describe("pipeline.v_auto_merge_kpis", () => {
         dependent_merged_before_dependency: false,
         sensitive_merged_without_codeowner: false,
       },
-      {
-        pr_number: 4,
-        merged_without_human: true,
-        dependent_merged_before_dependency: false,
-        sensitive_merged_without_codeowner: false,
-      },
     ]);
   });
 });

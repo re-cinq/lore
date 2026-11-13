@@ -150,7 +150,7 @@ describe("lore.utopia_kind_sources", () => {
     }
     const migration = readFileSync(
       new URL(
-        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0115_utopia_docs_source_id.sql",
+        "../../../../deploy/chart/charts/ui-helm/migrations/0115_utopia_docs_source_id.sql",
         import.meta.url,
       ),
       "utf-8",
@@ -196,7 +196,7 @@ describe("lore.utopia_kind_sources", () => {
     );
     const migration = readFileSync(
       new URL(
-        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0116_utopia_test_coverage_is_the_lore_source.sql",
+        "../../../../deploy/chart/charts/ui-helm/migrations/0116_utopia_test_coverage_is_the_lore_source.sql",
         import.meta.url,
       ),
       "utf-8",

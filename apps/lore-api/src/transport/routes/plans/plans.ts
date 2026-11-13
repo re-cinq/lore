@@ -156,7 +156,6 @@ function draftingRoute(
 const DraftingBody = z.object({
   known: z.string(),
   createdBy: z.string().min(1),
-  storyIssue: z.number().int().positive().optional(),
 });
 
 const DraftingSchema = z.object({ task_id: z.string() });
@@ -201,7 +200,6 @@ const RefineBody = z.object({
   baseHash: z.string().min(1),
   inputs: z.unknown(),
   uses: z.unknown(),
-  storyIssue: z.number().int().positive().optional(),
 });
 
 const RefineSchema = z.object({ slot: z.string() });

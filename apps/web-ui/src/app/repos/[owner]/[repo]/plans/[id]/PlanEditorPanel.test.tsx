@@ -7,6 +7,9 @@ import PlanEditorPanel from "./PlanEditorPanel";
 
 const destroy = vi.fn();
 const client = {};
+const editorProps = vi.hoisted(
+  () => ({}) as { onRefineFailures?: (failures: unknown[]) => void },
+);
 
 vi.mock("@/lib/live-socket/LiveSocketProvider", () => ({
   useLiveSocket: () => client,
@@ -15,7 +18,11 @@ vi.mock("@/lib/live-socket/plan-provider", () => ({
   planProvider: () => ({ provider: {}, destroy: vi.fn() }),
 }));
 vi.mock("@re-cinq/planning-editor", () => ({
-  PlanEditor: () => <p>editor</p>,
+  PlanEditor: (received: typeof editorProps) => {
+    editorProps.onRefineFailures = received.onRefineFailures;
+
+    return <p>editor</p>;
+  },
   transportFor: () => ({ destroy }),
 }));
 
@@ -63,5 +70,30 @@ describe("PlanEditorPanel", () => {
       opened: first.mock.calls.length + second.mock.calls.length,
       destroyed: destroy.mock.calls.length,
     }).toEqual({ opened: 1, destroyed: 0 });
+  });
+
+  it("wraps the editor in an element of its own, which sets the plan page's narrower padding", async () => {
+    const view = render(
+      <PlanEditorPanel {...props(async () => ({ documentName: "plan:p1" }))} />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+
+    expect(view.getByText("editor").parentElement?.className).toMatch(/editor/);
+  });
+
+  it("passes the editor's failed refines on to the page", async () => {
+    const onRefineFailures = vi.fn();
+    const view = render(
+      <PlanEditorPanel
+        {...props(async () => ({ documentName: "plan:p1" }))}
+        onRefineFailures={onRefineFailures}
+      />,
+    );
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+    editorProps.onRefineFailures?.([{ slot: "scope" }]);
+
+    expect(onRefineFailures).toHaveBeenCalledWith([{ slot: "scope" }]);
   });
 });

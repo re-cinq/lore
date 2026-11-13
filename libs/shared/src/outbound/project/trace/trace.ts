@@ -54,9 +54,9 @@ export class TraceView {
     return this.port.source(this.fullName, filePath);
   }
 
-  /** The repo's spec force-graph for the Graph tab. */
-  graph(): Promise<SpecGraph> {
-    return this.port.graph(this.fullName);
+  /** The repo's spec force-graph for the Graph tab, scoped to `filePath` when given. */
+  graph(filePath?: string): Promise<SpecGraph> {
+    return this.port.graph(this.fullName, filePath);
   }
 
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */

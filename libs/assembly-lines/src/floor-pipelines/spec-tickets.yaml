@@ -95,7 +95,7 @@ line:
       on: failed
 stations:
   spec-tickets-load:
-    description: Lists the tickets an earlier run filed for this spec, so the agent keeps the ids of tasks that are still the same work and the issues are rewritten rather than filed again.
+    description: Lists the tickets an earlier run filed for this spec, so the agent keeps the ids of tasks that are still the same work and the issues are rewritten rather than filed again, and the statement lines whose linked tests settle them as present, so the agent assesses only the rest.
     kind: service
     outcomes:
       - success
@@ -107,10 +107,17 @@ stations:
         access: read
       - name: spec_path
         kind: value
+      # The merge whose spec the run plans: the load step settles the
+      # statements that spec's linked tests show (specs/spec-tickets FR25).
+      - name: merge_sha
+        kind: value
     produces:
       - name: existing_tickets
         kind: file
         path: existing-tickets.json
+      - name: settled_statements
+        kind: file
+        path: settled-statements.json
   spec-tickets-decompose:
     description: An AI agent breaks the merged spec into stories and tasks the implementation loop can build, keeping the ids of tickets filed for it before, without changing or questioning the spec.
     kind: agent
@@ -147,6 +154,12 @@ stations:
         kind: file
         path: implementation-report.md
         optional: true
+      # The lines the load step settled on their linked tests; absent when it
+      # listed none.
+      - name: settled_statements
+        kind: file
+        path: settled-statements.json
+        optional: true
     produces:
       - name: decomposition
         kind: file
@@ -169,6 +182,9 @@ stations:
         kind: value
       - name: merge_sha
         kind: value
+      - name: settled_statements
+        kind: file
+        optional: true
     produces:
       - name: verified_decomposition
         kind: file
@@ -190,6 +206,12 @@ stations:
         kind: file
       - name: spec_path
         kind: value
+      # The plan whose spec branch the merged pull request came from, whose saved
+      # story the filed story is written back to; not started with for a spec a
+      # person merged from their own branch.
+      - name: source_plan_id
+        kind: value
+        optional: true
     produces:
       - name: ticketing_result
         kind: file

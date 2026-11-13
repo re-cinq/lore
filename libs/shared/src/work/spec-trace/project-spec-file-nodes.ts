@@ -15,6 +15,7 @@ import { parseAdrRefs } from "./adr-refs.js";
 import {
   projectDocumentBlocks,
   pruneOrphanBlocksByFile,
+  type StoredBlock,
 } from "./project-blocks.js";
 import { featureDirOf } from "./feature-dir.js";
 import { projectLinkEdges } from "./project-spec-file-links.js";
@@ -46,9 +47,15 @@ export async function projectFeature(
 /** One segment as produced by {@link segmentStatements}. */
 export type SpecSegment = ReturnType<typeof segmentStatements>[number];
 
+/** Where one spec's nodes are written: the graph, the spec's repo and path, and its node. */
+export type SpecAddress = Pick<
+  ProjectionContext,
+  "dgraph" | "repo" | "filePath" | "specUid"
+>;
+
 /** Upserts a Section per unique enclosing heading in document order, points `Spec.sections` at them, and returns heading→uid so statements can attach. */
 export async function projectSections(
-  context: ProjectionContext,
+  context: SpecAddress,
   segments: SpecSegment[],
 ): Promise<Map<string, string>> {
   const { dgraph, repo, filePath } = context;
@@ -80,7 +87,7 @@ function uniqueHeadings(segments: SpecSegment[]): string[] {
 
 /** Upserts one Section at `ordinal` — the heading's POSITION in the document, which the xid is built from, so a heading that moves gets a different xid and is re-anchored by the prune that follows. */
 async function upsertSection(
-  { dgraph, repo, filePath, specUid }: ProjectionContext,
+  { dgraph, repo, filePath, specUid }: SpecAddress,
   heading: string,
   ordinal: number,
 ): Promise<string> {
@@ -154,12 +161,14 @@ function criterionFacts(
 export async function projectBlocks(
   context: ProjectionContext,
   content: string,
+  stored?: ReadonlyMap<string, StoredBlock>,
 ): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
   const validBlockXids = await projectDocumentBlocks(
     dgraph,
     { repo, filePath, content },
     specUid,
+    stored,
   );
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);
@@ -298,7 +307,7 @@ async function resolveAdrUids(
 const ADR_NUMBERS_QUERY = `query q($repo: string) { adrs(func: eq(ADR.repo, $repo)) { uid ADR.number } }`;
 
 /** Every ADR node of this repo, keyed by its ADR number. */
-async function readAdrUidsByNumber(
+export async function readAdrUidsByNumber(
   dgraph: DgraphClientPort,
   repo: string,
 ): Promise<Map<number, string>> {

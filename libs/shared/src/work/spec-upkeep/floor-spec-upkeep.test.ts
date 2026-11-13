@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { recordedPlanFloor } from "../../outbound/floor/recorded-plan-floor.js";
+import {
+  planRun,
+  recordedPlanFloor,
+} from "../../outbound/floor/recorded-plan-floor.js";
 import {
   enabledUpkeepRepos,
+  SPEC_UPKEEP_LINE,
   specUpkeepTick,
   upkeepBranch,
   type UpkeepTickDeps,
@@ -112,5 +116,59 @@ describe("specUpkeepTick", () => {
     );
 
     expect(summary).toBe("spec upkeep: started 1, skipped 0, failed 1");
+  });
+
+  it("starts repositories that have never run, then the one run longest ago, before repositories that ran more recently", async () => {
+    const recorded = recordedPlanFloor({
+      runs: [
+        planRun({
+          lineId: SPEC_UPKEEP_LINE,
+          repo: "github.com/acme/repo-00",
+          createdAt: "2026-09-28T10:00:00.000Z",
+        }),
+        planRun({
+          lineId: SPEC_UPKEEP_LINE,
+          repo: "github.com/acme/repo-00",
+          createdAt: "2026-09-14T10:00:00.000Z",
+        }),
+        planRun({
+          lineId: SPEC_UPKEEP_LINE,
+          repo: "github.com/acme/repo-01",
+          createdAt: "2026-09-21T10:00:00.000Z",
+        }),
+      ],
+    });
+    const repos = Array.from(
+      { length: 12 },
+      (_, i) => `acme/repo-${String(i).padStart(2, "0")}`,
+    );
+
+    const summary = await specUpkeepTick(
+      {},
+      {
+        floor: recorded.floor,
+        repos: () => Promise.resolve(repos),
+        openPrBranches: () => Promise.resolve([]),
+        now: () => MONDAY,
+      },
+    );
+
+    const startedRepos = recorded.requests
+      .filter(({ path }) => path.endsWith("/start"))
+      .map(({ body }) => (body as { repo: string }).repo);
+
+    expect(startedRepos).toEqual([
+      "github.com/acme/repo-02",
+      "github.com/acme/repo-03",
+      "github.com/acme/repo-04",
+      "github.com/acme/repo-05",
+      "github.com/acme/repo-06",
+      "github.com/acme/repo-07",
+      "github.com/acme/repo-08",
+      "github.com/acme/repo-09",
+      "github.com/acme/repo-10",
+      "github.com/acme/repo-11",
+    ]);
+    expect(summary).toBe("spec upkeep: started 10, skipped 0, failed 0");
   });
 });

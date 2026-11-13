@@ -24,6 +24,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { OpenFinding } from "./plan-briefs.js";
 import type { RefineAsk, RefineAsks } from "./refine-asks.js";
+import type { PlanStoryContext } from "./plan-story.js";
 import {
   citablePlan,
   type CitablePlan,
@@ -33,6 +34,8 @@ import { planUrlOf } from "@re-cinq/lore-shared/feature-planning/plan-url.js";
 export interface PlanFilePorts {
   /** The plan as it stands in its live document, which people may be editing right now. */
   livePlan(planId: string): Promise<LivePlan>;
+  /** The plan's user story with the issue's own words, null for a plan with none: the agents read it as context, never as the plan. */
+  story(planId: string): Promise<PlanStoryContext | null>;
   /** The pending Refine: the ask reaches the agent and the pass end here, never in the run's bag. */
   refineAsks: Pick<RefineAsks, "pending" | "clear">;
   /** The agent's writes into the live document; what they return is not this module's to read. */
@@ -129,15 +132,17 @@ function openFinding(slot: string, finding: FindingBlock): OpenFinding {
 export async function planAgentView(
   planId: string,
   ports: PlanFilePorts,
-): Promise<ReadView & { refine?: PendingRefine }> {
-  const [{ blocks }, refine] = await Promise.all([
+): Promise<ReadView & { refine?: PendingRefine; story?: PlanStoryContext }> {
+  const [{ blocks }, refine, story] = await Promise.all([
     ports.livePlan(planId),
     ports.refineAsks.pending(planId),
+    ports.story(planId),
   ]);
 
   return {
     ...readView(blocks),
     ...(refine ? { refine: askedOf(refine) } : {}),
+    ...(story ? { story } : {}),
   };
 }
 

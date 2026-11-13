@@ -22,7 +22,7 @@ interface ClassicProtection {
   };
 }
 
-/** The branch rule from the rulesets that apply to the branch and its classic protection; classic protection answers 404 when absent and 403 to an App without Administration read, both read as none. */
+/** The branch rule from the rulesets that apply to the branch and its classic protection; classic protection answers 404 when absent and 403 to an App without Administration read (`classicProtectionReadable: false`). */
 export async function getBranchRule(
   ok: Octokit,
   repo: string,
@@ -38,34 +38,38 @@ export async function getBranchRule(
   return branchRuleOf(rules.data as RulesetRule[], classic);
 }
 
+interface ClassicRead {
+  protection: ClassicProtection;
+  readable: boolean;
+}
+
 const UNREADABLE_PROTECTION: Array<number | undefined> = [403, 404];
 
 async function classicProtection(
   ok: Octokit,
   where: { owner: string; repo: string; branch: string },
-): Promise<ClassicProtection> {
+): Promise<ClassicRead> {
   try {
     const { data: protection } = await ok.request(
       "GET /repos/{owner}/{repo}/branches/{branch}/protection",
       where,
     );
 
-    return protection as ClassicProtection;
+    return { protection: protection as ClassicProtection, readable: true };
   } catch (err) {
-    if (UNREADABLE_PROTECTION.includes((err as { status?: number }).status)) {
-      return {};
+    const { status } = err as { status?: number };
+
+    if (UNREADABLE_PROTECTION.includes(status)) {
+      return { protection: {}, readable: status !== 403 };
     }
     throw err;
   }
 }
 
-function branchRuleOf(
-  rules: RulesetRule[],
-  classic: ClassicProtection,
-): BranchRule {
+function branchRuleOf(rules: RulesetRule[], classic: ClassicRead): BranchRule {
   const demands = [
     ...rules.map((rule) => rulesetDemand(rule.parameters ?? {})),
-    classicDemand(classic),
+    classicDemand(classic.protection),
   ];
 
   return {
@@ -74,6 +78,7 @@ function branchRuleOf(
     requiredChecks: [
       ...new Set(demands.flatMap((d) => d.requiredChecks)),
     ].sort(),
+    classicProtectionReadable: classic.readable,
   };
 }
 

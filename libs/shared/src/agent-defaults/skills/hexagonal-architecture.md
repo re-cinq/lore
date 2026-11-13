@@ -5,27 +5,14 @@ description: Use only when the user or project explicitly adopts hexagonal (port
 
 # Hexagonal Architecture (Ports & Adapters)
 
-This skill applies only to projects that have opted in to hexagonal architecture. Do not apply these patterns to projects that use a different architecture. For introducing hex arch into an existing codebase incrementally, see `resources/incremental-adoption.md`.
+This skill applies only to projects that have opted in to hexagonal architecture. Do not apply these patterns to projects that use a different architecture.
 
 For domain modeling (entities, value objects, aggregates, ubiquitous language), load the `domain-driven-design` skill. Hex arch and DDD are complementary but independent — hex arch provides structural isolation (how the outside connects), DDD provides the domain model (what lives in the center). A project may use one without the other.
 
 Use the `structure-codebase` skill when designing or changing the physical source tree. For an opted-in hexagonal backend it makes the entire provider-free inside visible under `hexagon/`, keeps concrete driving/driven technology and reusable test interactors outside, and defines proportional package/import enforcement. If physical restructuring is not requested, preserve the repo's existing layout while enforcing the dependency direction described here.
 
-Use `codebase-design` for the coherent responsibility and full caller burden behind a port or in-process module. Not every module interface or test seam is a hexagonal port, and intentionally thin driving/driven adapters should remain thin. Use `finding-seams` for the minimum enabling point needed to characterize hard-coupled legacy behavior before deciding whether a durable port is warranted.
+Not every module interface or test seam is a hexagonal port, and intentionally thin driving/driven adapters should remain thin.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `worked-example.md` | Need a full feature traced through every layer with tests and file map |
-| `testing-hex-arch.md` | Writing tests, creating fakes, setting up `createTestDb`, swappability test |
-| `cqrs-lite.md` | Reads need to JOIN across aggregates, separating read/write paths |
-| `cross-cutting-concerns.md` | Placing auth, logging, transactions, or error formatting |
-| `incremental-adoption.md` | Introducing hex arch into an existing codebase |
-| `greenfield-sequence.md` | Starting a hex project from scratch — ordering the first ports, adapters, and tests |
-| `references.md` | Checking source rationale, especially port/public interface naming |
-
-For authoritative sources and naming rationale, see `resources/references.md`.
 
 ---
 
@@ -195,7 +182,7 @@ const getParticipantEventView = async (db: Database, eventId: string) => {
 
 Provider-free inside functions may interpret query results when the interpretation expresses genuine business meaning (for example, "is this item claimed by the current user?"). Display-only formatting stays at the driving edge. The query fetches; business policy interprets.
 
-For detailed CQRS-lite guidance, see `resources/cqrs-lite.md`. When the read/write split goes all the way — events as the source of truth, rebuilt into read models by replay — that is event sourcing; load the `event-sourcing` skill.
+ When the read/write split goes all the way — events as the source of truth, rebuilt into read models by replay — that is event sourcing; load the `event-sourcing` skill.
 
 ---
 
@@ -314,11 +301,11 @@ Hex arch's primary benefit is testability. The primary test boundary is the **us
 | **Secondary** | Driven adapters (real DB/MSW) | Adapter translates correctly |
 | **Verification** | E2E (full stack) | User experience works |
 
-**Fakes over mocks:** Fakes implement the real interface and maintain state. Mocks verify call sequences and break on refactoring. See `resources/testing-hex-arch.md` for detailed patterns.
+**Fakes over mocks:** Fakes implement the real interface and maintain state. Mocks verify call sequences and break on refactoring.
 
 **A port is only real if it is tested.** Every port needs a test interactor — a test driver at each driving port, a fake at each driven port. Without one, the "port" is just a line on a diagram; nothing enforces it as a boundary. The test wall doubles as the leak detector: business logic drifting into an adapter, or technology detail drifting into the domain, breaks a boundary test immediately.
 
-For a complete worked example showing one feature traced through every layer (glossary → types → domain → use case → adapters → tests → file locations), see `resources/worked-example.md`.
+
 
 ---
 
@@ -333,7 +320,7 @@ For a complete worked example showing one feature traced through every layer (gl
 | Transactions | Adapter / composition root | Infrastructure concern, domain unaware |
 | Error formatting | Driving adapter | Translates domain results to HTTP/gRPC |
 
-**The domain never imports a logger, catches HTTP errors, or manages transactions.** It returns results — and where a business-significant fact doesn't survive to the boundary, it announces the fact through an explicit driven port (Domain Probe) or a domain event, never a raw logger. See `resources/cross-cutting-concerns.md` for the four-tier observability model and detailed patterns; for what goes into telemetry (wide events, SLOs, alerting), see the `observability` skill.
+**The domain never imports a logger, catches HTTP errors, or manages transactions.** It returns results — and where a business-significant fact doesn't survive to the boundary, it announces the fact through an explicit driven port (Domain Probe) or a domain event, never a raw logger.
 
 ---
 
@@ -464,6 +451,10 @@ const placeOrder = async (...) => ...
 - [ ] Each layer has behavioral tests at the appropriate level
 - [ ] Cross-cutting concerns (auth, technical telemetry, transactions) live in adapters; domain-significant observations go through an explicit driven port or domain events, never a raw logger import
 - [ ] Domain returns result types for expected outcomes, never throws for business rules
+
+## Attribution
+
+Adapted from the `hexagonal-architecture` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/hexagonal-architecture), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

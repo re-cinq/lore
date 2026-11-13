@@ -2,6 +2,7 @@
   "name": "@re-cinq/lore-stations",
   "version": "0.1.0",
   "description": "Lore stations — standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/work/index.js",
   "scripts": {

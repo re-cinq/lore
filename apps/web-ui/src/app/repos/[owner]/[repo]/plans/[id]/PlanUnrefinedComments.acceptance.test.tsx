@@ -63,6 +63,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
 
+vi.mock("@/components/Icon", () => ({ default: () => <i /> }));
+
 vi.mock("@/lib/live-socket/LiveSocketProvider", () => ({
   useLiveSocket: () => ({}),
 }));
@@ -80,6 +82,8 @@ describe("PlanEditorPanel", () => {
         prNumber={null}
         prTitle={null}
         prUnresolvedThreads={null}
+        story={null}
+        onRefineFailures={() => {}}
         refine={async () => ({})}
         openSocket={async () => ({ documentName: "test", token: "tok" })}
         approve={async () => ({})}

@@ -183,7 +183,7 @@ done
 # and memory.* tables they create are postgres-owned — but migrations run as
 # 'lore', and ALTER TABLE needs ownership (GRANT ALL does not include it). On GKE
 # the lore-db-helm ownership-reconciler-job hands these to 'lore' on every
-# terraform apply; local dev has no such job, so a migration like
+# deploy; local dev has no such job, so a migration like
 # 0003 (ALTER pipeline.job_runs, created by setup-agent-schema.sh) would fail
 # with "must be owner". Reconcile here, idempotently, via the local socket as
 # postgres (not a network superuser) so the local chain matches the cluster.
@@ -220,7 +220,7 @@ SQL
 # order, per-file single transaction, skip-if-applied — so a migration the 'lore'
 # role cannot apply (e.g. DDL on a schema it lacks CREATE on) fails here too,
 # instead of silently passing as superuser and only breaking on deploy.
-MIGRATIONS_DIR="$DIR/../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations"
+MIGRATIONS_DIR="$DIR/../../deploy/chart/charts/ui-helm/migrations"
 psql() { pg lore "$@"; }
 log "Applying migrations from $MIGRATIONS_DIR (as role 'lore')"
 psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'

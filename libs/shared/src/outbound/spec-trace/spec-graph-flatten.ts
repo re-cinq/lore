@@ -36,10 +36,11 @@ export interface GraphResult {
       OwnerLinks & { uid: string; "AcceptanceCriterion.text"?: string }
     >;
   }>;
-  /** Every covered TestChunk in the repo, spec-linked or not; the flattener draws the ones no statement claimed. */
+  /** Covered TestChunks (listed once in the top-level tests block); the flattener reads coverage from here. */
   tests?: NonNullable<OwnerLinks["vb"]>;
 }
 
+// Bundles the mutable node and link accumulators.
 interface GraphSink {
   nodes: Map<string, SpecGraphNode>;
   links: SpecGraphLink[];
@@ -47,39 +48,37 @@ interface GraphSink {
 
 /** Pure: Dgraph query result → de-duplicated nodes + links. */
 export function flattenSpecGraph(graph: GraphResult): SpecGraph {
-  const nodes = new Map<string, SpecGraphNode>();
-  const links: SpecGraphLink[] = [];
+  const sink: GraphSink = {
+    nodes: new Map(),
+    links: [],
+  };
 
   for (const spec of graph.q ?? []) {
     const specPath = spec["Spec.file_path"] ?? spec.uid;
 
-    nodes.set(spec.uid, {
+    sink.nodes.set(spec.uid, {
       id: spec.uid,
       type: "Spec",
       label: specLabel(specPath),
       path: specPath,
     });
-    emitFeatureNode(spec, nodes, links);
-    emitSpecChildNodes(spec, specPath, nodes, links);
+    emitFeatureNode(spec, sink);
+    emitSpecChildNodes(spec, specPath, sink);
   }
-  emitUnlinkedTests(graph.tests, nodes, links);
+  emitTestCoverage(graph.tests, sink);
 
-  return { nodes: [...nodes.values()], links };
+  return { nodes: [...sink.nodes.values()], links: sink.links };
 }
 
-/** Tests with coverage that no statement validated_by: a repo with tests but no specs still has a graph — its tests and the files they exercise. A chunk that covers nothing (an orphan from a broken adapter) draws nothing. */
-function emitUnlinkedTests(
-  tests: GraphResult["tests"],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
-): void {
-  const unclaimed = (tests ?? []).filter(
-    (chunk) => !nodes.has(chunk.uid) && coversSomething(chunk),
-  );
+/** Emits TestChunk → File `covers` edges once per test from the top-level `tests` block, adding unlinked covered TestChunks. */
+function emitTestCoverage(tests: GraphResult["tests"], sink: GraphSink): void {
+  const covered = (tests ?? []).filter(coversSomething);
 
-  for (const chunk of unclaimed) {
-    nodes.set(chunk.uid, testChunkNode(chunk));
-    emitCoveredFileNodes(chunk, nodes, links);
+  for (const chunk of covered) {
+    if (!sink.nodes.has(chunk.uid)) {
+      sink.nodes.set(chunk.uid, testChunkNode(chunk));
+    }
+    emitCoveredFileNodes(chunk, sink);
   }
 }
 
@@ -102,33 +101,35 @@ export function specLabel(path: string): string {
 /** One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`. */
 function emitFeatureNode(
   spec: NonNullable<GraphResult["q"]>[number],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
   const { feature } = spec;
 
   if (!feature) {
     return;
   }
-  const featurePath = feature["Feature.path"] ?? feature.uid;
-
-  nodes.set(feature.uid, {
-    id: feature.uid,
-    type: "Feature",
-    label: basename(featurePath),
-    path: featurePath,
+  sink.nodes.set(feature.uid, featureNodeFor(feature));
+  sink.links.push({
+    source: feature.uid,
+    target: spec.uid,
+    kind: "in_feature",
   });
-  links.push({ source: feature.uid, target: spec.uid, kind: "in_feature" });
+}
+
+function featureNodeFor(feature: {
+  uid: string;
+  "Feature.path"?: string;
+}): SpecGraphNode {
+  const p = feature["Feature.path"] ?? feature.uid;
+
+  return { id: feature.uid, type: "Feature", label: basename(p), path: p };
 }
 
 function emitSpecChildNodes(
   spec: NonNullable<GraphResult["q"]>[number],
   specPath: string,
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
-  const sink: GraphSink = { nodes, links };
-
   for (const st of spec.stmts ?? []) {
     emitStatementNode(spec.uid, specPath, st, sink);
   }
@@ -152,7 +153,7 @@ function emitStatementNode(
     detail: (st["Statement.text"] ?? "").trim(),
   });
   sink.links.push({ source: specUid, target: st.uid, kind: "in_spec" });
-  emitOwnerLinks(st.uid, st, sink.nodes, sink.links);
+  emitOwnerLinks(st.uid, st, sink);
 }
 
 function emitAcceptanceCriterionNode(
@@ -169,31 +170,28 @@ function emitAcceptanceCriterionNode(
     detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
   });
   sink.links.push({ source: specUid, target: ac.uid, kind: "in_spec" });
-  emitOwnerLinks(ac.uid, ac, sink.nodes, sink.links);
+  emitOwnerLinks(ac.uid, ac, sink);
 }
 
 // Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
 function emitOwnerLinks(
   ownerUid: string,
   owner: OwnerLinks,
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
-  emitValidatedByLinks(ownerUid, owner.vb, nodes, links);
-  emitImplementedByLinks(ownerUid, owner.ib, nodes, links);
-  emitDecidedByLinks(ownerUid, owner.db, nodes, links);
+  emitValidatedByLinks(ownerUid, owner.vb, sink);
+  emitImplementedByLinks(ownerUid, owner.ib, sink);
+  emitDecidedByLinks(ownerUid, owner.db, sink);
 }
 
 function emitValidatedByLinks(
   ownerUid: string,
   vb: OwnerLinks["vb"],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
   for (const t of vb ?? []) {
-    nodes.set(t.uid, testChunkNode(t));
-    links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
-    emitCoveredFileNodes(t, nodes, links);
+    sink.nodes.set(t.uid, testChunkNode(t));
+    sink.links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
   }
 }
 
@@ -201,36 +199,47 @@ function emitValidatedByLinks(
 function emitImplementedByLinks(
   ownerUid: string,
   ib: OwnerLinks["ib"],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
   for (const c of ib ?? []) {
     const p = c["CodeChunk.file_path"] ?? c.uid;
     const fileId = `file|${p}`;
 
-    if (!nodes.has(fileId)) {
-      nodes.set(fileId, {
-        id: fileId,
-        type: "File",
-        label: basename(p),
-        path: p,
-      });
-    }
-    links.push({ source: ownerUid, target: fileId, kind: "implemented_by" });
+    ensureFileNode(fileId, p, sink);
+    sink.links.push({
+      source: ownerUid,
+      target: fileId,
+      kind: "implemented_by",
+    });
+  }
+}
+
+function ensureFileNode(fileId: string, path: string, sink: GraphSink): void {
+  if (!sink.nodes.has(fileId)) {
+    sink.nodes.set(fileId, {
+      id: fileId,
+      type: "File",
+      label: basename(path),
+      path,
+    });
   }
 }
 
 function emitDecidedByLinks(
   ownerUid: string,
   db: OwnerLinks["db"],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
   for (const a of db ?? []) {
     const p = a["ADR.file_path"] ?? a.uid;
 
-    nodes.set(a.uid, { id: a.uid, type: "ADR", label: adrLabel(p), path: p });
-    links.push({ source: ownerUid, target: a.uid, kind: "decided_by" });
+    sink.nodes.set(a.uid, {
+      id: a.uid,
+      type: "ADR",
+      label: adrLabel(p),
+      path: p,
+    });
+    sink.links.push({ source: ownerUid, target: a.uid, kind: "decided_by" });
   }
 }
 
@@ -254,21 +263,20 @@ function testChunkNode(
 // The File this test exercises, reached via Coverage (HAS_COVERAGE → COVERS); one node per path (deduped).
 function emitCoveredFileNodes(
   testChunk: NonNullable<OwnerLinks["vb"]>[number],
-  nodes: Map<string, SpecGraphNode>,
-  links: SpecGraphLink[],
+  sink: GraphSink,
 ): void {
   for (const f of (testChunk.cov ?? []).flatMap((c) => c.covers ?? [])) {
     const fp = f["File.path"] ?? f.uid;
     const fileId = `file|${fp}`;
 
-    nodes.set(fileId, {
+    sink.nodes.set(fileId, {
       id: fileId,
       type: "File",
       label: basename(fp),
       path: fp,
       detail: f["Coverage.covers|ranges"],
     });
-    links.push({ source: testChunk.uid, target: fileId, kind: "covers" });
+    sink.links.push({ source: testChunk.uid, target: fileId, kind: "covers" });
   }
 }
 

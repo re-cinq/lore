@@ -35,6 +35,20 @@ function envelopeCountingReads() {
 }
 
 describe("report evidence", () => {
+  it("rejects a test report whose tests field is null as a 400", () => {
+    expect(() =>
+      assertReportIdentity({
+        kind: "test-report",
+        commit: COMMIT,
+        report: { commit: COMMIT, branch: "main", tests: null, results: [] },
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        output: expect.objectContaining({ statusCode: 400 }),
+      }),
+    );
+  });
+
   it("reads the reported tests once for the identity check and the save", async () => {
     const { reads, body } = envelopeCountingReads();
     const pool = { query: async () => ({ rows: [] }) } as never;

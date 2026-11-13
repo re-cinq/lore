@@ -20,7 +20,7 @@ describe("lore.utopia_pushed_items", () => {
     await pool.query(
       readFileSync(
         new URL(
-          "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0123_utopia_pushed_items.sql",
+          "../../../../deploy/chart/charts/ui-helm/migrations/0123_utopia_pushed_items.sql",
           import.meta.url,
         ),
         "utf-8",

@@ -356,6 +356,181 @@ describe("routes — agents", () => {
       );
     });
 
+    it("an update with mcp_servers hands the adapter the list whole", async () => {
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+      const files = { name: "files", transport: "stdio", command: "npx" };
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        mcp_servers: [files],
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { mcpServers: [files], inheritedConfig: null },
+      );
+    });
+
+    it("an update with an empty mcp_servers hands the adapter the empty list, so the repo runs none of the org's servers", async () => {
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { mcp_servers: [] });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { mcpServers: [], inheritedConfig: null },
+      );
+    });
+
+    it("an update with skills hands the adapter the list whole", async () => {
+      delete process.env.LORE_SKILLS_URL;
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        skills: ["cli-design"],
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { skills: ["cli-design"], inheritedConfig: null },
+      );
+    });
+
+    it("an update with an empty skills hands the adapter the empty list, so the repo runs none of the org's skills", async () => {
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { skills: [] });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        { skills: [], inheritedConfig: null },
+      );
+    });
+
+    it("an update with skills also hands the adapter LORE_SKILLS_URL as the skills_source default", async () => {
+      process.env.LORE_SKILLS_URL = "https://skills.test";
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { skills: ["cli-design"] });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        {
+          skills: ["cli-design"],
+          skillsSource: "https://skills.test",
+          inheritedConfig: null,
+        },
+      );
+    });
+
+    it("an update with adjust_skill_models false hands the adapter the flag and the LORE_SKILLS_URL default", async () => {
+      process.env.LORE_SKILLS_URL = "https://skills.test";
+      fakeAgents.resolve.mockResolvedValue({ ...def, config: null });
+      fakeAgents.update.mockResolvedValue(def);
+
+      await call(`${BASE}/general`, "PUT", { adjust_skill_models: false });
+
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        {
+          adjustSkillModels: false,
+          skillsSource: "https://skills.test",
+          inheritedConfig: null,
+        },
+      );
+    });
+
+    it("a create with adjust_skill_models false stores the inherited https://org.skills as https://org.skills/verbatim", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills_source: "https://org.skills" },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+
+      await call(BASE, "POST", { name: "general", adjust_skill_models: false });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: { skills_source: "https://org.skills/verbatim" },
+        }),
+      );
+    });
+
+    it("answers 400 for the skill name Cli Design on a PUT", async () => {
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        skills: ["Cli Design"],
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("a create with skills writes cli-design and the skills_source default over the inherited config", async () => {
+      process.env.LORE_SKILLS_URL = "https://skills.test";
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills: ["lore-context"] },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+
+      await call(BASE, "POST", { name: "general", skills: ["cli-design"] });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: {
+            skills: ["cli-design"],
+            skills_source: "https://skills.test",
+          },
+        }),
+      );
+    });
+
+    it("a create with skills keeps the inherited skills_source https://org.skills", async () => {
+      process.env.LORE_SKILLS_URL = "https://skills.test";
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills_source: "https://org.skills" },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+
+      await call(BASE, "POST", { name: "general", skills: ["cli-design"] });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: {
+            skills: ["cli-design"],
+            skills_source: "https://org.skills",
+          },
+        }),
+      );
+    });
+
+    it("a create with mcp_servers writes the list over the inherited config", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills: ["lore-context"] },
+      });
+      fakeAgents.create.mockResolvedValue(def);
+      const files = { name: "files", transport: "stdio", command: "npx" };
+
+      await call(BASE, "POST", { name: "general", mcp_servers: [files] });
+
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: { skills: ["lore-context"], mcp_servers: [files] },
+        }),
+      );
+    });
+
     it("deletes an agent by name", async () => {
       fakeAgents.delete.mockResolvedValue(undefined);
       const { res } = await call(`${BASE}/general`, "DELETE");

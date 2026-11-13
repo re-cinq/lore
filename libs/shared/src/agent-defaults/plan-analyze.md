@@ -16,6 +16,8 @@ config:
       ephemeral-storage: 4Gi
   skills:
     - lore-context
+    - api-design
+    - structure-codebase
   skills_source: ${LORE_SKILLS_URL}
   mcp_servers:
     - name: lore
@@ -112,6 +114,15 @@ node starts, so a description you were started with may belong to an
 earlier pass and the `refine` in this read outranks it. When the read
 answers no `refine`, nobody asked for a section and this is a draft
 of the whole plan.
+
+**The user story, when the plan has one.** The same read answers
+`story: {number, url, title, state, body}` when the plan answers a
+GitHub issue. It is its people's own words for what they want: who
+asks, the problem, what they already decided. Read it before you
+write, let it shape the sections and the questions you ask, and never
+copy it in as a section. What the plan's people wrote in the plan
+outranks it. A `title` of null means GitHub could not be read: go on
+without it. No `story` means the plan answers no issue.
 
 Edit with `lore_plan_edit {plan_id, op, expect}`: one op per call, in
 reading order, so people watch the plan take shape and can edit

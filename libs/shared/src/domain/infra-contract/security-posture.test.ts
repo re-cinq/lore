@@ -55,10 +55,7 @@ function walkFiles(dir: string): string[] {
 }
 
 const repoRoot = findRepoRoot(import.meta.url);
-const chartsDir = path.join(
-  repoRoot,
-  "infra/terraform/modules/gke-mcp/lore-platform/charts",
-);
+const chartsDir = path.join(repoRoot, "deploy/chart/charts");
 const workflowsDir = path.join(repoRoot, ".github/workflows");
 
 describe("Workload Identity binding, no long-lived key material (infra charts)", () => {
@@ -84,49 +81,42 @@ describe("Workload Identity binding, no long-lived key material (infra charts)",
   });
 });
 
-describe("Workload Identity Federation for GitHub Actions (.github/workflows)", () => {
-  const wifWorkflows = walkFiles(workflowsDir).filter((file) =>
-    read(file).includes("google-github-actions/auth"),
-  );
-
-  it("finds the WIF auth action wired into build/deploy workflows", () => {
-    expect(wifWorkflows.length).toBeGreaterThan(0);
-  });
-
-  it("every WIF workflow declares workload_identity_provider and omits credentials_json", () => {
-    const violations = wifWorkflows.filter((file) => {
+describe("GitHub Actions hold no Google credentials (.github/workflows)", () => {
+  it("no workflow carries a static key, and any Google auth names a WIF provider", () => {
+    const violations = walkFiles(workflowsDir).filter((file) => {
       const text = read(file);
-      const missingProvider = !text.includes("workload_identity_provider:");
       const hasStaticKey = text.includes("credentials_json:");
+      const authWithoutProvider =
+        text.includes("google-github-actions/auth") &&
+        !text.includes("workload_identity_provider:");
 
-      return missingProvider || hasStaticKey;
+      return hasStaticKey || authWithoutProvider;
     });
 
     expect(violations).toEqual([]);
   });
 });
 
-describe("Dgraph's one pod survives node consolidation (infra/terraform)", () => {
+describe("Dgraph's one pod survives node consolidation (deploy/chart)", () => {
   it("declares a PodDisruptionBudget of minAvailable 1 that selects the Dgraph pod", () => {
-    const terraform = read(
-      path.join(repoRoot, "infra/terraform/lore-dgraph.tf"),
-    );
-    const [budget] =
-      /resource "kubectl_manifest" "lore_dgraph_disruption_budget" \{[\s\S]*?\n\}/.exec(
-        terraform,
-      ) ?? [""];
+    const manifests = read(
+      path.join(repoRoot, "deploy/chart/templates/lore-dgraph.yaml"),
+    ).split(/^---$/m);
+    const budget =
+      manifests.find((doc) => /kind: PodDisruptionBudget/.test(doc)) ?? "";
+    const statefulSet =
+      manifests.find((doc) => /kind: StatefulSet/.test(doc)) ?? "";
     const [, podLabels] =
-      /resource "kubectl_manifest" "lore_dgraph_statefulset" \{[\s\S]*?template = \{\s*metadata = \{ labels = (\{[^}]*\}) \}/.exec(
-        terraform,
+      /template:\s*\n\s*metadata:\s*\n\s*labels: (\{[^}]*\})/.exec(
+        statefulSet,
       ) ?? ["", "no pod labels found"];
-    const [, selected] = /selector\s+=\s+\{ matchLabels = (\{[^}]*\}) \}/.exec(
+    const [, selected] = /selector:\s*\n\s*matchLabels: (\{[^}]*\})/.exec(
       budget,
     ) ?? ["", "no selector found"];
 
     expect({
-      kind: /kind\s+=\s+"PodDisruptionBudget"/.test(budget),
-      minAvailable: /minAvailable\s+=\s+1\b/.test(budget),
+      minAvailable: /minAvailable: 1\b/.test(budget),
       selected,
-    }).toEqual({ kind: true, minAvailable: true, selected: podLabels });
+    }).toEqual({ minAvailable: true, selected: podLabels });
   });
 });

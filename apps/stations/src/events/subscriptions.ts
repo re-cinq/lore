@@ -11,6 +11,7 @@ import { FLOOR_PLAN_EVENTS } from "./floor-plan-handlers.js";
 import { FLOOR_SPEC_TICKETS_EVENTS } from "./floor-spec-tickets-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 import { LOOP_MERGE_EVENTS } from "./loop-merge-handlers.js";
+import { LOOP_PROGRESS_EVENTS } from "./loop-progress-handlers.js";
 import { LOOP_UPKEEP_EVENTS } from "./loop-upkeep-handlers.js";
 import { REPO_EVENTS } from "./repo-handlers.js";
 
@@ -21,7 +22,11 @@ export const STATIONS_SUBSCRIBER = "stations";
 export function stationSubscriptions(
   env: FloorEnv = process.env,
 ): EventSubscription[] {
-  const plain = [...REPO_EVENTS, ...floorEvents(env)].map((eventName) => ({
+  const plain = [
+    ...REPO_EVENTS,
+    ...LOOP_PROGRESS_EVENTS,
+    ...floorEvents(env),
+  ].map((eventName) => ({
     eventName,
   }));
   const sweeps = Object.values(STATIONS).flatMap((mod) =>

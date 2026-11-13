@@ -3,11 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parse } from "yaml";
 
-// Every workflow whose `deploy` job upgrades the umbrella release through
-// deploy-lore-platform.sh. A failed deploy there leaves the service on its
-// previous image while main carries the new code; the script's only trace
-// outside the Actions tab is the `deploy-failed` issue report-deploy-failure.sh
-// files, which needs the job to be allowed to write issues (#1650).
+// Every workflow whose `deploy` job records the freshly built image tag in the
+// cluster values through bump-image-tag.sh; Argo CD rolls it out from main.
+// main only takes pull requests, so the job pushes a branch and merges a pull
+// request for it: it needs to write contents and pull requests.
 const UMBRELLA_DEPLOY_WORKFLOWS = [
   ".github/workflows/build-mcp-server.yml",
   ".github/workflows/build-lore-api.yml",
@@ -23,27 +22,25 @@ function deployJob(workflow) {
   return job;
 }
 
-test("every umbrella deploy job runs deploy-lore-platform.sh with issues: write and GH_TOKEN, so a failed deploy can file its deploy-failed issue", () => {
+test("every umbrella deploy job records its image tag with bump-image-tag.sh and may merge a pull request for it", () => {
   for (const workflow of UMBRELLA_DEPLOY_WORKFLOWS) {
     const job = deployJob(workflow);
-    const runsDeployScript = job.steps.some((step) =>
-      String(step.run ?? "").includes("scripts/ci/deploy-lore-platform.sh"),
+    const runsTagBump = job.steps.some((step) =>
+      String(step.run ?? "").includes("scripts/ci/bump-image-tag.sh"),
     );
 
     assert.equal(
-      runsDeployScript,
+      runsTagBump,
       true,
-      `${workflow}: deploy job never calls deploy-lore-platform.sh`,
+      `${workflow}: deploy job never calls bump-image-tag.sh`,
     );
-    assert.equal(
-      job.permissions.issues,
-      "write",
-      `${workflow}: deploy job cannot write issues`,
-    );
-    assert.equal(
-      job.env.GH_TOKEN,
-      "${{ github.token }}",
-      `${workflow}: deploy job has no GH_TOKEN for gh`,
+    assert.deepEqual(
+      {
+        contents: job.permissions.contents,
+        pullRequests: job.permissions["pull-requests"],
+      },
+      { contents: "write", pullRequests: "write" },
+      `${workflow}: deploy job cannot merge the tag bump`,
     );
   }
 });

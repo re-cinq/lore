@@ -5,7 +5,7 @@ export interface NewPlanInput {
   title: string;
   type: PlanKind;
   description: string;
-  /** The issue number of the user story the plan answers, when the author names one. */
+  /** The issue number of the user story the plan answers, when the author names one; it is saved on the plan. */
   storyIssue?: number;
 }
 

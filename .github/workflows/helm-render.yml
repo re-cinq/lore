@@ -1,19 +1,15 @@
 name: Infra validation
 
 # Cluster-free validation of the deployable infra: lint + template the
-# lore-platform umbrella (every vendored subchart), and fmt/validate every
-# Terraform root. The
-# scripts/ paths listed below are exactly the files Terraform file() and the
-# umbrella's --set-file reach outside infra/, plus the deploy script whose
-# helm flags check-lore-platform-render.sh mirrors.
+# lore-platform umbrella (every vendored subchart). The scripts/ paths listed
+# below are the files the umbrella's --set-file reaches.
 
 on:
   pull_request:
     paths:
       - 'infra/**'
+      - 'deploy/**'
       - 'scripts/check-lore-platform-render.sh'
-      - 'scripts/ci/deploy-lore-platform.sh'
-      - 'scripts/ci/helm-lock-contention.sh'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'
       - '.github/workflows/helm-render.yml'
@@ -35,33 +31,3 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: Lint + render umbrella chart
         run: ./scripts/check-lore-platform-render.sh
-
-  terraform-validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - uses: hashicorp/setup-terraform@v3
-      - name: terraform fmt
-        run: terraform fmt -check -recursive -diff infra/terraform
-      - name: terraform validate (all roots)
-        # Three independent roots: the main config plus two standalone module
-        # roots nothing references via a module block (gke-mcp is the cluster
-        # bootstrap root). The roots have no committed .terraform.lock.hcl
-        # (gitignored repo-wide), so the shared plugin cache needs the
-        # MAY_BREAK override to be consulted at all — without it each root
-        # re-downloads every provider. Every root runs even if an earlier one
-        # fails, so one CI run reports all broken roots.
-        env:
-          TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
-          TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE: '1'
-        run: |
-          mkdir -p "$TF_PLUGIN_CACHE_DIR"
-          fail=0
-          for dir in infra/terraform infra/terraform/modules/gke-mcp; do
-            echo "::group::validate $dir"
-            terraform -chdir="$dir" init -backend=false -input=false || fail=1
-            terraform -chdir="$dir" validate || fail=1
-            echo "::endgroup::"
-          done
-          exit "$fail"

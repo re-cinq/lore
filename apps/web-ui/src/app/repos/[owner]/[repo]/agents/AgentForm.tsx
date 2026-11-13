@@ -15,6 +15,9 @@ import {
   FormActions,
   RunLimitsFields,
 } from "./AgentFormFields";
+import McpServerFields from "./McpServerFields";
+import SkillFields from "./SkillFields";
+import type { SkillCatalogue } from "@/lib/skill-options";
 
 export type AgentFormAction = (
   prev: AgentFormState,
@@ -22,15 +25,17 @@ export type AgentFormAction = (
 ) => Promise<AgentFormState>;
 
 /** Agent create/edit form; org editing forks to project agent (upserts via updateAgent). */
-interface AgentFormProps {
+export interface AgentFormProps {
   repo: string;
   agent: AgentWithInheritedFields | null;
   action: AgentFormAction;
   isNew: boolean;
   /** Default runner image for placeholder (shows inherited, not prefilled). */
   defaultImage?: string;
-  /** Org-default editing hides image+approval (API refuses org image change). */
+  /** Org-default editing hides the repo-scoped approval PR input. */
   orgScope?: boolean;
+  /** What the skills select offers, or why it offers nothing. */
+  skills?: SkillCatalogue;
 }
 
 export default function AgentForm(props: AgentFormProps) {
@@ -48,6 +53,7 @@ export default function AgentForm(props: AgentFormProps) {
         values={values}
         image={agent?.image}
         defaultImage={defaultImage}
+        skills={props.skills}
       />
 
       <FormActions isNew={isNew} state={state} />
@@ -109,14 +115,13 @@ interface ExecutionFieldsProps {
   values: AgentFormValues;
   image: string | null | undefined;
   defaultImage?: string;
+  skills?: SkillCatalogue;
 }
 
-/** How this agent RUNS: its limits, its pod resources, and — repo-scoped only — the execution image. The image is omitted org-wide because the API refuses an org-wide image change: the two-key ceremony authorizing one is itself repo-scoped. */
-function ExecutionFields({
-  values,
-  image,
-  defaultImage,
-}: ExecutionFieldsProps) {
+/** How this agent RUNS: its limits, its pod resources and its execution image. */
+function ExecutionFields(props: ExecutionFieldsProps) {
+  const { values, image, defaultImage, skills } = props;
+
   return (
     <>
       <RunLimitsFields
@@ -125,12 +130,32 @@ function ExecutionFields({
         promptPlaceholder={values.promptPlaceholder}
         promptInherited={values.promptInherited}
       />
-
       <PodResourceFields podResources={values.podResources} />
+      <ToolFields values={values} skills={skills} />
+      <ImageFields
+        image={image}
+        defaultImage={defaultImage}
+        showApprovalPr={!values.orgScope}
+      />
+    </>
+  );
+}
 
-      {!values.orgScope && (
-        <ImageFields image={image} defaultImage={defaultImage} />
-      )}
+/** What the agent can call: the MCP servers its pod connects to and the skills it starts with. */
+function ToolFields(props: {
+  values: AgentFormValues;
+  skills?: SkillCatalogue;
+}) {
+  const { values, skills = { options: [] } } = props;
+
+  return (
+    <>
+      <McpServerFields servers={values.mcpServers} />
+      <SkillFields
+        skills={values.skills}
+        adjustModels={values.adjustSkillModels}
+        catalogue={skills}
+      />
     </>
   );
 }

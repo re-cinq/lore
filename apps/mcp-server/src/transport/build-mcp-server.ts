@@ -6,7 +6,6 @@ import { registerPipelineTools } from "./tools/pipeline/index.js";
 import { registerRepoTools } from "./tools/repo/index.js";
 import { registerUsageTools } from "./tools/usage/index.js";
 import { registerSpecTraceTools } from "./tools/spec-trace/index.js";
-import { registerLocalRunnerTools } from "./tools/local-runner/index.local.js";
 import { registerSpecTraceLocalTools } from "./tools/spec-trace/index.local.js";
 import { registerUpdateTools } from "./tools/update/index.js";
 import { registerCiTools } from "./tools/ci/index.js";
@@ -24,7 +23,7 @@ Start a task with lore_assemble_context (one ordered bundle), then lore_search_m
 
 export type { ServerMode };
 
-// Builds the McpServer; in `agent` mode the pipeline tools, local-runner tools, local spec-trace runners, and lore_update are NOT registered.
+// Builds the McpServer; in `agent` mode the pipeline tools, local spec-trace runners, and lore_update are NOT registered.
 export function buildMcpServer(
   opts: { serverMode?: ServerMode } = {},
 ): McpServer {
@@ -61,7 +60,6 @@ function registerSharedTools(server: McpServer, mode: ServerMode): void {
 // Registered only outside `agent` mode: they need a developer's own machine.
 function registerLaptopOnlyTools(server: McpServer): void {
   registerPipelineTools(server);
-  registerLocalRunnerTools(server);
   registerSpecTraceLocalTools(server);
   // lore_update rebuilds ~/.re-cinq/lore, a laptop-only checkout the gateway's agent pods do not have.
   registerUpdateTools(server);

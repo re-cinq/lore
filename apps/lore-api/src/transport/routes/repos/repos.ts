@@ -16,6 +16,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit, offsetParam } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
+import { availableReposRoute } from "./available.js";
 
 // Defaults to the max page so orgs with <=100 repos still get them all in one call (pre-pagination behavior).
 const ReposQuery = z.object({
@@ -38,7 +39,12 @@ const RepoListResponse = z.object({
   offset: z.number(),
 });
 
-export function reposRoute(getPool: () => Pool | null): ServerRoute {
+/** The onboarded repos and, beside them, the repos still to onboard. */
+export function reposRoutes(getPool: () => Pool | null): ServerRoute[] {
+  return [reposRoute(getPool), availableReposRoute(getPool)];
+}
+
+function reposRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos",

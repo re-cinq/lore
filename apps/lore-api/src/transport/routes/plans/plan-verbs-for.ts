@@ -16,8 +16,11 @@ import {
   planSnapshot,
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
-import { ensureSpecBranch } from "../../../work/plans/spec-branch.js";
+import { ensureSpecBranch } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
 import { pgRefineAsks } from "../../../work/plans/refine-asks-pg.js";
+import { pgPlanStories } from "../../../work/plans/plan-stories-pg.js";
+import type { PlanApprover } from "../../../work/plans/plan-approval.js";
+import type { PlanMeta } from "@re-cinq/planning-document";
 
 /** What a plan route needs to run a verb on the floor; a test hands in doubles for what production reads from the environment and the repo's GitHub App. */
 export interface PlanVerbSeams {
@@ -27,6 +30,8 @@ export interface PlanVerbSeams {
   floorDeps?: FloorPlanDeps;
   /** The pool a Refine ask is recorded on. lore-api builds its own in index.ts and never calls initPool(), so the shared getPool() throws here; the plans registration supplies this one. */
   pool?: () => Pool;
+  /** The plan lifecycle service (approve, reopen, spec-work etc.); only needed at request time, not at route construction. */
+  service?: PlanApprover & { reopenPlan(planId: string): Promise<PlanMeta> };
 }
 
 const NO_FLOOR = "plans need the external floor, and this deployment has none";
@@ -81,5 +86,6 @@ async function deploymentFloorDeps(
       (await pulls.get(prNumber))?.state ?? null,
     pulls,
     recordRefineAsk: (ask) => pgRefineAsks(pool).record(ask),
+    savedStory: (planId) => pgPlanStories(pool).saved(planId),
   };
 }

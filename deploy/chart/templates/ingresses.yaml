@@ -1,0 +1,51 @@
+{{- /* One public hostname per entry; TLS from cert-manager, DNS from external-dns. */ -}}
+{{- range .Values.platform.ingresses }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+  annotations:
+    {{- if not .certificate }}
+    cert-manager.io/cluster-issuer: {{ $.Values.platform.clusterIssuer }}
+    {{- end }}
+    external-dns.alpha.kubernetes.io/hostname: {{ .host }}
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $.Values.platform.ingressClassName }}
+  tls:
+    - hosts: [{{ .host }}]
+      secretName: {{ .tlsSecret | default (printf "%s-tls" .name) }}
+  rules:
+    - host: {{ .host }}
+      http:
+        paths:
+          - path: {{ .path | default "/" }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ .service }}
+                port: { number: {{ .port }} }
+{{- end }}
+{{- range .Values.platform.ingresses }}
+{{- if .certificate }}
+---
+# Issued ahead of the ingress on purpose: an ingress that arrives with no
+# certificate serves nginx's default one until issuance, and GitHub does not
+# redeliver what fails TLS.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .certificate }}
+  namespace: {{ .namespace }}
+spec:
+  secretName: {{ .tlsSecret | default (printf "%s-tls" .name) }}
+  dnsNames: [{{ .host }}]
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ $.Values.platform.clusterIssuer }}
+{{- end }}
+{{- end }}

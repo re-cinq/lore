@@ -1,16 +1,31 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import PlanDetailView from "./PlanDetailView";
 import type { PlanRun } from "./PlanRunCard";
 
-vi.mock("@/components/Icon", () => ({
-  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
-}));
+vi.mock("@/components/Icon", () => ({ default: () => <i /> }));
 vi.mock("./PlanWorkspace", () => ({
-  default: ({ user }: { user: { name: string } }) => (
-    <p>editor for {user.name}</p>
+  default: ({
+    user,
+    story,
+    onRefineFailures,
+  }: {
+    user: { name: string };
+    story: { issueNumber: number | null } | null;
+    onRefineFailures: (failures: unknown[]) => void;
+  }) => (
+    <button
+      data-story={story?.issueNumber}
+      onClick={() =>
+        onRefineFailures([
+          { slot: "scope", title: "Scope", reason: "no proposal came back" },
+        ])
+      }
+    >
+      editor for {user.name}
+    </button>
   ),
 }));
 
@@ -38,6 +53,9 @@ const actions = {
   reworkSpecs: async () => ({}),
   validate: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
+  story: null,
+  saveStory: async () => ({}),
+  removeStory: async () => ({}),
   refreshRunFacts: async () => ({ run: null }),
 };
 
@@ -55,41 +73,6 @@ const QUEUED_RUN: PlanRun = {
   specPlanSummary: null,
   nodes: [],
 };
-
-const STORY_URL = "https://github.com/re-cinq/lore/issues/42";
-
-function storyLink(): HTMLElement {
-  render(
-    <PlanDetailView
-      meta={META}
-      run={{ ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 }}
-      user={null}
-      {...actions}
-    />,
-  );
-
-  return screen.getByRole("link", { name: "User story #42" });
-}
-
-describe("the user story in the plan's header", () => {
-  it("links User story #42 to re-cinq/lore issue 42 when the run carries it", () => {
-    expect(storyLink()).toHaveAttribute("href", STORY_URL);
-  });
-
-  it("marks the User story #42 link as leaving the page with the external icon", () => {
-    expect(
-      within(storyLink()).getByTestId("icon-external"),
-    ).toBeInTheDocument();
-  });
-
-  it("links no user story when the run carries none", () => {
-    render(
-      <PlanDetailView meta={META} run={QUEUED_RUN} user={null} {...actions} />,
-    );
-
-    expect(screen.queryByRole("link", { name: /User story/ })).toBeNull();
-  });
-});
 
 describe("PlanDetailView", () => {
   it("opens the editor for the signed-in Bogdan", () => {
@@ -121,78 +104,6 @@ describe("PlanDetailView", () => {
     }).toEqual({ editor: null, drafting: true });
   });
 
-  it("says gedaiu approved the plan on 2026-09-23 in the header", () => {
-    render(
-      <PlanDetailView
-        meta={{
-          ...META,
-          status: "approved",
-          approval: {
-            mode: "manual",
-            approvedBy: "gedaiu",
-            approvedAt: "2026-09-23T10:00:00.000Z",
-            version: 2,
-          },
-        }}
-        run={null}
-        user={{ id: "gedaiu", name: "Bogdan" }}
-        {...actions}
-      />,
-    );
-
-    expect(screen.getByText(/approved by gedaiu on/).textContent).toContain(
-      new Date("2026-09-23T10:00:00.000Z").toLocaleDateString(),
-    );
-  });
-
-  it("asks before deleting the plan, saying it cannot be undone", () => {
-    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
-
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Faster checkout is removed for good",
-    );
-  });
-
-  it("keeps Delete off until the plan's name Faster checkout is typed in full", () => {
-    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
-    const nameField = screen.getByRole("textbox", {
-      name: "Type Faster checkout to confirm",
-    });
-    const deleteButton = screen.getByRole("button", { name: "Delete" });
-    const offBeforeTyping = deleteButton.hasAttribute("disabled");
-
-    fireEvent.change(nameField, { target: { value: "Faster" } });
-    const offOnPartialName = deleteButton.hasAttribute("disabled");
-
-    fireEvent.change(nameField, { target: { value: "Faster checkout" } });
-
-    expect({
-      offBeforeTyping,
-      offOnPartialName,
-      offOnFullName: deleteButton.hasAttribute("disabled"),
-    }).toEqual({
-      offBeforeTyping: true,
-      offOnPartialName: true,
-      offOnFullName: false,
-    });
-  });
-
-  it("deletes the plan once its name is typed and the delete is confirmed", async () => {
-    render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
-    fireEvent.click(screen.getByRole("button", { name: "Delete plan" }));
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Type Faster checkout to confirm" }),
-      { target: { value: "Faster checkout" } },
-    );
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    });
-
-    expect(actions.deletePlan).toHaveBeenCalledTimes(1);
-  });
-
   it("asks a visitor without a session to sign in instead of opening the editor", () => {
     render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
 
@@ -204,54 +115,84 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {} }),
 }));
 
-describe("the user story field in the plan's header", () => {
-  const storyField = (value: string, run: PlanRun | null = null) => {
-    const onChange = vi.fn();
+describe("PlanDetailView toolbar height", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
-    render(
+  it("hands the editor the toolbar's height", () => {
+    let resize: () => void = () => {};
+
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resize = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 64,
+    } as DOMRect);
+    const { container } = render(
       <PlanDetailView
         meta={META}
-        run={run}
-        user={null}
-        story={{ value, onChange }}
+        run={null}
+        user={{ id: "gedaiu", name: "Bogdan" }}
         {...actions}
       />,
     );
 
-    return onChange;
-  };
-
-  it("says a story typed for a run with none applies from the next draft or refine", () => {
-    storyField("");
+    act(() => resize());
 
     expect(
-      screen.getByRole("textbox", { name: "User story" }),
-    ).toHaveAccessibleDescription("Applies from the next draft or refine.");
+      (container.firstElementChild as HTMLElement).style.getPropertyValue(
+        "--plan-toolbar-height",
+      ),
+    ).toBe("64px");
   });
+});
 
-  it("hands #42 typed into the User story field to the page", () => {
-    const onChange = storyField("");
+describe("PlanDetailView refine warning", () => {
+  it("warns above the editor once the editor reports Scope's refine failed", () => {
+    render(
+      <PlanDetailView
+        meta={META}
+        run={null}
+        user={{ id: "gedaiu", name: "Bogdan" }}
+        {...actions}
+      />,
+    );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {
-      target: { value: "#42" },
-    });
+    fireEvent.click(screen.getByText("editor for Bogdan"));
 
-    expect(onChange).toHaveBeenCalledWith("#42");
-  });
-
-  it("describes issue 42 of other/repo as not an issue of re-cinq/lore", () => {
-    storyField("https://github.com/other/repo/issues/42");
-
-    expect(
-      screen.getByRole("textbox", { name: "User story" }),
-    ).toHaveAccessibleDescription(
-      "The user story must be an issue of re-cinq/lore.",
+    expect(screen.getByRole("alert").textContent).toContain(
+      'could not refine "Scope": no proposal came back.',
     );
   });
+});
 
-  it("shows no User story field once the run carries story 42", () => {
-    storyField("", { ...QUEUED_RUN, issueUrl: STORY_URL, issueNumber: 42 });
+describe("PlanDetailView user story", () => {
+  it("hands the editor panel story #123 and keeps it out of the toolbar's bar", () => {
+    render(
+      <PlanDetailView
+        meta={META}
+        run={null}
+        user={{ id: "gedaiu", name: "Bogdan" }}
+        {...actions}
+        story={{
+          issueNumber: 123,
+          issueUrl: "https://github.com/re-cinq/lore/issues/123",
+        }}
+      />,
+    );
 
-    expect(screen.queryByRole("textbox", { name: "User story" })).toBeNull();
+    expect({
+      story: screen.getByText("editor for Bogdan").getAttribute("data-story"),
+      links: screen.queryAllByRole("link", { name: /123/ }),
+    }).toEqual({ story: "123", links: [] });
   });
 });

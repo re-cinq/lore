@@ -1,4 +1,4 @@
-// Floor migrations: one file each under ./migrations, run once at boot after seeding, in version order, and recorded in lore.schema_migrations as `floor/<file>` beside the SQL migrations. Boot seeding never overwrites an agent the floor holds (#3995), so a changed shipped prompt reaches the floor as a one-line `updatePrompt(agent, file)` here.
+// Floor migrations: one file each under ./migrations, run once at boot after seeding, in version order, and recorded in lore.schema_migrations as `floor/<file>` beside the SQL migrations. Boot seeding never overwrites an agent the floor holds (#3995), so a changed shipped prompt reaches the floor as a one-line `updatePrompt(agent, file)` here, and a changed shipped timeout as `updateTimeout(agent, file)`.
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,12 +6,17 @@ import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
-import { shippedAgentPrompts } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { skillsSourceWrite } from "../agents/skills-source.js";
 import type { SeedFailure } from "./seed-floor-pipelines.js";
 
 export interface FloorMigrationApi {
   /** Writes the prompt of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor. */
   updatePrompt(agent: string, file: string): Promise<void>;
+  /** Writes the `timeout_minutes` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor. */
+  updateTimeout(agent: string, file: string): Promise<void>;
+  /** Writes the `config.skills` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor, with the skills source when it has none. */
+  updateSkills(agent: string, file: string): Promise<void>;
 }
 
 export type FloorMigration = (floor: FloorMigrationApi) => Promise<void>;
@@ -112,16 +117,70 @@ function ledgerOf(
 function floorApiOf(
   env: Record<string, string | undefined>,
 ): FloorMigrationApi {
-  const agentDefs = new FloorAgentDefs(floorClientFrom(env).agentDefinitions);
-  const prompts = shippedAgentPrompts();
+  return floorApiFor(new FloorAgentDefs(floorClientFrom(env).agentDefinitions));
+}
+
+/** What a migration may do to the floor's agents, each value read from the agent's shipped md file. */
+export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
+  const shipped = shippedFloorAgents();
 
   return {
     updatePrompt: async (agent, file) => {
-      const prompt = prompts.get(path.basename(file, ".md"));
-
-      enforceTrue(prompt, Error, `no shipped agent file ${file} has a prompt`);
-
-      await agentDefs.updateOrg(agent, { prompt });
+      await agentDefs.updateOrg(agent, { prompt: promptOf(shipped, file) });
     },
+    updateTimeout: async (agent, file) => {
+      await agentDefs.updateOrg(agent, {
+        timeout_minutes: timeoutOf(shipped, file),
+      });
+    },
+    updateSkills: async (agent, file) =>
+      await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
   };
+}
+
+type ShippedAgents = ReturnType<typeof shippedFloorAgents>;
+
+function promptOf(shipped: ShippedAgents, file: string): string {
+  const prompt = shipped.get(path.basename(file, ".md"))?.prompt;
+
+  enforceTrue(prompt, Error, `no shipped agent file ${file} has a prompt`);
+
+  return prompt;
+}
+
+function timeoutOf(shipped: ShippedAgents, file: string): number {
+  const minutes = shipped.get(path.basename(file, ".md"))?.timeout_minutes;
+
+  enforceTrue(
+    typeof minutes === "number",
+    Error,
+    `no shipped agent file ${file} has a timeout_minutes`,
+  );
+
+  return minutes;
+}
+
+async function updateOrgSkills(
+  agentDefs: FloorAgentDefs,
+  agent: string,
+  skills: string[],
+): Promise<void> {
+  await agentDefs.updateOrg(
+    agent,
+    {},
+    { skills, ...skillsSourceWrite(), inheritedConfig: null },
+  );
+}
+
+function skillsOf(shipped: ShippedAgents, file: string): string[] {
+  const settings = shipped.get(path.basename(file, ".md"));
+  const skills = settings?.config?.skills;
+
+  enforceTrue(
+    Array.isArray(skills) && skills.length > 0,
+    Error,
+    `no shipped agent file ${file} has a skills list`,
+  );
+
+  return skills;
 }

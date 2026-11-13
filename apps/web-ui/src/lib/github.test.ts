@@ -13,6 +13,11 @@ const rest = {
   pulls: {
     create: vi.fn(),
     list: vi.fn(),
+    get: vi.fn(),
+    listReviews: vi.fn(),
+  },
+  checks: {
+    listForRef: vi.fn(),
   },
 };
 
@@ -25,6 +30,7 @@ vi.mock("@octokit/auth-app", () => ({ createAppAuth: vi.fn() }));
 
 import {
   computeStatus,
+  getPRDetails,
   isGitHubConfigured,
   getRepoFileContent,
   openIngestWorkflowPR,
@@ -90,7 +96,18 @@ describe("computeStatus", () => {
     expect(
       computeStatus(
         open,
-        [{ conclusion: "action_required" }],
+        [{ status: "queued", conclusion: null }],
+        [{ state: "APPROVED" }],
+      ),
+    ).toBe("open");
+  });
+
+  it("returns open when approved but a check is in_progress with null conclusion", () => {
+    expect(
+      computeStatus(
+        open,
+
+        [{ status: "in_progress", conclusion: null }],
         [{ state: "APPROVED" }],
       ),
     ).toBe("open");
@@ -366,5 +383,48 @@ describe("checkRepoAccess", () => {
     delete process.env.GITHUB_APP_PRIVATE_KEY;
     expect(await checkRepoAccess("re-cinq/app")).toBe("unknown");
     expect(rest.repos.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("getPRDetails", () => {
+  beforeEach(() => {
+    configureApp();
+    resetRest();
+  });
+
+  it("maps an approved PR with an in-progress null-conclusion check to open", async () => {
+    rest.pulls.get.mockResolvedValue({
+      data: {
+        number: 42,
+        title: "Add feature",
+        state: "open",
+        draft: false,
+        merged: false,
+        mergeable: true,
+        html_url: "https://gh/pr/42",
+        head: { sha: "headsha" },
+      },
+    });
+    rest.checks.listForRef.mockResolvedValue({
+      data: {
+        check_runs: [{ name: "ci", status: "in_progress", conclusion: null }],
+      },
+    });
+    rest.pulls.listReviews.mockResolvedValue({
+      data: [
+        {
+          user: { login: "alice" },
+          state: "APPROVED",
+          submitted_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const details = await getPRDetails("re-cinq/app", 42);
+
+    expect(details.computed_status).toBe("open");
+    expect(details.checks).toEqual([
+      { name: "ci", status: "in_progress", conclusion: null },
+    ]);
   });
 });

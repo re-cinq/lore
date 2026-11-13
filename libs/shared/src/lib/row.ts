@@ -1,5 +1,7 @@
 // The field↔column binding a model declares (one map per table), and the readers that consume it — a dropped column fails as a SQL error, not a silent `undefined`.
 
+import { enforceTrue } from "./enforce.js";
+
 /** Every field of `T`, bound to the column that stores it. */
 export type ColumnMap<T> = Record<keyof T, string>;
 
@@ -45,6 +47,14 @@ export function toRow<T extends object>(
   columns: ColumnMap<T>,
   record: T,
 ): DbRow {
+  for (const field of Object.keys(record)) {
+    enforceTrue(
+      field in columns,
+      Error,
+      `toRow: no column bound for field "${field}"`,
+    );
+  }
+
   const row: DbRow = {};
 
   for (const [field, column] of Object.entries<string>(columns) as Array<

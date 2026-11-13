@@ -2,8 +2,8 @@
 
 import {
   resolveCeremony,
-  createFieldsWithPodResources,
-  resolvePodResourcesUpdate,
+  createFieldsWithConfig,
+  resolveConfigUpdate,
   issuesOf,
   audit,
 } from "./agent-common.js";
@@ -107,14 +107,16 @@ async function writeNewDefinition(
   project: Awaited<ReturnType<typeof projectFor>>,
   create: ReturnType<typeof parseAgentInput>,
 ) {
-  const { pod_resources, ...fields } = create;
+  const { pod_resources, mcp_servers, skills, adjust_skill_models, ...fields } =
+    create;
 
   return project.agentDefsWriter.create(
-    await createFieldsWithPodResources(
-      project.agentDefs,
-      fields,
+    await createFieldsWithConfig(project.agentDefs, fields, {
       pod_resources,
-    ),
+      mcp_servers,
+      skills,
+      adjust_skill_models,
+    }),
   );
 }
 
@@ -140,11 +142,17 @@ async function writePatchedDefinition(
   name: string,
   patch: ReturnType<typeof parseAgentPatch>,
 ) {
-  const { pod_resources, ...fields } = patch;
+  const { pod_resources, mcp_servers, skills, adjust_skill_models, ...fields } =
+    patch;
 
   return project.agentDefsWriter.update(
     name,
     fields,
-    await resolvePodResourcesUpdate(project.agentDefs, name, pod_resources),
+    await resolveConfigUpdate(project.agentDefs, name, {
+      pod_resources,
+      mcp_servers,
+      skills,
+      adjust_skill_models,
+    }),
   );
 }

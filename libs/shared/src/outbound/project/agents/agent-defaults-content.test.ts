@@ -123,6 +123,20 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("documents all three provenance forms in loop-tdd-round — inline spec link, lore:validates annotation, and Lore-Validates trailer", () => {
+    const round = promptOf("loop-tdd-round");
+
+    expect({
+      inlineLink: round.includes("([validated by name](path/to/test.ts#L42))"),
+      annotation: round.includes("// lore:validates"),
+      trailer: round.includes("Lore-Validates: <specPath>#<ordinal>"),
+    }).toEqual({
+      inlineLink: true,
+      annotation: true,
+      trailer: true,
+    });
+  });
+
   it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name);
@@ -894,6 +908,28 @@ describe("the planning recipes check a plan against what the platform has (issue
       everyStatement: true,
       keepsIds: true,
       onlyListed: true,
+    });
+  });
+
+  it("has spec-tickets-decompose leave settled lines to verification, name only lines still to build, and keep a task whose lines are all settled", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      listing: prompt.includes("`/workspace/settled-statements.json`"),
+      noEntry: prompt.includes("A settled line needs no `statements` entry"),
+      overrule: prompt.includes(
+        "keep it `missing` with a `reason`, or claim it `partial` with evidence",
+      ),
+      toBuild: prompt.includes("a task names only lines still to build"),
+      completed: prompt.includes(
+        "keep an existing task whose lines are all settled",
+      ),
+    }).toEqual({
+      listing: true,
+      noEntry: true,
+      overrule: true,
+      toBuild: true,
+      completed: true,
     });
   });
 

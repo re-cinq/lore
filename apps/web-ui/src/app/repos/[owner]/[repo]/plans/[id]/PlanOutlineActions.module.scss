@@ -6,6 +6,12 @@
   gap: var(--space-3);
 }
 
+.story {
+  @include t.row(var(--space-1));
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
 /* The spec PR as a card of its own inside the outline: what it waits for, the PR by name, how the review stands, and the rework while it waits. */
 .specPr {
   @include t.stack(var(--space-2));

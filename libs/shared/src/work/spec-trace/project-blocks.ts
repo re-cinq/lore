@@ -17,27 +17,71 @@ export interface SourceDocument {
 /** One source block as produced by {@link segmentBlocks}. */
 type DocumentBlock = ReturnType<typeof segmentBlocks>[number];
 
-/** Upserts one Block per source block of `content`, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns the valid Block xids for the caller's pruning sweep. */
+/** What the graph holds for one Block, as far as deciding to skip it needs. */
+export interface StoredBlock {
+  kind?: string;
+  text?: string;
+  level?: number;
+}
+
+/** Upserts one Block per source block of `content` that `stored` does not already hold as written, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns every block's xid for the caller's pruning sweep. */
 export async function projectDocumentBlocks(
   dgraph: DgraphClientPort,
   { repo, filePath, content }: SourceDocument,
   specUid?: string,
+  stored: ReadonlyMap<string, StoredBlock> = new Map(),
 ): Promise<Set<string>> {
   const blocks = segmentBlocks(content);
 
   for (const block of blocks) {
-    const xid = blockXid(repo, filePath, block.ordinal);
-
-    await upsertByXid(
-      dgraph,
-      "Block",
-      xid,
-      blockFields(repo, filePath, block, specUid),
-    );
+    await writeChangedBlock(dgraph, { repo, filePath, specUid }, block, stored);
   }
 
   return new Set(
     blocks.map((block) => blockXid(repo, filePath, block.ordinal)),
+  );
+}
+
+/** Where a document's blocks are written: its repo and path, and the spec they hang off when there is one. */
+interface BlockAddress {
+  repo: string;
+  filePath: string;
+  specUid: string | undefined;
+}
+
+/** Writes one block unless the graph already holds it as written. */
+async function writeChangedBlock(
+  dgraph: DgraphClientPort,
+  { repo, filePath, specUid }: BlockAddress,
+  block: DocumentBlock,
+  stored: ReadonlyMap<string, StoredBlock>,
+): Promise<void> {
+  const xid = blockXid(repo, filePath, block.ordinal);
+
+  if (isStoredAsWritten(stored.get(xid), block)) {
+    return;
+  }
+  await upsertByXid(
+    dgraph,
+    "Block",
+    xid,
+    blockFields(repo, filePath, block, specUid),
+  );
+}
+
+/** True when the graph already holds this block's kind, text and level; level is compared only where it is written, since an upsert never clears it (re-cinq/lore#4150). */
+function isStoredAsWritten(
+  stored: StoredBlock | undefined,
+  block: DocumentBlock,
+): boolean {
+  if (stored === undefined) {
+    return false;
+  }
+
+  return (
+    stored.kind === block.kind &&
+    stored.text === block.text &&
+    (block.level === undefined || stored.level === block.level)
   );
 }
 

@@ -3,11 +3,13 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Task Runner                        |
-| Status         | In Progress                              |
+| Status         | Retired                                  |
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
 
-Local Task Runner runs Lore pipeline tasks inside the developer's own Claude Code session and an isolated git worktree — via explicit invocation or opt-in polling — so subscription holders spend included usage instead of Anthropic API credits and skip the fresh-clone overhead of a GKE pod.
+> Retired: removed on 2026-11-13 because the runner was unused; tasks run in a local minikube. The text below records the design as it last ran.
+
+Local Task Runner runs Lore pipeline tasks inside the developer's own Claude Code session and an isolated git worktree, started by explicit invocation or by an explicit claim of a pending task, so subscription holders spend included usage instead of Anthropic API credits and skip the fresh-clone overhead of a GKE pod.
 
 ## Problem Statement
 
@@ -25,8 +27,10 @@ A local task runner that runs inside the developer's Claude Code
 session. It works in two modes:
 
 1. **Explicit** — developer calls `lore_run_task_locally` to spawn a task
-2. **Polling** — local runner claims tasks from the pipeline before
-   GKE picks them up (opt-in)
+2. **Notify and claim**: `lore_enable_task_notifications` starts a notifier
+   that lists pending tasks, and the developer runs one with
+   `lore_claim_and_run_locally`. Nothing is claimed automatically
+   *(amended 2026-11-13: this replaced the opt-in poller that claimed tasks itself)*
 
 Both modes spawn a background Claude Code process in an isolated git
 worktree on the developer's machine, using their subscription.
@@ -47,21 +51,24 @@ Claude Code:
 Statusline: ◉ Lore 1 local · auto-review · 36 memories
 ```
 
-#### Mode 2: Polling (developer opts in)
+#### Mode 2: Notify and claim (developer opts in)
 
 ```
-Developer: "start picking up tasks locally for this repo"
+Developer: "tell me about new tasks for this repo"
 
 Claude Code:
-  → Calls enable_local_runner
-  → MCP server starts polling pipeline.tasks every 30s
-  → Claims pending tasks for this repo
-  → Spawns background Claude Code for each
+  → Calls lore_enable_task_notifications
+  → MCP server reads the repo's pending tasks every 30s
+  → Writes them to ~/.lore/pending-tasks.json, claims nothing
 
-PM creates Issue with "lore:implementation" label
-  → Webhook creates pipeline task (status: pending)
-  → Local runner claims it within 30s
-  → Background Claude Code implements
+Statusline shows the pending count
+
+Developer: "run that one locally"
+
+Claude Code:
+  → Calls lore_claim_and_run_locally(task_id)
+  → Spawns background Claude Code in a worktree
+  → Removes the task from the pending list
   → PR created, auto-review triggered
   → All on developer's subscription, zero API cost
 ```
@@ -72,13 +79,17 @@ PM creates Issue with "lore:implementation" label
 Developer's machine
 ├── Claude Code (main session — developer working)
 │   └── Lore MCP Server (stdio)
-│       ├── lore_run_task_locally     → explicit trigger
-│       ├── enable_local_runner  → start polling
-│       ├── disable_local_runner → stop polling
-│       ├── lore_list_local_tasks     → show running/completed
-│       ├── lore_cancel_local_task    → kill + cleanup
-│       └── Task poller (background, 30s interval)
-│           └── Claims pending tasks → spawns workers
+│       ├── lore_run_task_locally            → explicit trigger
+│       ├── lore_enable_task_notifications   → start the notifier
+│       ├── lore_disable_task_notifications  → stop the notifier
+│       ├── lore_list_pending_tasks          → show what can be claimed
+│       ├── lore_claim_and_run_locally       → claim one pending task, run it
+│       ├── lore_skip_task                   → dismiss one notification
+│       ├── lore_configure_local_runner      → edit local-runner.json
+│       ├── lore_list_local_tasks            → show running/completed
+│       ├── lore_cancel_local_task           → kill + cleanup
+│       └── Task notifier (background, 30s interval)
+│           └── Lists pending tasks, claims nothing
 │
 ├── Background worker 1 (worktree A)
 │   └── claude --print --dangerously-skip-permissions
@@ -92,50 +103,25 @@ Developer's machine
     ├── worktrees/{task-id}/        (git worktrees)
     ├── task-logs/{task-id}.log     (stdout/stderr)
     ├── local-runner.json           (config: enabled, max_concurrent)
-    └── local-tasks.json            (running task registry)
+    ├── pending-tasks.json          (the notifier's list of pending tasks)
+    └── local-tasks.json            (task registry, the only copy of task metadata)
 ```
 
 ### Task Claiming
 
-When polling is enabled, the local runner claims tasks atomically:
+Nothing is claimed automatically. `lore_enable_task_notifications` starts a notifier in the MCP server that reads the pending tasks of the watched repos every 30 seconds and writes them to `~/.lore/pending-tasks.json`, which the statusline reads and `lore_list_pending_tasks` falls back to when the API is unreachable; `lore_disable_task_notifications` stops it and removes the file. *(amended 2026-11-13: the notifier replaced the poller that claimed tasks itself with `FOR UPDATE SKIP LOCKED`, and the worker whose 30 second grace period gave local runners priority was deleted on 2026-10-02.)*
 
-```sql
-UPDATE pipeline.tasks
-SET status = 'running-local',
-    claimed_by = $1,              -- agent ID
-    claimed_at = now()
-WHERE id = (
-  SELECT id FROM pipeline.tasks
-  WHERE status = 'pending'
-    AND target_repo = $2          -- current repo
-    AND task_type IN ('implementation', 'general', 'runbook', 'gap-fill', 'review')
-    AND claimed_by IS NULL
-  ORDER BY created_at ASC
-  LIMIT 1
-  FOR UPDATE SKIP LOCKED
-)
-RETURNING *;
-```
-
-GKE's agent worker uses the same query but with `status = 'pending'`.
-The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts@5617af6b`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
-
-**Grace period**: GKE worker waits 30s before claiming pending tasks.
-Local runners claim immediately. This gives local runners priority. ([`task-queue.test.ts@ea296ec4`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L108))
+`lore_claim_and_run_locally` takes one pending task by its id or id prefix, posts a best-effort claim to `POST /api/task`, starts the run and removes the task from the pending list. A task that is neither in the pending list nor pending in the API is answered as not found.
 
 ### Execution Flow
 
 ```
-Task claimed (from poll or explicit lore_run_task_locally)
+Task started (lore_run_task_locally or lore_claim_and_run_locally)
   │
   ├── 1. Create git worktree
   │     git worktree add ~/.lore/worktrees/{task-id} -b {branch}
   │
-  ├── 2. Write task metadata
-  │     ~/.lore/worktrees/{task-id}/.lore-task.json
-  │     { taskId, pid, branch, repo, startedAt }
-  │
-  ├── 3. Spawn background Claude Code
+  ├── 2. Spawn background Claude Code
   │     claude --print \
   │       --dangerously-skip-permissions \
   │       --model claude-sonnet-4-6 \
@@ -143,6 +129,10 @@ Task claimed (from poll or explicit lore_run_task_locally)
   │       -- "{lore workflow preamble}\n{task prompt}"
   │     
   │     stdout/stderr → ~/.lore/task-logs/{task-id}.log
+  │
+  ├── 3. Record task metadata
+  │     ~/.lore/local-tasks.json, never a file inside the worktree
+  │     { taskId, pid, branch, repo, worktreePath, logFile, startedAt, status }
   │
   ├── 4. Return to developer (non-blocking)
   │
@@ -186,16 +176,16 @@ The Lore workflow preamble ensures they follow the same protocol.
 
 ### Task Sources
 
-All task sources feed into the same pipeline and can be claimed
-locally:
+All task sources feed into the same pipeline, and a pending task can
+be claimed locally with `lore_claim_and_run_locally`:
 
 | Source | How task arrives | Local runner claims? |
 |--------|-----------------|---------------------|
-| GitHub Issue (label dispatch) | Webhook → pending | Yes (if polling enabled) |
-| Lore UI "New Task" | API → pending | Yes (if polling enabled) |
-| `lore_create_pipeline_task` MCP tool | API → pending | Yes (if polling enabled) |
+| GitHub Issue (label dispatch) | Webhook → pending | On explicit claim |
+| Lore UI "New Task" | API → pending | On explicit claim |
+| `lore_create_pipeline_task` MCP tool | API → pending | On explicit claim |
 | `lore_run_task_locally` MCP tool | Direct → running-local | Always local |
-| Auto-review (watcher) | Watcher → pending | Yes (if polling enabled) |
+| Auto-review (watcher) | Watcher → pending | On explicit claim |
 | Feature request (PM) | UI → pending | No (uses feature-request handler) |
 
 ### Concurrency & Limits
@@ -244,30 +234,13 @@ ALTER TABLE pipeline.tasks ADD COLUMN claimed_at TIMESTAMPTZ;
 
 Add `running-local` as a valid status value.
 
-### GKE Worker Changes
-
-The GKE worker needs a 30s grace period before claiming tasks, giving
-local runners priority:
-
-```typescript
-// In worker.ts claimNextTask()
-const task = await query(
-  `SELECT * FROM pipeline.tasks
-   WHERE status = 'pending'
-     AND (claimed_by IS NULL)
-     AND created_at < now() - interval '30 seconds'
-   ORDER BY created_at ASC
-   LIMIT 1
-   FOR UPDATE SKIP LOCKED`);
-```
-
 ### File Changes
 
 | File | Change |
 |------|--------|
-| `mcp-server/src/local-runner.ts` | New: worktree management, process spawning, polling, monitoring |
-| `mcp-server/src/index.ts` | Add 5 tools: lore_run_task_locally, enable_local_runner, disable_local_runner, lore_list_local_tasks, lore_cancel_local_task |
-| `agent/src/worker.ts` | Add 30s grace period before claiming tasks |
+| `apps/mcp-server/src/work/pipeline/runner-local-*.ts` | Worktree management, process spawning, the notifier, monitoring |
+| `apps/mcp-server/src/transport/tools/local-runner/` | Tools: lore_run_task_locally, lore_claim_and_run_locally, lore_configure_local_runner, lore_list_local_tasks, lore_cancel_local_task |
+| `apps/mcp-server/src/transport/tools/pipeline/` | Tools: lore_enable_task_notifications, lore_disable_task_notifications, lore_list_pending_tasks, lore_skip_task |
 | `scripts/lore-statusline.sh` | Show local task count |
 | `scripts/lore-status-cache.sh` | Count local worktrees |
 | `scripts/infra/setup-pipeline-schema.sh` | Add claimed_by, claimed_at columns |
@@ -296,9 +269,9 @@ const task = await query(
 
 1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
-3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts@5617af6b`](libs/shared/src/outbound/project/tasks/task-queue.test.ts#L7))
+3. `lore_claim_and_run_locally` runs the pending task the developer names and takes it off the pending list
 
-4. Tasks from GitHub Issues work through local runner when polling
+4. `lore_enable_task_notifications` lists the watched repos' pending tasks without claiming any
 5. Background task commits, pushes, creates PR on completion
 6. Logs stored locally and in GCS (redacted)
 7. Statusline shows local task count

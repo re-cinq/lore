@@ -5,7 +5,7 @@ description: "Audit a codebase for missing test coverage, produce a coverage gap
 
 # Finding and Adding Missing Characterization Tests
 
-A two-phase process. Complete the **Design Phase** first and get user approval before writing any code.
+A two-phase process. Complete the **Design Phase** first and get approval before writing any code when a person is present; an unattended run records the plan and continues.
 
 ---
 
@@ -70,13 +70,13 @@ Produce a numbered list of tasks, one per file (or group of closely related file
 
 Write the full plan — the test framework summary, coverage gap table, and all numbered tasks — to a file named `characterization_test_plan.md` in the repository root.
 
-**Stop here. Present the plan to the user and wait for approval before writing any tests.**
+**Stop here when a person is present: present the plan and wait for approval before writing any tests. An unattended run records the plan in the file above and continues to Phase 2.**
 
 ---
 
 ## Phase 2: Implementation — Write the Tests
 
-Only begin this phase after the user approves the plan from Phase 1.
+Begin this phase after the plan from Phase 1 is approved, or immediately when no person is present.
 
 ### General rules
 
@@ -94,7 +94,7 @@ For each task in the approved plan:
 3. Write the simplest possible test first (happy path, no branching).
 4. Run it. If it fails unexpectedly, investigate before proceeding.
 5. Add one test per additional branch or boundary.
-6. Run the full test suite after each new spec file to check for regressions.
+6. After each new spec file, run it and the test files that touch the same source, to check for regressions.
 7. Mark the task complete.
 
 ### Definition of done for each task

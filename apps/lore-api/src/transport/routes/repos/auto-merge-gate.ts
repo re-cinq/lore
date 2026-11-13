@@ -15,7 +15,7 @@ import { disarmLorePulls } from "../../../work/repo/auto-merge-approver.js";
 /** The floor line the auto-merge loop runs on. */
 export const AUTO_MERGE_LINE = "auto-merge";
 
-/** How many of the line's newest runs are read for the pull requests it worked. */
+/** Page size when paginating loop runs for disarming. */
 const LOOP_RUNS_READ = 100;
 
 /** Switching auto merge off takes back the auto-merge Lore armed: on the pull requests its App opened and on every pull request the loop worked. A failed disarm never fails the switch: off is the safe state, the setting is already written, and the PR (or the read that failed) is named in the log for a person to disarm by hand. */
@@ -46,21 +46,36 @@ async function disarmArmedPulls(repo: string): Promise<number[]> {
   return disarmLorePulls({ pulls, audit, appLogin, loopPulls });
 }
 
-/** The pull requests the loop's runs were started for. */
+/** The pull requests the loop's runs were started for, paginating until all runs are enumerated. */
 async function loopPullsOf(repo: string): Promise<Set<number>> {
   if (!floorConfigured()) {
     return new Set();
   }
-  const { items: loopRuns } = await floorClient().runs.list(
-    { repo: floorRepoOf(repo), line: AUTO_MERGE_LINE },
-    { limit: LOOP_RUNS_READ },
-  );
 
-  return new Set(
-    loopRuns.flatMap((run) => {
-      const url = startValue(run, "pr_url");
+  const pullNumbers: number[] = [];
+  let cursor: string | undefined;
 
-      return url ? [parsePullRequestUrl(url).prNumber] : [];
-    }),
-  );
+  do {
+    const { items: loopRuns, nextCursor } = await floorClient().runs.list(
+      { repo: floorRepoOf(repo), line: AUTO_MERGE_LINE },
+      { limit: LOOP_RUNS_READ, ...(cursor !== undefined ? { cursor } : {}) },
+    );
+
+    pullNumbers.push(...prNumbersFromRuns(loopRuns));
+    cursor = nextCursor ?? undefined;
+  } while (cursor !== undefined);
+
+  return new Set(pullNumbers);
+}
+
+function prNumbersFromRuns(
+  loopRuns: Awaited<
+    ReturnType<ReturnType<typeof floorClient>["runs"]["list"]>
+  >["items"],
+): number[] {
+  return loopRuns.flatMap((run) => {
+    const url = startValue(run, "pr_url");
+
+    return url ? [parsePullRequestUrl(url).prNumber] : [];
+  });
 }

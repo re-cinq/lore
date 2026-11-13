@@ -36,6 +36,20 @@ jobs:
     # that fell far behind made every push upload the whole suite and be cut off
     # at 90 minutes (2026-10-27). A run that is caught up still takes minutes.
     timeout-minutes: 360
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: lore
+          POSTGRES_PASSWORD: lore
+          POSTGRES_DB: lore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v5
         with:

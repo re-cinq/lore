@@ -10,4 +10,8 @@ export interface PrBlockedReasonsPort {
   clear(repo: string, prNumber: number): Promise<void>;
   /** The PR merged or closed: its open row is stamped with `closed_at`. */
   close(repo: string, prNumber: number): Promise<void>;
+  /** Increment the consecutive unclassified-refusal counter for this PR and return the new count. */
+  bumpUnclassifiedRefusal(repo: string, prNumber: number): Promise<number>;
+  /** Reset the consecutive unclassified-refusal counter to zero (called on any other outcome). */
+  resetUnclassifiedRefusals(repo: string, prNumber: number): Promise<void>;
 }

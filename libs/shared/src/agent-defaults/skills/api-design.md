@@ -1,23 +1,14 @@
 ---
 name: api-design
-description: Stable consumer-facing API and interface design patterns. Use when designing REST endpoints, reusable component prop interfaces, cross-team boundaries, or any externally consumed or versioned contract. Covers contract-first development, error semantics (RFC 9457), REST conventions, pagination, idempotency, rate limiting, and backward compatibility. For an in-process feature or module's coherent responsibility and interface depth, use codebase-design. For TypeScript type patterns and trust-boundary validation, see typescript-strict.
+description: Stable consumer-facing API and interface design patterns. Use when designing REST endpoints, reusable component prop interfaces, cross-team boundaries, or any externally consumed or versioned contract. Covers contract-first development, error semantics (RFC 9457), REST conventions, pagination, idempotency, rate limiting, and backward compatibility. For TypeScript type patterns and trust-boundary validation, see typescript-strict.
 ---
 
 # API and Interface Design
 
-Use this skill for consumer compatibility and protocol semantics. For an in-process module's responsibility, full caller burden, information hiding, and depth, load `codebase-design`; use both when an internal module also exposes a public or cross-team contract. Use `evaluate-existing-solutions` only when a material gateway, framework, SDK, provider, or protocol-implementation choice remains unresolved; API semantics and compatibility stay here.
+Use this skill for consumer compatibility and protocol semantics.
 
-For TypeScript type patterns (branded types, discriminated unions, schema-first), see the `typescript-strict` skill. For immutability patterns, see the `functional` skill. For testing API behavior, see the `testing` skill. For OAuth 2.0 or OpenID Connect, load the `secure-oauth-oidc` skill rather than treating authentication as an ordinary API-key decision.
+For TypeScript type patterns (branded types, discriminated unions, schema-first), see the `typescript-strict` skill. For immutability patterns, see the `functional` skill. For testing API behavior, see the `testing` skill. OAuth 2.0 and OpenID Connect are not an ordinary API-key decision: use the identity provider's flows and the repo's existing auth library.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `problem-details.md` | Implementing RFC 9457 error responses — member semantics, single-error and validation-error JSON examples, extension members, §5 security guidance |
-| `api-evolution.md` | Versioning strategies and deprecation patterns |
-| `api-security.md` | Securing the API boundary |
-| `auth-security.md` | JWT BCP security and routing to the dedicated OAuth/OIDC skill |
-| `http-fundamentals.md` | HTTP protocol fundamentals — caching directives, content negotiation, browser security, status codes, header design |
 
 ## When to Use
 
@@ -115,7 +106,7 @@ Errors should be **actionable**: the consumer should know what went wrong, why, 
 
 Include a correlation identifier (the trace ID, or an opaque reference to it) as an extension member or via `instance`, so a user-reported error joins to its trace and canonical log event — see the `observability` skill. The trace ID reveals nothing internal; it is a lookup key, not a detail leak.
 
-See `resources/problem-details.md` for full member semantics, single-error and validation-error JSON examples, extension member rules, when NOT to use Problem Details, and RFC 9457 §5 security guidance.
+
 
 ### HTTP Status Code Mapping
 
@@ -270,7 +261,7 @@ Practical rules:
 - If a request header changes the response, use `Vary` on ALL responses from that resource (including the default)
 - Use `no-store` for responses containing sensitive data — `no-cache` does NOT mean "don't cache" (it means "stored but revalidate before use")
 
-See `resources/http-fundamentals.md` for the full `Cache-Control` directive table plus content negotiation, header design, and protocol version independence.
+
 
 ## REST Conventions
 
@@ -397,6 +388,10 @@ After designing an API:
 - [ ] Content-Type is `application/problem+json` for RFC 9457 responses, `application/json` for simpler formats
 - [ ] Browser security headers on all responses (`X-Content-Type-Options: nosniff`, `CSP: default-src 'none'`, `Referrer-Policy: no-referrer`)
 - [ ] Caching strategy defined (explicit `Cache-Control`, ETags for revalidation, `Vary` where needed)
+
+## Attribution
+
+Adapted from the `api-design` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/api-design), which adapts the skill `api-and-interface-design` in [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills). Copyright (c) 2025 Addy Osmani, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

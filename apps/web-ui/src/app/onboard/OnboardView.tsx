@@ -11,6 +11,8 @@ export type OnboardState = { error?: string; fullName?: string } | null;
 export interface OnboardViewProps {
   /** Already-onboarded repos, used for the "Already onboarded: …" hint. */
   onboarded: { full_name: string }[];
+  /** Repos the GitHub App can access that are not onboarded yet; the picker's suggestions. */
+  available?: { full_name: string }[];
   /** Server action wired to the onboard form ("actions up"). */
   onboardRepoAction: (
     prev: OnboardState,
@@ -28,22 +30,27 @@ const PR_FILES = [
 const ONBOARD_LEDE =
   "Lore opens a PR on the target repo. Once it merges, the first ingest runs and Claude Code sessions in that repo pick up its context.";
 
+const HEADER = (
+  <SettingsHeader
+    eyebrow="{work}"
+    title="Add a repository"
+    lede={ONBOARD_LEDE}
+  />
+);
+
 /** Onboarding view; pure render with onboardRepoAction callback (no data access). */
 export default function OnboardView({
   onboarded,
+  available,
   onboardRepoAction,
 }: OnboardViewProps) {
   const [state, formAction] = useActionState(onboardRepoAction, null);
 
   return (
     <div className={styles.page}>
-      <SettingsHeader
-        eyebrow="{work}"
-        title="Add a repository"
-        lede={ONBOARD_LEDE}
-      />
+      {HEADER}
       <form action={formAction} className={`task-form ${styles.card}`}>
-        <RepoField defaultValue={state?.fullName ?? ""} error={state?.error} />
+        <RepoField state={state} available={available} />
         <PrFiles />
         <FormFooter onboarded={onboarded} />
       </form>
@@ -52,12 +59,14 @@ export default function OnboardView({
 }
 
 interface RepoFieldProps {
-  defaultValue: string;
-  error?: string;
+  state: OnboardState;
+  available?: { full_name: string }[];
 }
 
 /** The one thing this form asks for. Refills itself from the rejected value so a typo is corrected rather than retyped. */
-function RepoField({ defaultValue, error }: RepoFieldProps) {
+function RepoField({ state, available }: RepoFieldProps) {
+  const error = state?.error;
+
   return (
     <div className={styles.field}>
       <label htmlFor="full_name">Repository</label>
@@ -65,10 +74,25 @@ function RepoField({ defaultValue, error }: RepoFieldProps) {
         className={`${styles.inputWrap}${error ? ` ${styles.invalid}` : ""}`}
       >
         <Icon name="github" size={18} className={styles.inputIcon} />
-        <RepoInput defaultValue={defaultValue} invalid={Boolean(error)} />
+        <RepoInput
+          defaultValue={state?.fullName ?? ""}
+          invalid={Boolean(error)}
+        />
+        <AvailableRepos available={available} />
       </span>
       {error ? <RepoError message={error} /> : <RepoHint />}
     </div>
+  );
+}
+
+/** The picker's suggestions: native datalist options, so choosing one fills the slug and typing still works when there are none. */
+function AvailableRepos({ available = [] }: Pick<RepoFieldProps, "available">) {
+  return (
+    <datalist id="available-repos">
+      {available.map((repo) => (
+        <option key={repo.full_name} value={repo.full_name} />
+      ))}
+    </datalist>
   );
 }
 
@@ -83,6 +107,7 @@ function RepoInput({ defaultValue, invalid }: RepoInputProps) {
       id="full_name"
       type="text"
       name="full_name"
+      list="available-repos"
       required
       placeholder="re-cinq/my-service"
       pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"

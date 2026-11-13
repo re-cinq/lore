@@ -123,8 +123,11 @@ describe("GET /api/repos/:owner/:repo/trace/:kind — per-kind dispatch", () => 
     expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });
   });
 
-  it("dispatches graph and surfaces the no-op Dgraph failure as 500", async () => {
-    const res = await get("/api/repos/o/r/trace/graph", AUTH);
+  it("dispatches graph with a path and surfaces the no-op Dgraph failure as 500", async () => {
+    const res = await get(
+      "/api/repos/o/r/trace/graph?path=specs/foo/spec.md",
+      AUTH,
+    );
 
     expect(res.statusCode).toBe(500);
     expect(res.result).toEqual({ error: NO_DGRAPH_ERROR });

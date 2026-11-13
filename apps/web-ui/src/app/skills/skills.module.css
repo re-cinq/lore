@@ -1,0 +1,4 @@
+.dangerCell {
+  padding-left: var(--space-6);
+  text-align: right;
+}

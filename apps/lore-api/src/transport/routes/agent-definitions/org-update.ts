@@ -10,23 +10,29 @@ import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
+  configKeysOf,
   parseAgentPatch,
-  imageFieldTouched,
+  type AgentPatch,
+  type OwnedConfigKey,
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
+import { skillsSourceWrite } from "../../../work/agents/skills-source.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
-// Writes the ORG DEFAULT, the floor definition's own settings (#3995); `image` is refused here since the two-key ceremony is CODEOWNERS-scoped per repo.
+// Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
 
 const OrgAgentWrittenSchema = z.object({
   ok: OkTrue,
   agent: ResolvedAgentDefinitionSchema,
 });
 
-const IMAGE_ORG_DETAIL =
-  "Changing an execution image is CODEOWNERS-gated per repo. Set it through " +
-  "/api/repos/{owner}/{repo}/agent-definitions with an approval PR instead.";
+/** A required org field sent as null is a form field left empty, so the stored value stays. */
+const REQUIRED_ORG_FIELDS: readonly string[] = [
+  "prompt",
+  "image",
+  "timeout_minutes",
+];
 
 export function orgAgentDefinitionUpdateRoute(
   getPool: () => Pool | null,
@@ -62,7 +68,7 @@ async function serveOrgUpdate(
   try {
     return await orgUpdateOutcome(deps, name, request, h);
   } catch (err) {
-    // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
+    // A guard's refusal (no floor) already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
 
     console.error("[agents] org update failed:", err);
@@ -78,7 +84,7 @@ async function orgUpdateOutcome(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  let patch: ReturnType<typeof parseAgentPatch>;
+  let patch: AgentPatch;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- hapi types omit it, but request.payload is genuinely null for an empty body.
@@ -101,17 +107,11 @@ function issuesOf(err: unknown): unknown {
     : (err as Error).message;
 }
 
-/** Applies a validated patch to the ORG default. `image` is refused here rather than ignored: an org-wide image change affects every repo that has not overridden it, so it is a per-repo decision by design. */
 async function applyOrgPatch(
   deps: OrgWriteDeps,
   name: string,
-  patch: ReturnType<typeof parseAgentPatch>,
+  patch: AgentPatch,
 ) {
-  enforceTrue(
-    !imageFieldTouched(patch),
-    apiError(400, { detail: IMAGE_ORG_DETAIL }),
-    "image_org_gated",
-  );
   const agent = await writeOrgPatch(deps.definitions, name, patch);
 
   await audit(deps.pool, "agent_org_updated", { name });
@@ -123,27 +123,49 @@ async function applyOrgPatch(
 function writeOrgPatch(
   definitions: FloorDefinitions,
   name: string,
-  patch: ReturnType<typeof parseAgentPatch>,
+  patch: AgentPatch,
 ) {
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
-  const { pod_resources, ...fields } = patch;
+  const { pod_resources, mcp_servers, skills, adjust_skill_models, ...fields } =
+    patch;
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
-    fields,
-    orgPodResourcesUpdate(pod_resources),
+    withoutClearedRequired(fields),
+    orgConfigWrite({ pod_resources, mcp_servers, skills, adjust_skill_models }),
   );
 }
 
-// Merged over the definition's own config; the org default inherits from nothing.
-function orgPodResourcesUpdate(
-  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
-) {
-  return podResources === undefined
-    ? undefined
-    : { podResources, inheritedConfig: null };
+/** Replaces the org default's pod resources, MCP servers and skills whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
+function orgConfigWrite(owned: Pick<AgentPatch, OwnedConfigKey>) {
+  const keys = withoutEmptyLists(configKeysOf(owned));
+
+  return Object.keys(keys).length > 0
+    ? { ...keys, ...skillsSourceWrite(), inheritedConfig: null }
+    : undefined;
+}
+
+// The org default inherits from nothing, so an empty list of servers or skills is no key at all.
+function withoutEmptyLists(
+  keys: ReturnType<typeof configKeysOf>,
+): ReturnType<typeof configKeysOf> {
+  return {
+    ...keys,
+    ...(keys.mcpServers?.length === 0 ? { mcpServers: null } : {}),
+    ...(keys.skills?.length === 0 ? { skills: null } : {}),
+  };
+}
+
+function withoutClearedRequired(
+  fields: Omit<AgentPatch, OwnedConfigKey>,
+): Omit<AgentPatch, OwnedConfigKey> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(
+      ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),
+    ),
+  );
 }
 
 async function audit(

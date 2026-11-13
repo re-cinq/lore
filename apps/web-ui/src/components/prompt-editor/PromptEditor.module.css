@@ -70,3 +70,110 @@
   background: var(--pill-bg);
   color: var(--text-muted);
 }
+
+/* The browser draws the caret; CodeMirror's light base theme pins it black, invisible on the dark theme. The extra .cm-editor outranks that rule. */
+.editor :global(.cm-editor .cm-content) {
+  caret-color: var(--text);
+}
+
+.editor :global(.cm-prompt-italic) {
+  font-style: italic;
+}
+
+.editor :global(.cm-prompt-link) {
+  color: var(--info);
+  text-decoration: underline;
+}
+
+/* A code span is a pill, like inline code elsewhere in the app. */
+.editor :global(.cm-prompt-code) {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+/* Every line of a fenced block is one line of one block: the lines share a background and the first and last carry the block's corners. */
+.editor :global(.cm-prompt-code-line),
+.editor :global(.cm-prompt-table-line) {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-lg);
+}
+
+.editor :global(.cm-prompt-code-line) {
+  padding: 0 var(--space-5);
+  background: var(--bg-surface);
+  color: var(--text);
+}
+
+.editor :global(.cm-prompt-code-first) {
+  padding-top: var(--space-3);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.editor :global(.cm-prompt-code-last) {
+  padding-bottom: var(--space-3);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.editor :global(.cm-prompt-code-first.cm-prompt-code-last) {
+  border-radius: var(--radius-sm);
+}
+
+/* The raw lines of a table being edited keep their columns. */
+.editor :global(.cm-prompt-table-line) {
+  color: var(--text-muted);
+}
+
+.editor :global(.cm-prompt-table) {
+  width: auto;
+  margin: var(--space-3) 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  cursor: text;
+  /* The editor wraps its lines anywhere; a cell breaks between words, so a narrow column widens instead of splitting one. */
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.editor :global(.cm-prompt-table th) {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.editor :global(.cm-prompt-table td),
+.editor :global(.cm-prompt-table th) {
+  border: 1px solid var(--border);
+}
+
+.editor :global(.cm-prompt-table code) {
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+/* A list item hangs: its wrapped lines align under its text, one step in for each level of nesting. */
+.editor :global(.cm-prompt-list) {
+  padding-left: calc(var(--space-5) * (var(--list-depth) + 1));
+  text-indent: calc(var(--space-5) * -1);
+}
+
+.editor :global(.cm-prompt-bullet) {
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+}
+
+.editor :global(.cm-prompt-quote) {
+  padding-left: var(--space-4);
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+.editor :global(.cm-prompt-rule) {
+  border-bottom: 1px solid var(--border);
+}

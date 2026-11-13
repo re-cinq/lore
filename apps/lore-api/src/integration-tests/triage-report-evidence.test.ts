@@ -60,7 +60,7 @@ describe("triage report evidence", () => {
     await pool.query(
       readFileSync(
         new URL(
-          "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0069_test_reports.sql",
+          "../../../../deploy/chart/charts/ui-helm/migrations/0069_test_reports.sql",
           import.meta.url,
         ),
         "utf8",

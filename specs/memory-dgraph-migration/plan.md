@@ -27,12 +27,14 @@ proxy" branch.
 
 ### 0.1 Local container
 
-**File:** `scripts/dev-local.sh`
+**File:** `infra/compose.yaml` *(amended 2026-11-13: was `scripts/dev-local.sh`,
+which is gone; `npm start` runs docker compose)*
 
-Add a `lore-dgraph` standalone container beside `lore-postgres` (same
-idempotent create/start/health-probe shape; probe `:8080/health`).
-Publish `:8080` (HTTP) + `:9080` (gRPC); bind-mount `.lore-dgraphdata`
-(git-ignored). ACL off locally (parity with local plain Postgres).
+Add a `lore-dgraph` standalone service beside `lore-postgres`, with a
+healthcheck on the container's `:8080/health`. Publish HTTP on host port
+`8081` (`DGRAPH_HTTP_PORT` overrides it; `:8080` is taken in the full local
+stack) and gRPC on `:9080`; bind-mount `.lore-dgraphdata` (git-ignored). ACL
+off locally (parity with local plain Postgres).
 
 ### 0.2 Schema applier
 
@@ -41,8 +43,8 @@ Publish `:8080` (HTTP) + `:9080` (gRPC); bind-mount `.lore-dgraphdata`
 
 Applies the DQL type system + predicate/index definitions from
 [data-model.md](data-model.md) (predicate types, `@index(hnsw)` on the
-768-dim vector predicates, `xid` `@index(hash) @upsert`). Invoked from
-`dev-local.sh` after the container is healthy. Idempotent.
+768-dim vector predicates, `xid` `@index(hash) @upsert`). Run by
+`npm start` after the containers are healthy when `LORE_DGRAPH_HTTP` is set. Idempotent.
 
 ### 0.3 Client wrapper
 
@@ -194,7 +196,7 @@ path. Postgres itself stays for `pipeline.*`, `lore.*`, `{team}.chunks`.
 
 | File | Phase | Change |
 |------|-------|--------|
-| `scripts/dev-local.sh` | 0 | local Dgraph container |
+| `infra/compose.yaml` | 0 | local Dgraph service |
 | `scripts/infra/setup-memory-dgraph-schema.sh` | 0 | NEW DQL schema applier |
 | `shared/src/dgraph-client.ts` | 0 | NEW gRPC wrapper |
 | `shared/src/memory-ranking.ts`, `fact-extraction.ts` | 1 | NEW extracted pure fns |

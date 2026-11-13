@@ -19,7 +19,16 @@ import {
   projectAcceptanceCriteria,
   projectBlocks,
   projectStatements,
+  type SpecSegment,
 } from "./project-spec-file-nodes.js";
+import {
+  criteriaToWrite,
+  NO_STORED_CHILDREN,
+  readStoredChildren,
+  statementsToWrite,
+  type ChildPlan,
+  type StoredChildren,
+} from "./unchanged-children.js";
 import {
   sha256,
   type EmbedFn,
@@ -56,7 +65,7 @@ export async function projectSpecFile(
   }
   const target = specTarget(dgraph, document, options);
 
-  await projectSpecChildren(await target, content);
+  await projectSpecChildren(await target, content, storedReadFor(options));
   await upsertByXid(dgraph, "Spec", specXid, {
     "Spec.content_hash": contentHash,
   });
@@ -163,34 +172,80 @@ async function upsertSpecNode(
   });
 }
 
-/** Everything that hangs off a spec: its sections, statements, acceptance criteria and code blocks — each followed by a prune, so a statement deleted from the markdown does not linger in the graph as a validated claim. */
+/** Everything that hangs off a spec: its sections, the statements and acceptance criteria this run changes, and its code blocks — each followed by a prune over every segment, so a skipped child counts as produced and one deleted from the markdown does not linger in the graph as a validated claim. */
 async function projectSpecChildren(
   target: SpecTarget,
   content: string,
+  readStored: StoredChildrenRead,
 ): Promise<void> {
-  const segments = segmentStatements(content);
-  const { statementSegments, acSegments } = splitAcceptanceCriteria(segments);
+  const { plan, split } = await childPlan(target, content, readStored);
+  const written = await childrenToWrite(plan, split);
   const context = await embeddedContext(target, [
-    ...statementSegments,
-    ...acSegments,
+    ...written.statementSegments,
+    ...written.acSegments,
   ]);
 
-  await projectStatementLayer(
-    context,
-    statementSegments,
-    buildIntroOrdinals(segments),
+  await projectStatementLayer(context, plan, written, split.statementSegments);
+  await projectAcceptanceCriteriaLayer(context, written.acSegments, split);
+  await projectBlocks(context, content, plan.stored.blocks);
+}
+
+/** How a projection learns what the graph holds for a spec's children. */
+type StoredChildrenRead = (target: SpecTarget) => Promise<StoredChildren>;
+
+/** A forced projection writes every child; an ordinary one only those that changed. */
+function storedReadFor({ force }: ProjectionOptions): StoredChildrenRead {
+  return force ? nothingStored : storedInGraph;
+}
+
+/** A forced projection treats the graph as holding nothing, so it writes every child. */
+const nothingStored: StoredChildrenRead = () =>
+  Promise.resolve(NO_STORED_CHILDREN);
+
+/** An ordinary projection reads what the spec's children hold, so it writes only the ones that changed (re-cinq/lore#4150). */
+const storedInGraph: StoredChildrenRead = ({ dgraph, repo, filePath }) =>
+  readStoredChildren(dgraph, `${repo}|${filePath}`);
+
+/** The spec's segments and, since a statement's comparison needs their uids, its sections written first, with what the graph holds for its children. */
+async function childPlan(
+  target: SpecTarget,
+  content: string,
+  readStored: StoredChildrenRead,
+): Promise<{ plan: ChildPlan; split: SplitSegments }> {
+  const segments = segmentStatements(content);
+  const split = splitAcceptanceCriteria(segments);
+  const sectionUidByHeading = await projectSections(
+    target,
+    split.statementSegments,
   );
-  await projectAcceptanceCriteriaLayer(context, acSegments);
-  await projectBlocks(context, content);
+  const plan = {
+    context: target,
+    stored: await readStored(target),
+    introOrdinals: buildIntroOrdinals(segments),
+    sectionUidByHeading,
+  };
+
+  return { plan, split };
+}
+
+/** The statement and criterion segments whose nodes, links or edges would change. */
+async function childrenToWrite(
+  plan: ChildPlan,
+  { statementSegments, acSegments }: SplitSegments,
+): Promise<SplitSegments> {
+  return {
+    statementSegments: await statementsToWrite(plan, statementSegments),
+    acSegments: await criteriaToWrite(plan, acSegments),
+  };
 }
 
 /** Where a spec's children are written, plus the embedder that has not run yet. */
 type SpecTarget = Omit<ProjectionContext, "embeddingOf"> & { embed: EmbedFn };
 
-/** Embeds every segment's text in one call, so each node reads its vector instead of asking for it. */
+/** Embeds the written segments' texts in one call, so each node reads its vector instead of asking for it; a skipped segment needs none. */
 async function embeddedContext(
   { embed, ...address }: SpecTarget,
-  segments: ReturnType<typeof segmentStatements>,
+  segments: SpecSegment[],
 ): Promise<ProjectionContext> {
   const texts = segments.map((segment) => segment.text);
   const vectors = await embed(texts);
@@ -201,13 +256,11 @@ async function embeddedContext(
   return { ...address, embeddingOf: (text) => vectorByText.get(text) ?? null };
 }
 
+/** A spec's segments, split into statements and acceptance criteria. */
+type SplitSegments = Record<"statementSegments" | "acSegments", SpecSegment[]>;
+
 /** Acceptance-criteria segments project as AcceptanceCriterion nodes, everything else as Statements. */
-function splitAcceptanceCriteria(
-  segments: ReturnType<typeof segmentStatements>,
-): Record<
-  "statementSegments" | "acSegments",
-  ReturnType<typeof segmentStatements>
-> {
+function splitAcceptanceCriteria(segments: SpecSegment[]): SplitSegments {
   return {
     statementSegments: segments.filter(
       (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
@@ -236,14 +289,13 @@ export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
   );
 }
 
-/** Sections and statements, then the orphans neither of them claimed. */
+/** The statements this run writes, then the orphans no segment claims, skipped ones included. */
 async function projectStatementLayer(
   context: ProjectionContext,
-  statementSegments: ReturnType<typeof segmentStatements>,
-  introOrdinals: ReturnType<typeof buildIntroOrdinals>,
+  { introOrdinals, sectionUidByHeading }: ChildPlan,
+  { statementSegments }: SplitSegments,
+  allStatements: SpecSegment[],
 ): Promise<void> {
-  const sectionUidByHeading = await projectSections(context, statementSegments);
-
   await projectStatements(
     context,
     statementSegments,
@@ -252,7 +304,7 @@ async function projectStatementLayer(
   );
   await pruneStatementOrphans(
     context,
-    statementSegments.map((segment) => segment.ordinal),
+    allStatements.map((segment) => segment.ordinal),
   );
   await pruneSectionOrphans(context, sectionUidByHeading.size);
 }
@@ -284,14 +336,15 @@ async function pruneSectionOrphans(
   await pruneOrphans(context, "Section", new Set(validXids), "Spec.sections");
 }
 
-/** The acceptance criteria, followed by the prune of the ones this run did not produce. */
+/** The acceptance criteria this run writes, followed by the prune of the ones no segment claims. */
 async function projectAcceptanceCriteriaLayer(
   context: ProjectionContext,
-  acSegments: ReturnType<typeof segmentStatements>,
+  written: SpecSegment[],
+  { acSegments }: SplitSegments,
 ): Promise<void> {
   const { repo, filePath } = context;
 
-  await projectAcceptanceCriteria(context, acSegments);
+  await projectAcceptanceCriteria(context, written);
 
   const validAcXids = new Set(
     acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`),

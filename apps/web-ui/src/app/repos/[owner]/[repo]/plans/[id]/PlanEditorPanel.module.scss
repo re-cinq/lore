@@ -1,0 +1,8 @@
+/* The package reads --ps-space-page: var(--space-page, 4rem); a plan page gives its text the room. */
+.editor {
+  --space-page: 3rem;
+  /* The bar pins at the window's edge, above the scroller's padding the outline's own offset starts from. */
+  --ps-sticky-top: calc(
+    var(--plan-toolbar-height, 0px) - var(--main-pad-y, 0px)
+  );
+}

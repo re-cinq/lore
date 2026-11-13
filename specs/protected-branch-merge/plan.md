@@ -173,7 +173,7 @@ apps/lore-api/src/transport/routes/
   blocked-reason.ts        ← new GET routes (step 2)
 adrs/
   ADR-051-protected-branch-approver.md ← step 1
-infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/
+deploy/chart/charts/ui-helm/migrations/
   NNNN_pr_blocked_reasons.sql          ← step 2
 ```
 

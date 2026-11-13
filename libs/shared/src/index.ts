@@ -24,27 +24,19 @@ export * from "./work/chunker-symbols.js";
 export * from "./work/chunker-ast.js";
 export * from "./work/chunk-primitives.js";
 export { redactSecrets } from "./lib/redact.js";
-export { CONTEXT_BOOTSTRAP } from "./domain/agents/recipe-prompt.js";
+export * from "./domain/agents/index.js";
 export {
   writeEpisode,
   writeEpisodeWithCuration,
   type WriteEpisodeDeps,
   type CurationDeps,
 } from "./work/episode-writer.js";
-export {
-  loadApprovalConfig,
-  requiresApproval,
-  getApprovalLabel,
-  getApprovalConfig,
-  type ApprovalConfig,
-} from "./domain/approval-config.js";
-export {
-  extractSection,
-  stripCommentsAndWhitespace,
-  sectionIsEmpty,
-} from "./work/pr-section-check.js";
-export * from "./outbound/embeddings/embedding-service.js";
+export * from "./work/artifact-copy.js";
+export * from "./domain/approval-config.js";
+export * from "./work/pr-section-check.js";
+export * from "./outbound/embeddings/index.js";
 export { resolveAgentId } from "./outbound/agent-id.js";
+// Re-exported via index-spec-trace.js: "./work/spec-trace/project-spec-file.js" "./work/spec-trace/project-adr-file.js" "./domain/spec-trace/trace-descriptors.js" "./work/spec-trace/bind-descriptors-to-spec-links.js" "./work/spec-trace/resolve-test-lines.js" "./domain/spec-trace/spec-anchor.js" "./work/spec-trace/ingest-spec-trace.js" "./work/spec-trace/graph-retention.js" "./work/spec-trace/overlay.js" "./outbound/spec-trace/tests-covering.js" "./outbound/spec-trace/code-callers.js" "./work/spec-trace/project-code-file.js" "./work/spec-trace/failure-nodes.js" "./domain/spec-trace/trace-scope.js" "./work/spec-trace/prune-removed-docs.js" "./work/spec-trace/prune-test-files.js" "./domain/spec-trace/assemble-trace-document.js" "./outbound/spec-trace/trace-document-listing.js" "./outbound/spec-trace/spec-graph.js" "./work/spec-trace/trace-units.js" "./work/spec-trace/trace-impact.js" "./work/spec-trace/graph-baseline.js" "./outbound/spec-trace/graph-context.js" "./work/spec-trace/ingest-graph-task.js" "./work/spec-trace/ingest-patterns.js"
 export * from "./work/index-spec-trace.js";
 export { mapWithLimit } from "./lib/concurrency/map-with-limit.js";
 export { Llm } from "./outbound/llm/llm.js";
@@ -69,21 +61,9 @@ export {
   type EventInsert,
   type EventSource,
 } from "./outbound/events.js";
-export {
-  formatTrailers,
-  formatValidatesTrailer,
-  parseTrailers,
-  parseValidatesTrailers,
-  type Trailers,
-  type ProvenanceRef,
-} from "./domain/commit-trailers.js";
-export {
-  StationInputSchema,
-  parseStationInput,
-  serializeStationInput,
-  type StationInput,
-} from "./domain/station-input.js";
-export type { TrustLevel } from "./domain/models/repo-settings.js";
+export * from "./domain/commit-trailers.js";
+export * from "./domain/station-input.js";
+// TrustLevel is re-exported via domain/models/index.js below.
 export * from "./domain/dod/index.js";
 export type {
   PipelineTask,
@@ -92,13 +72,8 @@ export type {
   PRDetails,
   PRStatus,
 } from "./domain/types.js";
-export {
-  parseReferences,
-  linkifyMarkdown,
-  type RefContext,
-  type Segment,
-} from "./domain/references.js";
-// Re-exported via index-spec-content.js: "./spec-summary.js" "./spec-blocks.js" "./spec-segment.js" "./spec-sentence-split.js" "./spec-status.js" "./spec-status-coverage.js" "./test-paths.js" "./test-command-manifest.js" "./test-report.js" "./ingest-workflow.js" "./trace-impact-workflow.js" "./spec-link-parser.js" "./spec-judge.js" "./spec-judge-llm.js"
+export * from "./domain/references.js";
+// Re-exported via index-spec-content.js: "./work/spec-summary.js" "./domain/spec-blocks.js" "./domain/spec-segment.js" "./domain/spec-sentence-split.js" "./domain/spec-status.js" "./work/spec-status-coverage.js" "./domain/test-paths.js" "./domain/test-command-manifest.js" "./domain/test-report.js" "./work/ingest-workflow.js" "./work/trace-impact-workflow.js" "./domain/spec-link-parser.js" "./domain/spec-judge.js" "./work/spec-judge-llm.js"
 export * from "./work/index-spec-content.js";
 
 export {
@@ -244,3 +219,82 @@ export {
   reviewSubject,
   ingestSubject,
 } from "./outbound/project/assembly-runs/subject-keys.js";
+
+// Sub-barrel exports — directories covered by their own index.ts.
+export * from "./domain/models/index.js";
+export * from "./domain/feature-planning/index.js";
+export * from "./domain/loops/index.js";
+export * from "./domain/task-types/index.js";
+export * from "./domain/utopia/index.js";
+export * from "./domain/spec-trace/index.js";
+export * from "./outbound/floor/index.js";
+export * from "./outbound/otel/index.js";
+export * from "./outbound/spec-trace/index.js";
+export * from "./outbound/utopia/index.js";
+export * from "./transport/http/index.js";
+export * from "./work/agent-stream/index.js";
+export * from "./work/changelog/index.js";
+export * from "./work/context-builder/index.js";
+export * from "./work/digest/index.js";
+export * from "./work/feature-planning/index.js";
+export * from "./work/housekeeping/index.js";
+export * from "./work/onboard/index.js";
+export * from "./work/review/index.js";
+export * from "./work/spec-tickets/index.js";
+export * from "./work/spec-trace/index.js";
+export * from "./work/spec-upkeep/index.js";
+export * from "./work/utopia/index.js";
+
+// Direct exports for files not covered by a sub-barrel.
+export * from "./domain/agent-defaults/agent-default-file.js";
+export * from "./domain/agents/model-harness.js";
+export * from "./domain/agents/skills-source.js";
+export * from "./domain/anchor-hash.js";
+export * from "./domain/blocked-reason.js";
+export * from "./domain/codeowners.js";
+export * from "./domain/context-model.js";
+export * from "./domain/context-template.js";
+export * from "./domain/digest-settings.js";
+export * from "./domain/dod-verdict.js";
+export * from "./domain/github-installation/installation-from-github.js";
+export * from "./domain/key-terms.js";
+export * from "./domain/knowledge-backend.js";
+export * from "./domain/lore-ontology.js";
+export * from "./domain/pipeline-task-actions.js";
+export * from "./domain/pipeline-task-status.js";
+export * from "./domain/repo-context.js";
+export * from "./domain/run-graph.js";
+export * from "./domain/spec-judge-signals.js";
+export * from "./lib/backoff.js";
+export * from "./lib/dgraph-test-gate.js";
+export * from "./lib/djb2.js";
+export * from "./lib/enforce.js";
+export * from "./lib/internal-token.js";
+export * from "./lib/is-record.js";
+export * from "./lib/paginate.js";
+export * from "./lib/process-entry.js";
+export * from "./lib/repo-root.js";
+export * from "./lib/required-env.js";
+export * from "./lib/row.js";
+export * from "./lib/secret-equals.js";
+export * from "./lib/truncate-for-storage.js";
+export * from "./lib/wire-schema.js";
+export * from "./outbound/db/pg-pool.js";
+export * from "./outbound/google/access-token.js";
+export * from "./outbound/llm/index.js";
+export * from "./outbound/postgres-memory-upsert.js";
+export * from "./outbound/setup-spec-trace-schema.schema.js";
+export * from "./outbound/setup-spec-trace-schema.schema-types.js";
+
+export * from "./work/ci-wait/round-brief.js";
+export * from "./work/repo-validation/repo-validation-detect.js";
+export * from "./work/scheduler/cron-emitters.js";
+export * from "./work/scheduler/cron-scheduler.js";
+
+// Explicit re-exports to resolve star-export ambiguities between sub-barrels.
+export type { Chunk } from "./work/chunk-primitives.js";
+export type { Assert } from "./lib/row.js";
+export type { Statement } from "./domain/spec-segment.js";
+export type { UnlinkedStatement } from "./work/spec-status-coverage.js";
+export type { TestReport } from "./domain/models/test-report.js";
+export type { DriftedStatement } from "./work/spec-trace/format-drift-report.js";

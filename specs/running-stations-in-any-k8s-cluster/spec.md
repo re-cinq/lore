@@ -170,7 +170,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   path nothing deployed exercised.
 - The registry ships as the next migration in sequence
   (`NNNN_cluster_agent_registry.sql`) under
-  `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
+  `deploy/chart/charts/ui-helm/migrations/`:
   the table plus columns `status`, `cluster_agent_id`, `required_tags`,
   `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/domain/models/` and a
@@ -523,7 +523,7 @@ One `helm install` turns any cluster with outbound HTTPS into a Lore
 execution node.
 
 - A new chart at
-  `infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm/`
+  `deploy/chart/charts/cluster-agent-standalone-helm/`
   (the repo's chart directory and `-helm` naming convention; deliberately
   **not** added to the `lore-platform` umbrella's dependencies — it is
   installed standalone on the satellite) bundles the existing cluster-agent
