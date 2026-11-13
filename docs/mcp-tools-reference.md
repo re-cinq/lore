@@ -369,7 +369,7 @@ One-line purpose: fetch the execution transcript of one pipeline TASK by UUID (N
 | `offset` | no | `0` | UTF-16 code-unit offset (not bytes) to start from; pass the previous `next_offset` to fetch only new content when polling. |
 
 - **Returns:** JSON `{logs, next_offset, complete}`; responses may be capped, and `complete` is true only when the task has settled AND nothing remains past the returned slice — keep polling until it is true.
-- **Where it runs:** stdio mode → `GET /api/task-logs` over `LORE_API_URL`; GKE mode → direct GCS read of `{repo}/{task_id}/output.log`. `Task not found: {id}` for an unknown id.
+- **Where it runs:** proxies `GET /api/task-logs` over `LORE_API_URL` (30 s timeout); lore-api resolves the task and reads the transcript. Without `LORE_API_URL` and `LORE_INGEST_TOKEN` it returns `Task logs require LORE_API_URL.`; a 401 or 403 is reported as denied, any other failure status as unreachable.
 - **Cache/mutation:** read-only. Proxy path caches **only once the task is complete** (TTL 86400s), so live polls always hit fresh bytes.
 
 #### `lore_get_job_logs`

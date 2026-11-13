@@ -1,15 +1,23 @@
 # Feature Specification: Dark Factory Mode
 
-> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** Dark Factory's
-> policy (issue suppression, auto-merge, branch-as-state, audit) is unchanged, but the
-> tasks it governs now run on the ai-agent-subsystem's `Agent` CRs, not `LoreTask` CRs —
-> read the `LoreTask`-specific mechanics here in the past tense.
+> **Retired on 2026-10-02.** Dark Factory mode was deleted with `apps/floor`,
+> its only reader. The per-repo `dark_factory` settings block, the
+> `task_overrides` beside it, the settings route, the Dark Factory tab and the
+> notify routing are gone; migration 0096 strips the block from every repo and
+> `PUT /api/repos/:o/:r/settings` refuses a patch that carries it. No statement
+> below binds new code: the external floor (ADR-049, `specs/external-floor/`)
+> runs every assembly line, and auto-merge is `specs/protected-branch-merge/`.
+> Three parts outlived it and are described in `CLAUDE.md`: the two-key
+> ceremony, which now guards an agent definition's `image`
+> (`specs/two-key-approval/`), the `Lore-Task:` commit trailers, and the run
+> records in `pipeline.assembly_runs` and `pipeline.station_runs`. What follows
+> is the record of how the mode worked.
 
 | Field    | Value                          |
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | In Progress                    |
+| Status   | Retired                        |
 | Created  | 2026-04-28                     |
 | Owner    | Platform Engineering           |
 

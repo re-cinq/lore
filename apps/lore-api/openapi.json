@@ -5063,6 +5063,44 @@
         ]
       }
     },
+    "/api/repos/available": {
+      "get": {
+        "operationId": "get_api_repos_available",
+        "summary": "GET /api/repos/available",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "GitHub App repos not yet onboarded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableRepos"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repos/{owner}/{repo}": {
       "get": {
         "operationId": "get_api_repos_owner_repo",
@@ -14509,6 +14547,25 @@
           "recent"
         ],
         "additionalProperties": false
+      },
+      "AvailableRepos": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "full_name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": ["full_name", "owner", "name"],
+          "additionalProperties": false
+        }
       },
       "BlobPreviews": {
         "type": "object",

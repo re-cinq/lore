@@ -138,16 +138,21 @@ describe("HomeView", () => {
     expect(screen.queryByText(/ingest workflow/i)).not.toBeInTheDocument();
   });
 
-  it("shows the last-ingested date when last_ingested_at is present", () => {
-    const card = repo({
-      full_name: "re-cinq/lore",
-      last_ingested_at: "2026-05-01T12:00:00Z",
-    });
+  it("shows 8h with the full date on hover when ingested 8 hours ago", () => {
+    const eightHoursAgo = new Date(Date.now() - 8 * 3_600_000).toISOString();
 
-    renderHome([card]);
-    const expected = `Last ingested ${new Date("2026-05-01T12:00:00Z").toLocaleDateString()}`;
+    renderHome([repo({ last_ingested_at: eightHoursAgo })]);
 
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.getByText("8h")).toHaveAttribute(
+      "title",
+      new Date(eightHoursAgo).toLocaleString(),
+    );
+  });
+
+  it("shows no last-ingested note when last_ingested_at is present", () => {
+    renderHome([repo({ last_ingested_at: "2026-05-01T12:00:00Z" })]);
+
+    expect(screen.queryByText(/Last ingested/)).not.toBeInTheDocument();
   });
 
   it("shows awaiting-ingestion when never ingested but PR merged", () => {

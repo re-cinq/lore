@@ -7,7 +7,7 @@ import { llmStatusRoute } from "./routes/platform/llm-status.js";
 import { distRoute } from "./routes/dist/dist.js";
 import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
-import { reposRoute } from "./routes/repos/repos.js";
+import { reposRoutes } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
@@ -174,7 +174,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
-    reposRoute(getPool),
+    ...reposRoutes(getPool),
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
