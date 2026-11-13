@@ -34,7 +34,7 @@ const FORBID_HANDLERS = [
 
 export const MOCKUP_SVG_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true },
-  FORBID_TAGS: ["script", "foreignObject"],
+  FORBID_TAGS: ["script", "foreignObject", "style"],
   FORBID_ATTR: FORBID_HANDLERS,
 };
 export const MOCKUP_HTML_CONFIG = {

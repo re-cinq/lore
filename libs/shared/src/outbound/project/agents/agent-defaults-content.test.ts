@@ -1011,7 +1011,7 @@ describe("the plan's sketches downstream", () => {
     expect(
       writers.map((name) =>
         promptOnOneLine(name).includes(
-          "Put each `mockup-mermaid` sketch into the spec as a ```mermaid block beside the requirement it explains",
+          "Put each `mockup-mermaid` sketch into that section as a ```mermaid block",
         ),
       ),
     ).toEqual([true, true]);

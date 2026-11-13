@@ -14,17 +14,33 @@ export interface PlanSketchDueDeps {
 
 const PROTOTYPE_SLOT = "prototype";
 const DRAWN_BLOCKS = new Set(["mockup", "prototype"]);
+const WRITING = new Set([
+  "paragraph",
+  "bulletListItem",
+  "numberedListItem",
+  "checkListItem",
+  "quote",
+  "table",
+  "codeBlock",
+  "kpi",
+]);
 
 const DUE: Report = { outcome: "changes_requested" };
 const SETTLED: Report = { outcome: "success" };
 
-/** Whether the plan has a Prototype section and nothing in it a person could look at. */
+/** Whether a written plan has a Prototype section and nothing in it a person could look at. A plan whose draft failed holds no writing, and there is nothing to draw from. */
 export function sketchDue(sections: PlanBlockTypes): boolean {
   const prototype = sections.find(({ slot }) => slot === PROTOTYPE_SLOT);
 
   return Boolean(
-    prototype && !prototype.blockTypes.some((type) => DRAWN_BLOCKS.has(type)),
+    prototype &&
+    !holds(prototype.blockTypes, DRAWN_BLOCKS) &&
+    sections.some(({ blockTypes }) => holds(blockTypes, WRITING)),
   );
+}
+
+function holds(blockTypes: string[], kinds: ReadonlySet<string>): boolean {
+  return blockTypes.some((type) => kinds.has(type));
 }
 
 export function planSketchDueHandle(deps: PlanSketchDueDeps): Handle {

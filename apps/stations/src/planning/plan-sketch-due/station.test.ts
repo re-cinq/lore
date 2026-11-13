@@ -48,3 +48,14 @@ describe("planSketchDueHandle", () => {
     expect(await handle(brief, TOOLS)).toEqual({ outcome: "success" });
   });
 });
+
+describe("planSketchDueHandle for a plan nobody wrote yet", () => {
+  it("skips the sketch agent for a plan whose sections hold no writing", async () => {
+    const handle = handleOver([
+      { slot: "intent", blockTypes: ["section-panel", "section-actions"] },
+      { slot: "prototype", blockTypes: [] },
+    ]);
+
+    expect(await handle(brief, TOOLS)).toEqual({ outcome: "success" });
+  });
+});

@@ -151,13 +151,16 @@ followed by a fence tagged `mockup-<format>` that holds the sketch.
 Read them even where you read only one other section: they show what
 the plan means.
 
-- Put each `mockup-mermaid` sketch into the spec as a ```mermaid
-  block beside the requirement it explains, with its caption as the
-  sentence before it.
+- Give the spec a `## Sketches` section. The other sections are
+  written by pods that never see the sketches, so this section is
+  where every one of them is found.
+- Put each `mockup-mermaid` sketch into that section as a ```mermaid
+  block, with its caption as the sentence before it.
 - Write each `mockup-html`, `mockup-svg` and `mockup-text` sketch,
   byte for byte, to
   `specs/<feature>/sketches/<mockupId>.<html|svg|txt>` (the folder
-  beside the spec), and link that file from the requirement it shows.
+  beside the spec), and link that file from the `## Sketches`
+  section under its caption.
 - Redraw nothing and never run a formatter over the sketch files: a
   changed sketch no longer matches the plan people approved.
 - A sketch is a picture, not a statement: it needs no test link.

@@ -122,3 +122,14 @@ describe("MOCKUP_HTML_CONFIG", () => {
     );
   });
 });
+
+describe("MOCKUP_SVG_CONFIG and styles", () => {
+  it("drops a style element from an svg sketch, which is drawn in the page itself", () => {
+    const clean = DOMPurify.sanitize(
+      "<svg><style>body{display:none}</style><text>KEPT</text></svg>",
+      MOCKUP_SVG_CONFIG,
+    );
+
+    expect(clean).toBe("<svg><text>KEPT</text></svg>");
+  });
+});
