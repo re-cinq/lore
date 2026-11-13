@@ -6,6 +6,7 @@ import {
   adapterBuild,
   fetchVersions,
 } from "../../../work/versions/versions-api.js";
+import { getUpdateStatus } from "../../../work/update/mcp-update.js";
 
 /** lore-api's GET /api/versions answer: which build of every Lore part runs. */
 export type LoreVersions = ApiAnswer<"/api/versions">;
@@ -33,18 +34,32 @@ async function versionsHandler() {
   return textResult(
     renderVersions(
       JSON.parse(proxied.body) as LoreVersions,
-      await adapterBuild(),
+      await adapterState(),
     ),
   );
+}
+
+/** This laptop adapter's build, and whether the update check finds it behind the deployed build: a full sha against a short one, and a checkout ahead of it reads as current. */
+export interface AdapterState {
+  build: string;
+  behind: boolean;
+}
+
+async function adapterState(): Promise<AdapterState | null> {
+  const build = await adapterBuild();
+
+  return build
+    ? { build, behind: (await getUpdateStatus()).updateAvailable }
+    : null;
 }
 
 type Failed = { error: string };
 type Packages = Record<string, string>;
 
-/** The answer as a short list, one part per line; `adapter` is this laptop adapter's build, null on the gateway. */
+/** The answer as a short list, one part per line; `adapter` is this laptop adapter, null on the gateway. */
 export function renderVersions(
   versions: LoreVersions,
-  adapter: string | null,
+  adapter: AdapterState | null,
 ): string {
   return [
     `Latest Lore build: ${versions.latest.build}`,
@@ -132,12 +147,15 @@ function onFloorText(onFloor: {
   return `${onFloor.pipelines.length} pipelines${gap}, ${onFloor.agentDefinitions} agent definitions`;
 }
 
-function adapterLines(adapter: string | null, latest: string): string[] {
+function adapterLines(adapter: AdapterState | null, latest: string): string[] {
   if (!adapter) {
     return [];
   }
+  const build = adapter.build.slice(0, SHORT_SHA);
 
-  return adapter === latest
-    ? [`- this adapter: ${adapter}, the latest`]
-    : [`- this adapter: ${adapter}, behind ${latest}: run lore_update`];
+  return adapter.behind
+    ? [`- this adapter: ${build}, behind ${latest}: run lore_update`]
+    : [`- this adapter: ${build}, the latest`];
 }
+
+const SHORT_SHA = 7;

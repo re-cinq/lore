@@ -80,13 +80,23 @@ describe("renderVersions", () => {
   });
 
   it("adds this adapter's build and that it matches the latest", () => {
-    expect(renderVersions(ALL_UP, "abc1234").split("\n").at(-1)).toBe(
+    const adapter = {
+      build: "abc1234ffffffffffffffffffffffffffffffff",
+      behind: false,
+    };
+
+    expect(renderVersions(ALL_UP, adapter).split("\n").at(-1)).toBe(
       "- this adapter: abc1234, the latest",
     );
   });
 
   it("tells an adapter behind the latest to run lore_update", () => {
-    expect(renderVersions(ALL_UP, "0ld0000").split("\n").at(-1)).toBe(
+    const adapter = {
+      build: "0ld0000ffffffffffffffffffffffffffffffff",
+      behind: true,
+    };
+
+    expect(renderVersions(ALL_UP, adapter).split("\n").at(-1)).toBe(
       "- this adapter: 0ld0000, behind abc1234: run lore_update",
     );
   });

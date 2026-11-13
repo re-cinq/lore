@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | `lore_versions` MCP tool |
-| Status  | Implemented              |
+| Status  | In Progress              |
 | Created | 2026-11-13               |
 | Owner   | Platform Engineering     |
 | Tool    | `lore_versions`          |
@@ -20,13 +20,13 @@ The tool is named `lore_versions` and takes no input. ([validated by registers l
 
 ## Behavior
 
-The tool proxies `GET /api/versions` and prints the answer, one part per line, headed by the latest build. ([validated by proxies GET /api/versions and prints the list @28e9eee8](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L122))
+The tool proxies `GET /api/versions` and prints the answer, one part per line, headed by the latest build. ([validated by proxies GET /api/versions and prints the list @28e9eee8](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L132))
 
-Each service line names its build, its start and its bundled packages, the floor line its build and schema, then one line per live cluster with the floor agent's build and the AI subsystem's version and CLI pins; then the database migrations, the pipelines and agent definitions on the floor (naming any shipped pipeline the floor lacks) and the agent image, while a part that failed prints `error: <its error>`. ([validated by prints each part on its own line, an error where a part failed @9a7d01d4](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L65), [validated by prints a cluster with no subsystem and errors for the floor's other parts @e628d94c](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L94))
+Each service line names its build, its start and its bundled packages, the floor line its build and schema, then one line per live cluster with the floor agent's build and the AI subsystem's version and CLI pins; then the database migrations, the pipelines and agent definitions on the floor (naming any shipped pipeline the floor lacks) and the agent image, while a part that failed prints `error: <its error>`. ([validated by prints each part on its own line, an error where a part failed @9a7d01d4](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L65), [validated by prints a cluster with no subsystem and errors for the floor's other parts @e628d94c](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L104))
 
-On a laptop, where `~/.lore/mcp-build-head` holds the adapter's build, a last line says whether this adapter is the latest build or is behind it and should run `lore_update`. ([validated by adds this adapter's build and that it matches the latest @c433b7f1](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L82), [validated by tells an adapter behind the latest to run lore_update @310bf594](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L88))
+On a laptop, where `~/.lore/mcp-build-head` holds the adapter's build, a last line says whether this adapter is the latest build or is behind it and should run `lore_update`. The line uses the same check as the update offer: it compares the adapter's full build with the deployed short one by prefix, and an adapter ahead of the deployed build, as right after `lore_update`, reads as the latest. ([validated by adds this adapter's build and that it matches the latest @c433b7f1](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L82), [validated by tells an adapter behind the latest to run lore_update @310bf594](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L93))
 
-An unconfigured API, a denied token and an unreachable API answer the shared refusal texts. ([validated by reports a missing API configuration @fe59fc7c](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L136))
+An unconfigured API, a denied token and an unreachable API answer the shared refusal texts. ([validated by reports a missing API configuration @fe59fc7c](apps/mcp-server/src/transport/tools/versions/versions.test.ts#L146))
 
 ## Out of Scope
 

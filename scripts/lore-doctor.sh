@@ -146,7 +146,7 @@ if [ "${API_OK:-0}" = "1" ] && command -v jq >/dev/null 2>&1; then
       (.lore | to_entries[] | "  \(.key): \(.value.build // ("error: " + .value.error))"),
       "  floor: \(.floor.build // ("error: " + .floor.error))",
       (.floor.clusters // [] | .[] | "    cluster \(.id): agent \(.build // "unknown"), subsystem \(.subsystem.version // "unknown")"),
-      "  database: \(.database.migration // .database.error), \(.database.floorMigration // "")",
+      "  database: \(if .database.error then "error: " + .database.error else "\(.database.migration // "none"), floor \(.database.floorMigration // "none")" end)",
       "  agent image: \(.agentImage // "none")"'
   fi
 fi
