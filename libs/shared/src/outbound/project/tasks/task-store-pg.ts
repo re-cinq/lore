@@ -24,7 +24,6 @@ import {
   NEXT_STATUS,
   type TaskStorePort,
   type TaskAction,
-  type TaskTransitionMeta,
   type TaskWithEvents,
   type TaskListResult,
   type FindOpenLikeInput,
@@ -123,20 +122,14 @@ export class PgTaskStore implements TaskStorePort {
     return markTaskMerged(this.pool, id);
   }
 
-  async transition(
-    id: string,
-    action: TaskAction,
-    meta?: TaskTransitionMeta,
-  ): Promise<PipelineTask> {
-    const claimedBy = action === "claim" ? (meta?.agentId ?? null) : null;
+  async transition(id: string, action: TaskAction): Promise<PipelineTask> {
     const { rows } = await this.pool.query<PipelineTask>(
       `UPDATE pipeline.tasks
          SET status = $2,
-             claimed_by = COALESCE($3, claimed_by),
              updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [id, NEXT_STATUS[action], claimedBy],
+      [id, NEXT_STATUS[action]],
     );
 
     return rows[0] as PipelineTask;

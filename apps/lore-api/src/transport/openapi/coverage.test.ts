@@ -131,7 +131,7 @@ describe("OpenAPI document is structurally valid 3.1", () => {
 
   it("shapes every request body as an application/json schema", () => {
     for (const { op } of allOperations()) {
-      if (op.requestBody && !hasRawNdjsonBody(op.requestBody)) {
+      if (op.requestBody) {
         expect(op.requestBody.content).toHaveProperty(["application/json"]);
       }
     }
@@ -191,9 +191,3 @@ describe("Plans responses are declaratively described", () => {
     }
   });
 });
-
-function hasRawNdjsonBody(body: unknown): boolean {
-  const content = (body as { content?: Record<string, unknown> }).content;
-
-  return Boolean(content?.["application/x-ndjson"]);
-}

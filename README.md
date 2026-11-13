@@ -184,7 +184,7 @@ Pick the guide that matches what you're doing.
 ### Using Lore
 
 - [Lore Tools — Plain-Language Guide](docs/mcp-tools.md) — what each Lore tool does, and whether it runs in the cloud or on your machine
-- [Developer Guide](docs/using-lore/developer.md) — org context in Claude Code, the MCP tool catalog, the local task runner, and GitHub/Slack dispatch
+- [Developer Guide](docs/using-lore/developer.md) — org context in Claude Code, the MCP tool catalog, and GitHub/Slack dispatch
 - [Product Manager Guide](docs/using-lore/product-manager.md) — turn a plain-language idea into a spec and a merged PR
 - [Platform Engineer Guide](docs/using-lore/platform-engineer.md) — onboard repos, tune settings, monitor the pipeline, analytics, and API security
 - [Installation & Deployment](docs/INSTALL.md) — deploy the Lore backend on a Kubernetes cluster
