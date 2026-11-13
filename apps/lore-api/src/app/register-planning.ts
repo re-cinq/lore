@@ -13,7 +13,11 @@ import { pgRefineAsks } from "../work/plans/refine-asks-pg.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
 import { planStoryRoutes } from "../transport/routes/plans/plan-story.js";
 import { pgPlanStories } from "../work/plans/plan-stories-pg.js";
-import type { PlanStoryPorts } from "../work/plans/plan-story.js";
+import {
+  planStoryContext,
+  type PlanStoryPorts,
+} from "../work/plans/plan-story.js";
+import { onboardedProject } from "../transport/routes/repos/github-read.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type { PlanFilePorts } from "../work/plans/plan-file.js";
 import type { PlanLifecyclePorts } from "../transport/routes/plans/plan-lifecycle.js";
@@ -70,8 +74,12 @@ function routePlans(
   seams: PlanVerbSeams,
   { pool }: { pool: () => Pool },
 ): void {
-  server.route(planFileRoutes(filePorts(livePlanOf(sync), sync, pool)));
-  server.route(planStoryRoutes(storyPorts(pool, seams.floorDeps)));
+  const stories = storyPorts(pool, seams.floorDeps);
+
+  server.route(
+    planFileRoutes(filePorts(livePlanOf(sync), sync, pool, stories)),
+  );
+  server.route(planStoryRoutes(stories));
   server.ext("onPreHandler", planRouteGuard(server));
 }
 
@@ -135,8 +143,21 @@ function filePorts(
   livePlan: PlanFilePorts["livePlan"],
   sync: { writer: PlanFilePorts["writer"] },
   pool: () => Pool,
+  stories: PlanStoryPorts,
 ): PlanFilePorts {
-  return { livePlan, writer: sync.writer, refineAsks: pgRefineAsks(pool) };
+  return {
+    livePlan,
+    writer: sync.writer,
+    refineAsks: pgRefineAsks(pool),
+    story: (planId) => planStoryContext(planId, stories, readIssueOnGitHub),
+  };
+}
+
+// The repository's own GitHub client, as every issue read in lore-api reaches it.
+async function readIssueOnGitHub(repo: string, number: number) {
+  const project = await onboardedProject(repo);
+
+  return project.issues.get(number);
 }
 
 // The newest run's story is read from the deployment's own floor, and a deployment with none has no run to read.

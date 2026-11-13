@@ -124,6 +124,7 @@ describe("readFloorMigrations", () => {
         "floor/0005_spec_write_timeout",
         "floor/0006_spec_tickets_settled_statements",
         "floor/0007_station_skills",
+        "floor/0008_plan_agents_read_user_story",
       ],
       unshipped: [],
     });
@@ -189,6 +190,19 @@ describe("floor/0007_station_skills", () => {
         "plan-analyze",
       ].map((agent) => `skills ${agent}`),
     );
+  });
+});
+
+describe("floor/0008_plan_agents_read_user_story", () => {
+  it("writes the shipped prompts of plan-analyze and plan-validate, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0008_plan_agents_read_user_story",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt plan-analyze",
+      "prompt plan-validate",
+    ]);
   });
 });
 
