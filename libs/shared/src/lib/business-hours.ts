@@ -10,8 +10,10 @@ const WEEKDAY_ISO: Record<string, number> = {
   Sun: 7,
 };
 
+const DEFAULT_TZ = "Europe/Berlin";
+
 export function isBusinessHours(now: Date = new Date()): boolean {
-  const tz = process.env.LORE_BUSINESS_HOURS_TZ || "Europe/Berlin";
+  const tz = process.env.LORE_BUSINESS_HOURS_TZ || DEFAULT_TZ;
   const start = parseHour(process.env.LORE_BUSINESS_HOURS_START, 9);
   const end = parseHour(process.env.LORE_BUSINESS_HOURS_END, 18);
   const days = parseDays(process.env.LORE_BUSINESS_DAYS);
@@ -50,17 +52,27 @@ function currentHourAndWeekday(
   now: Date,
   tz: string,
 ): { hour: number; weekday: number } {
+  const zone = isValidTimeZone(tz) ? tz : DEFAULT_TZ;
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
+    timeZone: zone,
     hour: "numeric",
     hour12: false,
     weekday: "short",
   }).formatToParts(now);
-
   const hour = parseInt(partValue(parts, "hour", "0"), 10);
   const weekday = weekdayToIso(partValue(parts, "weekday", "Mon"));
 
   return { hour, weekday };
+}
+
+function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: tz });
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function partValue(

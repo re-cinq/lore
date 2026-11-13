@@ -53,7 +53,7 @@ export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
 
     groups.push({
       key,
-      title: primary.title || basename(key),
+      title: titleForGroup(key, primary),
       description: primary.description,
       coverage: docCoverage(primary),
       files: sorted.map((s) => ({ filePath: s.filePath, title: s.title })),
@@ -98,3 +98,9 @@ function docCoverage({ coverage }: SpecSummaryInput): SpecGroupCoverage {
 const isSpecDoc = (path: string): boolean => basename(path) === "spec.md";
 
 const basename = (path: string): string => path.split("/").pop() ?? path;
+
+function titleForGroup(key: string, primary: SpecSummaryInput): string {
+  return isSpecDoc(primary.filePath)
+    ? primary.title || basename(key)
+    : basename(key);
+}

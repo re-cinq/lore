@@ -16,11 +16,23 @@ BRANCH="deploy/${SUBCHART}-${TAG}"
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+# The ancestry check below needs both commits; actions/checkout is shallow.
+if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+  git fetch --quiet --unshallow origin main
+fi
+
 # Several services build from one push, each with its own pull request. When a
 # sibling merges first, the branch is rebuilt on the new main and merged again.
 for attempt in 1 2 3 4 5 6; do
   git fetch --quiet origin main
   git checkout --quiet -B "$BRANCH" origin/main
+
+  # A build that finishes late must not take the service back to an older commit.
+  CURRENT=$(yq ".\"${SUBCHART}\".image.tag" "$VALUES")
+  if git merge-base --is-ancestor "$TAG" "$CURRENT" 2>/dev/null; then
+    echo "[lore] ${SUBCHART} already at ${CURRENT}, which contains ${TAG}"
+    exit 0
+  fi
 
   # Tags are quoted on purpose: an all-digit short SHA would otherwise be read
   # as a number.

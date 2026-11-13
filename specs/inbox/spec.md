@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Inbox                                         |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-10-20                                    |
 | Owner    | Platform Engineering                          |
 
@@ -57,7 +57,7 @@ folder, `apps/lore-api/src/transport/routes/inbox/`, registered in
 - FR1.1: The response is a page of items, newest wait last, with a cursor:
   `{items: InboxItem[], next_cursor: string | null}`, `limit` at most 100.
   Every source contributes to every page; no source is truncated to its own
-  first page.
+  first page. ([validated by successfully returns 200 and mapped Plan and Onboarding PR items @fa9c427a](../../apps/lore-api/src/transport/routes/inbox/inbox.acceptance.test.ts#L24))
 - FR1.2: An `InboxItem` carries `id` (stable per source object, e.g.
   `plan:<plan id>`, `visit:<floor visit id>`, `onboarding:<owner/repo>`,
   `run:<floor run id>`), `kind`, `repo`, `title`, `detail`, `waiting_since`
@@ -70,7 +70,7 @@ folder, `apps/lore-api/src/transport/routes/inbox/`, registered in
   snoozed items are left out.
 - FR1.5: The response also carries a count per kind for the caller, after the
   handled/snoozed default and before the `kind` filter, so the UI can label
-  its chips.
+  its chips. ([validated by counts plan_review 1 and onboarding_pr 1 for one in-review plan and one open onboarding PR @41c6c855](apps/lore-api/src/transport/routes/inbox/inbox.acceptance.test.ts#L53))
 - FR1.6: A source that cannot be read (the floor unreachable, GitHub refusing)
   does not fail the whole read: the response lists it in
   `unavailable: string[]` and serves the other sources.
@@ -87,7 +87,7 @@ decided by what the step waits on, never by a run being open.
   run has an open `author` visit (`waiting_since` is that visit's `openedAt`),
   or a plan whose status is `in-review` (`waiting_since` is the plan's
   `updated_at`). This needs a cross-repo plan query; the store gains one
-  beside `listPlanMetas`. `open_url` is `/repos/{owner}/{repo}/plans/{id}`.
+  beside `listPlanMetas`. `open_url` is `/repos/{owner}/{repo}/plans/{id}`. ([validated by returns eligible plans across the given authorized repositories @a99ab792](apps/lore-api/src/integration-tests/plan-store-pg.acceptance.test.ts#L26))
 - FR2.2 `spec_pr`: a feature-planning run with an open visit on its `merged`
   node (`spec-pr-merged` station). `waiting_since` is that visit's `openedAt`;
   `open_url` is resolved from the visit's `pr_url` need with `resolveRoute`
@@ -115,14 +115,14 @@ decided by what the step waits on, never by a run being open.
   (`FLOOR_CI_WAIT_LINES`' `await-ci` and `await-pr`,
   `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) are never inbox
   items, even though they are `human` stations. The rule lives in one shared
-  predicate, so the run page and the inbox cannot disagree.
+  predicate, so the run page and the inbox cannot disagree. ([validated by excludes await-ci from actionable human waiting items @ac84bb62](apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts#L52))
 - FR2.7: The station kind is read from the station body the line version names
   (`readLineFacts`, `apps/lore-api/src/work/floor/floor-line-facts.ts`), not
   inferred from the node type. Today `factsOf` turns every `human` station
   that `produces` into `author` → `feature_review`, so an open `await-ci`
   (`loop-await-ci` produces `ci_feedback_sha`) is drawn as `running` rather
   than `waiting` on the run list. Fixing that
-  classification is in scope, because FR2.6 depends on it.
+  classification is in scope, because FR2.6 depends on it. ([validated by reads the station kind from the station body the line version names @fc90431b](apps/lore-api/src/work/floor/inbox-eligibility.acceptance.test.ts#L41))
 - FR2.8: Reading the waiting visits must not cost one floor call per run per
   request. lore-api lists open runs of the lines that have person-waiting
   stations (`feature-planning`, `issue-triage`) with `runs.list({line,
@@ -139,9 +139,9 @@ decided by what the step waits on, never by a run being open.
   `deploy/chart/charts/ui-helm/migrations/`,
   with its domain model (schema, type and `ColumnMap`, per the models
   convention) in a new file this change adds,
-  `libs/shared/src/domain/models/inbox-item-state.ts`.
+  `libs/shared/src/domain/models/inbox-item-state.ts`. ([validated by @89e6adfa](apps/lore-api/src/integration-tests/inbox-item-state-migration.acceptance.test.ts#L23)) ([validated by @c5aaeda3](libs/shared/src/domain/models/inbox-item-state.acceptance.test.ts#L4))
 - FR3.2: `PUT /api/inbox/items/{item_id}/state` (scope `write`) sets
-  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller.
+  `{handled: boolean}` or `{snoozed_until: ISO time | null}` for the caller. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L41), [validated by preserves handled_at when only snoozed_until is updated @ebc0d7ee](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L64), [validated by clears handled_at when handled is false and snoozed_until when null @caee4f56](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L87), [validated by rejects a read-only token with 403 and writes nothing @8a5f13a1](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L117), [validated by rejects an empty person or a non-ISO snoozed_until with 400 @b2676350](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L137))
 - FR3.3: The caller is the signed-in person's GitHub login. The web tier
   passes it as it already passes identity for plans and runs (`approvedBy`,
   `requested_by`, from `planUserOf(session)`): as `person` in the request
@@ -174,26 +174,26 @@ new way to change a run or a plan.
 - FR4.5: The plan lifecycle routes are registered outside `routeList`
   (`apps/lore-api/src/app/register-planning.ts`) and so are missing from
   `apps/lore-api/openapi.json`. The ones the inbox calls are added to the
-  OpenAPI document so the web UI's generated types cover them.
+  OpenAPI document so the web UI's generated types cover them. ([validated by includes dynamically registered planning lifecycle routes in the generated document @754c60e3](apps/lore-api/src/transport/openapi/gen-openapi.acceptance.test.ts#L6))
 
 ## FR5 — The Inbox screen
 
 - FR5.1: `/inbox` in the web UI, first link of the sidebar's top group
   (`apps/web-ui/src/app/SidebarNav.tsx`), with the count of open items as a
-  badge.
+  badge. ([validated by shows Inbox as the first link of the top group carrying a badge of open items @ab0dde46](apps/web-ui/src/app/SidebarNav.acceptance.test.tsx#L26))
 - FR5.2: Filter chips per kind with their counts (FR1.5), a list ordered by
   `waiting_since` (longest wait first), and the selected item's detail beside
-  the list on wide screens.
+  the list on wide screens. ([validated by renders list ordered by wait time @26dd7e1b](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L21), [validated by filters items by kind chip @e756f2fe](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L70))
 - FR5.3: Keyboard: `j`/`k` move the selection, `Enter` opens it, `e` marks it
   handled, `s` snoozes it until tomorrow 09:00 in the person's time zone.
   Keys typed into a field are left to the field.
 - FR5.4: A "Handled this session" list holds what the person handled since
   the page loaded, each with Undo (FR3.2 with `handled: false`).
 - FR5.5: An empty inbox says nothing is waiting. A source in `unavailable`
-  is named on the page rather than hidden.
+  is named on the page rather than hidden. ([validated by states nothing is waiting when empty @76b95878](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L103), [validated by names unavailable sources on the page @7be67874](apps/web-ui/src/app/inbox/InboxView.acceptance.test.tsx#L109))
 - FR5.6: The page reads through a typed client in `apps/web-ui/src/lib/api/`
   over the generated `schema.d.ts`, like every other page; it holds no data
-  logic of its own.
+  logic of its own. ([validated by reads /api/inbox from lore-api with no query when none is given @8eeefa64](apps/web-ui/src/lib/api/inbox.test.ts#L31), [validated by appends repo, kind, include and cursor parameters when provided @f003bae2](apps/web-ui/src/lib/api/inbox.test.ts#L43), [validated by sums the open item counts across every kind @0742d9df](apps/web-ui/src/lib/api/inbox.test.ts#L59))
 
 ## Success Criteria
 
@@ -203,7 +203,7 @@ new way to change a run or a plan.
   issue-triage run at `human-gate` always does, with the time it reached the
   gate.
 - SC3 — Marking an item handled removes it for that person only; another
-  person still sees it.
+  person still sees it. ([validated by updates the DB for the calling user when marked handled @eacc9c92](apps/lore-api/src/transport/routes/inbox/inbox-item-state-put.acceptance.test.ts#L41))
 - SC4 — With the floor unreachable, the inbox still lists plans and
   onboarding pull requests and names the floor as unavailable.
 - SC5 — `GET /api/inbox` answers in under 500 ms at p95 for an org with 50

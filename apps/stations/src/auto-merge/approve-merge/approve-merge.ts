@@ -1,4 +1,8 @@
 // The auto-merge loop's last step (specs/protected-branch-merge): a green, reviewed pull request old enough to merge is approved and handed to GitHub, or merged by Lore where no rule asks for an approval.
+import {
+  blockingDependencyPrOpt,
+  type PullReader,
+} from "../../outbound/task-ordering.js";
 import type { OwnedPath, OwnerAsk } from "./code-owner-ping.js";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type {
@@ -18,13 +22,21 @@ export interface MergeProject {
   pulls: {
     get(
       number: number,
-    ): Promise<Pick<
-      PullRef,
-      "state" | "author" | "nodeId" | "baseBranch" | "autoMerge"
-    > | null>;
+    ): Promise<
+      | (Pick<
+          PullRef,
+          "state" | "author" | "nodeId" | "baseBranch" | "autoMerge"
+        > & { body?: string | null })
+      | null
+    >;
     getBranchRule(
       branch: string,
-    ): Promise<Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">>;
+    ): Promise<
+      Pick<
+        BranchRule,
+        "requiredApprovals" | "codeOwnersReview" | "classicProtectionReadable"
+      >
+    >;
     enableAutoMerge(nodeId: string, method: MergeMethod): Promise<void>;
     merge(number: number, method: MergeMethod): Promise<void>;
   };
@@ -39,6 +51,10 @@ export interface MergeProject {
   /** The repository's auto-merge switch, read again at the last step: it may have been switched off while the run waited. */
   loopOn(): Promise<boolean>;
   audit: { write(entry: Omit<AuditLogEntry, "repo">): Promise<void> };
+  /** Task IDs this task depends on (same task group); present when dependency ordering is configured. */
+  getTaskDependsOn?(taskId: string): Promise<string[]>;
+  /** The PR number for a given task ID, or null when the task has no PR. */
+  getTaskPr?(taskId: string): Promise<number | null>;
 }
 
 export type MergeStep =
@@ -62,18 +78,24 @@ export async function approveAndMerge(
     return settledStep(pull?.state);
   }
 
-  if (!(await project.loopOn())) {
-    return { outcome: "failed", reason: LOOP_OFF };
+  const block = await armingBlock(project, prNumber, pull.body);
+
+  if (block) {
+    return { outcome: "failed", reason: block };
   }
+
   const usable = approverFor(approver, pull.author);
   const rule = await ruleOf(project, pull.baseBranch);
 
   return rule.requiredApprovals > 0
     ? approveProtected(project, usable, { prNumber, pull, rule })
-    : mergeUnprotected(project, usable, prNumber);
+    : mergeUnprotected(project, usable, prNumber, rule);
 }
 
-type Rule = Pick<BranchRule, "requiredApprovals" | "codeOwnersReview">;
+type Rule = Pick<
+  BranchRule,
+  "requiredApprovals" | "codeOwnersReview" | "classicProtectionReadable"
+>;
 
 interface ProtectedTarget {
   prNumber: number;
@@ -83,6 +105,9 @@ interface ProtectedTarget {
 
 export const LOOP_OFF =
   "the auto-merge loop was switched off before the pull request was approved";
+
+export const NEEDS_ADMINISTRATION_READ =
+  "needs Administration read on the GitHub App: classic branch protection answered 403 and no ruleset requires an approval, so Lore cannot tell whether the branch is unprotected";
 
 /** A branch rule that asks for an approval needs one GitHub counts; Lore's own App cannot give it on a pull request it opened. */
 async function approveProtected(
@@ -106,6 +131,36 @@ export const NEEDS_REVIEWER =
 
 export const NEEDS_CODE_OWNER =
   "needs a code owner: it changes a path CODEOWNERS assigns, and no rule on this branch asks for their approval before Lore merges";
+
+export const BLOCKED_BY_DEPENDENCY =
+  "a dependency PR in the same task group has not merged yet; merge it first";
+
+async function armingBlock(
+  project: MergeProject,
+  prNumber: number,
+  body: string | null | undefined,
+): Promise<string | null> {
+  if (!(await project.loopOn())) {
+    return LOOP_OFF;
+  }
+
+  const dep = await depsBlocker(project, prNumber, body);
+
+  return dep != null ? BLOCKED_BY_DEPENDENCY : null;
+}
+
+function depsBlocker(
+  project: MergeProject,
+  prNumber: number,
+  body: string | null | undefined,
+): Promise<number | null> {
+  return blockingDependencyPrOpt(
+    project,
+    project.pulls as PullReader,
+    prNumber,
+    body,
+  );
+}
 
 /** lore-reviewer approves anything; Lore's own App cannot approve a pull request it opened. */
 function approverFor(
@@ -154,7 +209,12 @@ async function mergeUnprotected(
   project: MergeProject,
   approver: Approver | null,
   prNumber: number,
+  rule: Rule,
 ): Promise<MergeStep> {
+  if (rule.classicProtectionReadable === false) {
+    return { outcome: "failed", reason: NEEDS_ADMINISTRATION_READ };
+  }
+
   if (await askOwnersIfAny(project, prNumber, "approve and merge")) {
     return { outcome: "failed", reason: NEEDS_CODE_OWNER };
   }

@@ -24,7 +24,15 @@ interface ExternalAppUrls {
   utopiaUrl?: string;
 }
 
-export default function SidebarNav(externalApps: ExternalAppUrls) {
+interface SidebarNavProps extends ExternalAppUrls {
+  /** Count of open inbox items, drawn as a badge on `/inbox` when positive. */
+  inboxCount?: number;
+}
+
+export default function SidebarNav({
+  inboxCount,
+  ...externalApps
+}: SidebarNavProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -33,7 +41,12 @@ export default function SidebarNav(externalApps: ExternalAppUrls) {
 
   return (
     <>
-      <NavGroups pathname={pathname} collapsed={collapsed} onToggle={toggle} />
+      <NavGroups
+        pathname={pathname}
+        inboxCount={inboxCount}
+        collapsed={collapsed}
+        onToggle={toggle}
+      />
       <NavFooter pathname={pathname} externalApps={externalApps} />
     </>
   );
@@ -41,12 +54,15 @@ export default function SidebarNav(externalApps: ExternalAppUrls) {
 
 interface NavGroupsProps {
   pathname: string;
+  inboxCount?: number;
   collapsed: Record<string, boolean>;
   onToggle: (label: string) => void;
 }
 
 /** Every group in nav order. */
-function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
+function NavGroups(props: NavGroupsProps) {
+  const { pathname, inboxCount, collapsed, onToggle } = props;
+
   return (
     <nav>
       {navGroups.map((group) => (
@@ -54,6 +70,7 @@ function NavGroups({ pathname, collapsed, onToggle }: NavGroupsProps) {
           key={group.label}
           group={group}
           pathname={pathname}
+          inboxCount={inboxCount}
           collapsed={collapsed[group.label] ?? false}
           onToggle={onToggle}
         />
@@ -102,17 +119,24 @@ function FooterActions({ pathname }: { pathname: string }) {
 interface TitledNavLinkProps {
   link: NavDestination;
   pathname: string;
+  badge?: number;
   className?: string;
 }
 
 /** A nav link titled with its label, so the icon rail still names it on hover. */
-function TitledNavLink({ link, pathname, className }: TitledNavLinkProps) {
+function TitledNavLink({
+  link,
+  pathname,
+  badge,
+  className,
+}: TitledNavLinkProps) {
   return (
     <span title={link.label} className={styles.item}>
       <NavLink
         href={link.href}
         label={link.label}
         icon={link.icon}
+        badge={badge}
         active={isNavActive(pathname, link.href, "/")}
         className={className}
       />
@@ -184,6 +208,7 @@ function ExternalAppLink({ href, label, title }: ExternalAppLinkProps) {
 interface NavGroupSectionProps {
   group: NavGroup;
   pathname: string;
+  inboxCount?: number;
   collapsed: boolean;
   onToggle: (label: string) => void;
 }
@@ -192,13 +217,14 @@ interface NavGroupSectionProps {
 function NavGroupSection({
   group,
   pathname,
+  inboxCount,
   collapsed,
   onToggle,
 }: NavGroupSectionProps) {
   return (
     <CollapsibleGroup
       label={group.label}
-      links={navLinks(group, pathname)}
+      links={navLinks(group, pathname, inboxCount)}
       collapsed={collapsed}
       onToggle={onToggle}
     />
@@ -206,9 +232,14 @@ function NavGroupSection({
 }
 
 /** The group's links, each knowing whether it is the current page. Active is computed here rather than per link so one pass over the pathname answers for the whole group. */
-function navLinks(group: NavGroup, pathname: string) {
+function navLinks(group: NavGroup, pathname: string, inboxCount?: number) {
   return group.links.map((link) => (
-    <TitledNavLink key={link.href} link={link} pathname={pathname} />
+    <TitledNavLink
+      key={link.href}
+      link={link}
+      pathname={pathname}
+      badge={link.href === "/inbox" ? inboxCount : undefined}
+    />
   ));
 }
 

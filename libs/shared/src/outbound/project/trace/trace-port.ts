@@ -47,8 +47,8 @@ export interface TracePort {
   document(repo: string, filePath: string): Promise<TraceDocument>;
   /** Byte-exact source of any ingested document, reassembled from its Block nodes; null if never projected. */
   source(repo: string, filePath: string): Promise<string | null>;
-  /** The repo's spec force-graph (Specs + linked Statements + test/code/ADR nodes). */
-  graph(repo: string): Promise<SpecGraph>;
+  /** The repo's spec force-graph (Specs + linked Statements + test/code/ADR nodes), scoped to `filePath` when given. */
+  graph(repo: string, filePath?: string): Promise<SpecGraph>;
   /** One spec's two-ring structure (sections + per-statement coverage) for graph expansion. */
   ring(repo: string, filePath: string): Promise<SpecRing>;
   /** The spec statements that reach a span of one file on main. */

@@ -5,6 +5,7 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
+import { REF_REPO_PATTERN } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -22,13 +23,16 @@ import { withPool } from "../with-pool.js";
 const MEMORY_MATCH_SQL = `SELECT key, substring(value, 1, 300) as value, agent_id,
                 ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
                 'memory' as source,
-                NULL as repo
+                repo
            FROM memory.memories
           WHERE is_deleted = FALSE
             AND (expires_at IS NULL OR expires_at > now())
             AND to_tsvector('english', value) @@ plainto_tsquery($1)
+            AND ($2::text IS NULL OR repo IS NULL OR repo = $2)
           ORDER BY score DESC
           LIMIT 20`;
+
+const FACT_REPO = `COALESCE(m.repo, substring(e.ref from '${REF_REPO_PATTERN}'))`;
 
 // Excludes invalidated facts — a superseded belief must not surface as current.
 const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
@@ -36,13 +40,14 @@ const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref
                 COALESCE(m.agent_id, e.agent_id) as agent_id,
                 ts_rank(to_tsvector('english', f.fact_text), plainto_tsquery($1)) as score,
                 CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
-                NULL as repo
+                ${FACT_REPO} as repo
            FROM memory.facts f
            LEFT JOIN memory.memories m ON m.id = f.memory_id
            LEFT JOIN memory.episodes e ON e.id = f.episode_id
           WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))
             AND f.valid_to IS NULL
             AND to_tsvector('english', f.fact_text) @@ plainto_tsquery($1)
+            AND ($2::text IS NULL OR ${FACT_REPO} IS NULL OR ${FACT_REPO} = $2)
           ORDER BY score DESC
           LIMIT 20`;
 
@@ -71,11 +76,12 @@ async function serveMemorySearch(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { q } = request.query as unknown as MemorySearchQuery;
+  const { q, repo } = request.query as unknown as MemorySearchQuery;
+  const params = [q, repo ?? null];
 
   const [{ rows: memories }, { rows: facts }] = await Promise.all([
-    pool.query(MEMORY_MATCH_SQL, [q]),
-    pool.query(FACT_MATCH_SQL, [q]),
+    pool.query(MEMORY_MATCH_SQL, params),
+    pool.query(FACT_MATCH_SQL, params),
   ]);
 
   return h.response({ results: [...memories, ...facts] });

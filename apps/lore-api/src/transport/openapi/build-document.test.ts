@@ -170,6 +170,7 @@ describe("generateOpenApi — tag grouping", () => {
       "Webhooks",
       "Analytics",
       "Tokens",
+      "Inbox",
       "Meta",
     ]);
     expect(document.tags.every((t) => t.description.length > 0)).toBe(true);

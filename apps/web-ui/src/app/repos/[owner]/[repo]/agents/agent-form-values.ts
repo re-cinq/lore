@@ -1,5 +1,10 @@
 import { KNOWN_MODELS, type AgentDefinition } from "@/lib/agents-mirror";
 import { type PodResources } from "@/lib/agents-form";
+import { configuredServers } from "@/lib/mcp-servers-form";
+import {
+  configuredAdjustSkillModels,
+  configuredSkills,
+} from "@/lib/skills-form";
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
@@ -40,7 +45,7 @@ export function agentFormValues(
     promptInherited,
     ...resolveModelFields(agent),
     inherited: resolveInherited(agent, { isNew }),
-    podResources: resolvePodResources(agent),
+    ...resolveConfigFields(agent),
   };
 }
 
@@ -105,6 +110,15 @@ function resolveInherited(
   { isNew }: { isNew: boolean },
 ): boolean {
   return !isNew && (agent?.project_id == null || agent.project_id === "");
+}
+
+function resolveConfigFields(agent: AgentDefinition | null) {
+  return {
+    podResources: resolvePodResources(agent),
+    mcpServers: configuredServers(agent?.config),
+    skills: configuredSkills(agent?.config),
+    adjustSkillModels: configuredAdjustSkillModels(agent?.config),
+  };
 }
 
 function resolvePodResources(agent: AgentDefinition | null): PodResources {

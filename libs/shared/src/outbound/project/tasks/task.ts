@@ -33,6 +33,16 @@ export class Task {
     return this.row.issue_number ?? null;
   }
 
+  /** The task group this task belongs to; null when ungrouped. */
+  get taskGroupId(): string | null {
+    return this.row.task_group_id ?? null;
+  }
+
+  /** Context bundle stored on the task; null when none. */
+  get contextBundle(): Record<string, unknown> | null {
+    return this.row.context_bundle ?? null;
+  }
+
   /** Failure reason; planning poll shows this even when iteration stuck at running. */
   get failureReason(): string | null {
     return this.row.failure_reason ?? null;

@@ -97,4 +97,30 @@ describe("Audit recorded", () => {
       params: ["pr_merged", "octo/repo", JSON.stringify({ prNumber: 7 })],
     });
   });
+
+  it("writes at most one pr_merged row per repo and PR number and uses ON CONFLICT DO NOTHING in SQL", async () => {
+    const port = new InMemoryAudit();
+    const audit = new Audit("octo/repo", port);
+    const { pool, calls } = fakePool();
+
+    await audit.write({ event_type: "pr_merged", payload: { prNumber: 7 } });
+    await audit.write({ event_type: "pr_merged", payload: { prNumber: 7 } });
+    await audit.write({ event_type: "pr_merged", payload: { prNumber: 8 } });
+    await new Audit("octo/other", port).write({
+      event_type: "pr_merged",
+      payload: { prNumber: 7 },
+    });
+    await new PgAudit(pool).write({
+      event_type: "pr_merged",
+      repo: "octo/repo",
+      payload: { prNumber: 7 },
+    });
+
+    expect(port.entries).toEqual([
+      { event_type: "pr_merged", repo: "octo/repo", payload: { prNumber: 7 } },
+      { event_type: "pr_merged", repo: "octo/repo", payload: { prNumber: 8 } },
+      { event_type: "pr_merged", repo: "octo/other", payload: { prNumber: 7 } },
+    ]);
+    expect(calls[0]?.text).toContain("ON CONFLICT DO NOTHING");
+  });
 });

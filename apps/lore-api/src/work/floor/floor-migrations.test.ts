@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { InMemoryAgentDefinitions } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.fixture.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
@@ -38,6 +38,7 @@ function deps(
         return Promise.resolve();
       },
       updateTimeout: () => Promise.resolve(),
+      updateSkills: () => Promise.resolve(),
     },
     markApplied: (version) => {
       marked.push(version);
@@ -105,14 +106,14 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001 to floor/0005, whose every prompt and timeout comes from a shipped agent file", async () => {
+  it("names floor/0001 to floor/0007, whose every prompt, timeout and skills list comes from a shipped agent file", async () => {
     const shipped = shippedFloorAgents();
     const written = await everyWrite();
 
     expect({
       versions: written.versions,
       unshipped: written.writes.filter(
-        ({ field, file }) => !shipped.get(file.replace(/\.md$/, ""))?.[field],
+        ({ field, file }) => !shippedValue(shipped, field, file),
       ),
     }).toEqual({
       versions: [
@@ -121,6 +122,8 @@ describe("readFloorMigrations", () => {
         "floor/0003_spec_links_carry_content_hash",
         "floor/0004_spec_tickets_tested_missing_reason",
         "floor/0005_spec_write_timeout",
+        "floor/0006_spec_tickets_settled_statements",
+        "floor/0007_station_skills",
       ],
       unshipped: [],
     });
@@ -171,10 +174,120 @@ describe("floor/0005_spec_write_timeout", () => {
   });
 });
 
+describe("floor/0007_station_skills", () => {
+  it("writes the skills of the seven stations the migration names, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0007_station_skills");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
+      [
+        "loop-tdd-round",
+        "loop-dod",
+        "loop-fix-ci",
+        "code-review",
+        "code-review-recheck",
+        "triage-reproduce",
+        "plan-analyze",
+      ].map((agent) => `skills ${agent}`),
+    );
+  });
+});
+
+describe("updateSkills", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  const saved = {
+    settings: {
+      model: "claude-opus-4-7",
+      prompt: "Review the pull request.",
+      image: "ghcr.io/re-cinq/agent:1",
+      timeoutMinutes: 15,
+      config: {
+        skills: ["lore-context", "tdd-loop"],
+        skills_source: "https://old.example/skills",
+        mcp_servers: [{ name: "lore" }],
+        pod_resources: { memory: "2Gi" },
+      },
+    },
+    variants: {
+      "github.com/re-cinq/lore": {
+        config: { skills: ["cli-design"] },
+      },
+    },
+  };
+
+  async function updated(body: Parameters<InMemoryAgentDefinitions["put"]>[1]) {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("code-review", body);
+    await floorApiFor(new FloorAgentDefs(floor)).updateSkills(
+      "code-review",
+      "code-review.md",
+    );
+
+    return (await floor.get("code-review"))?.body;
+  }
+
+  it("replaces the org default's skills with the shipped list and keeps everything else", async () => {
+    vi.stubEnv("LORE_SKILLS_URL", "https://new.example/skills");
+
+    expect(await updated(saved)).toEqual({
+      ...saved,
+      settings: {
+        ...saved.settings,
+        config: {
+          ...saved.settings.config,
+          skills: ["lore-context", "testing"],
+        },
+      },
+    });
+  });
+
+  it("gives an org default with no skills_source the one LORE_SKILLS_URL names", async () => {
+    vi.stubEnv("LORE_SKILLS_URL", "https://new.example/skills");
+    const { skills_source: _kept, ...configWithoutSource } =
+      saved.settings.config;
+
+    const body = await updated({
+      ...saved,
+      settings: { ...saved.settings, config: configWithoutSource },
+    });
+
+    expect((body as typeof saved).settings.config.skills_source).toBe(
+      "https://new.example/skills",
+    );
+  });
+
+  it("throws for a file no shipped agent has", async () => {
+    const api = floorApiFor(new FloorAgentDefs(new InMemoryAgentDefinitions()));
+
+    await expect(api.updateSkills("ghost", "ghost.md")).rejects.toThrow(
+      new Error("no shipped agent file ghost.md has a skills list"),
+    );
+  });
+
+  it("throws for a shipped file with no skills list", async () => {
+    const api = floorApiFor(new FloorAgentDefs(new InMemoryAgentDefinitions()));
+
+    await expect(api.updateSkills("loop-sync", "loop-sync.md")).rejects.toThrow(
+      new Error("no shipped agent file loop-sync.md has a skills list"),
+    );
+  });
+});
+
 interface Write {
-  field: "prompt" | "timeout_minutes";
+  field: "prompt" | "timeout_minutes" | "skills";
   agent: string;
   file: string;
+}
+
+function shippedValue(
+  shipped: ReturnType<typeof shippedFloorAgents>,
+  field: Write["field"],
+  file: string,
+): unknown {
+  const agent = shipped.get(file.replace(/\.md$/, ""));
+
+  return field === "skills" ? agent?.config?.skills : agent?.[field];
 }
 
 async function everyWrite(only?: string) {
@@ -192,6 +305,7 @@ async function everyWrite(only?: string) {
     await migrate({
       updatePrompt: record("prompt"),
       updateTimeout: record("timeout_minutes"),
+      updateSkills: record("skills"),
     });
   }
 

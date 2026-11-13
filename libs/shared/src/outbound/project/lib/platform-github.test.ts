@@ -42,6 +42,7 @@ const state: {
   requestCalls?: Array<{ route: string; params: Record<string, unknown> }>;
   requestAnswers?: Record<string, unknown>;
   issueUpdateCall?: Record<string, unknown>;
+  updateCommentCall?: Record<string, unknown>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
   authCalls: Array<Record<string, unknown>>;
@@ -217,6 +218,9 @@ vi.mock("octokit", () => ({
           state.issueUpdateCall = params;
 
           return { data: {} };
+        },
+        updateComment: async (params: Record<string, unknown>) => {
+          state.updateCommentCall = params;
         },
         listDependenciesBlockedBy: async (params: Record<string, unknown>) => {
           state.blockersCall = params;
@@ -1399,6 +1403,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 1,
       codeOwnersReview: true,
       requiredChecks: ["build", "lint"],
+      classicProtectionReadable: true,
     });
   });
 
@@ -1426,6 +1431,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 2,
       codeOwnersReview: false,
       requiredChecks: ["build", "test"],
+      classicProtectionReadable: true,
     });
   });
 
@@ -1436,10 +1442,11 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 0,
       codeOwnersReview: false,
       requiredChecks: [],
+      classicProtectionReadable: true,
     });
   });
 
-  it("getBranchRule reads 1 approval from the ruleset when classic protection answers 403", async () => {
+  it("getBranchRule reads 1 approval from the ruleset and marks classicProtectionReadable false when classic protection answers 403", async () => {
     state.requestAnswers = {
       [RULES]: [
         {
@@ -1457,6 +1464,7 @@ describe("PlatformGitHub branch rule and mergeability reads", () => {
       requiredApprovals: 1,
       codeOwnersReview: false,
       requiredChecks: [],
+      classicProtectionReadable: false,
     });
   });
 
@@ -1535,5 +1543,24 @@ describe("PlatformGitHub commit statuses", () => {
     ];
     expect(await gh().ciConclusion("re-cinq/lore", "abc")).toBe("success");
     warn.mockRestore();
+  });
+});
+
+describe("PlatformGitHub updateIssueComment", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.updateCommentCall = undefined;
+  });
+
+  it("updateIssueComment sends owner, repo, comment_id and body to the REST PATCH adapter", async () => {
+    await gh().updateIssueComment("re-cinq/lore", 42, "new body");
+
+    expect(state.updateCommentCall).toEqual({
+      owner: "re-cinq",
+      repo: "lore",
+      comment_id: 42,
+      body: "new body",
+    });
   });
 });

@@ -7,6 +7,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { skillsSourceWrite } from "../agents/skills-source.js";
 import type { SeedFailure } from "./seed-floor-pipelines.js";
 
 export interface FloorMigrationApi {
@@ -14,6 +15,8 @@ export interface FloorMigrationApi {
   updatePrompt(agent: string, file: string): Promise<void>;
   /** Writes the `timeout_minutes` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor. */
   updateTimeout(agent: string, file: string): Promise<void>;
+  /** Writes the `config.skills` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor, with the skills source when it has none. */
+  updateSkills(agent: string, file: string): Promise<void>;
 }
 
 export type FloorMigration = (floor: FloorMigrationApi) => Promise<void>;
@@ -130,6 +133,8 @@ export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
         timeout_minutes: timeoutOf(shipped, file),
       });
     },
+    updateSkills: async (agent, file) =>
+      await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
   };
 }
 
@@ -153,4 +158,29 @@ function timeoutOf(shipped: ShippedAgents, file: string): number {
   );
 
   return minutes;
+}
+
+async function updateOrgSkills(
+  agentDefs: FloorAgentDefs,
+  agent: string,
+  skills: string[],
+): Promise<void> {
+  await agentDefs.updateOrg(
+    agent,
+    {},
+    { skills, ...skillsSourceWrite(), inheritedConfig: null },
+  );
+}
+
+function skillsOf(shipped: ShippedAgents, file: string): string[] {
+  const settings = shipped.get(path.basename(file, ".md"));
+  const skills = settings?.config?.skills;
+
+  enforceTrue(
+    Array.isArray(skills) && skills.length > 0,
+    Error,
+    `no shipped agent file ${file} has a skills list`,
+  );
+
+  return skills;
 }

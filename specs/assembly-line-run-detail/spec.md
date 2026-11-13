@@ -17,9 +17,9 @@ The current page under `apps/web-ui/src/app/assembly-runs/[id]/` has seven view 
 
 **Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list). _(Amended 2026-09-09: `RunTimelineView` and `ReplayScrubberView` were retired — `specs/assembly-line-run-viz` Retired Requirements.)_
 
-**Node-level** (about one execution pod): `RunNodeDetail`, `NodeTranscriptView`, `NodePodLogs`
+**Node-level** (about one execution pod): `RunNodeDetail`, `NodeTranscriptView`, `NodePodLogs` (legacy)
 
-The problem is that `NodePodLogs` is rendered at the page level in `page.tsx` alongside the line-level `AssemblyRunView`, completely detached from the selected-node state owned by `RunVisualizationPanel`. A developer who wants to correlate the graph state with a pod's log output has to know that the log section is two pages below the graph. There is no navigation signal connecting them.
+The problem was that `NodePodLogs` was rendered at the page level in `page.tsx` alongside the line-level `AssemblyRunView`, completely detached from the selected-node state owned by `RunVisualizationPanel`. A developer who wanted to correlate the graph state with a pod's log output had to know that the log section was two pages below the graph. There was no navigation signal connecting them.
 
 A secondary problem is that `AssemblyRunView` renders a static `<ol>` step list whose information content duplicates the interactive `RunGraphView`. The interactive graph supersedes the static list; keeping both gives the page two competing answers to the same question.
 
@@ -35,11 +35,10 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 
 ## FR2 — Node detail pane is the container for all per-node content
 
-- `RunVisualizationPanel` opens a node detail pane when a node is selected and closes it when the selection is cleared.
+- `RunVisualizationPanel` opens a node detail pane when a node is selected; when no node is selected, it shows a persistent hint panel instead. ([shows the select-a-node hint while every node is idle, and opens the inspector on a click @baebb012](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L538), [renders the no-node-executions empty state instead of the hint for a run with no graph @7efd59c3](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L781))
 - _(Amended 2026-10-09, run-viz FR4.1g/FR4.14.)_ The pane is two columns: `RunNodeDetail` (the summary card, with the attempt history) in a right-hand panel whose left edge drags, and under the graph the attempt column — the `Show`/`Attempt` selects, then the chosen attempt's transcript or pod logs, then its Needs and Input cards. ([names the selected-node panel a complementary aside beside the graph @267ec54b](apps/web-ui/src/app/assembly-runs/[id]/RunWorkbenchLayout.test.tsx#L21), [shows the newest attempt's pod logs alone once Pod logs is chosen @ac4031a5](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L629))
 - The pod-log section displays the pod log for the selected node's chosen attempt only. When no node is selected the section is absent. ([shows attempt 1's pod logs when the attempt select picks it @234f68b6](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L651))
-- `NodePodLogs` is no longer rendered at the `page.tsx` level. `page.tsx` passes the full `logNodes` list to `RunVisualizationPanel` so the panel can look up the selected node's `agentCrName` without an additional server round-trip.
-- `NodePodLogs` receives a single `node: NodeLogTarget | null` prop (instead of `nodes: NodeLogTarget[]`) and returns `null` when `node` is null. This change is contained inside the panel; the `NodeLogTarget` shape is unchanged.
+- `NodePodLogs` and its page-level `logNodes` array are retired. `AttemptInspector` uses `AgentAttemptCard` to read the `agentCrName` of the node's chosen attempt and passes it to `NodeLogPanel`.
 
 ## FR3 — Line-level views remain at line level
 
@@ -49,24 +48,23 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 
 ## FR4 — Task accounting stays at page bottom, visually grouped
 
-- When `run.taskId` is present, `EventTimeline` and `LlmCallsTable` remain on the page, grouped under a "Task accounting" heading below the visualization panel. _(Amended 2026-10-09: the cost table, and the note a task-less run shows in its place, now close the panel's left column, after the attempt on show, instead of sitting below the whole panel.)_ ([draws the run facts under the graph and the task-less notice after them, both outside the aside @800b4c4c](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L271))
+- When `run.taskId` is present, `EventTimeline` and `LlmCallsTable` remain on the page, grouped under a "Task accounting" heading below the visualization panel. _(Amended 2026-10-09: the cost table, and the note a task-less run shows in its place, now close the panel's left column, after the attempt on show, instead of sitting below the whole panel.)_ ([draws the run facts under the graph and the task-less notice after them, both outside the aside @800b4c4c](apps/web-ui/src/app/assembly-runs/[id]/RunLiveShell.test.tsx#L271)) ([validated by @5ec481bc](apps/web-ui/src/app/assembly-runs/[id]/task-accounting.acceptance.test.tsx#L61))
 - When `run.taskId` is absent, the "Task accounting" section is omitted and the existing explanatory paragraph ("This run has no backing task…") is removed with it. A run without a task is not a degraded state that requires explanation — it is a normal case for detection lines. _Amended 2026-09-02:_ the note stays for now, but renders through the shared secondary `Alert` atom (`specs/web-ui-theming`) instead of a bare `className="meta"` paragraph.
 
-## FR5 — No new components; redundant paths are deleted
+## FR5 — Redundant paths are deleted
 
-- The refactor moves and resizes existing components. It does not introduce new component files.
-- `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
+- The refactor moves and resizes existing components, introducing `AttemptInspector`, `AgentAttemptCard`, and `NodeLogPanel` to satisfy the single-attempt log contract without maintaining the stale `NodePodLogs` paths.
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
 - `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). _Amended 2026-09-02:_ the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself.
   - A `code-review` run with a PR number renders the trigger-review button. ([validated by @d33a6a17](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L34))
-  - A run of another definition renders no options. ([validated by @4d8d84d9](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L42))
-  - A `code-review` run without a PR number renders no options. ([validated by @801936b4](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L52))
+  - A run of another definition renders no review options. ([validated by @a8bc260f](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L42))
+  - A `code-review` run without a PR number renders no review options. ([validated by @960f39ee](apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L52))
 
 ## Alternatives Rejected
 
 - **Keep both graph and step list, reconcile their state.** The step list is server-rendered and the graph is client-driven; synchronizing them requires lifting state that is currently cleanly owned by `RunVisualizationPanel`. The graph is the more capable view and the step list adds no information a selected graph node does not already surface via `RunNodeDetail`.
 
-- **Show all nodes' pod logs simultaneously.** `NodePodLogs` already renders one collapsible `<details>` per node; the issue is not collapsed vs expanded but the section being disconnected from node selection. Showing all logs outside the graph makes the quantity of log content worse, not better, when a line has many nodes.
+- **Show all nodes' pod logs simultaneously.** The previous page-level log section already rendered one collapsible `<details>` per node; the issue is not collapsed vs expanded but the section being disconnected from node selection. Showing all logs outside the graph makes the quantity of log content worse, not better, when a line has many nodes.
 
 - **Move `FileHeatmapView` into the node detail pane and scope it per-node.** The heatmap's value proposition is the run-level picture of what files the agent worked on. Scoping it per-node fragments that view into a per-node read/write count that `RunNodeDetail` already surfaces as a scalar ("files touched"). Per-node heatmap is a future affordance, not a prerequisite here. _(The placement alone — run-level data in the side panel, not scoped per-node — was later accepted; see run-viz FR4.14.)_
 
@@ -77,4 +75,4 @@ The task-accounting components (`EventTimeline`, `LlmCallsTable`, which live bes
 - Transcript source quality. The `NodeTranscriptView` is only as useful as `pipeline.agent_run_events` underneath it (`specs/turn-level-transcript-store`). That dependency is separate and not addressed here.
 - Fork-and-rerun affordance in the node detail pane (`specs/fork-rerun-from-node`). The "Rerun from here" button that spec deferred is a natural tenant of the node detail pane introduced here; it is not added in this refactor.
 - Per-node file heatmap.
-- Log streaming for station nodes (non-agent pods that emit no `agent_cr_name`). `NodePodLogs` returns `null` for those today; this refactor does not change that.
+- Log streaming for station nodes (non-agent pods that emit no `agent_cr_name`). The original log section returned `null` for those, and the attempt-specific logs still omit them; this refactor does not change that.

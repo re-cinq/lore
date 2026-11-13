@@ -514,4 +514,68 @@ describe("verified spec ticket flow", () => {
     ]);
     expect(run.filed).toHaveLength(2);
   });
+
+  it("takes the message list the load step settled as present on its linked test and files only the colour prop", async () => {
+    const run = settledScene('{"since":"c1","lines":[5]}');
+
+    expect([await run.verify(), await run.file()]).toEqual([
+      { outcome: "success" },
+      { outcome: "success" },
+    ]);
+    expect(JSON.parse(run.artifacts.verified_decomposition)).toMatchObject({
+      statements: [
+        {
+          line: 5,
+          status: "present",
+          evidence: [{ path: "src/widget.test.ts", start: 1, end: 1 }],
+        },
+        { line: 6, status: "missing" },
+      ],
+    });
+  });
+
+  it("keeps the message list missing when the line the load step settled no longer has a linked test that resolves", async () => {
+    const run = settledScene('{"since":"c1","lines":[5]}', {});
+
+    expect(await run.verify()).toEqual({ outcome: "success" });
+    expect(JSON.parse(run.artifacts.verified_decomposition)).toMatchObject({
+      statements: [
+        { line: 5, status: "missing", evidence: [] },
+        { line: 6, status: "missing" },
+      ],
+    });
+  });
 });
+
+function settledScene(
+  listing: string,
+  tests: Record<string, string> = {
+    "src/widget.test.ts": 'it("renders messages", () => {});\n',
+  },
+) {
+  const spec = SPEC.replace(
+    "render messages.",
+    "render messages. ([validated by renders messages](src/widget.test.ts#L1))",
+  );
+  const raw = decomposition("missing");
+  const run = scene(
+    { ...raw, stories: [{ title: "Colour", tasks: [colourTask()] }] },
+    { [PATH]: spec, ...tests },
+  );
+
+  run.artifacts.settled_statements = listing;
+  Object.assign(run.needs, { settled_statements: "settled" });
+
+  return run;
+}
+
+function colourTask(): RawTask {
+  return {
+    id: "T002",
+    description: "Accept a colour prop",
+    depends_on: [],
+    spec_lines: [6],
+    phase: 0,
+    parallelizable: false,
+  };
+}

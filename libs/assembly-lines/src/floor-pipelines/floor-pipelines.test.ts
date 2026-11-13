@@ -125,7 +125,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks spec-tickets from load-tickets through decompose and issues to issue-coverage and done, keyed on the run key", () => {
+  it("walks spec-tickets from load-tickets through decompose, verify-implementation and issues to issue-coverage and done, keyed on the run key", () => {
     const { line } = pipelineOf("spec-tickets");
     const forward = line.edges
       .filter((edge) => edge.on === "success")
@@ -174,6 +174,45 @@ describe("the floor pipelines shipped in this folder", () => {
         kind: "file",
         path: "existing-tickets.json",
       },
+    });
+  });
+
+  it("hands the lines spec-tickets-load settles at the merge to decompose as a file its prompt names, and to verify, both optional", () => {
+    const { stations } = pipelineOf("spec-tickets");
+    const load = stations["spec-tickets-load"];
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      merge: needOf(load, "merge_sha"),
+      listed: load.produces,
+      decompose: needOf(
+        stations["spec-tickets-decompose"],
+        "settled_statements",
+      ),
+      verify: needOf(stations["spec-tickets-verify"], "settled_statements"),
+      named: prompt.includes("/workspace/settled-statements.json"),
+    }).toEqual({
+      merge: { name: "merge_sha", kind: "value" },
+      listed: [
+        {
+          name: "existing_tickets",
+          kind: "file",
+          path: "existing-tickets.json",
+        },
+        {
+          name: "settled_statements",
+          kind: "file",
+          path: "settled-statements.json",
+        },
+      ],
+      decompose: {
+        name: "settled_statements",
+        kind: "file",
+        path: "settled-statements.json",
+        optional: true,
+      },
+      verify: { name: "settled_statements", kind: "file", optional: true },
+      named: true,
     });
   });
 
@@ -1127,7 +1166,7 @@ describe("the feature-planning pipeline", () => {
           from: "assemble",
           to: "split-sections",
           on: "retry",
-          iteration_max: 2,
+          iteration_max: 5,
         },
         { from: "assemble", to: "qa-answer", on: "success" },
         { from: "assemble", to: "failed", on: "failed" },
@@ -1254,7 +1293,7 @@ describe("the feature-planning pipeline", () => {
       body: "spec-write",
       intoSplit: [
         "draft:success:-",
-        "assemble:retry:2",
+        "assemble:retry:5",
         "qa-gate:changes_requested:5",
       ],
     });

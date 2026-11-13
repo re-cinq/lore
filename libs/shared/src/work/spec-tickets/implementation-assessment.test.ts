@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseDecomposition } from "../../domain/feature-planning/decomposition-result.js";
+import {
+  parseDecomposition,
+  type StatementAssessment,
+} from "../../domain/feature-planning/decomposition-result.js";
 import { assessImplementation } from "./implementation-assessment.js";
 
 const SPEC =
@@ -252,9 +255,128 @@ describe("assessImplementation", () => {
       (await assessTested(decomposition(), WIDGET_AND_TEST, spec)).objections,
     ).toEqual([expect.stringContaining("line 6: missing or unassessed")]);
   });
+
+  it("takes the colour prop on line 6 as present on its settled test line when the agent leaves it missing without a reason", async () => {
+    expect(await assessSettled(decomposition())).toMatchObject({
+      objections: [],
+      decomposition: { statements: [{ line: 5 }, SETTLED] },
+    });
+  });
+
+  it("takes the colour prop on line 6 as settled when no statement entry assesses it", async () => {
+    const result = decomposition();
+
+    result.statements = result.statements!.slice(0, 1);
+    expect(await assessSettled(result)).toMatchObject({
+      objections: [],
+      decomposition: { statements: [{ line: 5 }, SETTLED] },
+    });
+  });
+
+  it("keeps the settled colour prop missing with its reason when the agent says why its test does not show it", async () => {
+    const result = decomposition();
+    const reason = "The test only renders the default colour.";
+
+    result.statements![1] = { ...result.statements![1], reason };
+    expect(await assessSettled(result)).toMatchObject({
+      objections: [],
+      decomposition: {
+        statements: [{ line: 5 }, { line: 6, status: "missing", reason }],
+      },
+    });
+  });
+
+  it("keeps the settled colour prop when the agent claims it present with evidence that does not verify", async () => {
+    const result = decomposition();
+
+    result.statements![1] = {
+      ...result.statements![1],
+      status: "present",
+      evidence: [{ ...EVIDENCE, text: "InventedWidget" }],
+    };
+    expect(await assessSettled(result)).toMatchObject({
+      objections: [],
+      decomposition: { statements: [{ line: 5 }, SETTLED] },
+    });
+  });
+
+  it("still refuses a partial claim on the settled colour prop whose evidence does not verify", async () => {
+    const result = decomposition();
+
+    result.statements![1] = {
+      ...result.statements![1],
+      status: "partial",
+      evidence: [{ ...EVIDENCE, text: "InventedWidget" }],
+    };
+    expect((await assessSettled(result)).objections).toEqual([
+      expect.stringContaining("line 6: evidence rejected"),
+    ]);
+  });
+
+  it("hands back the colour prop when its settled test line does not verify at the commit", async () => {
+    const stale = {
+      ...SETTLED,
+      evidence: [{ ...SETTLED.evidence[0], text: "gone" }],
+    };
+
+    expect((await assessSettled(decomposition(), [stale])).objections).toEqual([
+      expect.stringContaining("line 6: missing or unassessed"),
+    ]);
+  });
+
+  it("settles nothing on an explicit requirement part, as triage supplies", async () => {
+    const result = await assessImplementation(decomposition(), {
+      spec: testedSpec(),
+      specPath: "specs/widget/spec.md",
+      commit: "merge123",
+      read: async (path) => WIDGET_AND_TEST[path] ?? null,
+      parts: [
+        { line: 5, text: "The widget MUST render messages." },
+        { line: 6, text: "The widget MUST accept a colour prop." },
+      ],
+      settled: [SETTLED],
+    });
+
+    expect(result).toMatchObject({
+      objections: [],
+      decomposition: {
+        statements: [
+          { line: 5, status: "present" },
+          { line: 6, status: "missing", evidence: [] },
+        ],
+      },
+    });
+  });
 });
 
 const ANCHOR_HASH_OF_THE_COLOUR_TEST_LINE = "420663fb";
+
+const SETTLED: StatementAssessment = {
+  file: "specs/widget/spec.md",
+  line: 6,
+  status: "present",
+  evidence: [
+    {
+      path: "src/widget.test.ts",
+      start: 1,
+      end: 1,
+      text: 'it("accepts a colour prop", () => {});',
+    },
+  ],
+};
+
+function assessSettled(
+  result: ReturnType<typeof decomposition>,
+  settled: StatementAssessment[] = [SETTLED],
+) {
+  return assessImplementation(result, {
+    spec: testedSpec(),
+    specPath: "specs/widget/spec.md",
+    commit: "merge123",
+    read: async (path) => WIDGET_AND_TEST[path] ?? null,
+    settled,
+  });
+}
 
 const WIDGET_SOURCE: Record<string, string> = {
   "src/widget.ts": "export function ChatMessageList() {}\n",

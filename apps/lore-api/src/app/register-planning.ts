@@ -12,7 +12,7 @@ import { livePlanOf } from "../outbound/plans/live-plan.js";
 import { pgRefineAsks } from "../work/plans/refine-asks-pg.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
 import type { PlanFilePorts } from "../work/plans/plan-file.js";
-import { planLifecycleRoutes } from "../transport/routes/plans/plan-lifecycle.js";
+import type { PlanLifecyclePorts } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
 import {
   planVerbsFor,
@@ -29,7 +29,7 @@ import type { TokenScope } from "../transport/http/auth.js";
 
 export const PLANS_PREFIX = "/api/plans";
 
-/** What the plans registration hands the rest of the server: the collaboration server the live socket tunnels to (ADR-048), and what the plan routes need to run their verbs. */
+/** What the plans registration hands the rest of the server: the collaboration server the live socket tunnels to (ADR-048) and what the plan routes need to run their verbs. */
 export interface RegisteredPlanning {
   collab: PlanningSync["collab"];
   plans: PlanVerbSeams;
@@ -51,23 +51,21 @@ export function registerPlanning(
 
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
   seams.livePlan = livePlanOf(sync);
-  routePlans(server, sync, seams, { pool, getPool });
+  seams.service = sync.service as PlanLifecyclePorts["service"];
+  routePlans(server, sync, seams, { pool });
   followPlanAgents(server, sync.writer);
 
   return { collab: sync.collab, plans: seams };
 }
 
-// Lore's own plan routes beside the library's, every one of them behind lore's bearer tokens.
+// Lore's own plan routes — lifecycle routes (/approve etc.) are hoisted into routeList (ADR-035).
 function routePlans(
   server: Server,
   sync: PlanningSync,
   seams: PlanVerbSeams,
-  { pool, getPool }: { pool: () => Pool; getPool: () => Pool | null },
+  { pool }: { pool: () => Pool },
 ): void {
-  server.route([
-    ...planFileRoutes(filePorts(livePlanOf(sync), sync, pool)),
-    ...planLifecycleRoutes({ service: sync.service, getPool, ...seams }),
-  ]);
+  server.route(planFileRoutes(filePorts(livePlanOf(sync), sync, pool)));
   server.ext("onPreHandler", planRouteGuard(server));
 }
 

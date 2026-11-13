@@ -10,11 +10,14 @@ import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import {
+  configKeysOf,
   parseAgentPatch,
   type AgentPatch,
+  type OwnedConfigKey,
 } from "../../../work/agents/agents-schema.js";
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
+import { skillsSourceWrite } from "../../../work/agents/skills-source.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
 // Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
@@ -125,25 +128,39 @@ function writeOrgPatch(
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
-  const { pod_resources, ...fields } = patch;
+  const { pod_resources, mcp_servers, skills, adjust_skill_models, ...fields } =
+    patch;
 
   return new FloorAgentDefs(floor).updateOrg(
     name,
     withoutClearedRequired(fields),
-    orgPodResourcesWrite(pod_resources),
+    orgConfigWrite({ pod_resources, mcp_servers, skills, adjust_skill_models }),
   );
 }
 
-/** Replaces the org default's pod resources whole: the form sends every quantity, so a blank one is cleared; the org default inherits from nothing. */
-function orgPodResourcesWrite(podResources: AgentPatch["pod_resources"]) {
-  return podResources === undefined
-    ? undefined
-    : { podResources, inheritedConfig: null };
+/** Replaces the org default's pod resources, MCP servers and skills whole: the form sends every quantity and every server, so a blank one is cleared; the org default inherits from nothing. */
+function orgConfigWrite(owned: Pick<AgentPatch, OwnedConfigKey>) {
+  const keys = withoutEmptyLists(configKeysOf(owned));
+
+  return Object.keys(keys).length > 0
+    ? { ...keys, ...skillsSourceWrite(), inheritedConfig: null }
+    : undefined;
+}
+
+// The org default inherits from nothing, so an empty list of servers or skills is no key at all.
+function withoutEmptyLists(
+  keys: ReturnType<typeof configKeysOf>,
+): ReturnType<typeof configKeysOf> {
+  return {
+    ...keys,
+    ...(keys.mcpServers?.length === 0 ? { mcpServers: null } : {}),
+    ...(keys.skills?.length === 0 ? { skills: null } : {}),
+  };
 }
 
 function withoutClearedRequired(
-  fields: Omit<AgentPatch, "pod_resources">,
-): Omit<AgentPatch, "pod_resources"> {
+  fields: Omit<AgentPatch, OwnedConfigKey>,
+): Omit<AgentPatch, OwnedConfigKey> {
   return Object.fromEntries(
     Object.entries(fields).filter(
       ([key, value]) => !(value === null && REQUIRED_ORG_FIELDS.includes(key)),

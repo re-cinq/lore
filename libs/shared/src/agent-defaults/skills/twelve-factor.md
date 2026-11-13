@@ -7,15 +7,10 @@ description: 12-Factor App patterns for deployable applications. Use when config
 
 Core factors (config, dependencies, backing services, logs) apply to any deployed application — services, frontends, workers, and CLI tools. Server-specific factors (port binding, concurrency, disposability) apply only to backend services that run as long-lived processes.
 
-Based on [12factor.net](https://12factor.net). All 12 factors are covered below: rules, anti-patterns, and code-level implications live here; Node/TypeScript implementation examples live in `resources/`.
+All 12 factors are covered below: rules, anti-patterns, and code-level implications live here.
 
 See the `typescript-strict` skill for schema-first patterns at trust boundaries. See the `testing` skill for how to TDD these patterns — config validation, shutdown behavior, and backing service integration are all testable through behavior-driven tests.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `node-patterns.md` | Implementing any factor in Node/TypeScript — config schema validation, options-object injection, `.env.example`, system dependency checks, backing service factories, Redis session store, web/worker entry points, health checks, graceful shutdown, structured logger, admin scripts |
 
 ---
 
@@ -44,7 +39,7 @@ Store all configuration in environment variables. Never hardcode URLs, credentia
 - Inject config via options objects — never import `process.env` deep in the call tree
 - Provide `.env.example` as documentation (never commit `.env` with real values)
 
-See `resources/node-patterns.md` for the Zod config schema, options-object injection, and `.env.example` examples.
+
 
 ### Config Anti-Patterns
 
@@ -71,19 +66,19 @@ Explicitly declare all dependencies. Never rely on implicit system-wide packages
 - Lockfile (`package-lock.json`, `pnpm-lock.yaml`) committed to repo
 - Dependencies are isolated — the app does not leak from or depend on the system environment (use `node_modules`, not global installs)
 - No `exec('imagemagick ...')` or `child_process` calls to assumed system tools
-- If a system tool is required, document it explicitly and check for it at startup (see `resources/node-patterns.md` for a startup check)
+- If a system tool is required, document it explicitly and check for it at startup
 
 ## Backing Services (Factor IV)
 
 Treat every backing service (database, cache, queue, email, storage) as an attached resource identified by a URL in config.
 
-**The code makes no distinction between local and third-party services.** Swapping a local PostgreSQL for a managed cloud database requires only a config change, never a code change. See `resources/node-patterns.md` for a factory that wires backing services from config URLs.
+**The code makes no distinction between local and third-party services.** Swapping a local PostgreSQL for a managed cloud database requires only a config change, never a code change.
 
 For projects using hexagonal architecture, backing services map naturally to ports (interfaces) and adapters (implementations). See the `hexagonal-architecture` skill.
 
 ## Stateless Processes (Factor VI)
 
-Execute the app as stateless, share-nothing processes. Any data that must persist lives in a backing service. See `resources/node-patterns.md` for a Redis-backed session store.
+Execute the app as stateless, share-nothing processes. Any data that must persist lives in a backing service.
 
 ### Stateless Anti-Patterns
 
@@ -109,7 +104,7 @@ See the `functional` skill for immutable data patterns that naturally support st
 Scale out via the process model. Design the app so work can be divided across process types.
 
 **Rules:**
-- Separate entry points for each process type (web, worker, scheduler) — see `resources/node-patterns.md`
+- Separate entry points for each process type (web, worker, scheduler)
 - HTTP handlers dispatch background work to a queue, never process it inline
 - Each process type scales independently
 - Use a `Procfile` or equivalent to define process types
@@ -121,7 +116,7 @@ worker: node dist/worker.js
 
 ## Disposability (Factor IX)
 
-Maximize robustness with fast startup and graceful shutdown. See `resources/node-patterns.md` for health check routes and a full graceful shutdown implementation.
+Maximize robustness with fast startup and graceful shutdown.
 
 **Rules:**
 - Handle SIGTERM and SIGINT for graceful shutdown
@@ -152,7 +147,7 @@ Regardless of which logging library or implementation a project uses, all logger
 - **Timestamp included** — every log entry includes an ISO 8601 timestamp
 - **Request correlation** — include a correlation identifier in every log record; prefer the W3C trace context trace ID (from the `traceparent` header) over a homegrown `requestId`, so logs join to distributed traces for free
 
-Projects may use any logging library (pino, winston with console transport, OpenTelemetry, custom) as long as these semantics are met. If an existing logger is missing levels or structured data support, adapt it to meet these requirements. See `resources/node-patterns.md` for an illustrative logger implementation.
+Projects may use any logging library (pino, winston with console transport, OpenTelemetry, custom) as long as these semantics are met. If an existing logger is missing levels or structured data support, adapt it to meet these requirements.
 
 ### Logging Anti-Patterns
 
@@ -203,7 +198,7 @@ Keep development and production as similar as possible. Use the same type of bac
 
 ## Admin Processes (Factor XII)
 
-Run admin tasks (migrations, data fixes, console sessions) as one-off processes using the same codebase and config. See `resources/node-patterns.md` for a migration script example.
+Run admin tasks (migrations, data fixes, console sessions) as one-off processes using the same codebase and config.
 
 Admin scripts live in the repo alongside application code (e.g. `scripts/migrate.ts`). They are not separate tools or ad-hoc shell commands. Admin processes run in an identical environment to the app — same release, same config, same dependencies.
 
@@ -237,6 +232,10 @@ Config injection via options objects makes all of these patterns naturally testa
 - [ ] App binds to a port from config, includes its own HTTP server
 - [ ] Same backing service types used in development and production
 - [ ] Admin scripts live in the repo and use the same config/dependencies
+
+## Attribution
+
+Adapted from the `twelve-factor` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/twelve-factor), Copyright (c) 2024 Paul Hammond, MIT licence. Based on [12factor.net](https://12factor.net). Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

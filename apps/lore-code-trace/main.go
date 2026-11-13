@@ -16,23 +16,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
-// Each chunk is POSTed separately, and every POST becomes one event, one
-// assembly run and one Kubernetes pod. At 512 KB this repo's suite packed into
-// 72 chunks per push to main — 72 pods and ~2,500 pod-hours a month to deliver
-// a report that fits comfortably in a single request. The Floor's ingress
-// accepts 25 MB bodies, so 4 MB keeps a wide margin (and stays a reasonable
-// jsonb event payload) while cutting the fan-out roughly eight-fold.
-//
-// This is the cheap lever, not the destination: the incremental sink added in
-// #1742 (POST /api/repos/{owner}/{repo}/ingest, after a GET of the repo's
-// ingest-state) projects in-process with no event, no pod and no clone. Its
-// client side was never wired up; until it is, this constant bounds the cost.
 const (
 	manifestRelPath = ".lore/test-commands.yml"
-	maxChunkBytes   = 4_000_000
 	runConcurrency  = 4
 )
 
@@ -163,47 +150,27 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 		return enc.Encode(combined)
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
-
-	// The incremental handshake (FR5) is the primary path: lore-api projects the
-	// delta in-process, so a push costs a couple of HTTP calls and no pod. Only a
-	// lore-api that does not serve the route yet falls through to the chunked
-	// webhook below, which fans out one pod per chunk.
-	if apiBase != "" {
-		err := runDeltaFlow(ctx, deltaDeps{
-			fetchState: func(ctx context.Context) (*string, error) {
-				return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
-			},
-			reachable:    func(sha string) bool { return commitReachable(root, sha) },
-			changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
-			tracked:      func() ([]string, error) { return trackedFiles(root) },
-			post: func(ctx context.Context, d ingestDelta) error {
-				return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
-			},
-			reportIsScoped: reportIsScoped,
-			full:           full,
-		}, combined)
-		if err == nil {
-			fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",
-				repo, shortSHA(commit))
-			return nil
-		}
-		if !errors.Is(err, errIngestRouteAbsent) {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, "lore-code-trace: lore-api does not serve incremental ingest yet; falling back to the chunked webhook")
+	if apiBase == "" {
+		return fmt.Errorf("--post requires LORE_API_URL")
 	}
-
-	base := strings.TrimRight(os.Getenv("LORE_WEBHOOK_URL"), "/")
-	if base == "" {
-		return fmt.Errorf("--post requires LORE_API_URL (incremental) or LORE_WEBHOOK_URL (chunked fallback)")
-	}
-	chunks := chunkReport(combined, maxChunkBytes)
-	if err := postReport(ctx, base+"/api/webhook/ci-tests", token, repo, chunks, client); err != nil {
+	err = runDeltaFlow(ctx, deltaDeps{
+		fetchState: func(ctx context.Context) (*string, error) {
+			return fetchIngestState(ctx, apiBase, token, repo, testReportKind, deltaClient)
+		},
+		reachable:    func(sha string) bool { return commitReachable(root, sha) },
+		changedSince: func(base string) ([]string, []string, error) { return changedSince(root, base) },
+		tracked:      func() ([]string, error) { return trackedFiles(root) },
+		post: func(ctx context.Context, d ingestDelta) error {
+			return postIngestDelta(ctx, apiBase, token, repo, d, deltaClient)
+		},
+		reportIsScoped: reportIsScoped,
+		full:           full,
+	}, combined)
+	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "lore-code-trace: posted %d test(s) in %d chunk(s) for %s@%s\n",
-		len(combined.Tests), len(chunks), repo, shortSHA(commit))
+	fmt.Fprintf(os.Stderr, "lore-code-trace: posted incremental test report for %s@%s\n",
+		repo, shortSHA(commit))
 	return nil
 }
 

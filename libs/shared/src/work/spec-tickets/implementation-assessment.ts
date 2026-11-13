@@ -21,6 +21,8 @@ export interface ImplementationAssessmentInput {
   commit: string;
   read(path: string): Promise<string | null>;
   parts?: readonly SpecPart[];
+  /** Lines the run's load step settled as present on their linked tests (specs/spec-tickets FR25). */
+  settled?: readonly StatementAssessment[];
 }
 
 export interface ImplementationAssessment {
@@ -36,6 +38,15 @@ type CheckedStatement = {
 
 /** Each statement line's linked tests that exist at the commit, named as `path#Lnn`. */
 type TestedLines = ReadonlyMap<number, string[]>;
+
+/** The settled assessments whose evidence verifies, by line. */
+type SettledLines = ReadonlyMap<number, StatementAssessment>;
+
+/** What the verifier holds about each statement line before it reads a claim. */
+interface LineFacts {
+  tested: TestedLines;
+  settled: SettledLines;
+}
 
 // Triage's explicit parts are taken as given; a spec's own lines first lose the statements that state no work (specs/spec-tickets FR24).
 export function assessImplementation(
@@ -56,8 +67,8 @@ async function assessPlannable(
 ): Promise<ImplementationAssessment> {
   const read = cachedRead(input.read);
   const verify = evidenceVerifier(read);
-  const tested = await testedLines(input, read);
-  const checked = await checkStatements(decomposition, input, verify, tested);
+  const facts = await lineFacts(input, read, verify);
+  const checked = await checkStatements(decomposition, input, verify, facts);
   const statements = checked.map((entry) => entry.statement);
   const objections = await taskErrors(
     decomposition,
@@ -94,11 +105,11 @@ function checkStatements(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput,
   verify: VerifyEvidence,
-  tested: TestedLines,
+  facts: LineFacts,
 ): Promise<CheckedStatement[]> {
   return Promise.all(
     (input.parts ?? specParts(input.spec)).map(({ line }) =>
-      checkStatement(decomposition, { ...input, line }, verify, tested),
+      checkStatement(decomposition, { ...input, line }, verify, facts),
     ),
   );
 }
@@ -124,6 +135,38 @@ export function cachedRead(
   };
 }
 
+async function lineFacts(
+  input: ImplementationAssessmentInput,
+  read: ImplementationAssessmentInput["read"],
+  verify: VerifyEvidence,
+): Promise<LineFacts> {
+  const [tested, settled] = await Promise.all([
+    testedLines(input, read),
+    settledLines(input, verify),
+  ]);
+
+  return { tested, settled };
+}
+
+// Triage's explicit parts are not the spec's statements, so nothing settles them (specs/spec-tickets FR20, FR25).
+async function settledLines(
+  input: ImplementationAssessmentInput,
+  verify: VerifyEvidence,
+): Promise<SettledLines> {
+  const offered = (input.parts ? [] : (input.settled ?? [])).filter(
+    (entry) => entry.file === input.specPath && entry.status === "present",
+  );
+  const valid = await Promise.all(
+    offered.map((entry) => verifyClaim(entry, verify)),
+  );
+
+  return new Map(
+    offered
+      .filter((_, index) => valid[index])
+      .map((entry) => [entry.line, entry]),
+  );
+}
+
 function commitObjection(
   decomposition: DecompositionResult,
   commit: string,
@@ -139,14 +182,15 @@ async function checkStatement(
   decomposition: DecompositionResult,
   input: ImplementationAssessmentInput & { line: number },
   verify: VerifyEvidence,
-  tested: TestedLines,
+  facts: LineFacts,
 ): Promise<CheckedStatement> {
   const claims = assessmentsForLine(decomposition, input);
   const claim = claims.at(0);
   const statement = missingStatement(input.specPath, input.line);
+  const settled = facts.settled.get(input.line);
 
   if (!claim || claim.status === "missing") {
-    return missingClaim(statement, claim, tested.get(input.line));
+    return unclaimed(statement, claim, settled, facts.tested.get(input.line));
   }
   const validProof = await verifyClaim(claim, verify);
   const validRevision =
@@ -154,6 +198,29 @@ async function checkStatement(
 
   return validProof && validRevision
     ? { statement: claim, objections: [] }
+    : refusedClaim(statement, claim, settled);
+}
+
+// A settled line stays present unless a missing claim says why its tests do not show it (specs/spec-tickets FR25).
+function unclaimed(
+  statement: StatementAssessment,
+  claim: StatementAssessment | undefined,
+  settled: StatementAssessment | undefined,
+  tests?: string[],
+): CheckedStatement {
+  return settled && claim?.reason === undefined
+    ? { statement: settled, objections: [] }
+    : missingClaim(statement, claim, tests);
+}
+
+// A present claim whose proof fails leaves a settled line settled; a partial one is refused as before (specs/spec-tickets FR25).
+function refusedClaim(
+  statement: StatementAssessment,
+  claim: StatementAssessment,
+  settled: StatementAssessment | undefined,
+): CheckedStatement {
+  return settled && claim.status === "present"
+    ? { statement: settled, objections: [] }
     : rejectedStatement(statement);
 }
 

@@ -48,6 +48,11 @@ jobs:
     secrets: inherit
 
   deploy:
+    # A newer build of main supersedes an older one still waiting to deploy,
+    # so a burst of merges ends in one tag bump per service.
+    concurrency:
+      group: deploy-lore-mcp-gateway
+      cancel-in-progress: true
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

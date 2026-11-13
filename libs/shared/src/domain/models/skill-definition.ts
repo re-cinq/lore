@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
 
+/** A skill name as the catalogue, the agent form and the gateway all accept it. */
+export const SKILL_NAME = /^[a-z0-9][a-z0-9-]*$/;
+
 export const SkillDefinitionSchema = z.object({
   name: z.string(),
   title: z.string(),

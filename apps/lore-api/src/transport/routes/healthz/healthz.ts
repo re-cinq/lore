@@ -35,9 +35,10 @@ async function serveHealthz(
   const pool = getPool();
   const health = await getHealthStatus();
   const { status, code } = healthResponseStatus(health);
-  const body = (await isReaderAuthed(pool, request))
+  const authed = await isReaderAuthed(pool, request);
+  const body = authed
     ? await fullHealth(pool, health, status)
-    : { status };
+    : anonymousBody(status, health);
 
   return h.response(body).code(code);
 }
@@ -75,6 +76,17 @@ function bearerToken(
 }
 
 type DbHealth = Awaited<ReturnType<typeof getHealthStatus>>;
+
+function anonymousBody(
+  status: string,
+  health: DbHealth,
+): Record<string, unknown> {
+  if (status === "error") {
+    return { status, reason: health.reason };
+  }
+
+  return { status };
+}
 
 async function fullHealth(
   pool: Pool | null,

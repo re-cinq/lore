@@ -17,6 +17,13 @@ const agent: AgentDefinition = {
   project_id: null,
 };
 
+const LORE_MCP = {
+  name: "lore",
+  transport: "http",
+  url: "https://mcp.test/mcp",
+  headers_secret: "lore-mcp-auth",
+};
+
 describe("AgentForm", () => {
   it("shows an editable name input in create mode", () => {
     const { container } = render(
@@ -193,6 +200,195 @@ describe("AgentForm", () => {
       image: container.querySelector('input[name="image"]') !== null,
       approvalPr: container.querySelector('input[name="approval_pr"]') !== null,
     }).toEqual({ image: true, approvalPr: false });
+  });
+
+  it("prefills the lore MCP server's name, url and Authorization secret from the agent's config", () => {
+    const { getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { mcp_servers: [LORE_MCP] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+    const value = (label: string) =>
+      (getByLabelText(label) as HTMLInputElement).value;
+
+    expect({
+      name: value("MCP server 1 name"),
+      url: value("MCP server 1 URL"),
+      secret: value("MCP server 1 Authorization secret"),
+    }).toEqual({
+      name: "lore",
+      url: "https://mcp.test/mcp",
+      secret: "lore-mcp-auth",
+    });
+  });
+
+  it("submits no mcp_servers field while the servers are untouched", () => {
+    const { container } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { mcp_servers: [LORE_MCP] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    expect(container.querySelector('input[name="mcp_servers"]')).toBeNull();
+  });
+
+  it("submits the lore server and a new search server after Add MCP server is filled in", () => {
+    const { container, getByText, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { mcp_servers: [LORE_MCP] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByText("Add MCP server"));
+    fireEvent.change(getByLabelText("MCP server 2 name"), {
+      target: { value: "search" },
+    });
+    fireEvent.change(getByLabelText("MCP server 2 URL"), {
+      target: { value: "https://search.test/mcp" },
+    });
+
+    expect(
+      JSON.parse(
+        container.querySelector<HTMLInputElement>('input[name="mcp_servers"]')!
+          .value,
+      ),
+    ).toEqual([
+      LORE_MCP,
+      { name: "search", transport: "http", url: "https://search.test/mcp" },
+    ]);
+  });
+
+  it("submits an empty list after the only MCP server is removed", () => {
+    const { container, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { mcp_servers: [LORE_MCP] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByLabelText("Remove MCP server 1"));
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="mcp_servers"]')
+        ?.value,
+    ).toBe("[]");
+  });
+
+  it("shows the inherited skills lore-context on a repo's agent without writing them", () => {
+    const { container, getByText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    expect({
+      listed: getByText("lore-context") !== null,
+      written: container.querySelector('input[name="skills"]') !== null,
+    }).toEqual({ listed: true, written: false });
+  });
+
+  it("submits cli-design beside lore-context after cli-design is picked from the catalogue", () => {
+    const { container, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+        skills={{ options: [{ name: "cli-design", title: "CLI design" }] }}
+      />,
+    );
+
+    fireEvent.change(getByLabelText("Add skill"), {
+      target: { value: "cli-design" },
+    });
+
+    expect(
+      JSON.parse(
+        container.querySelector<HTMLInputElement>('input[name="skills"]')!
+          .value,
+      ),
+    ).toEqual(["lore-context", "cli-design"]);
+  });
+
+  it("submits an empty list after the only skill is removed on a repo's agent", () => {
+    const { container, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { skills: ["lore-context"] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByLabelText("Remove skill lore-context"));
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="skills"]')?.value,
+    ).toBe("[]");
+  });
+
+  it("offers Command and Arguments instead of a URL once the transport is stdio", () => {
+    const { getByText, getByLabelText, queryByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={agent}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByText("Add MCP server"));
+    fireEvent.change(getByLabelText("MCP server 1 transport"), {
+      target: { value: "stdio" },
+    });
+
+    expect({
+      command: queryByLabelText("MCP server 1 command") !== null,
+      args: queryByLabelText("MCP server 1 arguments") !== null,
+      url: queryByLabelText("MCP server 1 URL") !== null,
+    }).toEqual({ command: true, args: true, url: false });
+  });
+
+  it("submits an X-API-Key header read from search-api-key after Add header is filled in", () => {
+    const { container, getByText, getByLabelText } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{ ...agent, config: { mcp_servers: [LORE_MCP] } }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+
+    fireEvent.click(getByText("Add header"));
+    fireEvent.change(getByLabelText("MCP server 1 header 1 name"), {
+      target: { value: "X-API-Key" },
+    });
+    fireEvent.change(getByLabelText("MCP server 1 header 1 secret key"), {
+      target: { value: "search-api-key" },
+    });
+
+    expect(
+      JSON.parse(
+        container.querySelector<HTMLInputElement>('input[name="mcp_servers"]')!
+          .value,
+      ),
+    ).toEqual([
+      { ...LORE_MCP, headers: [{ name: "X-API-Key", ref: "search-api-key" }] },
+    ]);
   });
 
   it("surfaces an error returned by the action", async () => {

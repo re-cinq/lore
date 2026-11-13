@@ -17,9 +17,11 @@ export const navGroups: NavGroup[] = [
   {
     label: "Work",
     links: [
+      { href: "/inbox", label: "Inbox", icon: "navInbox" },
       { href: "/", label: "Repos", icon: "navRepos" },
       { href: "/assembly-runs", label: "Assembly runs", icon: "navRuns" },
       { href: "/agents", label: "Agents", icon: "navAgents" },
+      { href: "/skills", label: "Skills", icon: "navSkills" },
     ],
   },
   {

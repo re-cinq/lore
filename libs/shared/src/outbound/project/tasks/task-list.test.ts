@@ -129,7 +129,12 @@ describe("TaskList", () => {
     const facade = new TaskList(
       "re-cinq/lore",
       fakeStore([
-        { ...row("a", "running"), issue_number: 42 },
+        {
+          ...row("a", "running"),
+          issue_number: 42,
+          task_group_id: "g1",
+          context_bundle: { depends_on: [7] },
+        },
         row("b", "running"),
       ]),
     );
@@ -139,6 +144,14 @@ describe("TaskList", () => {
       facade.getById("b"),
     ]);
 
-    expect([withIssue?.issueNumber, without?.issueNumber]).toEqual([42, null]);
+    expect([withIssue!.issueNumber, without!.issueNumber]).toEqual([42, null]);
+    expect([withIssue!.taskGroupId, without!.taskGroupId]).toEqual([
+      "g1",
+      null,
+    ]);
+    expect([withIssue!.contextBundle, without!.contextBundle]).toEqual([
+      { depends_on: [7] },
+      null,
+    ]);
   });
 });

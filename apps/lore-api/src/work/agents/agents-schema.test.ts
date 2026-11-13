@@ -3,6 +3,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   imageFieldTouched,
+  configKeysOf,
   configWithPodResources,
 } from "./agents-schema.js";
 
@@ -24,6 +25,29 @@ describe("parseAgentInput", () => {
       review_required: false,
       config: null,
     });
+  });
+
+  it("keeps the skills cli-design beside a null config on create and drops an empty list", () => {
+    expect([
+      parseAgentInput({ name: "fix-ci", skills: ["cli-design"] }),
+      parseAgentInput({ name: "fix-ci", skills: [] }),
+    ]).toMatchObject([
+      { skills: ["cli-design"], config: null },
+      { config: null },
+    ]);
+    expect(parseAgentInput({ name: "fix-ci", skills: [] })).not.toHaveProperty(
+      "skills",
+    );
+  });
+
+  it("keeps adjust_skill_models false on create and leaves it out when absent", () => {
+    expect([
+      parseAgentInput({ name: "fix-ci", adjust_skill_models: false }),
+      parseAgentInput({ name: "fix-ci" }),
+    ]).toMatchObject([{ adjust_skill_models: false }, { config: null }]);
+    expect(parseAgentInput({ name: "fix-ci" })).not.toHaveProperty(
+      "adjust_skill_models",
+    );
   });
 
   it("rejects a non-kebab-case name", () => {
@@ -97,6 +121,43 @@ describe("parseAgentPatch", () => {
     expect(parseAgentPatch({ pod_resources: null })).toEqual({
       pod_resources: null,
     });
+  });
+
+  it("carries the skills cli-design and lore-context as sent", () => {
+    expect(parseAgentPatch({ skills: ["cli-design", "lore-context"] })).toEqual(
+      { skills: ["cli-design", "lore-context"] },
+    );
+  });
+
+  it("a null skills means clear, carried as null; an empty list stays a list", () => {
+    expect([
+      parseAgentPatch({ skills: null }),
+      parseAgentPatch({ skills: [] }),
+    ]).toEqual([{ skills: null }, { skills: [] }]);
+  });
+
+  it("rejects the skill name Cli Design that is not kebab-case", () => {
+    expect(() => parseAgentPatch({ skills: ["Cli Design"] })).toThrow();
+  });
+
+  it("carries adjust_skill_models false as sent and omits it when absent or null", () => {
+    expect([
+      parseAgentPatch({ adjust_skill_models: false }),
+      parseAgentPatch({ adjust_skill_models: null }),
+      parseAgentPatch({}),
+    ]).toEqual([{ adjust_skill_models: false }, {}, {}]);
+  });
+
+  it("names the adapter key adjustSkillModels for a patch with adjust_skill_models true", () => {
+    expect(configKeysOf({ adjust_skill_models: true })).toEqual({
+      adjustSkillModels: true,
+    });
+  });
+
+  it("omits skills when the body never mentions it", () => {
+    expect(parseAgentPatch({ model: "claude-opus-4-8" })).not.toHaveProperty(
+      "skills",
+    );
   });
 
   it("carries every scalar field present in the body", () => {

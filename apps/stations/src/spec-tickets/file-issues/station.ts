@@ -77,13 +77,29 @@ async function titledAfterSpec(
 ): Promise<StationInput> {
   const { feature_decomposition: raw, spec_path: specPath } = input.params;
   const [file] = specFilesOfRun(specPath, undefined);
-  const commit = parseDecomposition(parseModelJson(raw)).spec_commit;
-  const spec = await project.repo.read(file, commit ?? input.branch);
+  const ref =
+    parseDecomposition(parseModelJson(raw)).spec_commit ?? input.branch;
+  const [spec, planMd] = await readSpecAndPlan(project, file, ref);
 
   return {
     ...input,
-    params: { ...input.params, plan_title: specHeading(spec ?? "") ?? file },
+    params: {
+      ...input.params,
+      plan_title: specHeading(spec ?? "") ?? file,
+      ...(planMd ? { plan_md: planMd } : {}),
+    },
   };
+}
+
+async function readSpecAndPlan(
+  project: NonNullable<IssuesStationDeps["project"]>,
+  specFile: string,
+  ref: string,
+): Promise<[string | null, string | null]> {
+  return Promise.all([
+    project.repo.read(specFile, ref),
+    project.repo.read(specFile.replace(/spec\.md$/, "plan.md"), ref),
+  ]);
 }
 
 async function verifiedIssues(

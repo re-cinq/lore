@@ -3,6 +3,10 @@ import { ticketPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import { infraDeferralsFromEnv } from "@re-cinq/lore-shared/backlog/loop-infra-deferral.js";
 import type { LoopRunClosedDeps } from "@re-cinq/lore-shared/backlog/loop-run-closed.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  loopProgressProductionDeps,
+  publishLoopRunProgress,
+} from "../../outbound/loop-progress.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { eventProxy, pipeline, taskStore } from "../../outbound/queues.js";
 import {
@@ -20,6 +24,8 @@ export const loopClosedDeps: SettleLoopDeps = {
     return task?.status === "merged";
   },
   closed: closedDepsFor,
+  publishProgress: (run, visits) =>
+    publishLoopRunProgress(loopProgressProductionDeps, run, visits),
 };
 
 function closedDepsFor(settled: FloorLoopRun): LoopRunClosedDeps {

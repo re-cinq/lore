@@ -56,8 +56,19 @@ const CLASSIFY_RULES: ClassifyRule[] = [
   { test: isMarkupDoc, type: "doc" },
 ];
 
-export function classifyFile(path: string): ContentType | null {
+export function classifyFile(
+  path: string,
+  content?: string,
+): ContentType | null {
   const rule = CLASSIFY_RULES.find((r) => r.test(path));
+
+  if (
+    rule?.type === "code" &&
+    content !== undefined &&
+    isTestFile(path, content)
+  ) {
+    return "test";
+  }
 
   return rule ? rule.type : null;
 }

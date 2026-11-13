@@ -1346,6 +1346,17 @@ textarea:focus-visible,
 [data-color-scheme="dark"] .hljs-section {
   color: var(--warning);
 }
+[data-color-scheme="dark"] .hljs-subst {
+  color: var(--text);
+}
+[data-color-scheme="dark"] .hljs-addition {
+  color: var(--success);
+  background: transparent;
+}
+[data-color-scheme="dark"] .hljs-deletion {
+  color: var(--danger);
+  background: transparent;
+}
 
 /* Markdown rendered inside the graph node popover. */
 .md-popover p {

@@ -190,4 +190,4 @@ so the routes above have their consumer named:
 - **FR7 — the pod path retires.** Once onboarded repos post deltas, the
   `internal.ingest.spec_trace` payload-kind fan-out (one ingest assembly line
   and one pod per 512KB chunk) and the Floor `ci-tests` webhook ingress are
-  removed; the ingest station keeps only what still needs a clone.
+  removed; the ingest station keeps only what still needs a clone. ([validated by TestDeltaFlowFailsOutrightWhenTheAPIIsAbsent @22fef649](apps/lore-code-trace/fallback_acceptance_test.go#L12))

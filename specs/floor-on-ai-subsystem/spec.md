@@ -365,7 +365,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     first call of every Gemini review), and to query with what the work is ABOUT — the
     title, the spec sections, the surfaces — not the words of the instruction, which
     returned the platform overview
-    ([validated by `recipe-prompt.test.ts@948a745f`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L9), [`recipe-prompt.test.ts@dbe0a02d`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts@4a5af178`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19), [`recipe-prompt.test.ts@1abf11a8`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L23), [`recipe-prompt.test.ts@c4e49573`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L27); implemented by [`recipe-prompt.ts@ac0d9cc3`](libs/shared/src/domain/agents/recipe-prompt.ts#L93))
+    ([validated by `recipe-prompt.test.ts@948a745f`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L9), [`recipe-prompt.test.ts@dbe0a02d`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L15), [`recipe-prompt.test.ts@4a5af178`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L19), [`recipe-prompt.test.ts@1abf11a8`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L23), [`recipe-prompt.test.ts@c4e49573`](libs/shared/src/domain/agents/recipe-prompt.test.ts#L27); implemented by [`recipe-prompt.ts@ac0d9cc3`](libs/shared/src/domain/agents/recipe-prompt.ts#L117))
 
 33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on the
     cluster's MCP URL, the same value as the `mcp_servers` block it points at, so
@@ -390,7 +390,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. ([validated by serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34) @f20d9307](apps/mcp-server/src/transport/skills-registry.test.ts#L111); implemented by `agent-crd.ts`)
+    one level down and just as silent. ([validated by serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34) @f20d9307](apps/mcp-server/src/transport/skills-registry.test.ts#L173); implemented by `agent-crd.ts`)
 
 35. *(added 2026-09-04)* `GET /api/repos/{owner}/{repo}/chunks/{kind}` is the pod-side chunk read
     named by D7: one route dispatching by `{kind}` (`spec`, `code-symbols`, `spec-ingest`,

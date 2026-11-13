@@ -14,6 +14,7 @@ import { getSession } from "@/lib/session";
 
 export interface CreatePlanState {
   error?: string;
+  planId?: string;
 }
 
 // The repo is bound on the server (NewPlanPage), never read from the form.
@@ -27,7 +28,8 @@ export async function createPlanAction(
   if ("error" in request) {
     return request;
   }
-  const created = await createSeededPlan(fullName, request);
+  // A retry carries the already-created plan ID; skip creation to avoid a duplicate.
+  const created = await createSeededPlan(fullName, request, _prev?.planId);
 
   if ("error" in created) {
     return created;
@@ -39,6 +41,67 @@ export async function createPlanAction(
 async function createSeededPlan(
   fullName: string,
   { input, user }: { input: NewPlanInput; user: PlanUser },
+  existingPlanId?: string,
+): Promise<{ id: string } | { error: string; planId?: string }> {
+  const resolved = await planIdOf(fullName, input, user, existingPlanId);
+
+  if ("error" in resolved) {
+    return resolved;
+  }
+
+  return seedAndDraft(fullName, resolved.id, input, user);
+}
+
+async function seedAndDraft(
+  fullName: string,
+  id: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string; planId: string }> {
+  const seedError = await seedIntent(id, user.id, input.description);
+
+  if (seedError !== null) {
+    return { error: failureOf(seedError), planId: id };
+  }
+  const drafted = await startDrafting(
+    fullName,
+    id,
+    draftingRequestOf(input, user),
+  );
+
+  if (drafted.status !== "ok") {
+    return { error: failureOf(drafted), planId: id };
+  }
+
+  return { id };
+}
+
+// Resolves to an existing plan ID on retry, or creates a fresh plan.
+async function planIdOf(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+  existingPlanId?: string,
+): Promise<{ id: string } | { error: string }> {
+  if (existingPlanId) {
+    return { id: existingPlanId };
+  }
+
+  return freshPlanId(fullName, input, user);
+}
+
+async function freshPlanId(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
+): Promise<{ id: string } | { error: string }> {
+  return planRecord(fullName, input, user);
+}
+
+async function planRecord(
+  fullName: string,
+  input: NewPlanInput,
+  user: PlanUser,
 ): Promise<{ id: string } | { error: string }> {
   const created = await createPlan({
     repo: fullName,
@@ -50,10 +113,8 @@ async function createSeededPlan(
   if (created.status !== "ok") {
     return { error: failureOf(created) };
   }
-  const { id } = created.data.meta;
 
-  await seedIntent(id, user.id, input.description);
-  await startDrafting(fullName, id, draftingRequestOf(input, user));
+  const { id } = created.data.meta;
 
   return { id };
 }
@@ -89,16 +150,23 @@ async function seedIntent(
   planId: string,
   actor: string,
   description: string,
-): Promise<void> {
-  if (description) {
-    await seedPlan(planId, actor, [description]);
+): Promise<Exclude<ApiResult<unknown>, { status: "ok" }> | null> {
+  if (!description) {
+    return null;
   }
+  const result = await seedPlan(planId, actor, [description]);
+
+  return result.status !== "ok" ? result : null;
 }
 
 function failureOf(
   result: Exclude<ApiResult<unknown>, { status: "ok" }>,
 ): string {
-  return result.status === "unconfigured"
-    ? "The plans API is not configured (LORE_API_URL / token)."
-    : result.message;
+  if (result.status === "unconfigured") {
+    return "The plans API is not configured (LORE_API_URL / token).";
+  }
+
+  return (
+    (result.body as { message?: string } | undefined)?.message ?? result.message
+  );
 }

@@ -99,6 +99,7 @@ describe("Workspace", () => {
       changedFileCount: async () => 0,
       ciConclusion: async () => "none" as const,
       listFiles: async () => [],
+      getChangedFiles: async () => [],
       listFileChanges: async () => [],
       listChecks: async () => [],
       failedJob: async () => null,

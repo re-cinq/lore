@@ -10,6 +10,7 @@ import { getAvailableRepos } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { withPool } from "../with-pool.js";
+import { githubFailureResponse } from "./github-read.js";
 
 const AvailableRepoWire = z.object({
   full_name: z.string(),
@@ -17,7 +18,7 @@ const AvailableRepoWire = z.object({
   name: z.string(),
 });
 
-/** GET /api/repos/available — repos the GitHub App has access to that aren't onboarded yet. */
+/** GET /api/repos/available — every repo the GitHub App installation can access that is not onboarded yet; 424 when GitHub is not configured, 500 with the upstream message when it fails. */
 export function availableReposRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -39,7 +40,9 @@ async function serveAvailableRepos(
   _request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const repos = await getAvailableRepos(pool);
-
-  return h.response(repos).code(200);
+  try {
+    return h.response(await getAvailableRepos(pool));
+  } catch (err) {
+    return githubFailureResponse(err, h, "installation repositories");
+  }
 }

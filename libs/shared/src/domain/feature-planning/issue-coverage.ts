@@ -185,7 +185,8 @@ function missingEntry(
   return `- ${file ? `${file} ` : ""}line ${line}: ${text} — ${linkOf({ file, line })}`;
 }
 
-function testableStatements(specMd: string) {
+/** The spec's statements that state work a test can show: the ones a task, a coverage count or a planning run reads. */
+export function testableStatements(specMd: string): Statement[] {
   const statements = segmentStatements(specMd);
   const introOrdinals = buildIntroOrdinals(statements);
 

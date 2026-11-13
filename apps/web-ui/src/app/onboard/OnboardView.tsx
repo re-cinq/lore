@@ -11,7 +11,7 @@ export type OnboardState = { error?: string; fullName?: string } | null;
 export interface OnboardViewProps {
   /** Already-onboarded repos, used for the "Already onboarded: …" hint. */
   onboarded: { full_name: string }[];
-  /** Repos from the GitHub App installation not yet onboarded; populate the picker. */
+  /** Repos the GitHub App can access that are not onboarded yet; the picker's suggestions. */
   available?: { full_name: string }[];
   /** Server action wired to the onboard form ("actions up"). */
   onboardRepoAction: (
@@ -30,46 +30,27 @@ const PR_FILES = [
 const ONBOARD_LEDE =
   "Lore opens a PR on the target repo. Once it merges, the first ingest runs and Claude Code sessions in that repo pick up its context.";
 
+const HEADER = (
+  <SettingsHeader
+    eyebrow="{work}"
+    title="Add a repository"
+    lede={ONBOARD_LEDE}
+  />
+);
+
 /** Onboarding view; pure render with onboardRepoAction callback (no data access). */
 export default function OnboardView({
   onboarded,
-  available = [],
+  available,
   onboardRepoAction,
 }: OnboardViewProps) {
   const [state, formAction] = useActionState(onboardRepoAction, null);
 
   return (
-    <OnboardBody
-      state={state}
-      formAction={formAction}
-      onboarded={onboarded}
-      available={available}
-    />
-  );
-}
-
-interface OnboardBodyProps {
-  state: OnboardState;
-  formAction: (payload: FormData) => void;
-  onboarded: { full_name: string }[];
-  available: { full_name: string }[];
-}
-
-function OnboardBody({
-  state,
-  formAction,
-  onboarded,
-  available,
-}: OnboardBodyProps) {
-  const lede = ONBOARD_LEDE;
-  const dflt = state?.fullName ?? "";
-  const err = state?.error;
-
-  return (
     <div className={styles.page}>
-      <SettingsHeader eyebrow="{work}" title="Add a repository" lede={lede} />
+      {HEADER}
       <form action={formAction} className={`task-form ${styles.card}`}>
-        <RepoField defaultValue={dflt} error={err} available={available} />
+        <RepoField state={state} available={available} />
         <PrFiles />
         <FormFooter onboarded={onboarded} />
       </form>
@@ -78,13 +59,14 @@ function OnboardBody({
 }
 
 interface RepoFieldProps {
-  defaultValue: string;
-  error?: string;
-  available: { full_name: string }[];
+  state: OnboardState;
+  available?: { full_name: string }[];
 }
 
 /** The one thing this form asks for. Refills itself from the rejected value so a typo is corrected rather than retyped. */
-function RepoField({ defaultValue, error, available }: RepoFieldProps) {
+function RepoField({ state, available }: RepoFieldProps) {
+  const error = state?.error;
+
   return (
     <div className={styles.field}>
       <label htmlFor="full_name">Repository</label>
@@ -92,15 +74,25 @@ function RepoField({ defaultValue, error, available }: RepoFieldProps) {
         className={`${styles.inputWrap}${error ? ` ${styles.invalid}` : ""}`}
       >
         <Icon name="github" size={18} className={styles.inputIcon} />
-        <RepoInput defaultValue={defaultValue} invalid={Boolean(error)} />
-        <datalist id="repos-list">
-          {available.map((repo) => (
-            <option key={repo.full_name} value={repo.full_name} />
-          ))}
-        </datalist>
+        <RepoInput
+          defaultValue={state?.fullName ?? ""}
+          invalid={Boolean(error)}
+        />
+        <AvailableRepos available={available} />
       </span>
       {error ? <RepoError message={error} /> : <RepoHint />}
     </div>
+  );
+}
+
+/** The picker's suggestions: native datalist options, so choosing one fills the slug and typing still works when there are none. */
+function AvailableRepos({ available = [] }: Pick<RepoFieldProps, "available">) {
+  return (
+    <datalist id="available-repos">
+      {available.map((repo) => (
+        <option key={repo.full_name} value={repo.full_name} />
+      ))}
+    </datalist>
   );
 }
 
@@ -115,7 +107,7 @@ function RepoInput({ defaultValue, invalid }: RepoInputProps) {
       id="full_name"
       type="text"
       name="full_name"
-      list="repos-list"
+      list="available-repos"
       required
       placeholder="re-cinq/my-service"
       pattern="[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+"

@@ -1,6 +1,6 @@
 ---
 name: observability
-description: Observability as an engineering discipline — wide events / canonical log lines, OpenTelemetry instrumentation (traces, metrics, context propagation, sampling, Collector), SLIs/SLOs/error budgets, symptom-based alerting with burn rates, telemetry hygiene, and testing instrumentation as behavior. Use when instrumenting a service, designing SLOs or alerts, choosing what to log/trace/measure, investigating production unknowns, or reviewing telemetry cost and cardinality. For log transport and shape (stdout, JSON, levels, timestamps) see twelve-factor; for CI failure diagnosis see ci-debugging; for where instrumentation lives in ports-and-adapters codebases see hexagonal-architecture; for environment drift see production-parity-skill-builder; for HTTP error response shape see api-design.
+description: Observability as an engineering discipline — wide events / canonical log lines, OpenTelemetry instrumentation (traces, metrics, context propagation, sampling, Collector), SLIs/SLOs/error budgets, symptom-based alerting with burn rates, telemetry hygiene, and testing instrumentation as behavior. Use when instrumenting a service, designing SLOs or alerts, choosing what to log/trace/measure, investigating production unknowns, or reviewing telemetry cost and cardinality. For log transport and shape (stdout, JSON, levels, timestamps) see twelve-factor; for where instrumentation lives in ports-and-adapters codebases see hexagonal-architecture; for HTTP error response shape see api-design.
 ---
 
 # Observability
@@ -9,14 +9,6 @@ description: Observability as an engineering discipline — wide events / canoni
 
 This skill covers what goes *into* telemetry and how it is consumed. The `twelve-factor` skill owns log transport and shape (structured JSON to stdout, levels, timestamps). The `hexagonal-architecture` skill owns where instrumentation code lives in ports-and-adapters codebases.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `node-patterns.md` | Wiring OpenTelemetry into a Node/TypeScript service — NodeSDK setup, `--import` loading, wide-event middleware, log-trace correlation, Collector config, semantic-convention cheat sheet |
-| `slo-alerting.md` | Defining SLIs/SLOs, computing burn rates, building multiwindow multi-burn-rate alert rules, writing runbooks |
-| `testing-telemetry.md` | Writing Vitest tests for instrumentation — in-memory exporters, asserting wide-event fields, fakes for telemetry ports |
-| `references.md` | Checking the rationale or original sources behind this guidance |
 
 ---
 
@@ -28,7 +20,7 @@ This skill covers what goes *into* telemetry and how it is consumed. The `twelve
 - "We can't see what production is doing" — debugging unknown-unknowns
 - Reviewing telemetry spend, metric cardinality, or sampling strategy
 
-**Not this skill:** diagnosing a failing CI run (`ci-debugging`), local-vs-production drift (`production-parity-skill-builder`), Core Web Vitals optimization (`core-web-vitals` where installed).
+**Not this skill:** diagnosing a failing CI run, or local-versus-production drift.
 
 ---
 
@@ -86,7 +78,7 @@ OpenTelemetry (OTel) is the vendor-neutral standard for producing telemetry. Ado
 - **Context propagation** — the W3C `traceparent` header carries trace ID and parent span ID across every service hop, which is what makes distributed traces exist at all ([context propagation](https://opentelemetry.io/docs/concepts/context-propagation/))
 - **The Collector** — a receive → process → export pipeline that runs beside your services. Direct SDK-to-backend export is fine in development; production traffic goes through a Collector for batching, retry, redaction, and backend swaps without code changes ([Collector](https://opentelemetry.io/docs/collector/))
 
-**Minimal TypeScript adoption:** `@opentelemetry/sdk-node` + `@opentelemetry/api` + `@opentelemetry/auto-instrumentations-node`, an instrumentation file loaded *before* application code via `node --import ./instrumentation.mjs` (Node 20+: `npx tsx --import ./instrumentation.ts`), OTLP exporters. Auto-instrumentation gives HTTP/framework/DB spans for free; manual attributes add the business meaning that makes traces queryable. Initialization order matters — instrumentation loaded after the app's modules silently captures nothing. See `resources/node-patterns.md`.
+**Minimal TypeScript adoption:** `@opentelemetry/sdk-node` + `@opentelemetry/api` + `@opentelemetry/auto-instrumentations-node`, an instrumentation file loaded *before* application code via `node --import ./instrumentation.mjs` (Node 20+: `npx tsx --import ./instrumentation.ts`), OTLP exporters. Auto-instrumentation gives HTTP/framework/DB spans for free; manual attributes add the business meaning that makes traces queryable. Initialization order matters — instrumentation loaded after the app's modules silently captures nothing.
 
 ---
 
@@ -140,7 +132,7 @@ Definitions from the [Google SRE book](https://sre.google/sre-book/service-level
 | Page | 6 | 6 h | 30 m | 5% |
 | Ticket | 1 | 3 d | 6 h | 10% |
 
-The short window (1/12 of the long) confirms the problem is *still happening*, which fixes the reset-time failure of naive threshold alerts. This is the only construction that scores well on precision, recall, detection time, and reset time simultaneously — the derivation is in `resources/slo-alerting.md`.
+The short window (1/12 of the long) confirms the problem is *still happening*, which fixes the reset-time failure of naive threshold alerts. This is the only construction that scores well on precision, recall, detection time, and reset time simultaneously.
 
 **Every page links a runbook** — a concise "what this alert means and current mitigations", not an exhaustive troubleshooting tree.
 
@@ -167,7 +159,7 @@ The `twelve-factor` skill owns transport and shape (structured JSON to stdout, f
 
 ## Where Instrumentation Lives (Architecture Placement)
 
-In ports-and-adapters codebases, observability code has four homes — the four-tier model (full treatment: `hexagonal-architecture` skill, `resources/cross-cutting-concerns.md`):
+In ports-and-adapters codebases, observability code has four homes — the four-tier model (full treatment: `hexagonal-architecture` skill):
 
 1. **Technical telemetry → adapters.** Request/response logging, SQL timings, retries, auto-instrumentation. Never in domain code.
 2. **Domain-significant observations → an explicit driven port (Domain Probe) or domain events.** When an intermediate business fact matters ("which pricing rule fired") or the observation is a requirement (support logging, business metrics), the observability backend is a driven actor behind a per-capability, severity-free, fire-and-forget port — never a generic `Logger` port. Where domain events already exist, an observability subscriber beats a second channel.
@@ -180,10 +172,10 @@ Even without hexagonal architecture, the same instinct applies: business logic r
 
 ## Testing Observability
 
-Instrumentation is behavior, so it is test-driven like behavior (see the `tdd` and `testing` skills).
+Instrumentation is behavior, so it is test-driven like behavior (see the `tdd-loop` and `testing` skills).
 
-- **In-memory exporters** — the OTel SDKs ship them — let Vitest assert on every span, attribute, and status without network calls: "this request emits one canonical event containing `pledge.rejection_reason`", "this failure sets span status to error". See `resources/testing-telemetry.md`.
-- **Telemetry ports get fakes**, same as any driven port — a recording fake accumulates observations and tests assert on them through the public API. Worked example: `hexagonal-architecture` skill, `resources/testing-hex-arch.md`.
+- **In-memory exporters** — the OTel SDKs ship them — let Vitest assert on every span, attribute, and status without network calls: "this request emits one canonical event containing `pledge.rejection_reason`", "this failure sets span status to error".
+- **Telemetry ports get fakes**, same as any driven port — a recording fake accumulates observations and tests assert on them through the public API.
 - **Alert rules are code.** Where the stack allows (Prometheus rule unit tests, SLO-as-code tools), test that the burn-rate expression fires on synthetic data.
 - **Mutation-testing note:** an unasserted probe/telemetry call is a surviving-mutant farm — which is itself the argument for asserting observations.
 
@@ -193,7 +185,7 @@ Instrumentation is behavior, so it is test-driven like behavior (see the `tdd` a
 
 ## Frontend Note (Out of Scope for v1)
 
-Browser observability is RUM (real-user monitoring) with Core Web Vitals as the standard SLIs — LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 at the 75th percentile of real page loads; lab tools are "not a substitute for field measurement" ([web.dev](https://web.dev/articles/vitals)). This skill covers services; for the user-facing half see the `core-web-vitals` and `performance` skills where installed.
+Browser observability is RUM (real-user monitoring) with Core Web Vitals as the standard SLIs — LCP ≤ 2.5s, INP ≤ 200ms, CLS ≤ 0.1 at the 75th percentile of real page loads; lab tools are "not a substitute for field measurement" ([web.dev](https://web.dev/articles/vitals)). This skill covers services; the user-facing half needs its own field-measurement tooling.
 
 ---
 
@@ -221,12 +213,9 @@ Browser observability is RUM (real-user monitoring) with Core Web Vitals as the 
 |---------|-------|
 | Log transport, stdout, JSON shape, levels exist, timestamps | `twelve-factor` |
 | What goes IN telemetry; wide events, traces, SLOs, alerts | this skill |
-| Diagnosing a failing CI run | `ci-debugging` |
 | Telemetry ports, Domain Probes, four-tier placement detail | `hexagonal-architecture` |
-| Environment drift (works locally, not in prod) | `production-parity-skill-builder` |
 | HTTP error response bodies (RFC 9457) | `api-design` |
 | CLI usage telemetry consent | `cli-design` |
-| Core Web Vitals / frontend RUM | `core-web-vitals` (external, where installed) |
 
 ---
 
@@ -246,6 +235,10 @@ Browser observability is RUM (real-user monitoring) with Core Web Vitals as the 
 - [ ] Telemetry contains no secrets or PII; fields are allowlisted and redacted at source
 - [ ] Instrumentation is covered by tests (in-memory exporter or fake-probe assertions)
 - [ ] Adding a metric label or new signal triggers a written cardinality/cost estimate
+
+## Attribution
+
+Adapted from the `observability` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/observability), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 
