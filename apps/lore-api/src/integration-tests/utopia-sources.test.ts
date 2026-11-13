@@ -106,7 +106,7 @@ describe("lore.utopia_bases and the utopia settings block", () => {
     );
     const migration = readFileSync(
       new URL(
-        "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0119_utopia_bases.sql",
+        "../../../../deploy/chart/charts/ui-helm/migrations/0119_utopia_bases.sql",
         import.meta.url,
       ),
       "utf-8",

@@ -1,35 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Pool } from "pg";
-import {
-  isTestFile,
-  normalizeTestName,
-  TEST_PATH_SQL_PATTERN,
-} from "./test-paths.js";
-
-const PG_CONFIG = {
-  host: process.env.PGHOST ?? "localhost",
-  port: Number(process.env.PGPORT ?? 5432),
-  database: process.env.PGDATABASE ?? "lore",
-  user: process.env.PGUSER ?? "lore",
-  password: process.env.PGPASSWORD ?? "lore",
-  connectionTimeoutMillis: 1000,
-};
-
-async function pgReachable(): Promise<boolean> {
-  const probe = new Pool(PG_CONFIG);
-
-  try {
-    await probe.query("SELECT 1");
-
-    return true;
-  } catch {
-    return false;
-  } finally {
-    await probe.end();
-  }
-}
-
-const pgUp = await pgReachable();
+import { isTestFile, normalizeTestName } from "./test-paths.js";
 
 describe("isTestFile", () => {
   const testPaths = [
@@ -68,26 +38,6 @@ describe("isTestFile", () => {
     }).toEqual({
       tests: testPaths.map(() => true),
       production: productionPaths.map(() => false),
-    });
-  });
-
-  describe.skipIf(!pgUp)("in Postgres", () => {
-    it("matches the same 13 test paths and 11 production paths in Postgres through TEST_PATH_SQL_PATTERN", async () => {
-      const pool = new Pool(PG_CONFIG);
-
-      try {
-        const { rows } = await pool.query<{ matches: boolean }>(
-          "SELECT path ~ $2 AS matches FROM unnest($1::text[]) AS path",
-          [[...testPaths, ...productionPaths], TEST_PATH_SQL_PATTERN],
-        );
-
-        expect(rows.map((row) => row.matches)).toEqual([
-          ...testPaths.map(isTestFile),
-          ...productionPaths.map(isTestFile),
-        ]);
-      } finally {
-        await pool.end();
-      }
     });
   });
 });

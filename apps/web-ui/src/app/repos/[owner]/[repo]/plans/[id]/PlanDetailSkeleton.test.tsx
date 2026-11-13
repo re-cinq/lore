@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
-import {
-  PlanBodySkeleton,
-  PlanHeaderSkeleton,
-  PlanRunSkeleton,
-} from "./PlanDetailSkeleton";
+import { PlanBodySkeleton, PlanToolbarSkeleton } from "./PlanDetailSkeleton";
 import PlanLoading from "./loading";
 
 function markupOf(element: React.ReactElement): string {
@@ -19,10 +15,9 @@ function ariaHiddenOf(element: React.ReactElement): string | null {
 }
 
 describe("PlanDetailSkeleton", () => {
-  it("draws the route skeleton from the header, run and body parts, each hidden from assistive technology", () => {
+  it("draws the route skeleton from the toolbar and body parts, each hidden from assistive technology", () => {
     const elements = [
-      <PlanHeaderSkeleton key="header" />,
-      <PlanRunSkeleton key="run" />,
+      <PlanToolbarSkeleton key="toolbar" />,
       <PlanBodySkeleton key="body" />,
     ];
 
@@ -31,7 +26,7 @@ describe("PlanDetailSkeleton", () => {
       hidden: elements.map(ariaHiddenOf),
     }).toEqual({
       route: `<div role="status" aria-label="Loading plan">${elements.map(markupOf).join("")}</div>`,
-      hidden: ["true", "true", "true"],
+      hidden: ["true", "true"],
     });
   });
 });

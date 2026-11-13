@@ -176,14 +176,18 @@ describe("memory browse reads", () => {
       });
     });
 
-    it("binds the query text to both searches", async () => {
+    it("binds the query text to both searches and selects repo attribution", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [] });
       await get("/api/memory-search?q=cache", pool);
 
-      expect(pool.query.mock.calls[0][1]).toEqual(["cache"]);
-      expect(pool.query.mock.calls[1][1]).toEqual(["cache"]);
+      expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([
+        ["cache", null],
+        ["cache", null],
+      ]);
+      expect(pool.query.mock.calls[0][0]).not.toContain("NULL as repo");
+      expect(pool.query.mock.calls[1][0]).toContain("COALESCE(m.repo,");
     });
 
     it("requires a query", async () => {
@@ -229,6 +233,24 @@ describe("memory browse reads", () => {
 
     it("requires an agent", async () => {
       expect((await get("/api/memories")).statusCode).toBe(400);
+    });
+  });
+
+  describe("GET /api/memory-search repo filter", () => {
+    it("scopes lexical memory and fact queries to the requested repo", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/memory-search?q=cache&repo=re-cinq%2Flore", pool);
+
+      expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([
+        ["cache", "re-cinq/lore"],
+        ["cache", "re-cinq/lore"],
+      ]);
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "AND ($2::text IS NULL OR repo IS NULL OR repo = $2)",
+      );
+      expect(pool.query.mock.calls[1][0]).toContain("= $2)");
     });
   });
 });

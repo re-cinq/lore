@@ -14,9 +14,11 @@ factory keeps serving, and work simply stops arriving.
 Two facts, neither visible from a green build:
 
 1. **`EVENT_ROUTER_URL` and `LORE_API_URL` reach the stations chart only
-   through `terraform apply`** ([lore-platform.tf:246-260](../infra/terraform/lore-platform.tf#L246-L260)).
-   `helm_release.lore_platform` sets `reuse_values = true`, so a CI
-   redeploy re-uses the STORED values and never learns a key terraform
+   through `terraform apply`** (at the time: `infra/terraform/lore-platform.tf`
+   and a push deploy, both gone; today every value is in
+   `deploy/clusters/internal-cluster.values.yaml` and Argo CD applies it, see
+   `deploy/README.md`). `helm_release.lore_platform` set `reuse_values = true`,
+   so a CI redeploy re-used the STORED values and never learns a key terraform
    has not applied yet. Until that apply runs, the stations pods serve
    HTTP and **drain nothing**: `selectEventReporter` falls back to the
    local pool, which is correct on a laptop and wrong here.
@@ -30,8 +32,8 @@ Two facts, neither visible from a green build:
    `pipeline.event_subscriptions`, and subscription rows are written by
    each process at boot. A Floor that publishes into a bus nothing has
    subscribed to produces an **orphaned event**: no delivery, no
-   dead-letter, no error line. `deploy-lore-platform.sh` pins one short
-   SHA per subchart, so a merge-push race can land exactly this.
+   dead-letter, no error line. Each build bumps its own subchart's image tag
+   in the values file, so a merge-push race can land exactly this.
 
 ## The order
 

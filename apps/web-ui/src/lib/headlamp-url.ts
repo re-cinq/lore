@@ -12,7 +12,7 @@ export function grafanaUrl(
   return env.GRAFANA_URL?.trim() || undefined;
 }
 
-/** Utopia, the application beside Lore (infra/terraform/utopia.tf), under the same rule. */
+/** Utopia, the application beside Lore (re-cinq/utopia), under the same rule. */
 export function utopiaUrl(
   env: Record<string, string | undefined>,
 ): string | undefined {

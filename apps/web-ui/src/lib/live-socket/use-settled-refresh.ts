@@ -1,11 +1,11 @@
 "use client";
 
-// One re-read per burst of live frames: a settling node fires more than one frame back to back, and a single debounced router.refresh() covers all of them.
+// At most one re-read per `everyMs`: each refresh re-reads every route the page renders, and a busy floor's frames would otherwise spend the person's whole lore-api budget.
 import { useRouter } from "next/navigation";
-import { useDebouncedCallback } from "../use-debounced-callback";
+import { useThrottledCallback } from "../use-throttled-callback";
 
-export function useSettledRefresh(settleMs: number): () => void {
+export function useSettledRefresh(everyMs: number): () => void {
   const router = useRouter();
 
-  return useDebouncedCallback(() => router.refresh(), settleMs);
+  return useThrottledCallback(() => router.refresh(), everyMs);
 }

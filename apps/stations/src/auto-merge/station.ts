@@ -7,6 +7,8 @@ import { autoMergeEnabled } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
 import { loreReviewerGitHub } from "@re-cinq/lore-shared/project/github-installations/lore-reviewer.js";
 import { projectFor } from "../outbound/project-boot.js";
+import { pipeline, taskStore } from "../outbound/queues.js";
+import { createDependencyPort } from "../outbound/task-ordering.js";
 import {
   approveAndMerge,
   type Approver,
@@ -45,6 +47,7 @@ export function approveMergeHandle(deps: ApproveMergeDeps): Handle {
 const productionDeps: ApproveMergeDeps = {
   project: async (repo) => {
     const project = await projectFor(repo);
+    const ordering = createDependencyPort(taskStore(), pipeline().taskQueue);
 
     return {
       pulls: project.pulls,
@@ -59,6 +62,7 @@ const productionDeps: ApproveMergeDeps = {
       },
       loopOn: async () =>
         autoMergeEnabled(await project.settings.rawSettings()),
+      ...ordering,
     };
   },
   approver: async (repo) => {

@@ -111,15 +111,18 @@ accumulation period required.
   `valid_to`, `source_episode_id` / `source_memory_id`
   (provenance), `created_at`.
 - FR-1.3: Entity deduplication by `(name, entity_type, repo)`.
-  Upserting an entity with the same key updates properties.
+  Upserting an entity with the same key keeps its row and id and sets
+  `updated_at`. Extraction yields only `{name, type}`, so there are no
+  properties to update *(amended 2026-11-13)*.
 - FR-1.4: Edge deduplication by
   `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts@94426e30`](libs/server-core/src/work/memory/graph.test.ts#L150))
 
 ### FR-2: Entity Extraction Pipeline
 
-- FR-2.1: After fact extraction, run entity extraction on the
-  same text using the same LLM call (extend the extraction prompt
-  to also return entities and relationships).
+- FR-2.1: Entity extraction runs on the same text as fact extraction,
+  as its own LLM call with its own prompt. An episode write starts both
+  in the background and answers without waiting for either
+  *(amended 2026-11-13: was one shared LLM call)*.
 - FR-2.2: Output format: list of `{name, type}` entities and
   `{source, target, relation}` edges. The parser unwraps ```` ```json ````
   code fences, filters entities/edges with missing fields, and caps the
@@ -172,7 +175,8 @@ accumulation period required.
 
 ### NFR-1: Performance
 
-- Entity extraction adds < 500ms to the ingestion pipeline.
+- Entity extraction adds no latency to an episode write: it runs after
+  the response *(amended 2026-11-13: was a 500ms budget)*.
 - Graph queries return in under 200ms for depth <= 2.
 - Graph augmentation adds < 100ms to search.
 

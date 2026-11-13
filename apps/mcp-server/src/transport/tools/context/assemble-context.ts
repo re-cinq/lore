@@ -101,9 +101,11 @@ async function assembleContext(args: AssembleContextArgs) {
   );
 
   if (proxied.ok) {
-    const { text, sections } = parseAssembleBody(proxied.body);
+    const { text, sections, resolvedTemplate } = parseAssembleBody(
+      proxied.body,
+    );
 
-    logAssembleAudit(query, template, sections);
+    logAssembleAudit(query, resolvedTemplate ?? template, sections);
 
     return interpretProxiedContext({ ok: true, body: text });
   }
@@ -162,13 +164,19 @@ interface AssembleSection {
 function parseAssembleBody(body: string): {
   text: string;
   sections?: AssembleSection[];
+  resolvedTemplate?: string;
 } {
-  const { text, sections } = apiAnswer("/api/context", body);
+  const parsed = apiAnswer("/api/context", body);
+  const { text, sections } = parsed;
 
   // lore-api declares sections as unknown; the shape is assembleContext's own.
+  const resolvedTemplate = (parsed as Record<string, unknown>)["template"] as
+    string | undefined;
+
   return {
     text: text ?? "",
     sections: sections as AssembleSection[] | undefined,
+    resolvedTemplate,
   };
 }
 

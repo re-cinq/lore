@@ -41,6 +41,28 @@ export function readPlan(planId: string): Promise<ApiResult<StoredPlan>> {
   return apiFetch("lore-api", `/api/plans/${planId}`);
 }
 
+/** The user story issue a plan has, and where it lives; both null when none is linked. */
+export interface PlanStory {
+  issueNumber: number | null;
+  issueUrl: string | null;
+}
+
+export function readPlanStory(planId: string): Promise<ApiResult<PlanStory>> {
+  return apiFetch("lore-api", `/api/plans/${planId}/story`);
+}
+
+/** Saves the plan's user story, or with a null issue number removes the link; every later planning run starts with what is saved here. */
+export function savePlanStory(
+  planId: string,
+  issueNumber: number | null,
+  setBy: string,
+): Promise<ApiResult<PlanStory>> {
+  return apiFetch("lore-api", `/api/plans/${planId}/story`, {
+    method: "POST",
+    body: { issueNumber, setBy },
+  });
+}
+
 /** Lore's own approve: refused before the status flips while the planning agent is still writing. */
 export function approvePlan(
   repo: string,
@@ -80,11 +102,10 @@ export function startSpecWork(
   repo: string,
   planId: string,
   createdBy: string,
-  storyIssue?: number,
 ): Promise<ApiResult<{ task_id: string }>> {
   return apiFetch("lore-api", `/api/repos/${repo}/plans/${planId}/spec-work`, {
     method: "POST",
-    body: { createdBy, storyIssue },
+    body: { createdBy },
   });
 }
 
@@ -145,11 +166,10 @@ export function seedPlan(
   });
 }
 
-/** What the planning agent's draft is asked with: what the author already knows, who asks, and the user story the plan answers when one is named. */
+/** What the planning agent's draft is asked with: what the author already knows, and who asks. */
 export interface DraftingRequest {
   known: string;
   createdBy: string;
-  storyIssue?: number;
 }
 
 /** Starts the planning agent's first draft of the plan. */
@@ -171,8 +191,6 @@ export interface RefineAsk {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
-  /** The user story the round this ask starts carries; a run already waiting keeps the story it started with. */
-  storyIssue?: number;
 }
 
 export function askRefine(

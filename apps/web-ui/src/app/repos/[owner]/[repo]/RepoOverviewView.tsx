@@ -10,6 +10,7 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./RepoOverviewView.module.css";
 import Panel, { PanelTable } from "@/components/Panel";
+import PRStatusBadgePanel from "@/app/assembly-runs/PRStatusBadgePanel";
 
 export interface RepoReadme {
   markdown: string;
@@ -41,9 +42,9 @@ export interface RepoOverviewViewProps {
   /** The 10 most recent event-bus rows for this repo (newest first). */
   latestEvents: RepoEvent[];
   /** Server action wired to the enrollment re-onboard button ("actions up"). */
-  reonboardAction: () => Promise<void>;
+  reonboardAction: () => Promise<{ error?: string } | void>;
   /** Server action wired to the enrollment webhook "set up" button. */
-  setupWebhookAction: () => Promise<void>;
+  setupWebhookAction: () => Promise<{ error?: string } | void>;
 }
 
 /** Repo overview: pure render with reonboardAction callback (no data access). */
@@ -162,7 +163,7 @@ function TaskRow({ task }: { task: RecentTask }) {
       <span className={`op-badge op-${task.status}`}>
         {formatEnumLabel(task.status)}
       </span>
-      <PrCell url={task.pr_url} />
+      <PrCell taskId={String(task.id)} url={task.pr_url} />
       <span className={`meta ${styles.taskWhen}`}>
         <TimeAgo date={task.created_at} inline />
       </span>
@@ -170,13 +171,18 @@ function TaskRow({ task }: { task: RecentTask }) {
   );
 }
 
-function PrCell({ url }: { url: RecentTask["pr_url"] }) {
+type PrCellProps = { taskId: string; url: RecentTask["pr_url"] };
+
+function PrCell({ taskId, url }: PrCellProps) {
   return (
     <span className={styles.taskPr}>
       {url ? (
-        <a href={url} target="_blank" rel="noreferrer">
-          PR
-        </a>
+        <>
+          <a href={url} target="_blank" rel="noreferrer">
+            PR
+          </a>
+          <PRStatusBadgePanel taskId={taskId} />
+        </>
       ) : (
         "—"
       )}

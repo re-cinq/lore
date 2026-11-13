@@ -170,6 +170,7 @@ describe("generateOpenApi — tag grouping", () => {
       "Webhooks",
       "Analytics",
       "Tokens",
+      "Inbox",
       "Meta",
     ]);
     expect(document.tags.every((t) => t.description.length > 0)).toBe(true);
@@ -215,19 +216,6 @@ describe("generateOpenApi — responses", () => {
     });
     expect(document.components.schemas.Error).toMatchObject({
       required: ["error"],
-    });
-  });
-});
-
-describe("generateOpenApi — raw-body relay routes (options.app.rawBody)", () => {
-  it("carries the relay's own description and an x-ndjson request body instead of the HMAC boilerplate", () => {
-    const op = document.paths["/api/task-turns/{taskId}"].post;
-
-    expect(op.description).toContain("Raw NDJSON body");
-    expect(op.description).not.toContain("HMAC");
-    expect(op.requestBody).toEqual({
-      required: true,
-      content: { "application/x-ndjson": { schema: { type: "string" } } },
     });
   });
 });

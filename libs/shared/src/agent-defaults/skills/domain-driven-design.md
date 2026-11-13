@@ -11,18 +11,6 @@ For hexagonal architecture (ports and adapters), load the `hexagonal-architectur
 
 Use the `structure-codebase` skill when designing or changing physical placement. It keeps bounded context, feature/use-case cohesion, package enforcement, and any opted-in hexagonal inside/outside boundary as separate structural axes. If physical restructuring is not requested, preserve the repo's existing layout while keeping domain logic isolated.
 
-**Deep-dive resources** are in the `resources/` directory. Load them on demand:
-
-| Resource | Load when... |
-|----------|-------------|
-| `aggregate-design.md` | Designing or splitting aggregates, sizing questions, optimistic locking |
-| `domain-services.md` | Unsure if logic is a domain service vs use case, naming conventions |
-| `domain-events.md` | Cross-aggregate coordination, Decider pattern, event dispatch (outbox), process managers |
-| `bounded-contexts.md` | Drawing context boundaries, integrating with external systems (ACL), context mapping |
-| `error-modeling.md` | Deciding between result types and exceptions, error propagation |
-| `testing-by-layer.md` | Writing tests for DDD code, property-based testing for invariants |
-
-For authoritative sources, see `claude/.claude/skills/REFERENCES.md` in the source repo (https://github.com/citypaul/.dotfiles) — that file is not bundled when this skill is installed standalone.
 
 ---
 
@@ -260,7 +248,7 @@ Clusters of entities and value objects with a single root. All modifications go 
 3. **All invariants enforced by the root**
 4. **Keep aggregates small** — only what's needed for consistency
 
-For detailed aggregate design guidance, see `resources/aggregate-design.md`.
+
 
 ### Specifications (Predicate Functions)
 
@@ -295,7 +283,7 @@ Domain events represent something meaningful that happened in the domain ("Order
 - Side effects are within the same transaction
 - Explicit return values from domain functions suffice
 
-For most projects, start without domain events and add them when the domain demands coordination. See `resources/domain-events.md` for the Decider pattern and detailed guidance. When events become the source of truth — persisted to an append-only log and replayed to rebuild state — that is event sourcing; load the `event-sourcing` skill (it builds directly on this Decider). Where domain events already exist, observability rides for free as another subscriber — an observability adapter on the existing publisher port, not a second announcement channel (see the `hexagonal-architecture` skill's four-tier observability model and the `observability` skill).
+For most projects, start without domain events and add them when the domain demands coordination. When events become the source of truth — persisted to an append-only log and replayed to rebuild state — that is event sourcing; load the `event-sourcing` skill (it builds directly on this Decider). Where domain events already exist, observability rides for free as another subscriber — an observability adapter on the existing publisher port, not a second announcement channel (see the `hexagonal-architecture` skill's four-tier observability model and the `observability` skill).
 
 ---
 
@@ -337,7 +325,7 @@ const pledgeContribution = (
 
 Physical placement depends on the selected architecture. In a visible hexagonal backend both roles are inside, commonly in separate domain/application packages when that dependency boundary earns its cost, or in cohesive feature/use-case modules inside one package. DDD without hexagonal architecture may use another context-first arrangement. Follow `structure-codebase` rather than assuming `domain/` contains all inside code.
 
-For detailed guidance, see `resources/domain-services.md`.
+
 
 ---
 
@@ -353,7 +341,7 @@ type PledgeResult =
 
 **The test:** Could a user's action legitimately cause this outcome? If yes → result type. If no (it would mean a bug) → exception.
 
-For detailed error modeling patterns and how errors propagate through layers, see `resources/error-modeling.md`.
+
 
 ---
 
@@ -372,7 +360,7 @@ interface OccasionRepository {
 // in hexagonal architecture it is a driven adapter.
 ```
 
-**Repositories handle writes and single-aggregate reads.** For reads that need to JOIN across aggregates (dashboard views, detail pages combining data from multiple entities), repositories are the wrong tool — they enforce aggregate boundaries that reads need to cross. Use query functions that JOIN freely instead. This is the CQRS-lite pattern: writes go through repositories (consistency), reads go through query functions (flexibility). See the `hexagonal-architecture` skill's CQRS-lite section and its `resources/cqrs-lite.md` for details.
+**Repositories handle writes and single-aggregate reads.** For reads that need to JOIN across aggregates (dashboard views, detail pages combining data from multiple entities), repositories are the wrong tool — they enforce aggregate boundaries that reads need to cross. Use query functions that JOIN freely instead. This is the CQRS-lite pattern: writes go through repositories (consistency), reads go through query functions (flexibility).
 
 For simple domains where reads map cleanly to a single aggregate, repository reads are fine. Don't separate prematurely.
 
@@ -403,7 +391,7 @@ Test through the broadest stable public behavior that the chosen architecture ac
 
 Focused tests for complex pure business rules complement application tests when both exist. They may be the complete primary suite for a provider-free domain package.
 
-See `resources/testing-by-layer.md` for the architecture-neutral decision. For a DDD system that also adopts hexagonal architecture, the hexagonal skill's `resources/worked-example.md` traces one feature across ports, adapters, and tests.
+
 
 ### Test Factories Use Domain Language
 
@@ -432,7 +420,7 @@ A bounded context is a linguistic boundary within which a particular domain mode
 4. **Shared kernel should be minimal** — only truly universal value objects (Money, Email). If the shared kernel grows, boundaries are unclear
 5. **Each context has its own glossary section**
 
-For context mapping patterns, monorepo structure, and ACL examples, see `resources/bounded-contexts.md`.
+
 
 ---
 
@@ -495,6 +483,10 @@ Treating the initial model as sacred — refusing to rename types, split aggrega
 - [ ] Presentation logic is NOT in domain policy (even if pure)
 - [ ] Tests organized by domain concept, not implementation file
 - [ ] Each logical role has behavioral tests at the appropriate level
+
+## Attribution
+
+Adapted from the `domain-driven-design` skill in [citypaul/.dotfiles](https://github.com/citypaul/.dotfiles/tree/main/claude/.claude/skills/domain-driven-design), Copyright (c) 2024 Paul Hammond, MIT licence. Modified by re:cinq: shortened into a single file, with pointers to companion files and to skills outside this catalogue removed, and a Help section added. Licence text: `THIRD_PARTY_NOTICES.md` in [re-cinq/lore](https://github.com/re-cinq/lore/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Help
 

@@ -1,11 +1,18 @@
 "use client";
 
-import PendingActionButton from "@/components/PendingActionButton";
+import ActionForm from "@/components/ActionForm";
 
-/** The webhook-setup instance, kept as its own component for existing callers. */
-export default function SetupWebhookButton(props: {
-  action: () => Promise<void>;
+/** The webhook-setup form, kept as its own component for existing callers. Surfaces errors returned by the action. */
+export default function SetupWebhookButton({
+  action,
+  text,
+}: {
+  action: () => Promise<{ error?: string } | void>;
   text: string;
 }) {
-  return <PendingActionButton {...props} pendingText="setting up…" />;
+  return (
+    <ActionForm action={action} pendingLabel="setting up…">
+      {text}
+    </ActionForm>
+  );
 }

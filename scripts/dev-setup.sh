@@ -92,15 +92,11 @@ prompt_secret() {
 # with a yes: pulling live production credentials onto a laptop is the
 # developer's call, not the script's default.
 #
-# This used to parse infra/terraform/secrets.tfvars. That file no longer holds
-# secret material (secrets.tf owns the containers, GSM owns the values), so the
-# ~50 lines of HCL heredoc-and-escape parsing went with it.
-#
 # lore-anthropic-api-key is deliberately NOT imported. An API key outranks the
 # subscription token when both are present, so importing it would silently move a
 # laptop run onto org billing — the exact thing a subscription token avoids.
 
-gsm() { gcloud secrets versions access latest --secret="$1" 2>/dev/null; }
+gsm() { gcloud secrets versions access latest --secret="$1" --project="${LORE_GCP_PROJECT:-re-cinq-internal}" 2>/dev/null; }
 
 # The stored value is raw JSON: {"auths":{"ghcr.io":{"auth":"<b64 user:token>"}}}.
 # Pull the auth field and decode the pair. Pure coreutils, no python dependency.

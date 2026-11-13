@@ -7,6 +7,7 @@ const {
   getRepo,
   listRepos,
   listAllRepos,
+  listAvailableRepos,
   onboardRepo,
   getOrgSettings,
   putOrgSettings,
@@ -197,6 +198,22 @@ describe("listAllRepos", () => {
     expect(await listAllRepos()).toMatchObject({
       status: "error",
       code: 503,
+    });
+  });
+});
+
+describe("listAvailableRepos", () => {
+  it("calls /api/repos/available and returns the array", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify([{ full_name: "some/not-onboarded" }])),
+    );
+
+    const result = await listAvailableRepos();
+
+    expect(url()).toEqual("http://api:3000/api/repos/available");
+    expect(result).toEqual({
+      status: "ok",
+      data: [{ full_name: "some/not-onboarded" }],
     });
   });
 });

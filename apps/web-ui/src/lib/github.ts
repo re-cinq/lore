@@ -26,9 +26,11 @@ export interface PRDetails {
   computed_status: PRStatus;
 }
 
+type CheckSignal = { status?: string | null; conclusion: string | null };
+
 export function computeStatus(
   pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
+  checks: Array<CheckSignal>,
   reviews: Array<{ state: string }>,
 ): PRStatus {
   const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
@@ -39,7 +41,7 @@ export function computeStatus(
 /** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
 function statusRules(
   pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
+  checks: Array<CheckSignal>,
   reviews: Array<{ state: string }>,
 ): Array<[boolean, PRStatus]> {
   return [
@@ -48,11 +50,20 @@ function statusRules(
     [!!pr.draft, "draft"],
     [hasFailingChecks(checks), "checks-failing"],
     [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
+    [
+      reviews.some((r) => r.state === "APPROVED") &&
+        checks.some(isPendingCheck),
+      "open",
+    ],
     [isApprovedAndPassing(reviews, checks), "approved"],
   ];
 }
 
-function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {
+function isPendingCheck(check: CheckSignal) {
+  return check.status === "queued" || check.status === "in_progress";
+}
+
+function hasFailingChecks(checks: Array<CheckSignal>) {
   return checks.some(
     (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
   );
@@ -60,15 +71,16 @@ function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {
 
 function isApprovedAndPassing(
   reviews: Array<{ state: string }>,
-  checks: Array<{ conclusion: string | null }>,
+  checks: Array<CheckSignal>,
 ) {
   return (
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
       (c) =>
-        c.conclusion === "success" ||
-        c.conclusion === "skipped" ||
-        c.conclusion === null,
+        !isPendingCheck(c) &&
+        (c.conclusion === "success" ||
+          c.conclusion === "skipped" ||
+          c.conclusion === null),
     )
   );
 }

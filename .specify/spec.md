@@ -97,7 +97,7 @@ Events are written by lore-api (GitHub webhooks → `github.*`) and by stations 
 
 | Role | Interface | Primary actions |
 |---|---|---|
-| Developer | Claude Code (MCP) | Context loading, memory, local task runner, PR description, feature planning |
+| Developer | Claude Code (MCP) | Context loading, memory, PR description, feature planning |
 | Developer | Web UI | Spec browser, run list, agent config |
 | Product Manager | Claude Code (`/lore-feature`) | Feature specs → plan → backlog tickets |
 | Platform Engineer | Web UI + CLI | Repo onboarding, settings, analytics, agent definitions |
@@ -149,7 +149,7 @@ Assembly-line execution runs on the **external floor** ([re-cinq/floor](https://
 - **Next.js 15** — web-ui (App Router, no DB pool)
 - **Python** — glue scripts (lore-gen-constitution, < 100 lines each)
 - **Bash** — install.sh, lore-doctor, infra scripts (idempotent, prefix `[lore]`)
-- **Helm + Terraform** — GKE deployment, one umbrella chart
+- **Helm + Argo CD** — GKE deployment, one umbrella chart, synced by Argo CD (`deploy/README.md`)
 
 ## Success Metrics
 
@@ -157,4 +157,4 @@ Assembly-line execution runs on the **external floor** ([re-cinq/floor](https://
 - **Spec traceability**: every testable statement linked to a test file and covered by CI
 - **Task throughput**: implementation-loop PRs opened, reviewed, and merged without manual intervention
 - **Memory health**: fact confidence distribution, half-life decay rates, consolidation coverage
-- **Pipeline reliability**: zero-downtime deploys via `helm upgrade --wait` + pre-install migrations hook
+- **Pipeline reliability**: zero-downtime deploys via Argo CD sync + pre-sync migrations hook

@@ -242,16 +242,23 @@ line:
     - from: write
       to: assemble
       on: success
+    # A pod that failed (a timeout, a crash) reaches the join like one that
+    # returned nothing, and assemble lists its section again. The floor cannot
+    # run one branch of a fan-out again by itself: the retried visit gets no
+    # `item`, and the run ends on "missing required need(s) item".
     - from: write
-      to: write
+      to: assemble
       on: failed
-      iteration_max: 1
     # A section whose pod returned no usable patch, or whose patch did not all
-    # apply, goes round again: split-sections lists what is left.
+    # apply, goes round again: split-sections lists what is left. assemble itself
+    # gives a section one retry per gate round (MAX_SECTION_ATTEMPTS), but this
+    # budget counts across the run, so it matches the gate's five handbacks: at
+    # two, a run whose sections needed a retry in three rounds ended as
+    # iteration_max although every retry had worked.
     - from: assemble
       to: split-sections
       on: retry
-      iteration_max: 2
+      iteration_max: 5
     - from: assemble
       to: qa-answer
       on: success

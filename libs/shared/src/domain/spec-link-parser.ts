@@ -212,6 +212,16 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
   return parseLinksInStatement(statement, isTestFile);
 }
 
+/** The test links in a statement's trailing link group that can be checked against a checkout, resolved to repo paths. */
+export function checkableTestLinks(
+  statement: string,
+  docPath: string,
+): TestLinkRef[] {
+  return parseTestLinksInStatement(statement)
+    .filter((link) => !NON_REPO_PATH_RE.test(link.path))
+    .map((link) => ({ ...link, path: resolveLinkPath(link.path, docPath) }));
+}
+
 /** Every href in the statement's trailing link group, as written — a plan block's `#<id>` included, which the `#Lnn` line-anchor read would cut. */
 export function trailingLinkHrefs(statement: string): string[] {
   return trailingLinkMatches(statement).map((match) => match[2].trim());
@@ -294,12 +304,16 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
   return { label, path, line, hash: splitHashedLabel(label).hash };
 }
 
-// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`).
+// Walks backward counting paren depth (a naive `\(([^()]*)\)` regex fails since markdown links themselves contain `()`). When depth reaches 0 at the `(` of a `](url)` markdown link in an unbalanced group, the link's own `[` must sit right after the group's opening `(`.
 function matchingOpenParen(s: string, end: number): ParenSpan | null {
   let depth = 1;
 
   for (let i = end - 2; i >= 0; i--) {
     depth = depthAfterScanningBack(s[i], depth);
+
+    if (depth === 0 && isUrlOpenParen(s, i)) {
+      return unbalancedLinkGroupSpan(s, i, end);
+    }
 
     if (depth === 0) {
       return { open: i, innerStart: i + 1, innerEnd: end - 1 };
@@ -307,6 +321,25 @@ function matchingOpenParen(s: string, end: number): ParenSpan | null {
   }
 
   return null;
+}
+
+// True when position i holds the `(` that opens a markdown link URL `](url)` — the char before it is `]`.
+function isUrlOpenParen(s: string, i: number): boolean {
+  return i > 0 && s[i - 1] === "]";
+}
+
+function unbalancedLinkGroupSpan(
+  s: string,
+  urlOpenIndex: number,
+  end: number,
+): ParenSpan | null {
+  const openBracket = s.lastIndexOf("[", urlOpenIndex - 1);
+
+  if (openBracket <= 0 || s[openBracket - 1] !== "(") {
+    return null;
+  }
+
+  return { open: openBracket - 1, innerStart: openBracket, innerEnd: end };
 }
 
 function trimTrailingSpaceAndPeriod(s: string): number {

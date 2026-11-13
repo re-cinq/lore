@@ -278,6 +278,14 @@ export async function listFiles(
   return changes.map((f) => f.filename);
 }
 
+export async function getChangedFiles(
+  ok: Octokit,
+  repo: string,
+  number: number,
+): Promise<string[]> {
+  return listFiles(ok, repo, number);
+}
+
 /** The newest `limit` commits on a branch. GitHub lists them newest-first; reversed here so the branch reads like a pull request's commit list. */
 export async function listBranchCommits(
   ok: Octokit,

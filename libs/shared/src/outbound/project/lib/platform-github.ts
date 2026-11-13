@@ -383,6 +383,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return pullsRead.listFiles(await this.octo(), repo, number);
   }
 
+  async getChangedFiles(repo: string, number: number): Promise<string[]> {
+    return pullsRead.getChangedFiles(await this.octo(), repo, number);
+  }
+
   async listFileChanges(
     repo: string,
     number: number,

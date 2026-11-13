@@ -16,7 +16,7 @@ v1 + v2 task lists (preserved below for history).
 
 - [ ] T104 Rewrite the rehype highlighter in `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx`. New rule: walk HAST `element` nodes, when an `<a>` element's `href` path passes `isTestFile()` AND the link sits inside the trailing-paren region of a statement, wrap that statement (and the link itself) in `<mark class="stmt stmt-tested">` with `data-state="tested"`. Statements with no test link inside their trailing paren classify via `classifyByHeuristic` (testable → `stmt-untested`, untestable → `stmt-narrative`). Other links render unchanged.
 - [ ] T105 [P] Tests `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx` — green wrap for plain test link; grey for narrative-section statement; red for testable + no link; ADR link in trailing paren does not green-wrap; multiple test links in one paren all wrap; legacy DB-driven props removed from the prop type.
-- [ ] T106 Modify `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — drop the `spec_statements`, `spec_test_links`, `spec_coverage_runs` queries. Read spec chunks only. Compute the `coverage: {testable, covered, untestable}` counts on the server by segmenting + classifying + counting trailing test-links per statement; pass the derived counts into `SpecCard`. The Add Spec form is preserved unchanged (AC13 of v2 carries).
+- [ ] T106 Modify `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — drop the `spec_statements`, `spec_test_links`, `spec_coverage_runs` queries. Read spec chunks only. Compute the `coverage: {testable, covered, untestable}` counts on the server by segmenting + classifying + counting trailing test-links per statement; pass the derived counts into `SpecCard`. The Add Spec form is removed because specs are now auto-projected into the graph by CI.
 - [ ] T107 Modify `web-ui/src/app/repos/[owner]/[repo]/specs/[...path]/page.tsx` — same: drop the per-statement / per-link DB queries; pass chunks (and the derived counts) into `SpecDetails`.
 - [ ] T108 [P] Update `SpecCard.tsx` — drop the `last_linked_at` / `last_linked_by` subline (no DB attribution in v3); the props now accept only the derived `coverage` counts. The CoverageBar component itself doesn't change.
 - [ ] T109 [P] Update `mcp-server/src/routes.ts` `composeSpecCoverage` — either delete entirely (UI no longer calls `GET /spec-coverage`) or repoint to derive counts from markdown. Decide based on whether any external consumer reads the JSON payload; if not, delete.
@@ -119,7 +119,7 @@ walkthrough) was deferred under v2 and is now superseded by T128.
 - [x] T013 [P] Build `SpecCard.tsx` (title, file_path, summary, coverage line, Details button; zero-test gap state) in `web-ui/src/app/repos/[owner]/[repo]/specs/`
 - [x] T014 [P] Build `SpecDetails.tsx` client component: `react-markdown` + `remark-gfm` + `rehype-raw` full-spec render (reassembled chunks) + matched test list with source links + expandable rationale
 - [x] T015 Details surface = **route** `/repos/:o/:r/specs/[...path]` (catch-all, `encodeURIComponent` contract per web-ui CLAUDE.md); navigation wired from `SpecCard`
-- [x] T016 Rewrite `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`: DB-direct coverage (spec chunks + link counts) → `SpecCard` list, **Add Spec form preserved unchanged**
+- [x] T016 Rewrite `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`: DB-direct coverage (spec chunks + link counts) → `SpecCard` list
 - [x] T017 [P] Styling reuses existing `spec-card` / `content-viewer` / `btn-secondary` classes + inline styles (no new CSS file needed)
 
 #### v2 — Phase 5 — Verify (v1)
@@ -168,7 +168,7 @@ walkthrough) was deferred under v2 and is now superseded by T128.
 #### v2 — Phase 12 — SpecCard + per-repo specs page
 
 - [x] T039 Update `web-ui/src/app/repos/[owner]/[repo]/specs/SpecCard.tsx` to replace inline test-count with `<CoverageBar>` + caption (mockup at spec.md §Card list)
-- [x] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload; **Add Spec form preserved unchanged** (AC13)
+- [x] T040 Update `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` to fetch the extended coverage payload
 
 #### v2 — Phase 13 — SpecDetails statement highlighting
 

@@ -23,6 +23,7 @@ GKE.
   directly to `main`.
 - Run `lore-doctor` (`scripts/lore-doctor.sh`) after any `install.sh` changes.
 - Image builds and deploys are CI-driven: merging to `main` builds and pushes
-  the service image to `ghcr.io` (SHA-tagged) and Helm-deploys it via
-  `scripts/ci/deploy-lore-platform.sh` (see `.github/workflows/build-*.yml`).
+  the service image to `ghcr.io` (SHA-tagged) and records the tag in
+  `deploy/clusters/internal-cluster.values.yaml` via `scripts/ci/bump-image-tag.sh`
+  (see `.github/workflows/build-*.yml`); Argo CD rolls it out.
   Do not hand-build or push `:latest` images.

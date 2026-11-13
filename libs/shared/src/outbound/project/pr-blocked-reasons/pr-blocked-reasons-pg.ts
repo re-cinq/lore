@@ -1,12 +1,18 @@
 import type { BlockedReason } from "../../../domain/blocked-reason.js";
 import type { PgPool } from "../../memory-store.js";
 import type { PrBlockedReasonsPort } from "./pr-blocked-reasons-port.js";
+import { PrBlockedReasonsBase } from "./refusal-counter.js";
 
 const OPEN_ROW = "repo = $1 AND pr_number = $2 AND closed_at IS NULL";
 
 /** Postgres-backed PrBlockedReasonsPort over `pipeline.pr_blocked_reasons`. */
-export class PgPrBlockedReasons implements PrBlockedReasonsPort {
-  constructor(private readonly pool: PgPool) {}
+export class PgPrBlockedReasons
+  extends PrBlockedReasonsBase
+  implements PrBlockedReasonsPort
+{
+  constructor(private readonly pool: PgPool) {
+    super();
+  }
 
   async current(repo: string, prNumber: number): Promise<BlockedReason | null> {
     const { rows } = await this.pool.query<BlockedReason>(

@@ -108,6 +108,7 @@ function fakePulls(
     changedFileCount: async () => 1,
     ciConclusion: async () => "none" as const,
     listFiles: async () => [],
+    getChangedFiles: async () => [],
     listFileChanges: async () => [],
     listChecks: async () => [],
     failedJob: async () => null,

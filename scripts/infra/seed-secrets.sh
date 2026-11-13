@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Seed GCP Secret Manager with the values the Lore platform expects.
 #
-# Terraform creates the secret CONTAINERS (infra/terraform/secrets.tf) but never
-# their values — a credential's value is not an infrastructure change and must
+# re-cinq/infrastructure creates the secret CONTAINERS in re-cinq-internal
+# (projects/internal/secrets.tf) but never their values — a credential's value is not an infrastructure change and must
 # not ride in on someone's laptop. This script fills the empty ones, once, for a
 # fresh environment.
 #
@@ -15,6 +15,8 @@
 # To ROTATE an existing secret, this is the wrong tool — see docs/managing-secrets.md.
 set -euo pipefail
 
+export CLOUDSDK_CORE_PROJECT="${LORE_GCP_PROJECT:-re-cinq-internal}"
+
 log() { echo "[lore] $*"; }
 die() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
@@ -24,9 +26,8 @@ CHECK_ONLY=0
 command -v gcloud >/dev/null || die "gcloud not found"
 gcloud auth print-access-token >/dev/null 2>&1 || die "not logged in — run: gcloud auth login"
 
-# Kept in step with local.secret_names in infra/terraform/secrets.tf. The two
-# gated secrets are only needed when their enable_* tfvar is true, so a missing
-# one is reported, not fatal.
+# Kept in step with the lore entries in re-cinq/infrastructure
+# projects/internal/secrets.tf. A missing gated secret is reported, not fatal.
 REQUIRED=(
   lore-github-app-id
   lore-github-app-private-key
@@ -56,7 +57,7 @@ OPTIONAL=(
   lore-headlamp-oauth-client-secret
   lore-headlamp-cookie-secret
   # Behind enable_monitoring: Grafana's own Google OAuth web client and cookie key
-  # (monitoring.tf), same shape and the same 16/24/32-byte cookie rule.
+  # (the metrics stack, now re-cinq/infrastructure), same shape and the same 16/24/32-byte cookie rule.
   lore-grafana-oauth-client-id
   lore-grafana-oauth-client-secret
   lore-grafana-cookie-secret
@@ -97,7 +98,7 @@ for name in "${REQUIRED[@]}" "${OPTIONAL[@]}"; do
   case " ${OPTIONAL[*]} " in *" $name "*) optional=1 ;; esac
 
   if ! exists "$name"; then
-    log "$name — container does not exist (run terraform apply first)"
+    log "$name — container does not exist (add it to re-cinq/infrastructure projects/internal/secrets.tf)"
     [ "$optional" -eq 1 ] || missing=1
     continue
   fi

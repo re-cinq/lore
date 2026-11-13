@@ -192,7 +192,7 @@ async function ingestResolved(
 
   ctx.onContent(filePath, content);
 
-  const contentType = classifyFile(filePath);
+  const contentType = classifyFile(filePath, content);
 
   if (!contentType) {
     return skippedResult(filePath, "unsupported file type");

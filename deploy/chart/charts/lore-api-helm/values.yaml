@@ -1,0 +1,148 @@
+# Namespace this subchart's resources are deployed into (umbrella spans namespaces).
+namespace: lore-api
+
+replicaCount: 1
+
+# PodDisruptionBudget keeps at least one lore-api pod available during
+# Autopilot node consolidation. Without this, scale-down evictions
+# briefly take the API offline and local MCP clients silently fall
+# back to file mode (writes never reach Postgres).
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# GCP project of the `lore-api` GSA the pod's KSA impersonates for Vertex
+# embeddings (templates/serviceaccount.yaml). Set by terraform.
+gcpProject: ""
+
+image:
+  repository: ghcr.io/re-cinq/lore-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+# Prometheus text on /metrics, scraped by the ServiceMonitor in deploy/chart/templates/monitoring.yaml.
+metricsPort: 9464
+
+service:
+  type: ClusterIP
+  port: 3000
+
+# 1Gi, heap sized to it by NODE_OPTIONS below: at 512Mi Node's default heap
+# (~250 MB) ran out every Monday at 11:00 UTC when the weekly
+# spec-coverage-backfill started ~20 detect pods reading chunks through here
+# at once (#2217).
+# CPU may burst to 2 cores: the Loops tab reads seven loop routes at once,
+# each 0.3 to 3.6 s alone, and at a 500m limit the burst was throttled into
+# 16 s for the board (measured 2026-10-24). Autopilot bills the request, so
+# the limit costs nothing while the pod is idle.
+resources:
+  limits:
+    cpu: "2"
+    memory: 1Gi
+  requests:
+    cpu: "100m"
+    memory: 256Mi
+
+env:
+  PORT: "3000"
+  LORE_METRICS_PORT: "9464"
+  # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
+  NODE_OPTIONS: "--max-old-space-size=768"
+  CONTEXT_PATH: /context
+  LORE_TEAM: platform
+  LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: lore
+  # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → /impact + graph
+  # reads fail soft. Overridden by terraform set to the in-cluster service DNS.
+  LORE_DGRAPH_HTTP: ""
+  # The model the context evals run on (specs/context-evals): Gemini on Vertex,
+  # under the pod's own Google identity (gcpProject above). These two name the
+  # vendor for evals only; every other model call keeps the process-wide one.
+  LORE_EVAL_LLM_PROVIDER: vertex
+  LORE_EVAL_LLM_MODEL: gemini-3-flash-preview
+  # LORE_EVAL_JUDGE_MODEL names a stronger model for the verdict alone. Unset:
+  # gemini-2.5-pro judged a full run on 2026-10-03 and changed no verdict.
+
+dbPasswordSecret:
+  name: lore-api-db-password
+  key: password
+
+ingestTokenSecret:
+  name: lore-ingest-token
+  key: token
+
+githubAppSecret:
+  name: github-app-credentials
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
+
+# HMAC secret for verifying GitHub webhook signatures.
+webhookSecret:
+  name: lore-webhook-secret
+  key: secret
+
+# The GitHub OAuth app lore-api signs people in with for the web UI
+# (/api/auth/*, ADR-053). An empty name leaves the sign-in off: the routes
+# answer 503 and the UI cannot start a session.
+githubOAuthSecret:
+  name: ""
+  clientIdKey: client-id
+  clientSecretKey: client-secret
+
+# The service-to-service token lore-api accepts from the stations service and
+# the cluster agents.
+internalTokenSecret:
+  name: lore-agent-internal-token
+  key: token
+
+# Slack integration (optional — leave empty to disable)
+slackSigningSecret:
+  name: lore-slack-credentials
+  key: signing-secret
+
+slackBotTokenSecret:
+  name: lore-slack-credentials
+  key: bot-token
+
+# The external floor engine (its own namespace and Helm release). Off by default:
+# nothing below renders until terraform sets enabled from var.enable_external_floor.
+floor:
+  enabled: false
+  apiUrl: http://floor-api.floor.svc.cluster.local:8080
+  # The image a floor agent's pod runs in: node:22-bookworm plus the tools the agents
+  # lean on (jq, yq, rg, python3, make, a Temurin 21 JDK ...), built from apps/agent-image. The subsystem
+  # brings its own supervisor; this is only the container the agent works inside.
+  agentImage: ghcr.io/re-cinq/lore-agent:latest
+  # In-cluster lore-mcp gateway skills registry; set by terraform.
+  skillsUrl: ""
+  serviceTokenSecret:
+    name: floor-service-token
+    key: token
+  gitCredentialTokenSecret:
+    name: floor-git-credential-token
+    key: token
+
+# Utopia (deeplethe/utopia), the knowledge-graph service the spec/ADR chain is
+# mirrored into (specs/utopia-graph-mirror). Off by default: terraform sets
+# enabled from var.enable_utopia. Each repo's push key lives in lore.utopia_sources.
+# With tokenSecret (the Secret holding a Utopia write token under `token`) and
+# workspaceId set, a repo's first spec/ADR ingest creates its knowledge base in
+# that workspace; empty, a person sets each repo up through the setup route.
+utopia:
+  enabled: false
+  apiUrl: http://utopia.utopia.svc.cluster.local
+  workspaceId: ""
+  tokenSecret: ""
+
+# The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
+# namespace-scoped, so this names the lore-api-namespace copy that the
+# es_mcp_anthropic ExternalSecret materialises; unset simply makes the job skip.
+anthropicAdminKeySecret:
+  name: lore-anthropic-key
+  key: anthropic-admin-key

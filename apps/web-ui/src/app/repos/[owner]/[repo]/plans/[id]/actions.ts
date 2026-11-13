@@ -7,6 +7,7 @@ import {
   deletePlan,
   mintCollabToken,
   reopenPlan,
+  savePlanStory,
   startDrafting,
   startSpecWork,
   type RefineAsk,
@@ -14,7 +15,7 @@ import {
   validatePlan,
 } from "@/lib/api/plans";
 import type { ApiResult } from "@/lib/api/result";
-import { storyField } from "@/lib/plan-input";
+import { storyIssueOf } from "@/lib/plan-input";
 import { planUserOf, type PlanSession, type PlanUser } from "@/lib/plan-user";
 import { getSession } from "@/lib/session";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
@@ -139,13 +140,8 @@ export async function deletePlanAction(
 export async function retrySpecWorkAction(
   fullName: string,
   planId: string,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, ({ storyIssue }) =>
-    inUsersName(fullName, planId, (repo, id, userId) =>
-      startSpecWork(repo, id, userId, storyIssue),
-    ),
-  );
+  return inUsersName(fullName, planId, startSpecWork);
 }
 
 /** The spec writer again on the same PR, reading its review; anything against the plan comes back to the plan. */
@@ -168,12 +164,9 @@ export async function refinePlanAction(
   fullName: string,
   planId: string,
   refine: RefineAsk,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, (named) =>
-    inUsersName(fullName, planId, (repo, id, userId) =>
-      askRefine(repo, id, { ...refine, ...named, actor: userId }),
-    ),
+  return inUsersName(fullName, planId, (repo, id, userId) =>
+    askRefine(repo, id, { ...refine, actor: userId }),
   );
 }
 
@@ -181,37 +174,47 @@ export async function refinePlanAction(
 export async function draftAgainAction(
   fullName: string,
   planId: string,
-  story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, async (named) => {
-    const allowed = await allowedUser(fullName);
+  const allowed = await allowedUser(fullName);
 
-    if ("error" in allowed) {
-      return allowed;
-    }
-    const started = await startDrafting(fullName, planId, {
-      known: "",
-      createdBy: allowed.user.id,
-      ...named,
-    });
-
-    return started.status === "ok"
-      ? {}
-      : { error: "Could not start a new draft." };
+  if ("error" in allowed) {
+    return allowed;
+  }
+  const started = await startDrafting(fullName, planId, {
+    known: "",
+    createdBy: allowed.user.id,
   });
+
+  return started.status === "ok"
+    ? {}
+    : { error: "Could not start a new draft." };
 }
 
-type NamedStory = { storyIssue?: number };
-
-// An action with the user story typed on the page; a story naming no issue of the repo is refused before anything is asked.
-async function withStory(
-  story: string,
+/** Links the plan to the issue the text names, an issue URL of this repo or its number; every planning run from now on starts with it. */
+export async function savePlanStoryAction(
   fullName: string,
-  act: (named: NamedStory) => Promise<{ error?: string }>,
+  planId: string,
+  text: string,
 ): Promise<{ error?: string }> {
-  const named = storyField(story, fullName);
+  const named = storyIssueOf(text, fullName);
 
-  return "error" in named ? named : act(named);
+  if ("error" in named) {
+    return named;
+  }
+
+  return inUsersName(fullName, planId, (_repo, id, userId) =>
+    savePlanStory(id, named.issue, userId),
+  );
+}
+
+/** Removes the plan's user story link; it stays removed even where an earlier run named one. */
+export async function removePlanStoryAction(
+  fullName: string,
+  planId: string,
+): Promise<{ error?: string }> {
+  return inUsersName(fullName, planId, (_repo, id, userId) =>
+    savePlanStory(id, null, userId),
+  );
 }
 
 type PlanRoute = (

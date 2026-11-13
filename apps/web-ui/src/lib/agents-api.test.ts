@@ -195,6 +195,23 @@ describe("saveOrgAgent", () => {
     });
   });
 
+  it("names the first issue of a 400 invalid_agent: the MCP server with no url", async () => {
+    mockFetch(400, {
+      error: "invalid_agent",
+      issues: [
+        {
+          path: ["mcp_servers", 0],
+          message: "a stdio server needs a command, any other a url",
+        },
+      ],
+    });
+    expect(await saveOrgAgent({ name: "general" })).toEqual({
+      status: "error",
+      message:
+        "invalid_agent: mcp_servers.0: a stdio server needs a command, any other a url",
+    });
+  });
+
   it("returns unconfigured when there is no session to save an org default with", async () => {
     vi.mocked(sessionToken).mockResolvedValueOnce(null);
     expect(await saveOrgAgent({ name: "general" })).toEqual({

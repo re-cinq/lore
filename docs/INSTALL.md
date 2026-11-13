@@ -6,7 +6,7 @@ Lore is three installs on one Kubernetes cluster, in this order:
 | ----- | ---- | ------------------- | --------- | ------------------------------- |
 | A | Cluster add-ons: ingress controller, cert-manager, DNS, Postgres (operator or managed), secret store | the client's own tooling | theirs | the infra team |
 | B | The **floor**, the engine that runs agent pods. Its Helm chart carries the **ai-agent-subsystem** (CRDs + controller) that turns a run into a pod | [re-cinq/floor](https://github.com/re-cinq/floor), chart `oci://ghcr.io/re-cinq/charts/floor` | `floor` | the Lore team, with Helm |
-| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `infra/terraform/modules/gke-mcp/lore-platform` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db`, release record in `lore-floor` | the Lore team, with Helm (on our own GKE: terraform) |
+| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `deploy/chart` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db` (+ `lore-floor` for the webhook alias) | the Lore team, with Helm (on our own GKE: Argo CD, see [deploy/README.md](../deploy/README.md)) |
 
 Section 1 is the checklist for the team that provisions the cluster. Sections 2 to 4 are the installs. The developer-laptop install, onboarding and verification follow. The ai-agent-subsystem is not installed on its own: the floor chart vendors it (`subsystem.enabled=true`). Install it separately, from [its own docs](https://re-cinq.github.io/ai-agent-subsystem/), only when another floor on the same cluster already runs it; the floor is then installed with `--skip-crds`.
 
@@ -42,32 +42,32 @@ Everything below must exist before the Lore team runs a single `helm install`. E
 | agent pods | N | per agent definition | 2Gi to 4Gi each | ephemeral storage per definition |
 | optional: Prometheus + Grafana | | 250m+100m / 2Gi+1Gi | | 10Gi |
 
-Where this comes from: `infra/terraform/modules/gke-mcp/lore-platform/charts/*/values.yaml`, `infra/terraform/lore-db.tf`, `infra/terraform/lore-dgraph.tf`, the floor chart's `values.yaml`.
+Where this comes from: `deploy/chart/charts/*/values.yaml`, `deploy/chart/templates/lore-db.yaml`, `deploy/chart/templates/lore-dgraph.yaml`, `deploy/clusters/internal-cluster.values.yaml`, the floor chart's `values.yaml`.
 
 ### 1.2 Cluster add-ons (infra team)
 
-These are **assumed, not installed**, by Lore's own terraform; our GKE cluster already had them. The infra team installs them, or agrees that the Lore team may.
+These are **assumed, not installed**, by Lore's chart; on our GKE they come from re-cinq/infrastructure. The infra team installs them, or agrees that the Lore team may.
 
 | Add-on | What Lore needs from it | Our GKE value |
 | ------ | ----------------------- | ------------- |
 | Ingress controller | ingress-nginx. The Lore ingresses use nginx annotations (`rewrite-target`, `proxy-body-size`, WebSocket read/send timeouts of 3600 s). The IngressClass name is a value we set | class `nginx-ingress` |
 | cert-manager | a `ClusterIssuer` that issues public certificates for the hostnames in 1.4 | `letsencrypt-prod` |
 | DNS | A records for the hostnames in 1.4, pointing at the ingress controller's public IP. external-dns reading the `external-dns.alpha.kubernetes.io/hostname` annotation, or records made by hand | external-dns |
-| Postgres | see 1.3. In-cluster: the **CloudNativePG operator** (`clusters.postgresql.cnpg.io`), and for backups to object storage its barman-cloud plugin | CNPG operator in a shared namespace (`cnpg_operator_namespace`), plugin v0.11.0 installed by hand (`infra/terraform/lore-db.tf` header) |
-| Secret store | optional. External Secrets Operator with a `ClusterSecretStore` on the client's vault, or the infra team hands the Lore team the values and we create plain Secrets (1.5) | ESO 0.12.1 + GCP Secret Manager (`infra/terraform/eso.tf`) |
+| Postgres | see 1.3. In-cluster: the **CloudNativePG operator** (`clusters.postgresql.cnpg.io`), and for backups to object storage its barman-cloud plugin | CNPG operator in a shared namespace (`cnpg_operator_namespace`), plugin v0.11.0 (re-cinq/infrastructure) |
+| Secret store | optional. External Secrets Operator with a `ClusterSecretStore` on the client's vault, or the infra team hands the Lore team the values and we create plain Secrets (1.5) | ESO + GCP Secret Manager, `ClusterSecretStore/gcp-secret-manager` (re-cinq/infrastructure) |
 | Metrics | optional. kube-prometheus-stack; every Lore service and the floor serve Prometheus text on a `metrics` port (:9464) | `enable_monitoring` ([ADR-050](../adrs/ADR-050-prometheus-grafana-metrics.md)) |
 
 ### 1.3 Databases and disks (infra team)
 
 | Need | Spec | Notes |
 | ---- | ---- | ----- |
-| **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`) |
+| **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`deploy/chart/charts/ui-helm/migrations/`) |
 | **floor Postgres** | a **second database and role**, never shared with Lore: floor owns its schema (tables `events`, `blobs`, `definitions`) and migrates it on every install. Any Postgres; the role may create tables | the same server is fine. The floor chart never deploys one ([floor install doc](https://github.com/re-cinq/floor/blob/main/docs/install.md)) |
-| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. Only a manifest, no chart: see 4.1 |
+| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. The chart renders it when `platform.dgraph` is set: see 4.1 |
 | Backups | in-cluster Postgres: an object-storage bucket for barman (GCS, S3 or Azure Blob) with write access from the `lore-db` namespace; managed Postgres: its own backups | ours: GCS bucket, 30-day lifecycle, daily `ScheduledBackup` at 02:00 |
 | StorageClass | any ReadWriteOnce class for the two 50Gi volumes (and 10Gi for Prometheus) | ours: `standard-rwo` (pd-balanced) |
 
-Not needed off GCP: the task-log bucket and its KMS key (`infra/terraform/logs.tf`). Only the laptop task runner writes it; leave `LORE_LOG_BUCKET` unset.
+Not needed off GCP: the task-log bucket and its KMS key (re-cinq/infrastructure). Only the laptop task runner writes it; leave `LORE_LOG_BUCKET` unset.
 
 ### 1.4 Network, DNS and TLS (infra team)
 
@@ -94,11 +94,11 @@ In-cluster paths that NetworkPolicies must allow:
 | lore-ui, lore-stations, lore-mcp-gateway | lore-api (`http://lore-api.lore-api.svc.cluster.local:3000`) | 3000 |
 | lore-api, lore-ui, lore-stations | Postgres; lore-api also Dgraph (`:8080`) | 5432, 8080 |
 
-The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress` (section 3). Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs (`infra/terraform/lore-platform.tf`). Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
+The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress` (section 3). Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion,, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
 
 ### 1.5 Secrets
 
-Who generates what: the infra team or the client's security team holds the vault; the Lore team needs the values in Kubernetes Secrets with exactly these names and keys, in these namespaces. Either ESO mirrors them from the vault (our GKE: `infra/terraform/external-secrets.tf`, one `ExternalSecret` per row) or we create them with `kubectl create secret`. Generation hints and the rotation procedure: [managing-secrets.md](managing-secrets.md).
+Who generates what: the infra team or the client's security team holds the vault; the Lore team needs the values in Kubernetes Secrets with exactly these names and keys, in these namespaces. Either ESO mirrors them from the vault (our GKE: `platform.externalSecrets` in `deploy/clusters/internal-cluster.values.yaml`, rendered by `deploy/chart/templates/externalsecrets.yaml`) or we create them with `kubectl create secret`. Generation hints and the rotation procedure: [managing-secrets.md](managing-secrets.md).
 
 **Lore, required.** The source column is the name in our GCP Secret Manager, which `scripts/infra/seed-secrets.sh` prompts for.
 
@@ -152,23 +152,23 @@ Who generates what: the infra team or the client's security team holds the vault
 
 ### 1.7 Who does what, by cloud
 
-| Need | Client cluster (Azure, AKS) | Our GKE (terraform in `infra/terraform/`) |
+| Need | Client cluster (Azure, AKS) | Our GKE (re-cinq/infrastructure + Argo CD) |
 | ---- | --------------------------- | ----------------------------------------- |
 | cluster | infra team: AKS 1.27+, Azure CNI with network policy, node pools per 1.1, a ReadWriteOnce StorageClass (`managed-csi`), Workload Identity if ESO is used | GKE Autopilot, looked up by name; Dataplane V2 |
 | ingress, TLS, DNS | infra team: ingress-nginx, cert-manager + ClusterIssuer, DNS records, public IP | `nginx-ingress`, `letsencrypt-prod`, external-dns |
 | secrets | infra team: Azure Key Vault + ESO `ClusterSecretStore`, or values handed over; Lore team: Secrets per 1.5 | GCP Secret Manager + ESO + Workload Identity |
 | Lore Postgres | infra team: Flexible Server with `vector`, or CNPG operator; Lore team: schema | CNPG `Cluster` in `lore-db`, backups to GCS |
 | floor Postgres | infra team: a second database + role | same |
-| Dgraph | infra team: a 50Gi volume class; Lore team: the manifest (4.1) | `lore-dgraph.tf` |
+| Dgraph | infra team: a 50Gi volume class; Lore team: the manifest (4.1) | `deploy/chart/templates/lore-dgraph.yaml` |
 | model credentials | client: keys into the vault | GCP Secret Manager |
 | embeddings | decision needed (1.6) | Vertex via `roles/aiplatform.user` on the lore-api service account |
 | traces | nothing; lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
-| cost pages | `/spend` shows the pod-hour estimate only | BigQuery billing export (`enable_gcp_billing_export`) |
-| deploys | the Lore team's laptops with namespace-scoped kubeconfigs, `helm upgrade --install` | GitHub Actions through Workload Identity Federation, plus `terraform apply` from `main` |
+| cost pages | `/spend` shows the pod-hour estimate only | BigQuery `billing_export` (re-cinq/infrastructure) |
+| deploys | the Lore team's laptops with namespace-scoped kubeconfigs, `helm upgrade --install` | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
 
 ### 1.8 Operator's machine (Lore team)
 
-kubectl, Helm 3.8+, `gh`, `psql`, and a kubeconfig scoped to the namespaces in 1.1. For the laptop install in section 6: git, Node.js 18+, Claude Code. Terraform 1.5+ and `gcloud` only for our own GKE path (4.2).
+kubectl, Helm 3.8+, `gh`, `psql`, and a kubeconfig scoped to the namespaces in 1.1. For the laptop install in section 6: git, Node.js 18+, Claude Code. `gcloud` only for our own GKE path (4.2).
 
 ## 2. Install A: cluster add-ons
 
@@ -195,7 +195,7 @@ helm upgrade --install external-secrets external-secrets \
   --repo https://charts.external-secrets.io -n external-secrets --create-namespace
 ```
 
-Then the `ClusterSecretStore` for the client's vault (ours is in `infra/terraform/eso.tf`), and the namespaces:
+Then the `ClusterSecretStore` for the client's vault (ours is in re-cinq/infrastructure), and the namespaces:
 
 ```bash
 kubectl create namespace floor
@@ -250,7 +250,7 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 
 ### 4.1 Any Kubernetes, with Helm (a client cluster)
 
-1. **Secrets.** Create every row of 1.5 in its namespace, as plain Secrets or `ExternalSecret` objects. Use `infra/terraform/external-secrets.tf` as the list of names and keys.
+1. **Secrets.** Create every row of 1.5 in its namespace, as plain Secrets or `ExternalSecret` objects. The chart renders `ExternalSecret` objects from `platform.externalSecrets` (`deploy/chart/templates/externalsecrets.yaml`); `deploy/clusters/internal-cluster.values.yaml` is the list of names and keys.
 2. **Postgres.** Point at the database from 1.3 and apply the baseline schema once. The `setup-*.sh` scripts reach Postgres through `kubectl exec` into the CNPG primary (`lore-db-1` in `lore-db`); against a managed server, run them through the same shim `scripts/infra/setup-local-schema.sh` uses for Docker, pointed at `psql` instead:
 
    ```bash
@@ -260,9 +260,9 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 
    The incremental migrations run on their own, as a Helm hook of every deploy.
 
-3. **Dgraph.** It has no chart; apply the Service and StatefulSet in `infra/terraform/lore-dgraph.tf` as plain YAML (namespace `lore-dgraph`, headless Service `lore-dgraph-alpha` on 8080 and 9080, 50Gi volume, memory limit 16Gi), then the schema job, which runs `scripts/infra/setup-memory-dgraph-schema.sh` and `setup-spec-trace-schema.sh` with `DGRAPH_HTTP=http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080`.
-4. **Ingresses.** The subcharts render none; create one Ingress per hostname of 1.4 (ours are `infra/terraform/{lore-api,lore-ui,lore-mcp,event-router}.tf`): `lore-api:3000` at `/`, `lore-ui:3000` at `/`, `lore-mcp-gateway:8080` at `/`, and on the webhook host the exact path `/api/events` to `lore-api:3000` with `nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github` and a 25m body size. The API ingress needs `proxy-read-timeout` and `proxy-send-timeout` of 3600 for the WebSocket.
-5. **Values.** Write `lore-values.yaml` with the same keys terraform feeds the umbrella in `infra/terraform/lore-platform.tf`, which is the authoritative list. The ones that change per install:
+3. **Dgraph.** Set `platform.dgraph` and the chart renders it (`deploy/chart/templates/lore-dgraph.yaml`: namespace `lore-dgraph`, headless Service `lore-dgraph-alpha` on 8080 and 9080, 50Gi volume, memory limit 16Gi, and the schema job, which runs `scripts/infra/setup-memory-dgraph-schema.sh` and `setup-spec-trace-schema.sh` with `DGRAPH_HTTP=http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080`).
+4. **Ingresses.** List one entry per hostname of 1.4 under `platform.ingresses`; `deploy/chart/templates/ingresses.yaml` renders them (ours are in `deploy/clusters/internal-cluster.values.yaml`): `lore-api:3000` at `/`, `lore-ui:3000` at `/`, `lore-mcp-gateway:8080` at `/`, and on the webhook host the exact path `/api/events` to `lore-api:3000` with `nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github` and a 25m body size. The API ingress needs `proxy-read-timeout` and `proxy-send-timeout` of 3600 for the WebSocket.
+5. **Values.** Write `lore-values.yaml` starting from `deploy/clusters/internal-cluster.values.yaml`, which is the authoritative list. The ones that change per install:
 
    ```yaml
    lore-api:
@@ -303,7 +303,7 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 6. **Install.**
 
    ```bash
-   helm upgrade --install lore-platform infra/terraform/modules/gke-mcp/lore-platform \
+   helm upgrade --install lore-platform deploy/chart \
      -n lore-floor -f lore-values.yaml \
      --set-string lore-api.image.tag=<tag> --set-string lore-ui.image.tag=<tag> \
      --set-string lore-stations.image.tag=<tag> --set-string lore-mcp-gateway.image.tag=<tag>
@@ -311,22 +311,11 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
 
    Image tags are the short SHA of a `main` commit or a release; `latest` is a never-used default. Upgrades are the same command with new tags; the migrations hook runs first.
 
-### 4.2 Our own GKE, with terraform
+### 4.2 Our own GKE, with Argo CD
 
-Our reference install. `infra/terraform/` reads an existing GKE cluster by name and creates the namespaces, ESO + its `ClusterSecretStore`, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph, the floor's NetworkPolicy and `agent-secrets` entry, and one `helm_release.lore_platform`. It does **not** create the floor or the ai-agent-subsystem: install the floor (section 3) before the apply, with `enable_external_floor = true` in `terraform.tfvars`, or the apply fails on the `floor` namespace it targets.
+Our reference install, described in [deploy/README.md](../deploy/README.md). Argo CD on `internal-cluster` (project `re-cinq-internal`) deploys `deploy/chart` with `deploy/clusters/internal-cluster.values.yaml` on every merge to `main` (re-cinq/infrastructure, `docs/deploying.md`); nobody runs `helm` against that cluster. The chart renders the namespaces, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph and the five services. Google Cloud resources (service accounts, buckets, Secret Manager containers, the BigQuery billing export) and the cluster add-ons (ESO and `ClusterSecretStore/gcp-secret-manager`, CNPG operator, cert-manager, ingress) are in re-cinq/infrastructure. The floor is installed separately (section 3).
 
-```bash
-git clone https://github.com/re-cinq/lore.git && cd lore
-cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars   # identifiers, hostnames, enable_* gates; nothing secret
-gh variable set GCP_PROJECT_ID --body "your-gcp-project-id"                   # CI deploys need it
-
-cd infra/terraform && terraform init
-terraform apply -target=google_secret_manager_secret.lore   # 1. the empty secret containers
-../../scripts/infra/seed-secrets.sh                          # 2. seed them (idempotent; prompts for the empty ones)
-terraform apply                                              # 3. everything else
-```
-
-Two applies, because `lore-db` reads the database password out of Secret Manager at plan time. Later runs need only the third command. Hostname variables default to empty, which disables the matching ingress: omitting `lore_event_router_hostname` leaves GitHub with nowhere to deliver, and omitting `lore_mcp_url` leaves agent recipes without an MCP endpoint. Secret values are never terraform inputs ([managing-secrets.md](managing-secrets.md)). Then the baseline schema:
+Secret values are added by a person with `gcloud secrets versions add <name> --project re-cinq-internal` ([managing-secrets.md](managing-secrets.md)). Non-secret config is an edit to the values file. On a fresh cluster, then the baseline schema:
 
 ```bash
 scripts/infra/setup-db.sh
@@ -429,29 +418,21 @@ curl -s -H "Authorization: Bearer <lore-ingest-token>" https://<lore_api host>/a
 
 ## Upgrading
 
-Any Kubernetes: section 4.1 step 6 with new image tags; the floor with `helm upgrade floor oci://ghcr.io/re-cinq/charts/floor --version <release> -n floor --reuse-values`. Our GKE: `git pull && cd infra/terraform && terraform apply`; CI builds and deploys every push to `main`.
+Any Kubernetes: section 4.1 step 6 with new image tags; the floor with `helm upgrade floor oci://ghcr.io/re-cinq/charts/floor --version <release> -n floor --reuse-values`. Our GKE: merge to `main`; the build workflows bump the image tags in `deploy/clusters/internal-cluster.values.yaml` and Argo CD syncs ([deploy/README.md](../deploy/README.md)).
 
 ## Disaster recovery
 
-Our GKE:
-
-```bash
-cd infra/terraform && terraform destroy && terraform apply
-```
-
-`terraform destroy` refuses while the secret containers carry `prevent_destroy`, deliberately, since destroying them takes every historical version of every live credential with them. To tear the secrets down too, drop the `lifecycle` block in [`secrets.tf`](../infra/terraform/secrets.tf) first, as a separate reviewed commit. Otherwise `-target` the rest of the stack and leave the secrets standing; a rebuilt platform re-attaches to them with no re-seeding.
-
-All state is in terraform. Secrets are in the vault. Everything else is in the two Postgres databases and Dgraph: back those up.
+Our GKE: the cluster's add-ons and cloud resources come back from re-cinq/infrastructure and Argo CD re-syncs the chart. The Secret Manager containers keep their versions, so a rebuilt platform re-attaches to them with no re-seeding. Everything else is in the two Postgres databases and Dgraph: back those up.
 
 ## Known rough edges
 
 What a non-re-cinq install hits today. Each is an open issue; the doc keeps the list until the fix lands.
 
-1. **Helm-only install is assembled by hand** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The ingresses, the Dgraph StatefulSet, the ExternalSecrets and the floor NetworkPolicy exist only as terraform (`infra/terraform/*.tf`); no subchart renders an Ingress, and the umbrella values default the Postgres host to the CNPG Service and carry `GCP_PROJECT`. Section 4.1 lists what to apply by hand until the chart grows optional templates for them.
+1. **Helm-only install needs two values overridden** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The chart renders the ingresses, the `ExternalSecret` objects, Dgraph and the agent pods' egress policy to the MCP gateway (4.1). What is left: the subchart values default the Postgres host to the CNPG Service, and the reference values file carries `GCP_PROJECT`. Section 4.1 step 5 says what to set.
 2. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). A second `EmbeddingProvider` at 768 dimensions is the fix.
 3. The schema scripts `scripts/infra/setup-*.sh` reach Postgres through `kubectl exec` into a CNPG pod; a managed server needs the `psql` shim ([#3904](https://github.com/re-cinq/lore/issues/3904)).
-4. Two terraform gaps ([#3905](https://github.com/re-cinq/lore/issues/3905)): `lore-stations` references `ghcr-pull-secret` but it is mirrored only into `lore-api`, `lore-ui` and `utopia`; lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.
-5. The ESO `ClusterSecretStore`, the allowed sign-in domain `re-cinq.com` (Grafana, Headlamp, Utopia), the terraform state bucket and the CI deployer service account are hardcoded to our environment, and `infra/terraform/modules/gke-mcp/main.tf` describes a cluster nothing creates ([#3906](https://github.com/re-cinq/lore/issues/3906)).
+4. Two gaps ([#3905](https://github.com/re-cinq/lore/issues/3905)): `lore-stations` references `ghcr-pull-secret` but it is mirrored only into `lore-api`, `lore-ui` and `utopia`; lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.
+5. The ESO `ClusterSecretStore`, the allowed sign-in domain `re-cinq.com` (Grafana, Headlamp, Utopia), and the GCP project in the values file are hardcoded to our environment ([#3906](https://github.com/re-cinq/lore/issues/3906)).
 
 ## Running on ARM64
 

@@ -35,6 +35,7 @@ export type EpisodesQuery = z.infer<typeof EpisodesQuery>;
 
 export const MemorySearchQuery = z.object({
   q: z.string().min(1).max(500),
+  repo: z.string().max(200).optional(),
 });
 
 export type MemorySearchQuery = z.infer<typeof MemorySearchQuery>;

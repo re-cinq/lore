@@ -18,6 +18,7 @@ import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json
 import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import { specHeading } from "@re-cinq/lore-shared";
 import { projectFor } from "../../outbound/project-boot.js";
+import { requestPlan } from "../../planning/plan-api.js";
 import {
   runIssuesStation,
   type IssuesStationDeps,
@@ -28,12 +29,20 @@ export interface SpecTicketsIssuesDeps {
   /** The visit's own run, which the station input identifies itself by. */
   runOf(visitId: string): Promise<string | null>;
   project(repo: string): Promise<NonNullable<IssuesStationDeps["project"]>>;
+  /** Saves the story issue on the plan the spec came from; lore-api keeps it only when it differs from the plan's own. */
+  savePlanStory(planId: string, issueNumber: number): Promise<void>;
 }
 
 const productionDeps: SpecTicketsIssuesDeps = {
   runOf: async (visitId) =>
     (await floorClient().stationRuns.get(visitId))?.runId ?? null,
   project: (repo) => projectFor(repo),
+  savePlanStory: async (planId, issueNumber) => {
+    await requestPlan(`${planId}/story`, {
+      method: "POST",
+      body: { issueNumber, setBy: "spec-tickets" },
+    });
+  },
 };
 
 export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
@@ -44,11 +53,13 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       const decomposition = (await tools.read(artifact)).toString("utf8");
       const { input, project } = await filingOf(deps, brief, decomposition);
 
-      return reportOf(
-        await (verified
-          ? verifiedIssues(input, project, tools)
-          : runIssuesStation(input, { project })),
-      );
+      const result = await (verified
+        ? verifiedIssues(input, project, tools)
+        : runIssuesStation(input, { project }));
+
+      await saveStoryOnSourcePlan(deps, brief.needs.source_plan_id, result);
+
+      return reportOf(result);
     } catch (err) {
       const message = (err as Error).message;
 
@@ -57,6 +68,19 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       return { outcome: "failed", error: message };
     }
   };
+}
+
+async function saveStoryOnSourcePlan(
+  deps: SpecTicketsIssuesDeps,
+  sourcePlanId: string | undefined,
+  result: NodeResult,
+): Promise<void> {
+  const storyIssue = result.extras?.["Lore-Story-Issue"];
+
+  if (!sourcePlanId || !storyIssue) {
+    return;
+  }
+  await deps.savePlanStory(sourcePlanId, Number(storyIssue));
 }
 
 async function filingOf(
@@ -77,13 +101,29 @@ async function titledAfterSpec(
 ): Promise<StationInput> {
   const { feature_decomposition: raw, spec_path: specPath } = input.params;
   const [file] = specFilesOfRun(specPath, undefined);
-  const commit = parseDecomposition(parseModelJson(raw)).spec_commit;
-  const spec = await project.repo.read(file, commit ?? input.branch);
+  const ref =
+    parseDecomposition(parseModelJson(raw)).spec_commit ?? input.branch;
+  const [spec, planMd] = await readSpecAndPlan(project, file, ref);
 
   return {
     ...input,
-    params: { ...input.params, plan_title: specHeading(spec ?? "") ?? file },
+    params: {
+      ...input.params,
+      plan_title: specHeading(spec ?? "") ?? file,
+      ...(planMd ? { plan_md: planMd } : {}),
+    },
   };
+}
+
+async function readSpecAndPlan(
+  project: NonNullable<IssuesStationDeps["project"]>,
+  specFile: string,
+  ref: string,
+): Promise<[string | null, string | null]> {
+  return Promise.all([
+    project.repo.read(specFile, ref),
+    project.repo.read(specFile.replace(/spec\.md$/, "plan.md"), ref),
+  ]);
 }
 
 async function verifiedIssues(

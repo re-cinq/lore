@@ -11,15 +11,12 @@ interface NavLinkProps {
   className?: string;
   /** Drawn before the label; the label stays the link's accessible name. */
   icon?: IconName;
+  /** Count shown beside the label when positive (e.g. open inbox items). */
+  badge?: number;
 }
 
-export default function NavLink({
-  href,
-  label,
-  active,
-  className,
-  icon,
-}: NavLinkProps) {
+export default function NavLink(props: NavLinkProps) {
+  const { href, label, active, className, icon, badge } = props;
   const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
 
   return (
@@ -30,7 +27,20 @@ export default function NavLink({
     >
       {icon && <Icon name={icon} size={18} />}
       <NavLabelLive label={label} />
+      <NavBadge badge={badge} />
     </Link>
+  );
+}
+
+function NavBadge({ badge }: { badge?: number }) {
+  if (badge === undefined || badge <= 0) {
+    return null;
+  }
+
+  return (
+    <span className="nav-badge" aria-label={`${badge} open items`}>
+      {badge}
+    </span>
   );
 }
 

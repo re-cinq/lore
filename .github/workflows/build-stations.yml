@@ -12,13 +12,12 @@ on:
       - 'libs/shared/**'
       # Compiled into this image: the review stations read its verdict parser.
       - 'libs/assembly-lines/**'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/charts/stations-helm/**'
+      - 'deploy/chart/charts/stations-helm/**'
       # Parent umbrella chart — a Chart.yaml/values.yaml change redeploys.
-      - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
-      - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
+      - 'deploy/chart/Chart.yaml'
+      - 'deploy/chart/values.yaml'
       - '.github/workflows/build-stations.yml'
-      - 'scripts/ci/deploy-lore-platform.sh'
-      - 'scripts/ci/helm-lock-contention.sh'
+      - 'scripts/ci/bump-image-tag.sh'
   workflow_dispatch:
 
 concurrency:
@@ -41,12 +40,18 @@ jobs:
     secrets: inherit
 
   deploy:
+    # A newer build of main supersedes an older one still waiting to deploy,
+    # so a burst of merges ends in one tag bump per service.
+    concurrency:
+      group: deploy-lore-stations
+      cancel-in-progress: true
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: write
+      # main takes only pull requests; bump-image-tag.sh opens and merges one.
+      pull-requests: write
       # report-deploy-failure.sh files/updates a `deploy-failed` issue when this
       # job's deploy fails, so a service left on an old image is visible
       # outside the Actions tab (#1650).
@@ -57,26 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v3
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-      - name: Get GKE credentials
-        uses: google-github-actions/get-gke-credentials@v3
-        with:
-          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
-          location: europe-west1
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-
-      # Serialized on Helm's release lock inside the script, not by a GitHub
-      # concurrency group — see the script header for why.
-      - name: Deploy stations into the umbrella release
+      # Argo CD on the cluster deploys the new tag from main (re-cinq/infrastructure, docs/deploying.md).
+      - name: Record the stations image tag for Argo CD
         run: |
-          bash scripts/ci/deploy-lore-platform.sh \
-            lore-stations "${{ needs.build.outputs.image_tag }}" \
-            lore-stations lore-stations ghcr.io/re-cinq/lore-stations
+          bash scripts/ci/bump-image-tag.sh lore-stations "${{ needs.build.outputs.image_tag }}"

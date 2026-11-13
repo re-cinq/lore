@@ -1,23 +1,20 @@
+import type { Stats } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
 import { runPollLoop } from "@re-cinq/lore-shared/lib/backoff.js";
 import {
-  SkillDefinitionSchema,
+  SKILL_NAME,
   type SkillDefinition,
 } from "@re-cinq/lore-shared/models/skill-definition.js";
-import { proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
+import { readCatalogue } from "./catalogue-skills.js";
 
 // Installs the org's skills into ~/.claude/skills (specs/org-skills FR-004); it only ever touches a directory carrying its marker.
 
 const MARKER = ".lore-managed";
-const SAFE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 const DEFAULT_INTERVAL_MS = 5 * 60_000;
 
-const SkillsListBody = z.object({ skills: z.array(SkillDefinitionSchema) });
-
-/** A directory already under ~/.claude/skills, and whether this loop wrote it. */
+/** An entry already under ~/.claude/skills, and whether this loop owns it: only a real directory with a regular marker file and no symlinked SKILL.md. */
 export interface LocalSkillDir {
   name: string;
   managed: boolean;
@@ -45,7 +42,7 @@ export function planSkillSync(
   local: LocalSkillDir[],
 ): SkillSyncPlan {
   const wanted = remote.filter(
-    (skill) => skill.enabled && SAFE_NAME.test(skill.name),
+    (skill) => skill.enabled && SKILL_NAME.test(skill.name),
   );
   const wantedNames = new Set(wanted.map((skill) => skill.name));
   const handInstalled = new Set(
@@ -79,12 +76,19 @@ export async function readLocalSkillDirs(
   const entries = await fs.readdir(dir, { withFileTypes: true });
 
   return Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => ({
-        name: entry.name,
-        managed: await exists(path.join(dir, entry.name, MARKER)),
-      })),
+    entries.map(async (entry) => ({
+      name: entry.name,
+      managed: entry.isDirectory() && (await isOwnedSkillDir(dir, entry.name)),
+    })),
+  );
+}
+
+async function isOwnedSkillDir(dir: string, name: string): Promise<boolean> {
+  const skillDir = path.join(dir, name);
+
+  return (
+    (await isRegularFile(path.join(skillDir, MARKER))) &&
+    (await isAbsentOrRegularFile(path.join(skillDir, "SKILL.md")))
   );
 }
 
@@ -95,12 +99,11 @@ async function syncSkillsLogged(dir: string): Promise<void> {
 }
 
 async function syncSkills(dir: string): Promise<void> {
-  const res = await proxyGetApi("/api/skill-definitions");
+  const skills = await readCatalogue();
 
-  if (!res.ok) {
+  if (!skills) {
     return;
   }
-  const { skills } = SkillsListBody.parse(JSON.parse(res.body));
 
   await applySkillSync(
     dir,
@@ -116,11 +119,18 @@ async function writeSkill(dir: string, skill: SkillDefinition): Promise<void> {
   await fs.writeFile(path.join(skillDir, "SKILL.md"), skill.content);
 }
 
-function exists(file: string): Promise<boolean> {
-  return fs.access(file).then(
-    () => true,
-    () => false,
-  );
+async function isRegularFile(file: string): Promise<boolean> {
+  return (await lstatOrNull(file))?.isFile() ?? false;
+}
+
+async function isAbsentOrRegularFile(file: string): Promise<boolean> {
+  const stat = await lstatOrNull(file);
+
+  return stat === null || stat.isFile();
+}
+
+function lstatOrNull(file: string): Promise<Stats | null> {
+  return fs.lstat(file).catch(() => null);
 }
 
 function skillsDir(): string {

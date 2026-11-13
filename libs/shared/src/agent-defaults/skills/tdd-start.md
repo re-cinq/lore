@@ -15,34 +15,31 @@ description: "Start a project or feature using strict TDD Red-Green-Refactor cyc
 
 ### Red
 - Write one failing test.
-- Run the test suite and confirm it fails for the expected reason.
+- Run the test and confirm it fails for the expected reason.
 - Do not write any production code yet.
 
 ### Green
 - Write the simplest code that makes the failing test pass.
 - "Simplest" means fewest lines, not most elegant — hardcoding is acceptable at this stage.
-- Run the test suite and confirm all tests pass before moving on.
+- Run the tests you are working on and confirm they pass before moving on.
 
 ### Refactor
 - Clean up duplication and improve clarity in both production and test code.
 - Do not change behaviour — all tests must remain green throughout refactoring.
-- Run the test suite after every small change.
+- Run the tests you are working on after every small change.
 
 ## Guidelines
 
-- **One test at a time.** Never write a second failing test while the first is still red.
+- **One test at a time.** Never write a second failing test while the first is still red, unless asked to go faster.
 - **Commit on green.** A passing test suite is a stable checkpoint; commit before refactoring.
 - **Triangulate.** If the simplest implementation is to hardcode a value, write a second test that forces a general solution.
 - **Test behaviour, not implementation.** Tests should describe what the code does, not how it does it.
-- **Keep tests fast.** A slow test suite discourages frequent running; aim for sub-second feedback.
+- **Keep tests fast.** Slow tests discourage running them; aim for sub-second feedback.
 - **Delete dead tests.** A test that no longer adds coverage or documents behaviour is noise — remove it.
-- **Write only one test at a time.** Only write more than one test at a time if asked to go faster
 
 ## Test Naming Convention
 
-Name tests in the form: `given [context], when [action], then [expected outcome]`
-
-Or for simple unit tests: `[function] returns [expected] when [input/condition]`
+A test name carries the tested data and the expected outcome, reads as a sentence with `it`, and never says "should": `returns I for 1`, `throws RangeError for 0`, `rejects an amount of -100`. Mirror the naming already used in the repo's tests.
 
 ## What Makes a Good First Test
 
@@ -55,7 +52,7 @@ Or for simple unit tests: `[function] returns [expected] when [input/condition]`
 Review **both production and test code** for every item below before declaring the refactor done.
 
 - [ ] No duplicated logic in production code
-- [ ] No duplicated structure in test code (use `test.each`, `beforeEach`, or helpers)
+- [ ] No duplicated structure in test code (use a parameterised test or a factory function with overrides)
 - [ ] Names clearly describe intent
 - [ ] No commented-out code
 - [ ] All tests still pass

@@ -1,5 +1,6 @@
 {
   "name": "lore",
+  "license": "Apache-2.0",
   "private": true,
   "engines": {
     "node": ">=22"
@@ -34,7 +35,7 @@
     "@eslint/css": "^2.0.0",
     "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^8.0.3",
-    "@re-cinq/eslint-plugin-re-lint": "^1.12.2",
+    "@re-cinq/eslint-plugin-re-lint": "^1.13.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/react": "^19.3.0",
     "eslint": "^10.10.0",

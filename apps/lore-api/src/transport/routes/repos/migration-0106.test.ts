@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 const sql = readFileSync(
   resolve(
     process.cwd(),
-    "../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0106_auto_merge_kpis.sql",
+    "../../deploy/chart/charts/ui-helm/migrations/0106_auto_merge_kpis.sql",
   ),
   "utf-8",
 );

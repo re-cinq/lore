@@ -1,5 +1,6 @@
 import type { BlockedReason } from "../../../domain/blocked-reason.js";
 import type { PrBlockedReasonsPort } from "./pr-blocked-reasons-port.js";
+import { PrBlockedReasonsBase } from "./refusal-counter.js";
 
 export interface PrBlockedReasonRow extends BlockedReason {
   since: Date;
@@ -8,10 +9,15 @@ export interface PrBlockedReasonRow extends BlockedReason {
 }
 
 /** In-memory PrBlockedReasonsPort, the behavioral spec of the pg adapter; rows are keyed `repo#number`. */
-export class InMemoryPrBlockedReasons implements PrBlockedReasonsPort {
+export class InMemoryPrBlockedReasons
+  extends PrBlockedReasonsBase
+  implements PrBlockedReasonsPort
+{
   readonly rows = new Map<string, PrBlockedReasonRow>();
 
-  constructor(private readonly now: () => Date = () => new Date()) {}
+  constructor(private readonly now: () => Date = () => new Date()) {
+    super();
+  }
 
   async current(repo: string, prNumber: number): Promise<BlockedReason | null> {
     const row = this.openRow(repo, prNumber);

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { parse } from "yaml";
 
 const SHARED_BUILD = ".github/workflows/_build-image.yml";
-const CHARTS = "infra/terraform/modules/gke-mcp/lore-platform";
+const CHARTS = "deploy/chart";
 
 const SERVICE_WORKFLOWS = [
   ".github/workflows/build-lore-api.yml",
@@ -212,14 +212,4 @@ test("no lore-platform chart pins a node architecture", () => {
     { status: grep.status, files: grep.stdout },
     { status: 1, files: "" },
   );
-});
-
-test("the GKE node pools stay on x86 n2 machines", () => {
-  const machineTypes = [
-    ...read("infra/terraform/modules/gke-mcp/main.tf").matchAll(
-      /machine_type\s*=\s*"([^"]+)"/g,
-    ),
-  ].map(([, type]) => type);
-
-  assert.deepEqual(machineTypes, ["n2-standard-4", "n2-standard-2"]);
 });

@@ -44,7 +44,14 @@ function reportedTests(report: EvidenceReport): ReportedTests {
   if (cached) {
     return cached;
   }
-  const parsed = parseTestDescriptors(report.tests ?? []);
+  const raw = report.tests;
+
+  enforceTrue(
+    Array.isArray(raw),
+    apiError(400),
+    "report.tests must be an array of test descriptors",
+  );
+  const parsed = parseTestDescriptors(raw);
 
   parsedByReport.set(report, parsed);
 

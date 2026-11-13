@@ -24,6 +24,7 @@ config:
       ephemeral-storage: 6Gi
   skills:
     - lore-context
+    - testing
   skills_source: ${LORE_SKILLS_URL}
   mcp_servers:
     - name: lore

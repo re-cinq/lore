@@ -1,5 +1,5 @@
 /** Maps a file path to a highlight.js language token ('' renders as plain text) — labels the fence a code chunk renders through. */
-const EXT_LANG: Record<string, string> = {
+const EXT_LANG: Record<string, string | undefined> = {
   ts: "typescript",
   mts: "typescript",
   cts: "typescript",
@@ -45,6 +45,20 @@ const EXT_LANG: Record<string, string> = {
   graphql: "graphql",
   gql: "graphql",
 };
+
+/** Fence tags that name a language by something other than its extension. */
+const TAG_LANG: Record<string, string | undefined> = {
+  shell: "bash",
+  console: "bash",
+  jsonc: "json",
+};
+
+/** The highlight.js language a fence's tag names: a known alias, else an extension, else the tag itself. */
+export function languageForTag(tag: string): string {
+  const key = tag.toLowerCase();
+
+  return TAG_LANG[key] ?? EXT_LANG[key] ?? key;
+}
 
 export function languageForPath(filePath: string): string {
   const base = (filePath.split("/").pop() ?? "").toLowerCase();

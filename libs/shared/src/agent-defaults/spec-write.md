@@ -3,7 +3,7 @@
 review_required: false
 model: claude-sonnet-4-6
 image: ${LORE_AGENT_IMAGE}
-timeout_minutes: 15
+timeout_minutes: 30
 config:
   pod_resources:
     requests:

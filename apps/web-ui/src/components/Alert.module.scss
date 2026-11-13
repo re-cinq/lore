@@ -11,9 +11,16 @@
   background: var(--info-bg);
 }
 
-.secondary {
+.secondary,
+.warning {
   color: var(--warning);
   background: var(--warning-bg);
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 :global([data-theme-family="lore"]) .alert {

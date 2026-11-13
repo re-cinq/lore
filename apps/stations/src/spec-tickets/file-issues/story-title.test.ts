@@ -208,6 +208,7 @@ async function file(project: never, run: Run = {}) {
   return specTicketsIssuesHandle({
     runOf: async () => "run-1",
     project: async () => project,
+    savePlanStory: async () => undefined,
   })(
     {
       visitId: "visit-issues",

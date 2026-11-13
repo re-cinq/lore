@@ -35,6 +35,39 @@ describe("parseAgentForm", () => {
     });
   });
 
+  it("carries the files MCP server from the mcp_servers field and omits the key when the field is absent", () => {
+    const files = { name: "files", transport: "stdio", command: "npx" };
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(
+        fd({ ...base, mcp_servers: JSON.stringify([files]) }),
+      ).def.mcp_servers,
+      untouched: "mcp_servers" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: [files], untouched: false });
+  });
+
+  it("carries the skills cli-design from the skills field and omits the key when the field is absent", () => {
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(
+        fd({ ...base, skills: JSON.stringify(["cli-design"]) }),
+      ).def.skills,
+      untouched: "skills" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: ["cli-design"], untouched: false });
+  });
+
+  it("carries adjust_skill_models false from the 0 field and omits the key when the field is absent", () => {
+    const base = { is_new: "0", name: "general" };
+
+    expect({
+      sent: parseAgentForm(fd({ ...base, adjust_skill_models: "0" })).def
+        .adjust_skill_models,
+      untouched: "adjust_skill_models" in parseAgentForm(fd(base)).def,
+    }).toEqual({ sent: false, untouched: false });
+  });
+
   it("collects the six pod-resource inputs into pod_resources", () => {
     const p = parseAgentForm(
       fd({

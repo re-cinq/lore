@@ -9,7 +9,8 @@ import {
 } from "@/lib/agents-form";
 import { DEFAULT_EXECUTION_IMAGE } from "@/lib/agents-api";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import AgentForm, { type AgentFormAction } from "../../AgentForm";
+import AgentForm from "../../AgentFormWithSkills";
+import type { AgentFormAction } from "../../AgentForm";
 
 interface EditAgentProps {
   params: Promise<{ owner: string; repo: string; name: string }>;

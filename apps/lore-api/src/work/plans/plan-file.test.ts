@@ -12,6 +12,7 @@ import {
   planSnapshot,
   type PlanFilePorts,
 } from "./plan-file.js";
+import type { PlanStoryContext } from "./plan-story.js";
 
 const META = { ...planMeta("feature", "Faster checkout"), id: "p1" };
 const BLOCKS = planWith("feature", {
@@ -30,10 +31,14 @@ const PENDING_ASK = {
   brief: 'Refine the section "Intent" (<!-- slot:intent -->) of the live plan',
 };
 
-function recordingPorts(pendingAsk: typeof PENDING_ASK | null = null) {
+function recordingPorts(
+  pendingAsk: typeof PENDING_ASK | null = null,
+  story: PlanStoryContext | null = null,
+) {
   const writes: Array<{ call: string; request: unknown }> = [];
   const ports: PlanFilePorts = {
     livePlan: async () => ({ meta: META, blocks: BLOCKS }),
+    story: async () => story,
     refineAsks: {
       pending: () => Promise.resolve(pendingAsk),
       clear: () => Promise.resolve(),
@@ -289,5 +294,27 @@ describe("planAgentView — the pending Refine", () => {
     const { ports } = recordingPorts();
 
     expect(await planAgentView("p1", ports)).not.toHaveProperty("refine");
+  });
+});
+
+const STORY: PlanStoryContext = {
+  number: 12,
+  url: "https://github.com/re-cinq/lore/issues/12",
+  title: "Faster checkout",
+  state: "open",
+  body: "Shoppers leave at the price step.",
+};
+
+describe("planAgentView — the user story", () => {
+  it("hands the agent user story #12 beside the plan's sections", async () => {
+    const { ports } = recordingPorts(null, STORY);
+
+    expect((await planAgentView("p1", ports)).story).toEqual(STORY);
+  });
+
+  it("hands the agent no story for a plan without one", async () => {
+    const { ports } = recordingPorts();
+
+    expect(await planAgentView("p1", ports)).not.toHaveProperty("story");
   });
 });

@@ -10,6 +10,7 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
 import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { withPool, type PooledHandler } from "../with-pool.js";
+import { evalOrRefusal } from "./eval-failure.js";
 import { assembleForEval } from "../../../work/context-evals/assembled-for-eval.js";
 import { documentText } from "../../../work/context-evals/eval-documents.js";
 import {
@@ -93,9 +94,8 @@ const serveContextEval: PooledHandler = async (
   h,
 ): Promise<ResponseObject> => {
   const target = request.payload as z.infer<typeof ContextEvalBody>;
-  const verdict = await evaluateDocument(
-    depsOverride ?? evalDeps(pool),
-    target,
+  const verdict = await evalOrRefusal(() =>
+    evaluateDocument(depsOverride ?? evalDeps(pool), target),
   );
 
   enforceTrue(

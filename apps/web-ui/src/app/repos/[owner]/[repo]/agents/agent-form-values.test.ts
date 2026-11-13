@@ -47,4 +47,42 @@ describe("agentFormValues", () => {
       promptInherited: false,
     });
   });
+
+  it("prefills the skills lore-context and cli-design from the agent's config, and none for a null config", () => {
+    const agent = {
+      name: "loop-tdd",
+      model: "claude-opus-4-7",
+      timeout_minutes: 60,
+      prompt: "Make the test pass.",
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: { skills: ["lore-context", "cli-design"] },
+      project_id: null,
+    } satisfies AgentDefinition;
+
+    expect([
+      agentFormValues(agent, { isNew: false }).skills,
+      agentFormValues(null, { isNew: true }).skills,
+    ]).toEqual([["lore-context", "cli-design"], []]);
+  });
+
+  it("prefills adjustSkillModels false for the skills_source https://gw/skills/verbatim and true for a null config", () => {
+    const agent = {
+      name: "loop-tdd",
+      model: null,
+      timeout_minutes: null,
+      prompt: null,
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: { skills_source: "https://gw/skills/verbatim" },
+      project_id: null,
+    } satisfies AgentDefinition;
+
+    expect([
+      agentFormValues(agent, { isNew: false }).adjustSkillModels,
+      agentFormValues(null, { isNew: true }).adjustSkillModels,
+    ]).toEqual([false, true]);
+  });
 });

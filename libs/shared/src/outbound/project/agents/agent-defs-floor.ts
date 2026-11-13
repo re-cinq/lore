@@ -6,11 +6,12 @@ import type {
   DefinitionApi,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../../lib/enforce.js";
+import { skillsSourceWith } from "../../../domain/agents/skills-source.js";
 import type {
   AgentDefinition,
   AgentDefinitionInput,
   AgentDefsWritePort,
-  PodResourcesWrite,
+  ConfigWrite,
 } from "./agent-defs-port.js";
 
 type Variant = Partial<AgentSettings>;
@@ -66,7 +67,7 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     repo: string,
     name: string,
     patch: Patch,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition> {
     const body = await this.bodyOf(name);
     const variant = variantEntry(body, repo)?.variant ?? {};
@@ -87,7 +88,7 @@ export class FloorAgentDefs implements AgentDefsWritePort {
   async updateOrg(
     name: string,
     patch: Patch,
-    podResources?: PodResourcesWrite,
+    podResources?: ConfigWrite,
   ): Promise<AgentDefinition> {
     enforceKeepsRequired(name, patch);
     const body = await this.bodyOf(name);
@@ -224,14 +225,14 @@ function variantKey(repo: string): string {
 function patched(
   target: Variant,
   patch: Patch,
-  podResources: PodResourcesWrite | undefined,
+  podResources: ConfigWrite | undefined,
 ): Variant {
   const fields = Object.entries(FLOOR_FIELDS).reduce(
     (next, [field, key]) => withField(next, key, patch[field as keyof Patch]),
     target,
   );
 
-  return podResources ? withPodResources(fields, podResources) : fields;
+  return podResources ? withConfigKeys(fields, podResources) : fields;
 }
 
 function withField<Target extends object>(
@@ -249,11 +250,18 @@ function withField<Target extends object>(
   return value === null ? rest : { ...rest, [key]: value };
 }
 
-function withPodResources(target: Variant, write: PodResourcesWrite): Variant {
-  const config = withField(
-    target.config ?? {},
-    "pod_resources",
-    write.podResources,
+function withConfigKeys(target: Variant, write: ConfigWrite): Variant {
+  const config = withSkillsSource(
+    withField(
+      withField(
+        withField(target.config ?? {}, "pod_resources", write.podResources),
+        "mcp_servers",
+        write.mcpServers,
+      ),
+      "skills",
+      write.skills,
+    ),
+    write,
   );
 
   return withField(
@@ -261,6 +269,38 @@ function withPodResources(target: Variant, write: PodResourcesWrite): Variant {
     "config",
     Object.keys(config).length > 0 ? config : null,
   );
+}
+
+function withSkillsSource(
+  config: Record<string, unknown>,
+  write: ConfigWrite,
+): Record<string, unknown> {
+  return withField(config, "skills_source", skillsSourceToStore(config, write));
+}
+
+/** The source this write stores, or undefined to leave the stored one alone: the adjusting flag rewrites the known source, and a write that adds skills seeds one when none is known. */
+function skillsSourceToStore(
+  config: Record<string, unknown>,
+  write: ConfigWrite,
+): string | undefined {
+  const known = config.skills_source ?? write.inheritedConfig?.skills_source;
+  const source = known ?? write.skillsSource;
+  const { adjustSkillModels: adjust } = write;
+
+  if (typeof source !== "string") {
+    return undefined;
+  }
+
+  return adjust === undefined
+    ? seededSkillsSource(source, { known: Boolean(known), write })
+    : skillsSourceWith(source, { adjust });
+}
+
+function seededSkillsSource(
+  source: string,
+  { known, write }: { known: boolean; write: ConfigWrite },
+): string | undefined {
+  return !known && write.skills?.length ? source : undefined;
 }
 
 function renamedVariant(

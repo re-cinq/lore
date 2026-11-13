@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   guard:
+    # The build workflows push image-tag bumps to main as the Actions bot; those are the one expected direct push.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Flag commits on main with no associated PR

@@ -1,5 +1,7 @@
 # Tasks: Scheduled Job Runtime Split
 
+This is the task list of the original design, superseded on 2026-10-02 when Lore's own Floor was deleted. [`spec.md`](./spec.md) holds what runs.
+
 ## Phase 1 — Folder reorg (no behavior change)
 
 - [x] T001 Create `agent/src/jobs/cron/` and move the 10 batch-job files into it (`reindex`, `gap-detect`, `spec-drift` + `spec-drift-rules` + its test, `spec-test-linker` + its test, `eval-runner`, `context-core-builder`, `autoresearch`, `memory-lifecycle`, `ttl-cleanup`); fix import depth (`../` → `../../`, same-folder siblings stay `./`)

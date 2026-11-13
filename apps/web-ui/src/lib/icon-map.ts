@@ -31,6 +31,7 @@ export type IconName =
   | "navRepos"
   | "navRuns"
   | "navAgents"
+  | "navSkills"
   | "navSpecs"
   | "navAdrs"
   | "navGraph"
@@ -47,7 +48,8 @@ export type IconName =
   | "sidebarExpand"
   | "github"
   | "arrowRight"
-  | "info";
+  | "info"
+  | "issue";
 
 // Chicago (Win98) reuses the pixelarticons set — its blocky glyphs read as period-correct chrome next to the beveled silver controls.
 const PIXELART: Record<IconName, string> = {
@@ -81,6 +83,7 @@ const PIXELART: Record<IconName, string> = {
   navRepos: "pixelarticons:folder",
   navRuns: "pixelarticons:git-branch",
   navAgents: "pixelarticons:android",
+  navSkills: "pixelarticons:wand",
   navSpecs: "pixelarticons:file",
   navAdrs: "pixelarticons:file-alt",
   navGraph: "pixelarticons:flatten",
@@ -98,6 +101,7 @@ const PIXELART: Record<IconName, string> = {
   github: "pixelarticons:github",
   arrowRight: "pixelarticons:arrow-right",
   info: "pixelarticons:info-box",
+  issue: "pixelarticons:clipboard",
 };
 
 // Lore and Elegant share the Lucide set: Lore v2 is drawn with Lucide icons.
@@ -132,6 +136,7 @@ const LUCIDE: Record<IconName, string> = {
   navRepos: "lucide:folder-git-2",
   navRuns: "lucide:workflow",
   navAgents: "lucide:bot",
+  navSkills: "lucide:wand-sparkles",
   navSpecs: "lucide:file-text",
   navAdrs: "lucide:file-check",
   navGraph: "lucide:network",
@@ -149,6 +154,7 @@ const LUCIDE: Record<IconName, string> = {
   github: "lucide:github",
   arrowRight: "lucide:arrow-right",
   info: "lucide:info",
+  issue: "lucide:circle-dot",
 };
 
 export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {

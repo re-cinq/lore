@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { searchMemory } from "@/lib/api/memory";
 import { getChunks } from "@/lib/api/chunks";
+import { filterCrossRepoMemories } from "./filter-memories";
 import SearchView, {
   type SearchResult,
   type SearchRepoOption,
@@ -38,10 +39,13 @@ async function repoFilterOptions(): Promise<SearchRepoOption[]> {
 
 /** One memory call covers memories and facts alike — lore-api runs both ranked searches and returns them as one list — and the chunk hits come from lore-api too, which owns the schema union. */
 async function runSearch(q: string, repo?: string): Promise<SearchResult[]> {
-  const memoryHits = await searchMemory(q);
-  const memoryResults = (memoryHits.status === "ok"
-    ? memoryHits.data.results
-    : []) as unknown as SearchResult[];
+  const memoryHits = await searchMemory(q, repo);
+  const memoryResults = filterCrossRepoMemories(
+    (memoryHits.status === "ok"
+      ? memoryHits.data.results
+      : []) as unknown as SearchResult[],
+    repo,
+  );
   const chunkHits = await getChunks({ repo, q, limit: 20 });
   const chunkResults = (chunkHits.status === "ok"
     ? chunkHits.data.chunks

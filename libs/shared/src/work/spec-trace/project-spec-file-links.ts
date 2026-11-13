@@ -18,13 +18,14 @@ import { repoRelativeLinkTarget } from "./link-target-path.js";
 import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { resolveAnchorLine } from "../../domain/spec-trace/resolve-anchor-line.js";
+import { testTitleAt } from "../../domain/spec-trace/test-declarations.js";
 import type { ProjectionContext } from "./project-spec-file-context.js";
 
 /** Parses `[label](path#Lline)` parentheticals from a statement's text. */
 type LinkParser = (statement: string) => SpecLinkRef[];
 
 /** Per-node extra predicates beyond the shared repo/file_path/start_line set. */
-type ExtraChunkFields = (link: SpecLinkRef) => Record<string, unknown>;
+type ExtraChunkFields = (link: SpecLinkRef) => Promise<Record<string, unknown>>;
 
 /** Builds a linked chunk's full xid from the repo + resolved link. */
 type ChunkXid = (repo: string, link: SpecLinkRef) => string;
@@ -109,6 +110,20 @@ function linkTargetsQuery({
       }`;
 }
 
+/** Resolves the actual test name at a link's cited line, falling back to the label when the file is unreadable or no declaration sits at or above the line. */
+export async function resolveTestName(
+  link: Pick<SpecLinkRef, "label" | "path" | "line">,
+  readLinked: ProjectionContext["readLinked"],
+): Promise<string> {
+  if (!readLinked || link.line == null) {
+    return link.label;
+  }
+  const content = await readLinked(link.path);
+  const title = content != null ? testTitleAt(content, link.line) : null;
+
+  return title ?? link.label;
+}
+
 /** The test chunks this text links to. A test's xid is FILE-scoped rather than line-scoped: a test keeps its identity when the file above it grows, and re-anchoring on every shifted line would churn the graph for no change in meaning. */
 async function projectTestLinks(
   context: ProjectionContext,
@@ -118,10 +133,10 @@ async function projectTestLinks(
     parse: parseTestLinksInStatement,
     nodeType: "TestChunk",
     buildXid: fileScopedXid,
-    extraFields: (link) => ({
-      "TestChunk.test_name": link.label,
+    extraFields: async (link) => ({
+      "TestChunk.test_name": await resolveTestName(link, context.readLinked),
       "TestChunk.link_label": link.label,
-      ...anchorHashField("TestChunk", link),
+      ...(link.hash === null ? {} : { "TestChunk.anchor_hash": link.hash }),
     }),
   });
 }
@@ -135,45 +150,82 @@ async function projectCodeLinks(
     parse: parseCodeLinksInStatement,
     nodeType: "CodeChunk",
     buildXid: anchorScopedXid,
-    extraFields: (link) => anchorHashField("CodeChunk", link),
+    extraFields: async (link) =>
+      link.hash === null ? {} : { "CodeChunk.anchor_hash": link.hash },
   });
-}
-
-function anchorHashField(
-  nodeType: SpecTraceNodeType,
-  link: SpecLinkRef,
-): Record<string, string> {
-  return link.hash === null ? {} : { [`${nodeType}.anchor_hash`]: link.hash };
 }
 
 /** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
 async function projectLinkedChunks(
   context: ProjectionContext,
   text: string,
-  { parse, nodeType, buildXid, extraFields = () => ({}) }: LinkedChunkKind,
+  kind: LinkedChunkKind,
 ): Promise<string[]> {
-  const { dgraph, repo, filePath } = context;
   const uids: string[] = [];
 
-  for (const written of resolvedLinks(filePath, text, parse)) {
-    const link = await anchoredLink(context, written);
-
-    uids.push(
-      await upsertByXid(
-        dgraph,
-        nodeType,
-        buildXid(repo, link),
-        chunkFields(repo, link, nodeType, extraFields),
-      ),
-    );
+  for (const written of resolvedLinks(context.filePath, text, kind.parse)) {
+    uids.push(await upsertOneLink(context, written, kind));
   }
 
   return uids;
 }
 
+async function upsertOneLink(
+  context: ProjectionContext,
+  written: SpecLinkRef,
+  kind: LinkedChunkKind,
+): Promise<string> {
+  const { nodeType, buildXid, extraFields = async () => ({}) } = kind;
+  const link = await anchoredLink(context, written);
+
+  return upsertByXid(
+    context.dgraph,
+    nodeType,
+    buildXid(context.repo, link),
+    chunkFields(context.repo, link, nodeType, await extraFields(link)),
+  );
+}
+
+/** The chunks a text's links would point at, and whether each hashed link still sits on the line the text gives it. */
+export interface PlannedLinks {
+  validated: string[];
+  implemented: string[];
+  linksInSync: boolean;
+}
+
+/** What {@link projectLinkEdges} would write for `text`, without writing it: a cited line that moved changes the chunk though the text did not, so it counts as out of sync. */
+export async function plannedLinks(
+  context: Pick<ProjectionContext, "repo" | "filePath" | "readLinked">,
+  text: string,
+): Promise<PlannedLinks> {
+  const tests = await anchoredLinks(context, text, parseTestLinksInStatement);
+  const code = await anchoredLinks(context, text, parseCodeLinksInStatement);
+
+  return {
+    validated: tests.map(({ link }) => fileScopedXid(context.repo, link)),
+    implemented: code.map(({ link }) => anchorScopedXid(context.repo, link)),
+    linksInSync: [...tests, ...code].every(
+      ({ link, written }) => link.line === written.line,
+    ),
+  };
+}
+
+async function anchoredLinks(
+  context: Pick<ProjectionContext, "filePath" | "readLinked">,
+  text: string,
+  parse: LinkParser,
+): Promise<Array<{ written: SpecLinkRef; link: SpecLinkRef }>> {
+  return Promise.all(
+    resolvedLinks(context.filePath, text, parse).map(async (written) => ({
+      written,
+      link: await anchoredLink(context, written),
+    })),
+  );
+}
+
 /** The link at the line its content hash now sits on in the cited file, when the projection can read it. */
 async function anchoredLink(
-  { readLinked }: ProjectionContext,
+  { readLinked }: Pick<ProjectionContext, "readLinked">,
   link: SpecLinkRef,
 ): Promise<SpecLinkRef> {
   if (!readLinked || link.hash === null) {
@@ -205,19 +257,14 @@ function chunkFields(
   repo: string,
   link: SpecLinkRef,
   nodeType: SpecTraceNodeType,
-  extraFields: ExtraChunkFields,
+  extra: Record<string, unknown>,
 ): Record<string, unknown> {
-  const fields: Record<string, unknown> = {
+  return {
     [`${nodeType}.repo`]: repo,
     [`${nodeType}.file_path`]: link.path,
-    ...extraFields(link),
+    ...extra,
+    ...(link.line != null ? { [`${nodeType}.start_line`]: link.line } : {}),
   };
-
-  if (link.line != null) {
-    fields[`${nodeType}.start_line`] = link.line;
-  }
-
-  return fields;
 }
 
 /** A dropped chunk is deleted only if nothing else owns it (another link, or a Coverage row). */

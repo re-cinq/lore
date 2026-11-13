@@ -221,7 +221,9 @@ export class InMemoryChunks implements ChunksPort {
 
   async testChunksForBackfill(repo: string): Promise<CodeChunkFull[]> {
     return this.forRepo(repo)
-      .filter((row) => isSourceRow(row) && isTestFile(row.filePath))
+      .filter(
+        (row) => isSourceRow(row) && isTestFile(row.filePath, row.content),
+      )
       .map((row) => ({
         filePath: row.filePath,
         content: row.content,

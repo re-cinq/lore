@@ -59,11 +59,18 @@ describe("GET /healthz", () => {
 
   it("returns 503 {status:error} when disconnected and LORE_DB_HOST set", async () => {
     process.env.LORE_DB_HOST = "db.internal";
-    vi.mocked(getHealthStatus).mockResolvedValue({ connected: false } as any);
+    vi.mocked(getHealthStatus).mockResolvedValue({
+      connected: false,
+      chunk_count: null,
+      reason: "connection failed",
+    });
     const res = await inject(null);
 
     expect(res.statusCode).toBe(503);
-    expect(res.result).toEqual({ status: "error" });
+    expect(res.result).toEqual({
+      status: "error",
+      reason: "connection failed",
+    });
   });
 
   it("returns 200 ok when disconnected but no LORE_DB_HOST configured", async () => {

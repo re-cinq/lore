@@ -56,6 +56,10 @@
       "description": "Scoped API token management, and the web sign-in that mints a person's session token."
     },
     {
+      "name": "Inbox",
+      "description": "Per-person inbox items and their read/handled state."
+    },
+    {
       "name": "Meta",
       "description": "The OpenAPI document and its reference UI."
     }
@@ -414,6 +418,109 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "mcp_servers": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "transport": {
+                              "type": "string",
+                              "enum": ["stdio", "http", "sse"]
+                            },
+                            "command": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "headers_secret": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "headers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "env": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["name", "transport"],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
@@ -3698,6 +3805,131 @@
         ]
       }
     },
+    "/api/inbox": {
+      "get": {
+        "operationId": "get_api_inbox",
+        "summary": "GET /api/inbox",
+        "tags": ["Inbox"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "A page of inbox items aggregated from plan and onboarding sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/inbox/items/{item_id}/state": {
+      "put": {
+        "operationId": "put_api_inbox_items_item_id_state",
+        "summary": "PUT /api/inbox/items/{item_id}/state",
+        "tags": ["Inbox"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The per-person inbox item state was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxItemStateSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "person": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "handled": {
+                    "type": "boolean"
+                  },
+                  "snoozed_until": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["person"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ingest": {
       "post": {
         "operationId": "post_api_ingest",
@@ -4356,6 +4588,15 @@
               "minLength": 1,
               "maxLength": 500
             }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
           }
         ]
       }
@@ -4822,6 +5063,44 @@
         ]
       }
     },
+    "/api/repos/available": {
+      "get": {
+        "operationId": "get_api_repos_available",
+        "summary": "GET /api/repos/available",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "GitHub App repos not yet onboarded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableRepos"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repos/{owner}/{repo}": {
       "get": {
         "operationId": "get_api_repos_owner_repo",
@@ -5097,6 +5376,109 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "mcp_servers": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "transport": {
+                              "type": "string",
+                              "enum": ["stdio", "http", "sse"]
+                            },
+                            "command": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "headers_secret": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "headers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "env": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["name", "transport"],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
@@ -5341,6 +5723,109 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "mcp_servers": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "transport": {
+                              "type": "string",
+                              "enum": ["stdio", "http", "sse"]
+                            },
+                            "command": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "headers_secret": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "headers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "env": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "ref": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 253
+                                  }
+                                },
+                                "required": ["name", "ref"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": ["name", "transport"],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "skills": {
+                    "anyOf": [
+                      {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9][a-z0-9-]*$"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "adjust_skill_models": {
+                    "type": ["boolean", "null"]
                   }
                 },
                 "required": ["name"],
@@ -8114,6 +8599,173 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/plans/{id}/approve": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_approve",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/approve",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The plan is approved and its planning line moves on to the spec work; refused while the planning agent is still writing it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanApproved"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "approvedBy": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["approvedBy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/author-waiting": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_author-waiting",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/author-waiting",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The planning line parked on the plan's author: an approved plan is reopened so its people can answer; any other plan is left as it is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOpenedForAuthor"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/plans/{id}/collab-token": {
       "post": {
         "operationId": "post_api_repos_owner_repo_plans_id_collab-token",
@@ -8304,11 +8956,6 @@
                   "createdBy": {
                     "type": "string",
                     "minLength": 1
-                  },
-                  "storyIssue": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["known", "createdBy"],
@@ -8416,12 +9063,7 @@
                     "minLength": 1
                   },
                   "inputs": {},
-                  "uses": {},
-                  "storyIssue": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
-                  }
+                  "uses": {}
                 },
                 "required": [
                   "actor",
@@ -8431,6 +9073,382 @@
                   "inputs",
                   "uses"
                 ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/reopen": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_reopen",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/reopen",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The approved plan is open for writing again; an open spec PR is sent back to the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanReopened"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reopenedBy": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["reopenedBy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/spec-rework": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_spec-rework",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/spec-rework",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "The spec writer runs again in the same line with the spec PR's unresolved review: the specs are amended on the PR's branch, and whatever contradicts the plan comes back to it as questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanSpecReworkStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["actor"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/spec-work": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_spec-work",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/spec-work",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "A fresh spec pass for an approved plan whose line is not running: after a failed pass, or to revise merged specs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanSpecWorkStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "createdBy": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["createdBy"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/plans/{id}/validate": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_plans_id_validate",
+        "summary": "POST /api/repos/{owner}/{repo}/plans/{id}/validate",
+        "tags": ["Plans"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "Runs the plan validator over a draft plan parked on its author; findings land in the plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanValidateStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["actor"],
                 "additionalProperties": false
               }
             }
@@ -10953,16 +11971,7 @@
                   "task_id": {
                     "type": "string"
                   },
-                  "status": {
-                    "type": "string"
-                  },
                   "priority": {
-                    "type": "string"
-                  },
-                  "pr_url": {
-                    "type": "string"
-                  },
-                  "error": {
                     "type": "string"
                   }
                 },
@@ -11205,71 +12214,6 @@
           }
         },
         "x-required-scope": "read"
-      }
-    },
-    "/api/task-turns/{taskId}": {
-      "post": {
-        "operationId": "post_api_task-turns_taskId",
-        "summary": "POST /api/task-turns/{taskId}",
-        "tags": ["Tasks"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "turns",
-        "responses": {
-          "200": {
-            "description": "Turns accepted from a local runner",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TurnsRelayed"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "write",
-        "parameters": [
-          {
-            "name": "taskId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "description": "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/x-ndjson": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          }
-        }
       }
     },
     "/api/task/{id}": {
@@ -13588,6 +14532,25 @@
           "recent"
         ],
         "additionalProperties": false
+      },
+      "AvailableRepos": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "full_name": {
+              "type": "string"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": ["full_name", "owner", "name"],
+          "additionalProperties": false
+        }
       },
       "BlobPreviews": {
         "type": "object",
@@ -16312,6 +17275,86 @@
         ],
         "additionalProperties": false
       },
+      "InboxItemStateSaved": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "InboxPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "plan_review",
+                    "spec_pr",
+                    "triage",
+                    "onboarding_pr",
+                    "failed_run"
+                  ]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "waiting_since": {
+                  "type": "string"
+                },
+                "open_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "kind", "repo", "title", "waiting_since"],
+              "additionalProperties": false
+            }
+          },
+          "counts": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "plan_review",
+                "spec_pr",
+                "triage",
+                "onboarding_pr",
+                "failed_run"
+              ]
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["items", "counts", "next_cursor"],
+        "additionalProperties": false
+      },
       "IncidentRecorded": {
         "type": "object",
         "properties": {
@@ -18662,6 +19705,106 @@
         },
         "additionalProperties": {}
       },
+      "PlanApproved": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repo": {
+            "type": "string",
+            "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "feature",
+              "ui-change",
+              "performance",
+              "refactor",
+              "incident-response"
+            ]
+          },
+          "templateVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "in-review", "approved", "superseded"]
+          },
+          "approval": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["manual", "automatic"]
+                  },
+                  "approvedBy": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "approvedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["mode", "approvedBy", "approvedAt", "version"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "repo",
+          "type",
+          "templateVersion",
+          "title",
+          "status",
+          "approval",
+          "version",
+          "createdBy",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
       "PlanCollabToken": {
         "type": "object",
         "properties": {
@@ -18741,6 +19884,16 @@
         "required": ["plans"],
         "additionalProperties": false
       },
+      "PlanOpenedForAuthor": {
+        "type": "object",
+        "properties": {
+          "reopened": {
+            "type": "boolean"
+          }
+        },
+        "required": ["reopened"],
+        "additionalProperties": false
+      },
       "PlanRefineAsked": {
         "type": "object",
         "properties": {
@@ -18749,6 +19902,136 @@
           }
         },
         "required": ["slot"],
+        "additionalProperties": false
+      },
+      "PlanReopened": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repo": {
+            "type": "string",
+            "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "feature",
+              "ui-change",
+              "performance",
+              "refactor",
+              "incident-response"
+            ]
+          },
+          "templateVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "in-review", "approved", "superseded"]
+          },
+          "approval": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["manual", "automatic"]
+                  },
+                  "approvedBy": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "approvedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["mode", "approvedBy", "approvedAt", "version"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "repo",
+          "type",
+          "templateVersion",
+          "title",
+          "status",
+          "approval",
+          "version",
+          "createdBy",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PlanSpecReworkStarted": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": ["run_id"],
+        "additionalProperties": false
+      },
+      "PlanSpecWorkStarted": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          }
+        },
+        "required": ["task_id"],
+        "additionalProperties": false
+      },
+      "PlanValidateStarted": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": ["run_id"],
         "additionalProperties": false
       },
       "PlatformLlmStatus": {
@@ -23325,19 +24608,6 @@
           "type": "string"
         },
         "additionalProperties": {}
-      },
-      "TurnsRelayed": {
-        "type": "object",
-        "properties": {
-          "forwarded": {
-            "type": "number"
-          },
-          "skipped": {
-            "type": "number"
-          }
-        },
-        "required": ["forwarded", "skipped"],
-        "additionalProperties": false
       },
       "UtopiaBackfillSummary": {
         "type": "object",

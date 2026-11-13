@@ -10,20 +10,20 @@
 | Auth scope | `task` (prefix `/api/task` → `task`)             |
 | Module     | Tasks (`api/routes/tasks.ts` → `handleTaskPost`) |
 
-POST /api/task is the single action-dispatched write endpoint that mutates a pipeline task's lifecycle (retry, cancel, run now, set priority, status update) for the MCP server, the web UI, and the local runner. Since 2026-10-02 it creates no task: Lore no longer runs a typed task from a description (`specs/external-floor` FR16.7).
+POST /api/task is the single action-dispatched write endpoint that mutates a pipeline task's lifecycle (retry, cancel, run now, set priority) for the MCP server and the web UI. Since 2026-10-02 it creates no task: Lore no longer runs a typed task from a description (`specs/external-floor` FR16.7).
 
 ## Problem Statement
 
-The MCP server, the Slack bridge, the web UI, and the local task runner all
-need a single write endpoint to put a pipeline task into the system and to
-mutate its lifecycle afterwards. Rather than one route per verb, `POST /api/task`
+The MCP server, the Slack bridge and the web UI all
+need a single write endpoint to mutate a pipeline task's lifecycle. Rather than one route per verb, `POST /api/task`
 is an action-dispatched endpoint: a single body field (`action`) selects
-between the mutations (retry, cancel, run now, set priority, status update).
+between the mutations (retry, cancel, run now, set priority).
 A body that names no task used to create one; it is now refused with where that
 work goes instead: the backlog for code and documents, a plan for a feature, and
 the pull request itself for a review.
-The local runner reports progress back through the same endpoint with an
-`action`-less, `status`-bearing body.
+Until 2026-11-13 the local runner reported progress through the same endpoint
+with an `action`-less, `status`-bearing body; the runner and that branch are
+deleted, so such a body is refused like any body that names no action.
 
 ## Interface
 
@@ -37,7 +37,7 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 - **Method + path**: `POST /api/task`
 - **Auth scope**: `task`. `getRequiredScope` finds no `SCOPE_OVERRIDES` match and
   the first `ROUTE_SCOPES` prefix hit is `/api/task` → `"task"`
-  ([scope map @843e714d](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L37)). The legacy
+  ([scope map @843e714d](../../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L33)). The legacy
   `LORE_INGEST_TOKEN` and any `admin`-scoped token also pass. Rate-limit bucket
   is `task` (60/min).
 - **Body**: JSON object. The `action` field is the discriminator.
@@ -51,17 +51,13 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 | `run-now`       | `task_id`                       | —                                            |
 | `revise`        | `task_id`                       | — (always refused with `409`: a pull request is revised by a review on it) |
 | `set-priority`  | `task_id`, `priority`           | — (`priority` other than `immediate` → `normal`) |
-| _(none)_ status | `task_id`, `status`             | `pr_url`, `error`                            |
-
-`status` must be one of `running`, `pr-created`, `completed`, `failed`,
-`needs-human-help`, `cancelled`.
 
 ### Response status codes
 
 | Status | When                                                                  |
 |--------|-----------------------------------------------------------------------|
 | 200    | Any successful action.                                                |
-| 400    | A body that names no task (nothing is created here); invalid `status` value. |
+| 400    | A body that names no task (nothing is created here) |
 | 500    | JSON parse error or any thrown handler error.                         |
 | 503    | `pool` is null (database not available).                              |
 
@@ -103,18 +99,9 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
    AND status = 'pending'` with `[resolvedPriority, task_id]`. Return
    `200 { ok: true, task_id, priority: resolvedPriority }`. (Only `pending` tasks
    are repriced; the response echoes the requested priority regardless of rows hit.)
-7. **Status update** — if there is **no** `action` **and** both `task_id` and
-   `status` are present (local-runner progress report):
-   1. Reject with `400 { error: "invalid status: <status>" }` if `status` is not
-      in the allow-list above.
-   2. Build a dynamic `SET` clause starting `status = $1, updated_at = now()`;
-      append `pr_url = $N` when `pr_url` is present and `error = $N` when `error`
-      is present, pushing values in order. Push `task_id` last.
-   3. `UPDATE pipeline.tasks SET <clauses> WHERE id = $<last>`.
-   4. Return `200 { ok: true, task_id, status }`.
-8. **No task named** — a body that matched no branch above is refused with
+7. **No task named** — a body that matched no branch above is refused with
    `400` and the pointer to where that work goes now. Nothing is created.
-9. **Catch-all** — any thrown error logs `"[api/task] error:"` and returns
+8. **Catch-all** — any thrown error logs `"[api/task] error:"` and returns
    `500 { error: err.message }`.
 
 Branch precedence is strict top-to-bottom: a `set-priority` action with no
@@ -129,8 +116,6 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 | cancel missing  | 404    | `{ error: "Task not found" }`                     |
 | cancel terminal | 409    | `{ error: "Cannot cancel task in <state> state" }` |
 | set-priority    | 200    | `{ ok: true, task_id, priority }`                 |
-| status invalid  | 400    | `{ error: "invalid status: <status>" }`           |
-| status update   | 200    | `{ ok: true, task_id, status }`                   |
 | no task named   | 400    | `{ error: "Lore no longer runs typed tasks, …" }` |
 | revise          | 409    | `{ error: "A task is no longer revised from here. …" }` |
 | parse / throw   | 500    | `{ error: <message> }`                            |
@@ -139,7 +124,7 @@ Branch precedence is strict top-to-bottom: a `set-priority` action with no
 ## Dependencies & side effects
 
 - Handler `handleTaskPost`; helpers `retryTask` (dynamic import), `readBody`, `json`.
-- DB writes: `pipeline.tasks` (set-priority, status update);
+- DB writes: `pipeline.tasks` (set-priority);
   `retryTask` / `cancelPipelineTask` own their own inserts/reads, and the cancel
   path also writes `pipeline.task_events`.
 - Auth: `pipeline.api_tokens` (scope check, upstream in the dispatcher).
@@ -157,7 +142,7 @@ Cancelling an unknown task id answers 404 rather than reporting success. ([valid
 
 Cancelling a merged task answers 409 with the refusal reason. ([validated by returns 409 when cancelling a merged task @d684af3a](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L132))
 
-A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition @d492c271](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L276))
+A `cancel` action records the status transition in `pipeline.task_events`. ([validated by cancel records a task_events row for the status transition @d492c271](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L252))
 
 A `cancel` action also ends every assembly run still open for the task, as `finished` with outcome `cancelled`, leaving other tasks' runs alone — a run left running kept its plan's subject lock, kept waiting on a closed spec PR, and was resumed by a later Retry (plan 3b3a67af, run 18773dbb, 2026-09-28). ([validated by cancels task t1 and ends its open run as cancelled, leaving task t2's run running @cae05f0f](apps/lore-api/src/work/pipeline/cancel-task.test.ts#L20))
 
@@ -175,21 +160,17 @@ A `revise` action queues nothing and answers `409`, pointing at a review that re
 
 `set-priority` with any other value normalizes to `normal`. ([validated by normalizes a non-immediate priority @c1cc901b](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L206))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority @4e97e632](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L292))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by set-priority updates only pending tasks with the resolved priority @4e97e632](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L268))
 
-`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400 @b2c7ef11](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L306))
+`set-priority` missing `priority` changes nothing and answers `400`. ([validated by set-priority without a priority changes nothing and answers 400 @b2c7ef11](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L282))
 
-A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by updates status with pr_url and error @afd1742f](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L218))
+A body with a `task_id` and a `status` but no `action` changes nothing and is refused like any body that names no action. ([validated by answers 400 with where the work goes now for a status-only body @ad5d090e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L218))
 
-A status update without optional fields still returns the status envelope. ([validated by updates status without optional fields @d058814e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L234))
+No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now @3da0ea7e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L225), [validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L239))
 
-An out-of-allow-list status returns 400. ([validated by rejects an invalid status @9e84e159](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L243))
+Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500 @324140cb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L246))
 
-No task is created from a description, whatever type the body names: the answer is `400` with where that work goes now (an issue with a `priority:*` label, a plan, or the review every pull request already gets). ([validated by creates no %s task and says where that work goes now @3da0ea7e](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L249), [validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
-
-Invalid JSON returns 500. ([validated by returns 400 on invalid JSON, not 500 @324140cb](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L270))
-
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts@a945c5d2`](apps/lore-api/src/transport/http/rate-limit.test.ts#L72))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts@a945c5d2`](apps/lore-api/src/transport/http/rate-limit.test.ts#L85))
 
 ## Out of Scope
 
