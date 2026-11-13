@@ -8,8 +8,6 @@ export type PlanSubject = PlanRef & { status: string };
 export interface DraftingRequest {
   known: string;
   createdBy: string;
-  /** The issue number of the user story the plan answers, carried on its planning run. */
-  storyIssue?: number;
 }
 
 /** What the plan routes ask of a plan's planning line, the same whichever engine holds it. Each verb answers what its route answers: a run or task id, or nothing. */
@@ -23,11 +21,7 @@ export interface PlanVerbs {
     plan: PlanSubject,
     reopen: (planId: string) => Promise<unknown>,
   ): Promise<boolean>;
-  startSpecWork(
-    plan: PlanSubject,
-    createdBy: string,
-    storyIssue?: number,
-  ): Promise<string>;
+  startSpecWork(plan: PlanSubject, createdBy: string): Promise<string>;
   reworkSpec(plan: PlanSubject, actor: string): Promise<string>;
   validate(plan: PlanSubject, actor: string): Promise<string>;
 }

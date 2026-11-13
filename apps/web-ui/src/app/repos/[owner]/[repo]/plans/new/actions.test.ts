@@ -152,7 +152,7 @@ describe("createPlanAction", () => {
     });
   });
 
-  it("asks for the draft with user story 42 when the form names re-cinq/lore issue 42", async () => {
+  it("asks for the draft without a story when the form names re-cinq/lore issue 42, which lore-api reads from the plan", async () => {
     await expect(
       createPlanAction(
         "re-cinq/lore",
@@ -167,7 +167,7 @@ describe("createPlanAction", () => {
     ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
     expect(calls().at(-1)).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
-      body: { known: "", createdBy: "gedaiu", storyIssue: 42 },
+      body: { known: "", createdBy: "gedaiu" },
     });
   });
 });

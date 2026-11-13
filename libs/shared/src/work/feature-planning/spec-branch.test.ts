@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ensureSpecBranch,
+  planIdOfSpecBranch,
   specBranchOf,
   type SpecBranchRepo,
 } from "./spec-branch.js";
@@ -63,5 +64,26 @@ describe("ensureSpecBranch", () => {
     await ensureSpecBranch(repo, { id: "p1" });
 
     expect(repo.created).toEqual([]);
+  });
+});
+
+describe("planIdOfSpecBranch", () => {
+  it("reads plan p1 from lore/feature-planning/p1", () => {
+    expect(planIdOfSpecBranch("lore/feature-planning/p1")).toBe("p1");
+  });
+
+  it("reads the plan id back from the branch specBranchOf names for it", () => {
+    expect(planIdOfSpecBranch(specBranchOf({ id: "p1" }))).toBe("p1");
+  });
+
+  it("reads no plan from a branch a person cut", () => {
+    expect(planIdOfSpecBranch("feature/checkout")).toBeUndefined();
+  });
+
+  it("reads no plan from the bare prefix or a deeper path", () => {
+    expect([
+      planIdOfSpecBranch("lore/feature-planning/"),
+      planIdOfSpecBranch("lore/feature-planning/p1/extra"),
+    ]).toEqual([undefined, undefined]);
   });
 });

@@ -11,6 +11,10 @@ import { pgPlanStore } from "../outbound/plans/plan-store-pg.js";
 import { livePlanOf } from "../outbound/plans/live-plan.js";
 import { pgRefineAsks } from "../work/plans/refine-asks-pg.js";
 import { planFileRoutes } from "../transport/routes/plans/plan-file.js";
+import { planStoryRoutes } from "../transport/routes/plans/plan-story.js";
+import { pgPlanStories } from "../work/plans/plan-stories-pg.js";
+import type { PlanStoryPorts } from "../work/plans/plan-story.js";
+import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import type { PlanFilePorts } from "../work/plans/plan-file.js";
 import type { PlanLifecyclePorts } from "../transport/routes/plans/plan-lifecycle.js";
 import { collabAuthenticator } from "../work/plans/collab-tokens.js";
@@ -22,6 +26,7 @@ import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
 import {
   floorClient,
   floorConfigured,
+  floorIfConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { planAgentPresenceOn } from "../work/plans/plan-agent-presence-floor.js";
 import type { PresenceWriter } from "../work/plans/plan-agent-presence.js";
@@ -66,6 +71,7 @@ function routePlans(
   { pool }: { pool: () => Pool },
 ): void {
   server.route(planFileRoutes(filePorts(livePlanOf(sync), sync, pool)));
+  server.route(planStoryRoutes(storyPorts(pool, seams.floorDeps)));
   server.ext("onPreHandler", planRouteGuard(server));
 }
 
@@ -131,4 +137,31 @@ function filePorts(
   pool: () => Pool,
 ): PlanFilePorts {
   return { livePlan, writer: sync.writer, refineAsks: pgRefineAsks(pool) };
+}
+
+// The newest run's story is read from the deployment's own floor, and a deployment with none has no run to read.
+function storyPorts(
+  pool: () => Pool,
+  floorDeps: PlanVerbSeams["floorDeps"],
+): PlanStoryPorts {
+  const store = pgPlanStore(pool);
+
+  return {
+    plan: (planId) => store.getMeta(planId),
+    stories: pgPlanStories(pool),
+    runStory: async (plan) =>
+      runStoryOn(floorDeps?.floor ?? floorIfConfigured(), plan),
+  };
+}
+
+async function runStoryOn(
+  floor: Parameters<typeof floorPlanLineState>[0] | null,
+  { id, repo }: { id: string; repo: string },
+): Promise<number | null> {
+  if (!floor) {
+    return null;
+  }
+  const line = await floorPlanLineState(floor, { repo, planId: id });
+
+  return line?.storyIssue ?? null;
 }

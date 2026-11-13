@@ -8956,11 +8956,6 @@
                   "createdBy": {
                     "type": "string",
                     "minLength": 1
-                  },
-                  "storyIssue": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["known", "createdBy"],
@@ -9068,12 +9063,7 @@
                     "minLength": 1
                   },
                   "inputs": {},
-                  "uses": {},
-                  "storyIssue": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
-                  }
+                  "uses": {}
                 },
                 "required": [
                   "actor",
@@ -9362,11 +9352,6 @@
                   "createdBy": {
                     "type": "string",
                     "minLength": 1
-                  },
-                  "storyIssue": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 9007199254740991
                   }
                 },
                 "required": ["createdBy"],

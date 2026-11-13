@@ -141,10 +141,8 @@ export async function retrySpecWorkAction(
   planId: string,
   story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, ({ storyIssue }) =>
-    inUsersName(fullName, planId, (repo, id, userId) =>
-      startSpecWork(repo, id, userId, storyIssue),
-    ),
+  return withStory(story, fullName, () =>
+    inUsersName(fullName, planId, startSpecWork),
   );
 }
 
@@ -170,9 +168,9 @@ export async function refinePlanAction(
   refine: RefineAsk,
   story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, (named) =>
+  return withStory(story, fullName, () =>
     inUsersName(fullName, planId, (repo, id, userId) =>
-      askRefine(repo, id, { ...refine, ...named, actor: userId }),
+      askRefine(repo, id, { ...refine, actor: userId }),
     ),
   );
 }
@@ -183,7 +181,7 @@ export async function draftAgainAction(
   planId: string,
   story = "",
 ): Promise<{ error?: string }> {
-  return withStory(story, fullName, async (named) => {
+  return withStory(story, fullName, async () => {
     const allowed = await allowedUser(fullName);
 
     if ("error" in allowed) {
@@ -192,7 +190,6 @@ export async function draftAgainAction(
     const started = await startDrafting(fullName, planId, {
       known: "",
       createdBy: allowed.user.id,
-      ...named,
     });
 
     return started.status === "ok"
@@ -201,17 +198,15 @@ export async function draftAgainAction(
   });
 }
 
-type NamedStory = { storyIssue?: number };
-
-// An action with the user story typed on the page; a story naming no issue of the repo is refused before anything is asked.
+// An action with the user story typed on the page; a story naming no issue of the repo is refused before anything is asked. lore-api reads the plan's saved story itself, so the typed one is no longer sent.
 async function withStory(
   story: string,
   fullName: string,
-  act: (named: NamedStory) => Promise<{ error?: string }>,
+  act: () => Promise<{ error?: string }>,
 ): Promise<{ error?: string }> {
   const named = storyField(story, fullName);
 
-  return "error" in named ? named : act(named);
+  return "error" in named ? named : act();
 }
 
 type PlanRoute = (

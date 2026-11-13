@@ -145,6 +145,7 @@ function scene(
     specTicketsIssuesHandle({
       runOf: async () => "run-1",
       project: async () => project as never,
+      savePlanStory: async () => undefined,
     })(
       { ...brief, needs: { ...needs, verified_decomposition: "verified" } },
       tools,

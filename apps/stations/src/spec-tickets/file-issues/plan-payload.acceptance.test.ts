@@ -112,6 +112,7 @@ function handleFor(
   return specTicketsIssuesHandle({
     runOf: () => Promise.resolve("run-1"),
     project: () => Promise.resolve(project),
+    savePlanStory: () => Promise.resolve(),
     ...overrides,
   });
 }

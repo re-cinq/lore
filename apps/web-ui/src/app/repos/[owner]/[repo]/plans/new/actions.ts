@@ -120,14 +120,10 @@ async function planRecord(
 }
 
 function draftingRequestOf(
-  { description, storyIssue }: NewPlanInput,
+  { description }: NewPlanInput,
   user: PlanUser,
 ): DraftingRequest {
-  return {
-    known: description,
-    createdBy: user.id,
-    ...(storyIssue ? { storyIssue } : {}),
-  };
+  return { known: description, createdBy: user.id };
 }
 
 // A valid form from a signed-in person, or what is wrong with it.
