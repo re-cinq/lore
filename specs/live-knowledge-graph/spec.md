@@ -144,9 +144,12 @@ accumulation period required.
 
 ### FR-4: Graph Query MCP Tool
 
-- FR-4.1: `lore_query_graph(entity?, relation_type?, depth?)` returns
-  entities and their relationships.
-- FR-4.2: `depth` controls traversal hops (default 1, max 3).
+- FR-4.1: `lore_query_graph(entity?, relation_type?)` returns
+  entities and their relationships, one hop from the entity.
+- FR-4.2: *(Dropped 2026-11-13, #3834.)* A `depth` of 1 to 3 hops was planned
+  and never built: the read is one hop and the tool takes no `depth`. In the
+  one month of stored agent transcripts the tool was called 20 times in 6
+  runs (#1116), so multi-hop traversal is not worth building.
 - FR-4.3: Results filtered to `valid_to IS NULL` by default.
 - FR-4.4: Optional `repo` scope parameter. The live-graph read binds the queried
   repo and maps each row to a `GraphEdge`. ([validated by `queries the live graph bound to the repo and maps to GraphEdge` @5cb707f0](libs/shared/src/outbound/project/knowledge/knowledge-pg.test.ts#L36))
@@ -177,7 +180,7 @@ accumulation period required.
 
 - Entity extraction adds no latency to an episode write: it runs after
   the response *(amended 2026-11-13: was a 500ms budget)*.
-- Graph queries return in under 200ms for depth <= 2.
+- Graph queries return in under 200ms.
 - Graph augmentation adds < 100ms to search.
 
 ### NFR-2: Scale
