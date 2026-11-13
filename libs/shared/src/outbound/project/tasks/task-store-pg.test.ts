@@ -44,7 +44,7 @@ describe("PgTaskStore", () => {
     const updated = await store.transition("a", "cancel");
 
     expect(capture[0].text).toContain("UPDATE pipeline.tasks");
-    expect(capture[0].params).toEqual(["a", "cancelled", null]);
+    expect(capture[0].params).toEqual(["a", "cancelled"]);
     expect(updated).toMatchObject({ id: "a", status: "cancelled" });
   });
 

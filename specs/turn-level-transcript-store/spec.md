@@ -95,7 +95,7 @@ colocated test suite exercising both.
 
 ## FR3 — The ingest tee
 
-> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and a local run's turns are stored by lore-api itself (`specs/api-routes/task-turns`). The statements below are kept as the record of how the store was fed and read.
+> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and the local runner's relay, `POST /api/task-turns/{taskId}`, was deleted on 2026-11-13 with the runner. The statements below are kept as the record of how the store was fed and read.
 
 The collector lives at `apps/floor/src/work/agent/agent-run-turns.ts` and
 is driven from the **existing single pass** in `parseAgentSink`
@@ -115,17 +115,15 @@ produces the cost rows and the projection rows.
 - A failure to persist turns is counted and logged, never propagated: cost accounting is the sink's contract and a non-authoritative store must not be able to fail it.
 - *(Amended 2026-08-19, #1389:)* a turn skipped as an already-stored duplicate (its `dedupKey` matched an existing row) is counted (`turn_deduped`) and warned like the two dropped-turn paths: expected on a relay retry, but the only path that could ever swallow a legitimate line, so it must be visible. The relay's collector reads the key from the envelope's `source.turn_key`; pod envelopes carry none.
 
-Since issue #1295 the sink has a second producer besides the ai-agent-subsystem
-pods: the mcp-server local runner relays its redacted stream-json transcript
-through lore-api's `POST /api/task-turns/{taskId}`
-(`specs/api-routes/task-turns/spec.md`), which wraps each line in the task
-attribution envelope and forwards it to this same ingest. Those turns carry a
-task id but no agent CR name, so they land uncorrelated to any assembly line —
-the rows FR1 preserves and `listByTask` exists to reach.
+Since issue #1295 the sink had a second producer besides the ai-agent-subsystem
+pods: the mcp-server local runner relayed its redacted stream-json transcript
+through lore-api's `POST /api/task-turns/{taskId}`. The runner and the route were
+deleted on 2026-11-13; the rows they wrote, task id but no agent CR name and so
+uncorrelated to any assembly line, are history that `listByTask` still reaches.
 
 ## FR4 — The read API
 
-> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and a local run's turns are stored by lore-api itself (`specs/api-routes/task-turns`). The statements below are kept as the record of how the store was read before lore-api took the reads over.
+> **2026-10-02.** This section describes Lore's own Floor (`apps/floor`), which was deleted (`specs/external-floor` FR16.10). A run on the external floor keeps its turns in the floor; the rows already in `pipeline.agent_run_turns` are history, read through lore-api (FR16.9); and the local runner's relay, `POST /api/task-turns/{taskId}`, was deleted on 2026-11-13 with the runner. The statements below are kept as the record of how the store was read before lore-api took the reads over.
 
 `GET /api/agent-turns/{assemblyLineId}` on the Floor HTTP server mirrors
 the existing `GET /api/agent-events/{assemblyLineId}` history route.
@@ -281,7 +279,7 @@ deliberate answers rather than shims:
 | `onboard`, `feature-request` (direct Anthropic SDK in the Floor process) | none | no transcript artifact exists anywhere; cost lands in `pipeline.llm_calls`, a summary in `memory.episodes` |
 | Floor-side batch LLM calls (episode-writer, artifact-copy, memory-lifecycle) | none | same no-transcript property |
 | Human stations (`feature_review`, `pr_review`) | none | nothing executes — correct |
-| Local runner / `AgentRunner` local mode | full transcript via the task-turns relay (#1295, landed in #1312) | `task_id`-only correlation like row 2; re-POSTed buffers dedup via `dedup_key` (#1389) — turns only, `llm_calls`/`agent_run_events` still duplicate (#1394) |
+| Local runner / `AgentRunner` local mode (deleted 2026-11-13) | full transcript via the task-turns relay (#1295, landed in #1312) | `task_id`-only correlation like row 2; re-POSTed buffers dedup via `dedup_key` (#1389) — turns only, `llm_calls`/`agent_run_events` still duplicate (#1394) |
 
 The reader-side answer for the no-transcript paths is explicit, not
 synthetic: the task-page log viewer states "No transcript is available

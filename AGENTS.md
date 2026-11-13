@@ -87,9 +87,6 @@ through one of these:
 - **A review**: opening the pull request starts one where `auto_review` is on;
   `@lore review` asks for one by hand.
 
-For work on your own machine, `lore_run_task_locally` runs it in a worktree and
-tracks it locally only.
-
 ## Task tracking
 
 Run these yourself via MCP. Do not ask the developer to remember them:

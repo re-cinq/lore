@@ -30,7 +30,6 @@ const BUCKET_RULES: ReadonlyArray<{
     matches: (path) => path === "/api/embeddings",
     bucket: "embed",
   },
-  { matches: (path) => path.startsWith("/api/task-turns/"), bucket: "turns" },
 ];
 
 /** The single path→bucket rule, shared by the ext and the OpenAPI generator (ADR-035). */

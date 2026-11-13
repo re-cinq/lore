@@ -163,11 +163,6 @@ A test builds the document from `routeList(() => null)` and asserts:
   schema says, so the generated client types (web-ui's and the MCP server's
   `schema.d.ts`) carry what a GET route reads as well as what it answers. ([validated by lists the search-context query fields as query parameters, query required and limit optional @f2478c13](apps/lore-api/src/transport/openapi/build-document.test.ts#L121))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
-  `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts@bc26bc66`](apps/lore-api/src/transport/openapi/build-document.test.ts#L13), [`build-document.test.ts@04a1488c`](apps/lore-api/src/transport/openapi/build-document.test.ts#L148))
-- **FR4b** A `parse:false` route that declares `options.app.rawBody` is a real raw-body
-  API surface (an NDJSON relay), not a handler-verified webhook: its operation carries
-  the route's own description and a required request body of the declared content type
-  (`type: string`) instead of the generic HMAC boilerplate. ([validated by `build-document.test.ts@436cbfde`](apps/lore-api/src/transport/openapi/build-document.test.ts#L224))
 - **FR5** `GET /api/openapi.json` (read scope) serves the document. `GET /api/docs`
   (read scope) serves a Redoc HTML page with the document **inlined**. Both gate on
   read scope: a missing bearer is `401` and a token lacking read scope is `403`

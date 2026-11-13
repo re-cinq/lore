@@ -49,11 +49,7 @@ export type {
 } from "./memory/memory-port.js";
 export { Memory } from "./memory/memory.js";
 
-export type {
-  TaskStorePort,
-  TaskAction,
-  TaskTransitionMeta,
-} from "./tasks/task-store-port.js";
+export type { TaskStorePort, TaskAction } from "./tasks/task-store-port.js";
 export { TaskList } from "./tasks/task-list.js";
 export { Task } from "./tasks/task.js";
 

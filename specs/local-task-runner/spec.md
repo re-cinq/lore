@@ -3,9 +3,11 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Task Runner                        |
-| Status         | In Progress                              |
+| Status         | Retired                                  |
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
+
+> Retired: removed on 2026-11-13 because the runner was unused; tasks run in a local minikube.
 
 Local Task Runner runs Lore pipeline tasks inside the developer's own Claude Code session and an isolated git worktree — via explicit invocation or opt-in polling — so subscription holders spend included usage instead of Anthropic API credits and skip the fresh-clone overhead of a GKE pod.
 

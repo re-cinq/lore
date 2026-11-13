@@ -19,7 +19,7 @@ export const OPEN_TASK_STATES = [
 
 // Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
 
-export type TaskAction = "claim" | "cancel" | "retry";
+export type TaskAction = "cancel" | "retry";
 
 /** Status groups behind the pending/running/executed views and transition targets; shared by both adapters so the views can't drift. */
 export const PENDING_STATUSES = ["pending", "queued", "awaiting_approval"];
@@ -32,7 +32,6 @@ export const RUNNING_STATUSES = [
 export const EXECUTED_STATUSES = ["completed", "merged", "failed", "cancelled"];
 
 export const NEXT_STATUS: Record<TaskAction, string> = {
-  claim: "running-local",
   cancel: "cancelled",
   retry: "retried",
 };
@@ -57,10 +56,6 @@ export type StuckRunningTask = Pick<
   PipelineTask,
   "id" | "target_repo" | "created_at" | "updated_at"
 > & { issue_number: number | null };
-
-export interface TaskTransitionMeta {
-  agentId?: string;
-}
 
 export interface TaskWithEvents extends PipelineTask {
   events: unknown[];
@@ -128,9 +123,5 @@ export interface TaskStorePort {
   ): Promise<void>;
   cancel(id: string): Promise<{ task_id: string; status: string }>;
   markMerged(id: string): Promise<{ task_id: string; status: string }>;
-  transition(
-    id: string,
-    action: TaskAction,
-    meta?: TaskTransitionMeta,
-  ): Promise<PipelineTask>;
+  transition(id: string, action: TaskAction): Promise<PipelineTask>;
 }
