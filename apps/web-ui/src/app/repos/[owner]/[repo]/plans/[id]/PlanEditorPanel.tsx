@@ -5,6 +5,7 @@ import type { PlanMeta } from "@re-cinq/planning-document";
 import {
   PlanEditor,
   transportFor,
+  type PlanEditorAdapters,
   type ProviderTransport,
   type RefineFailure,
 } from "@re-cinq/planning-editor";
@@ -17,6 +18,7 @@ import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
 import PlanBlockAnchor from "./PlanBlockAnchor";
+import PlanMockup from "./PlanMockup";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
 import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
@@ -62,12 +64,13 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   const { meta, user, transport, refine, ...actions } = props;
   const { refusal, ask } = useRefineAsk(refine, props.state);
   const outline = { ...actions, canApprove, refusal };
+  const onGeneratePrototype = () => rejectingRefusal(actions.generatePrototype);
 
   return (
     <>
       <PlanBlockAnchor />
       <FramedPlanEditor
-        {...{ transport, user, onRefine: ask }}
+        {...{ transport, user, onRefine: ask, onGeneratePrototype }}
         readOnly={meta.status === "approved"}
         validationPhase="approval"
         onValidation={(report) => setCanApprove(report.passed)}
@@ -78,10 +81,23 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   );
 }
 
+const SKETCH_ADAPTERS: PlanEditorAdapters = {
+  renderMockup: (mockup) => <PlanMockup {...mockup} />,
+};
+
+// The editor shows a rejection under Generate prototype, as it does for a refused Refine.
+async function rejectingRefusal(ask: PlanActions["generatePrototype"]) {
+  const asked = await ask();
+
+  if (asked.error) {
+    throw new Error(asked.error);
+  }
+}
+
 function FramedPlanEditor(props: ComponentProps<typeof PlanEditor>) {
   return (
     <div className={styles.editor}>
-      <PlanEditor {...props} />
+      <PlanEditor {...props} adapters={SKETCH_ADAPTERS} />
     </div>
   );
 }

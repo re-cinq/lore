@@ -11,15 +11,8 @@ import {
   mockupHeight,
   sanitizeMockupMarkup,
 } from "@/lib/mockup-frame";
+import type { Mockup } from "@re-cinq/planning-editor";
 import styles from "./PlanMockup.module.scss";
-
-export interface PlanMockupProps {
-  format: string;
-  markup: string;
-  height: number;
-  kind: string;
-  caption: string;
-}
 
 interface SketchProps {
   markup: string;
@@ -27,7 +20,7 @@ interface SketchProps {
   height: number;
 }
 
-export default function PlanMockup(props: PlanMockupProps) {
+export default function PlanMockup(props: Mockup) {
   const sketch = {
     markup: props.markup,
     title: props.caption || "Sketch",
