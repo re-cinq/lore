@@ -35,6 +35,10 @@ function noticeMessages({
   state,
   refineFailures,
 }: PlanRunNoticeProps): string[] {
+  if (planRunTone(run, state) === "working") {
+    return [];
+  }
+
   return [
     ...refineFailures.map(refineMessage),
     ...runMessages(run, state, refineFailures),

@@ -121,4 +121,20 @@ describe("PlanRunNotice", () => {
       "The spec work did not deliver.",
     );
   });
+  it("keeps Scope's failed refine quiet while the agent refines another section", () => {
+    const { container } = render(
+      <PlanRunNotice
+        run={{
+          ...RUN,
+          nodes: [{ ...VISIT, nodeId: "analyze", iteration: 2, outcome: null }],
+        }}
+        state="refining"
+        refineFailures={[
+          { slot: "scope", title: "Scope", reason: "model quota exhausted" },
+        ]}
+      />,
+    );
+
+    expect(container.textContent).toBe("");
+  });
 });
