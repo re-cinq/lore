@@ -3,9 +3,11 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Task Runner                        |
-| Status         | In Progress                              |
+| Status         | Retired                                  |
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
+
+> Retired: removed on 2026-11-13 because the runner was unused; tasks run in a local minikube. The text below records the design as it last ran.
 
 Local Task Runner runs Lore pipeline tasks inside the developer's own Claude Code session and an isolated git worktree, started by explicit invocation or by an explicit claim of a pending task, so subscription holders spend included usage instead of Anthropic API credits and skip the fresh-clone overhead of a GKE pod.
 
@@ -107,9 +109,9 @@ Developer's machine
 
 ### Task Claiming
 
-Nothing is claimed automatically. `lore_enable_task_notifications` starts a notifier in the MCP server that reads the pending tasks of the watched repos every 30 seconds and writes them to `~/.lore/pending-tasks.json`, which the statusline reads and `lore_list_pending_tasks` falls back to when the API is unreachable; `lore_disable_task_notifications` stops it and removes the file. *(amended 2026-11-13: the notifier replaced the poller that claimed tasks itself with `FOR UPDATE SKIP LOCKED`, and the worker whose 30 second grace period gave local runners priority was deleted on 2026-10-02.)* ([validated by watches re-cinq/lore for runbook and gap-fill tasks by default @f4cb39e5](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L33), [validated by stops a running notifier and removes its pending cache @e31ecfc0](apps/mcp-server/src/transport/tools/pipeline/disable-task-notifications.test.ts#L23))
+Nothing is claimed automatically. `lore_enable_task_notifications` starts a notifier in the MCP server that reads the pending tasks of the watched repos every 30 seconds and writes them to `~/.lore/pending-tasks.json`, which the statusline reads and `lore_list_pending_tasks` falls back to when the API is unreachable; `lore_disable_task_notifications` stops it and removes the file. *(amended 2026-11-13: the notifier replaced the poller that claimed tasks itself with `FOR UPDATE SKIP LOCKED`, and the worker whose 30 second grace period gave local runners priority was deleted on 2026-10-02.)*
 
-`lore_claim_and_run_locally` takes one pending task by its id or id prefix, posts a best-effort claim to `POST /api/task`, starts the run and removes the task from the pending list. A task that is neither in the pending list nor pending in the API is answered as not found. ([validated by runs the cached task by its id prefix and takes it off the pending list @ae83d0b2](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L49), [validated by answers not found when neither the pending cache nor the API knows task c0ffee00 @fbe95585](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L41))
+`lore_claim_and_run_locally` takes one pending task by its id or id prefix, posts a best-effort claim to `POST /api/task`, starts the run and removes the task from the pending list. A task that is neither in the pending list nor pending in the API is answered as not found.
 
 ### Execution Flow
 
@@ -267,9 +269,9 @@ Add `running-local` as a valid status value.
 
 1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
-3. `lore_claim_and_run_locally` runs the pending task the developer names and takes it off the pending list ([validated by runs the cached task by its id prefix and takes it off the pending list @ae83d0b2](apps/mcp-server/src/transport/tools/local-runner/claim-and-run-locally.local.test.ts#L49))
+3. `lore_claim_and_run_locally` runs the pending task the developer names and takes it off the pending list
 
-4. `lore_enable_task_notifications` lists the watched repos' pending tasks without claiming any ([validated by watches re-cinq/lore for runbook and gap-fill tasks by default @f4cb39e5](apps/mcp-server/src/transport/tools/pipeline/enable-task-notifications.test.ts#L33))
+4. `lore_enable_task_notifications` lists the watched repos' pending tasks without claiming any
 5. Background task commits, pushes, creates PR on completion
 6. Logs stored locally and in GCS (redacted)
 7. Statusline shows local task count

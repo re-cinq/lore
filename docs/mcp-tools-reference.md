@@ -26,7 +26,7 @@ The `description` is the long, self-disambiguating text an LLM reads to choose t
 
 **Bearer auth on `/api/*`.** Every HTTP API route the proxy targets enforces bearer-token validation before dispatch (`LORE_INGEST_TOKEN` full-access, or a scoped token from `pipeline.api_tokens`). The proxy helpers (`proxyToApi` / `proxyGetApi` / `proxyMemory` in `deps.ts`) attach the token, retry retriable statuses (`408/429/5xx`) with backoff `[200, 600, 1800]ms`, and classify outcomes as `ok` / `not_configured` / `unreachable` / `denied`. A `denied` (401/403) is never served from stale cache; an `unreachable` outage may fall back to a stale cached copy. `unreachable` and `denied` are surfaced as explicit error text (`unreachableError` / `deniedError`) rather than silently writing local state that would diverge from the org-wide DB.
 
-**Local trust boundary.** Tools that execute arbitrary shell in your checkout — `lore_list_tests`, `lore_run_test` — and the whole local-runner family run only in a trusted sandbox (dev machine, CI, or an agent pod on the ai-agent-subsystem). On the shared cluster server (`LORE_DB_HOST` set) the spec-trace local tools refuse and return *"Test commands run only in a trusted sandbox — run in CI or locally."*
+**Local trust boundary.** Tools that execute arbitrary shell in your checkout — `lore_list_tests`, `lore_run_test` — run only in a trusted sandbox (dev machine, CI, or an agent pod on the ai-agent-subsystem). On the shared cluster server (`LORE_DB_HOST` set) the spec-trace local tools refuse and return *"Test commands run only in a trusted sandbox — run in CI or locally."*
 
 ---
 
@@ -38,7 +38,7 @@ Every tool is namespaced with the **`lore_` prefix** (Anthropic-recommended name
 
 ## Tool reference
 
-41 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
+30 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
 
 ### Context & knowledge
 
@@ -125,7 +125,7 @@ One-line purpose: fetch one memory by its EXACT key.
 One-line purpose: soft-delete a memory by key for the resolved agent.
 
 - **When to use:** retire a stale or mistaken memory.
-- **When not to use:** to stop a background task on your machine use `lore_cancel_local_task`; to cancel a server-side pipeline task use `lore_cancel_task` (both unrelated).
+- **When not to use:** to cancel a server-side pipeline task use `lore_cancel_task` (unrelated).
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -300,7 +300,7 @@ One-line purpose: the tail of one GitHub Actions job's log, timestamps stripped,
 One-line purpose: list pipeline tasks newest-first, optionally filtered to one status. The general browse view.
 
 - **When to use:** browse across ALL tasks and statuses.
-- **When not to use:** unclaimed runnable work → `lore_list_pending_tasks`; one feature's group → `lore_list_task_group`; tasks on YOUR machine → `lore_list_local_tasks`.
+- **When not to use:** one feature's group → `lore_list_task_group`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -316,7 +316,7 @@ One-line purpose: list pipeline tasks newest-first, optionally filtered to one s
 One-line purpose: cancel a SERVER-SIDE pipeline task by UUID.
 
 - **When to use:** tasks tracked in the Lore pipeline (a backlog ticket, an onboarding).
-- **When not to use:** a task running in a worktree on YOUR machine → `lore_cancel_local_task`; to re-run a failed task → `lore_retry_task`.
+- **When not to use:** to re-run a failed task → `lore_retry_task`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -388,150 +388,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 - **Where it runs:** stdio mode → cached `GET /api/job-run-logs` over `LORE_API_URL`; GKE mode → direct GCS read of `__job_runs__/{job_name}/{run_id}/output.log`.
 - **Cache/mutation:** read-only. Proxy path cached (TTL 86400s) only when the run is complete.
 
-#### `lore_list_pending_tasks`
-
-One-line purpose: show unclaimed `pending` backlog tasks you could pick up and run locally, grouped by repo.
-
-- **When to use:** the "what can I grab" view of pending tasks.
-- **When not to use:** general status-filterable listing → `lore_list_pipeline_tasks`. After choosing one, run it with `lore_claim_and_run_locally`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repo` | no | all | Filter the API view to one repo as `owner/repo`. |
-
-- **Returns:** one short line per task, grouped by repo; `No pending tasks…` when empty.
-- **Where it runs:** prefers a live `GET /api/tasks?status=pending` over `LORE_API_URL`; when the API is unconfigured/unreachable it falls back to the locally-cached `~/.lore/pending-tasks.json` (the `repo` filter applies on both paths).
-- **Cache/mutation:** read-only.
-
-#### `lore_skip_task`
-
-One-line purpose: dismiss one pending-task notification LOCALLY.
-
-- **When to use:** stop a pending task from showing in your statusline so GKE picks it up after its grace period.
-- **When not to use:** cancel server-side → `lore_cancel_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | Id of the pending task to remove from the local notification cache (as shown by `lore_list_pending_tasks`). |
-
-- **Returns:** a skip-confirmation message. Does NOT change server state — the task stays `pending`.
-- **Where it runs:** entirely in the local sandbox: no network, no DB, no API.
-- **Cache/mutation:** mutates the local `~/.lore/pending-tasks.json` cache file only.
-
-#### `lore_enable_task_notifications`
-
-One-line purpose: start a local 30s background poller that surfaces new `pending` tasks for watched repos/types.
-
-- **When to use:** let new pending tasks appear in your statusline so you can choose to run one locally instead of waiting for GKE.
-- **When not to use:** to actually run a surfaced task use `lore_claim_and_run_locally`; to dismiss one use `lore_skip_task`; to stop the poller use `lore_disable_task_notifications`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repos` | no | current repo | List of repos to watch, each `owner/repo`. Defaults to the git-remote-detected repo. |
-| `task_types` | no | `['runbook','gap-fill']` | List of task types to surface. Both default types are retired, so no new task of either type is created; pass `task_types` naming a type that still has pending tasks, or the poller surfaces nothing new. (The schema's own description still says it defaults to implementation, general, runbook and gap-fill; the code uses only `runbook` and `gap-fill`.) |
-
-- **Returns:** a watching-confirmation message; `already active` (without spawning a second interval) when a notifier is already running.
-- **Where it runs:** local sandbox; starts a `setInterval` and writes the local cache file (the poll itself reads the API or DB).
-- **Cache/mutation:** read-only w.r.t. tasks (never claims/mutates them); writes local notifier state.
-
-#### `lore_disable_task_notifications`
-
-One-line purpose: stop the local pending-task notifier and clear its cache.
-
-- **When to use:** undo `lore_enable_task_notifications`.
-- **When not to use:** n/a — idempotent; safe to call when none is running.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| _(none)_ | — | — | Takes no parameters. |
-
-- **Returns:** `Task notifications stopped.`
-- **Where it runs:** local sandbox; no network, no DB.
-- **Cache/mutation:** clears the polling interval and unlinks `~/.lore/pending-tasks.json`.
-
-### Local runner
-
-> All local-runner tools run only in a trusted local sandbox and operate on the `~/.lore/local-tasks.json` registry / git worktrees on YOUR machine. They use your local Claude subscription (zero API cost).
-
-#### `lore_run_task_locally`
-
-One-line purpose: start a BRAND-NEW ad-hoc task running now as a detached background Claude Code process in an isolated worktree.
-
-- **When to use:** YOU supply a free-text description for new work.
-- **When not to use:** run an EXISTING pending task by id → `lore_claim_and_run_locally`. Work the org should track starts from a backlog ticket with a `priority:*` label, not from this tool.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `description` | yes | — | Free-text instruction for what to implement/do. If it references an `owner/repo` other than the current repo, the call is refused with a wrong-repo warning. |
-| `model` | no | runner default | Anthropic model id override; falls back to the configured default, then `claude-sonnet-4-6`. |
-
-- **Returns:** immediately with the task id, branch name, worktree path, log file path, and PID. The background process later validates, commits, pushes, and opens a PR.
-- **Where it runs:** local sandbox at a git repo with a GitHub origin; the detected repo must match the task (else not-in-a-repo or wrong-repo warning, no worktree created). When `LORE_API_URL` + `LORE_INGEST_TOKEN` are set it first `POST /api/task` to register a server-side pipeline task and adopt its id.
-- **Cache/mutation:** spawns a background process + git worktree; registers a server-side task when the API is configured.
-
-#### `lore_claim_and_run_locally`
-
-One-line purpose: claim an EXISTING pending pipeline task by id and run it on YOUR machine.
-
-- **When to use:** pick up a pre-existing pending task surfaced by `lore_list_pending_tasks`.
-- **When not to use:** start a brand-new task from free text → `lore_run_task_locally`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | Id of the pending task; matched by exact id or unique id-prefix; must be `pending`. |
-| `model` | no | runner default | Anthropic model id override (for non-`ingest-*` types). |
-
-- **Returns:** for `ingest-*` types, runs in-process with zero LLM and no worktree (returns the ingest result); all other types spawn a detached background worktree task and return a "Claimed and running locally" report (task id, branch, log file, PID). Not-found message when the id is unknown or not pending.
-- **Where it runs:** trusted local sandbox. Resolves from the local pending cache, or `GET /api/task/<id>` on a miss (adopted only if still `pending`); best-effort claims via `POST /api/task`.
-- **Cache/mutation:** claims the task, removes it from the local pending list; may spawn a background process + worktree.
-
-#### `lore_list_local_tasks`
-
-One-line purpose: list every background task tracked on YOUR machine — running, completed, or failed.
-
-- **When to use:** status of locally-spawned worktree tasks (PIDs, branches, PR URLs).
-- **When not to use:** server-side pipeline tasks → `lore_list_pipeline_tasks`; unclaimed pickups → `lore_list_pending_tasks`; group rollup → `lore_list_task_group`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| _(none)_ | — | — | Takes no input. |
-
-- **Returns:** one line per task — `<8-char id> <status> <repo> <branch>` plus ` → <prUrl>` when a PR opened and ` ✗ <error>` when failed; `No local tasks.` when none.
-- **Where it runs:** reads the local `~/.lore/local-tasks.json`; reconciles any `running` row whose PID is dead to `failed` before printing. No DB, no network, no cache.
-- **Cache/mutation:** read (with the dead-PID reconciliation side effect).
-
-#### `lore_cancel_local_task`
-
-One-line purpose: stop a task running in a background worktree on YOUR machine.
-
-- **When to use:** locally-spawned tasks from `lore_run_task_locally` / `lore_claim_and_run_locally`.
-- **When not to use:** to cancel a SERVER-SIDE pipeline task by UUID use `lore_cancel_task`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `task_id` | yes | — | Local task id (from `lore_run_task_locally` or `lore_list_local_tasks`); must be in `running` status. |
-
-- **Returns:** `Task <id> cancelled. Worktree cleaned up.` on success, or `Could not cancel: <reason>` when the id is unknown or not running.
-- **Where it runs:** local registry and worktrees only — no shared DB.
-- **Cache/mutation:** SIGTERMs the process, marks the local row `failed` (`Cancelled by user`), force-removes the worktree, and fire-and-forget updates the server-side task to `cancelled`.
-
-#### `lore_configure_local_runner`
-
-One-line purpose: view or update the local task-runner config (`~/.lore/local-runner.json`).
-
-- **When to use:** govern which repos/task-types the local notifier watches and local concurrency/model bounds.
-- **When not to use:** to actually run work use `lore_run_task_locally` (new) or `lore_claim_and_run_locally` (existing). No meaning on the shared GKE server.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `max_concurrent` | no | keep / `2` | Max local background tasks at once (positive integer). A `0` is ignored. |
-| `repos` | no | keep | Allowlist of `owner/repo` slugs the notifier watches; replaces the whole list when provided. |
-| `task_types` | no | keep | Allowlist of task-type names eligible to run locally; replaces the whole list. |
-| `model` | no | keep / `claude-sonnet-4-6` | Default Anthropic model id for locally-run tasks. |
-
-- **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, `task_types: ['runbook','gap-fill']` (both retired task types), model `claude-sonnet-4-6` — when the file is absent).
-- **Where it runs:** local machine; no DB, no network.
-- **Cache/mutation:** overwrites only the provided fields and persists.
+### Update
 
 #### `lore_update`
 
@@ -654,7 +511,7 @@ One-line purpose: fetch specific repo files from GitHub, embed them, and write t
 One-line purpose: preview the backlog ticket the implementation loop would start next for a repo.
 
 - **When to use:** check what the loop will pick, or whether a repo's `backlog_ranking.criteria` setting orders the backlog the way you meant, without dispatching anything.
-- **When not to use:** to start work on a ticket → label it `priority:*` and let the loop take it, or `lore_run_task_locally`.
+- **When not to use:** to start work on a ticket → label it `priority:*` and let the loop take it.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -723,9 +580,7 @@ Quick-reference for the confusable clusters.
 | Use | Tool |
 |---|---|
 | General, status-filterable listing of ALL pipeline tasks newest-first. The default browse view. | `lore_list_pipeline_tasks` |
-| Unclaimed pending tasks across repos you could pick up and run locally, grouped by repo. The "what can I grab" view. | `lore_list_pending_tasks` |
 | Every task sharing a `group_id` with a completed/total rollup. Scoped to a single group. | `lore_list_task_group` |
-| Background tasks running on YOUR machine (worktrees/PIDs/PR URLs), not server-side. | `lore_list_local_tasks` |
 
 ### Log retrieval
 
@@ -733,19 +588,6 @@ Quick-reference for the confusable clusters.
 |---|---|
 | Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
 | Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `daily_digest` or `spec_upkeep`. | `lore_get_job_logs` |
-
-### Running work
-
-| Use | Tool |
-|---|---|
-| Start a BRAND-NEW ad-hoc task running now in a background worktree on your machine (you supply the description; also registers a pipeline task). | `lore_run_task_locally` |
-| An EXISTING pending pipeline task already exists — claim it (by `task_id`) and run it locally. | `lore_claim_and_run_locally` |
-
-### Spec-task coordination lifecycle
-
-| Use | Tool |
-|---|---|
-| See a pending-task NOTIFICATION locally — dismiss it so GKE handles it instead. Local-only notification dismissal, not a server completion. | `lore_skip_task` |
 
 ### Spec-traceability
 
@@ -760,4 +602,3 @@ Quick-reference for the confusable clusters.
 | Use | Tool |
 |---|---|
 | Cancel a SERVER-SIDE pipeline task by UUID (DB-backed, may stop a running GKE agent). | `lore_cancel_task` |
-| Stop a task running in a background worktree on YOUR machine and clean up the worktree. | `lore_cancel_local_task` |

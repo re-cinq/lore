@@ -39,7 +39,6 @@ import {
   taskLogsGetRoute,
   taskLogsPostRoute,
 } from "./routes/tasks/task-logs.js";
-import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
@@ -237,7 +236,6 @@ function backlogRoutes(
 ): ServerRoute[] {
   return [
     taskLogsPostRoute(),
-    taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),
     ...planLifecycleRoutes({ ...plans, service: plans.service!, getPool }),
     ...implementationLoopRoutes(getPool),

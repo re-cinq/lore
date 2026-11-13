@@ -13,7 +13,7 @@ import {
 export function registerDeleteMemoryTool(server: McpServer) {
   server.tool(
     "lore_delete_memory",
-    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_local_task to stop a local background task; lore_cancel_task to cancel a pipeline task — those are unrelated.`,
+    `Soft-deletes a memory by key (hides it from read/list/search; version history is retained) and returns {key, deleted: true}. Scope is agent_id, not repo. Use to retire a stale or mistaken memory. Instead: lore_cancel_task to cancel a pipeline task — unrelated.`,
     DELETE_MEMORY_INPUT,
     deleteMemoryHandler,
   );

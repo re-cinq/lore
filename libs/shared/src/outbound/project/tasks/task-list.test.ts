@@ -82,12 +82,12 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     transition: async (id, action: TaskAction) => {
       const r = rows.find((row) => row.id === id)!;
 
-      const statusAfterAction: Partial<Record<TaskAction, string>> = {
+      const statusAfterAction: Record<TaskAction, string> = {
         cancel: "cancelled",
         retry: "retried",
       };
 
-      r.status = statusAfterAction[action] ?? "running-local";
+      r.status = statusAfterAction[action];
 
       return r;
     },

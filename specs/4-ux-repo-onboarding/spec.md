@@ -302,7 +302,7 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
 
 - FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
   feedback. On success the user lands on the repository's page, which shows
-  its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1 @dffb6b49](apps/web-ui/src/app/onboard/page.test.tsx#L55), [stays on the form with the refusal when onboarding is refused @6168d30c](apps/web-ui/src/app/onboard/page.test.tsx#L65), [rejects a malformed repository without calling the API @17bacdf7](apps/web-ui/src/app/onboard/page.test.tsx#L81))
+  its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1 @dffb6b49](apps/web-ui/src/app/onboard/page.test.tsx#L58), [stays on the form with the refusal when onboarding is refused @6168d30c](apps/web-ui/src/app/onboard/page.test.tsx#L68), [rejects a malformed repository without calling the API @17bacdf7](apps/web-ui/src/app/onboard/page.test.tsx#L84))
 
 ### FR-3: Repo-Centric UI Layout
 

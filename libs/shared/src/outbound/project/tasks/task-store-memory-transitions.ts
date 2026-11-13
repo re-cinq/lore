@@ -1,11 +1,7 @@
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { PipelineTask } from "../../../domain/types.js";
 import { ALLOWED_TASK_COLUMNS } from "../../../domain/pipeline-tasks.js";
-import {
-  NEXT_STATUS,
-  type TaskAction,
-  type TaskTransitionMeta,
-} from "./task-store-port.js";
+import { NEXT_STATUS, type TaskAction } from "./task-store-port.js";
 import type { SeedStoreTask, StoredTaskEvent } from "./task-store-memory.js";
 
 /** The status-transition surface of {@link InMemoryTaskStore} — setStatus/setStatusIf/updateStatus (+ its event trail), cancel, markMerged, and the claim/complete/fail `transition` action. Shares the SAME `tasks`/`events` arrays the main store owns. */
@@ -116,22 +112,14 @@ export class TaskTransitionStore {
     return { task_id: id, status: "merged" };
   }
 
-  async transition(
-    id: string,
-    action: TaskAction,
-    meta?: TaskTransitionMeta,
-  ): Promise<PipelineTask> {
+  async transition(id: string, action: TaskAction): Promise<PipelineTask> {
     const task = this.findById(id);
 
     if (!task) {
       // Mirrors the Pg `rows[0] as PipelineTask` on a no-match UPDATE.
       return undefined as unknown as PipelineTask;
     }
-    const claimedBy = action === "claim" ? (meta?.agentId ?? null) : null;
-
     task.status = NEXT_STATUS[action];
-    // Pg coalesces the new owner over the old, so a null agentId keeps it.
-    task.claimed_by = claimedBy ?? task.claimed_by;
     task.updated_at = this.now().toISOString();
 
     return task as unknown as PipelineTask;

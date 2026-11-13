@@ -11,7 +11,7 @@ PR history, and task state.
   the MCP protocol to Claude Code and proxies every data operation to the remote
   Lore API (`LORE_API_URL`). Lean install: no pg/octokit/GCS/OTel-SDK. Three core
   tools: `lore_assemble_context`, `lore_search_context`, `lore_search_memory`,
-  plus pipeline delegation, the local task runner, and 30+ tools total. Also runs
+  plus pipeline delegation and 30+ tools total. Also runs
   as the shared **`lore-mcp` HTTP gateway** for agent pods: with `LORE_MCP_HTTP=1`
   it mounts the SDK's `StreamableHTTPServerTransport` (`src/server/http-transport.ts`)
   instead of stdio, and `LORE_MCP_SERVER_MODE=agent` (`build-mcp-server.ts`) omits
@@ -115,7 +115,7 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/outbound/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.station_runs` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one run and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch).
 - `libs/shared/src/outbound/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
 - `apps/lore-api/src/outbound/github-client.ts` — consolidated GitHub auth (App + token fallback)
-- `apps/mcp-server/src/transport/tools/local-runner/` (one `*.local.ts` per tool) — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
+- **The local task runner was removed on 2026-11-13** (`specs/local-task-runner`, Retired): nobody used it, and tasks run in a local minikube. The MCP adapter registers no tool that claims or runs a task on the laptop (`lore_run_task_locally`, `lore_claim_and_run_locally`, `lore_list_local_tasks`, `lore_cancel_local_task`, `lore_configure_local_runner`), and it no longer polls for pending tasks (`lore_enable_task_notifications`, `lore_disable_task_notifications`, `lore_list_pending_tasks`, `lore_skip_task`); the statusline shows no pending or local count.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, reembed.sh, seed-secrets.sh
 - `deploy/chart/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on every Argo CD sync of the umbrella. The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
@@ -412,8 +412,7 @@ incremental ingestion runs on every push to main via a pipeline task. Repos tabl
 Tasks created via UI, MCP, or PR trigger agents on GKE.
 Pipeline tools: lore_get_pipeline_status,
 lore_list_pipeline_tasks, lore_cancel_task, lore_retry_task, lore_list_task_group,
-lore_get_task_logs, lore_my_usage. Local runner tools: lore_run_task_locally,
-lore_list_local_tasks, lore_cancel_local_task.
+lore_get_task_logs, lore_my_usage.
 Task types are agent definitions on the floor; their shipped defaults
 are `libs/shared/src/agent-defaults/<name>.md` (frontmatter = settings,
 body = prompt), which lore-api seeds onto a floor that holds none of that name:
@@ -421,7 +420,7 @@ body = prompt), which lore-api seeds onto a floor that holds none of that name:
 - **onboard**: runs on the external floor where one is configured (`libs/assembly-lines/src/floor-pipelines/onboard.yaml`, `specs/external-floor` FR11): lore-api creates the task already running, cuts `lore/onboard/<task8>` and starts the run; `enrol` (labels, ingest callback, verbatim workflows + templates on the branch, `libs/shared/src/work/onboard/enrol-repo.ts`) → `author` (AGENTS.md, ADRs, spec and PR template from the onboarding ticket, `onboardTicketBody`) → `open-pr` (the ONE PR, recorded as `lore.repos.onboarding_pr_url`) → `await-ci` ⇄ `fix-ci` (a human station the pr-ready-check sweep answers, `apps/stations/src/work/pr-ready-check/floor-ci-wait.ts`) → `request-review`; the `run-settled` station settles the task. 
 
 
-There is no `implementation`, `general` or `spec-task` task type any more (#2328, #2329, and spec-task on 2026-10-07 with the executor that dispatched it, `specs/external-floor` FR15.0 — migration 0105 cancelled the rows nothing could reach): their assembly lines, their recipes (`implementation-tdd` with them) and their `lore.agent_definitions` rows (migration 0094) are deleted. There is no default type either: creating a task with no type, or with either of those, is refused with a pointer to the implementation loop (`namedTaskType`, `libs/shared/src/domain/task-types/retired-task-types.ts`). Code is implemented from a ticket in the repository's backlog: an issue with a `priority:*` label, which a `lore` or `lore:implementation` label also gives it (`queueTicket`, `libs/shared/src/work/backlog/queue-ticket.ts`). A plan's spec-tasks run on the same loop. A free-form `lore_run_task_locally` run is tracked on the laptop only.
+There is no `implementation`, `general` or `spec-task` task type any more (#2328, #2329, and spec-task on 2026-10-07 with the executor that dispatched it, `specs/external-floor` FR15.0 — migration 0105 cancelled the rows nothing could reach): their assembly lines, their recipes (`implementation-tdd` with them) and their `lore.agent_definitions` rows (migration 0094) are deleted. There is no default type either: creating a task with no type, or with either of those, is refused with a pointer to the implementation loop (`namedTaskType`, `libs/shared/src/domain/task-types/retired-task-types.ts`). Code is implemented from a ticket in the repository's backlog: an issue with a `priority:*` label, which a `lore` or `lore:implementation` label also gives it (`queueTicket`, `libs/shared/src/work/backlog/queue-ticket.ts`). A plan's spec-tasks run on the same loop.
 
 No task is created from a description at all since 2026-10-02 (`specs/external-floor` FR16.7): `feature-request`, `feature-finalize`, `runbook`, `review` and `gap-fill` are refused like the two above, each with where its work goes (the backlog, a plan, or the review every pull request already gets). `POST /api/task` only acts on an existing task, Slack's `/lore` keeps `retry`, and the web UI has no create-task form. `lore_create_pipeline_task` still exists and reports that refusal; its removal follows.
 
@@ -437,8 +436,7 @@ pull request, was deleted on 2026-10-02.
 **Deterministic validation** (Minions-inspired): After the agent
 edits code, the runner detects repo tooling (package.json, go.mod,
 pyproject.toml, Cargo.toml) and runs lint/typecheck as mandatory
-pipeline stages. This happens in both local runner (`monitorTask`)
-and GKE runner (`entrypoint.sh`). Validation is scoped to changed
+pipeline stages. This happens in the GKE runner (`entrypoint.sh`); the local runner (`monitorTask`) was removed on 2026-11-13. Validation is scoped to changed
 files to avoid false positives from pre-existing issues.
 
 **No pre-run context hydration** (removed 2026-08-28): every run starts
