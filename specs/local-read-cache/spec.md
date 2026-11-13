@@ -37,7 +37,7 @@ A small, local, on-disk read-through cache for the stdio proxy that:
 ## Design
 
 - **Location:** `~/.lore/cache/entries/*.json` (override with `LORE_CACHE_DIR`),
-  one JSON file per entry. Owner-only: dir `0700`, files `0600`.
+  one JSON file per entry. Owner-only: dir `0700`, files `0600`. ([validated by `evicts the oldest entries past max_entries` @1c7d3b0e](libs/server-core/src/outbound/proxy-cache.test.ts#L128))
 - **Key:** `sha256(tool + \x00 + canonical(args) + \x00 + repo)`. The `\x00`
   field delimiter cannot appear in a tool name or in JSON-escaped canonical
   output, so no arg value can forge a cross-field collision. `canonical()`
@@ -103,8 +103,8 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
 
 10. **AC10** Mutations are never cached and invalidate the reads they affect:
     memory write/delete → memory reads + `assemble_context`; episode write →
-    `search_memory` + `query_graph` + `assemble_context`; create task → task
-    lists; ingest files → `assemble_context` for the repo; invalidation scopes
+    `search_memory` + `query_graph` + `assemble_context`; ingest files →
+    `assemble_context` for the repo; invalidation scopes
     removal to the given repo; invalidation is a no-op with no entries directory
     yet, and non-`.json` files in it are left untouched. ([implemented by `MEMORY_DERIVED_READS@40443d78`](apps/mcp-server/src/transport/tools/memory/shared/memory-derived-reads.ts#L2), [`EPISODE_DERIVED_READS@74ab2c8c`](apps/mcp-server/src/transport/tools/graph/write-episode.ts#L8), [`invalidateCache@d0e27183`](apps/mcp-server/src/transport/tools/memory/write-memory.ts#L47), [`invalidateCache@0b155a6d`](apps/mcp-server/src/transport/tools/repo/ingest-files.ts#L61), [validated by `scopes removal to a repo when given` @4180f62a](libs/server-core/src/outbound/proxy-cache.test.ts#L104), [validated by `removes entries for the named tool only` @553ed74a](libs/server-core/src/outbound/proxy-cache.test.ts#L96), [validated by `is a no-op when the entries directory does not exist yet` @ae0c0de3](libs/server-core/src/outbound/proxy-cache.test.ts#L112), [validated by `leaves non-.json files in the entries directory untouched` @7559cdf9](libs/server-core/src/outbound/proxy-cache.test.ts#L116))
 

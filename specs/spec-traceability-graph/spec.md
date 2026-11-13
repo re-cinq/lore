@@ -126,9 +126,9 @@ $ git commit -m "refactor claim query"      # local-runner.ts changes, content_h
 ### Local, zero-LLM
 
 ```
-$ npm run trace:project        # rebuild the graph for changed specs in the working tree
-$ npm run trace:ingest-coverage coverage/lcov.info
-$ npm run trace:drift          # report statements whose linked/covered code changed
+$ lore-code-trace docs         # print the specs and ADRs the working tree selects (--post sends the changed ones)
+$ lore-code-trace              # run the suite from .lore/test-commands.yml, print tests + coverage (--post ingests them)
+$ lore-code-trace links        # report the spec links the working tree broke
 ```
 
 ## Architecture
@@ -276,7 +276,7 @@ invariant), so the projection is lossless by construction. ([validated by is exp
 | `shared/src/spec-trace/provenance.ts` | NEW: parse inline link + `// lore:validates` annotation + `Lore-Validates:` trailer |
 | `agent/src/jobs/scheduled/spec-trace.ts` | NEW: thin dispatcher fanning out units per changed file |
 | `apps/floor/src/transport/health.ts` | Host `/api/trigger/spec-trace` → `dispatchSpecTrace` (specs/adrs read-and-project, test-report/coverage payload). Kickoff is **CI-driven** (ADR-023): `lore-ingest.yml`/`lore-tests.yml` POST the mcp-server endpoints, which fire the trigger — not a post-ingest fan-out |
-| `scripts/trace/{project-file,ingest-coverage,drift}.ts` | NEW: local CLIs (`trace:project` / `trace:ingest-coverage` / `trace:drift`) |
+| `apps/lore-code-trace/` | The local and CI CLI: the `lore-code-trace` Go binary (`docs`, `links`, and the test run with no subcommand). It replaced the planned `scripts/trace/*.ts` CLIs and their `trace:project` / `trace:ingest-coverage` / `trace:drift` npm scripts, which do not exist; drift has no local command |
 | `agent/src/lib/escalation.ts` / issue machinery | Add `spec-drift` label alongside `spec-link-rot` |
 | `web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx` | Drift/evidence badges per statement (graph-sourced) |
 | Generation prompt templates (`scripts/task-types.yaml` / supervisor) | Instruct the implementation/feature task to emit the three provenance forms |

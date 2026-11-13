@@ -125,7 +125,7 @@ posts it to Slack. A failed or dead agent still gets the draft posted.
 
 ## FR14 — On the external floor
 
-Where the external floor is configured (ADR-049) it walks the digest; a deployment without one keeps the Postgres-walked line of FR8 and FR9.
+The external floor (ADR-049) walks the digest. A deployment without one runs no digest *(amended 2026-11-13)*: its tick starts nothing, because the Postgres-walked line went with Lore's own Floor on 2026-10-02.
 
 - FR14.1 — `daily-digest` is a floor pipeline file, `libs/assembly-lines/src/floor-pipelines/daily-digest.yaml`: `collect` (service station `digest-collect`), `refine` (agent station `digest-refine`), `post` (service station `digest-post`). ([validated by walks daily-digest from collect through refine to post, reaching post on every outcome of refine @7f4f460a](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L665))
 - FR14.2 — The agent can add to the digest and never block it: every outcome of `refine` reaches `post`. ([validated by walks daily-digest from collect through refine to post, reaching post on every outcome of refine @7f4f460a](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L665))
