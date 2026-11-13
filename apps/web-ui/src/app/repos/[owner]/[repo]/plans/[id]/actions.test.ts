@@ -32,6 +32,8 @@ const {
   retrySpecWorkAction,
   reworkSpecsAction,
   refreshPlanRunFactsAction,
+  savePlanStoryAction,
+  removePlanStoryAction,
 } = await import("./actions");
 
 const GEDAIU = {
@@ -365,10 +367,37 @@ describe("refreshPlanRunFactsAction", () => {
   });
 });
 
-describe("the user story typed on the plan page", () => {
-  it("starts no draft and names the repo when the story is issue 42 of other/repo", async () => {
+const sentToLoreApi = () =>
+  fetchMock.mock.calls.map(([url, init]) => ({
+    url: String(url),
+    body: JSON.parse(String((init as RequestInit).body)) as unknown,
+  }));
+
+describe("savePlanStoryAction", () => {
+  it("saves story 456 on plan p1 from the issue URL of re-cinq/lore, set by gedaiu", async () => {
+    answer(200, { issueNumber: 456, issueUrl: "u" });
+
     expect({
-      result: await draftAgainAction(
+      result: await savePlanStoryAction(
+        "re-cinq/lore",
+        "p1",
+        "https://github.com/re-cinq/lore/issues/456",
+      ),
+      sent: sentToLoreApi(),
+    }).toEqual({
+      result: {},
+      sent: [
+        {
+          url: "http://api:3000/api/plans/p1/story",
+          body: { issueNumber: 456, setBy: "gedaiu" },
+        },
+      ],
+    });
+  });
+
+  it("saves nothing and names the repo when the story is issue 42 of other/repo", async () => {
+    expect({
+      result: await savePlanStoryAction(
         "re-cinq/lore",
         "p1",
         "https://github.com/other/repo/issues/42",
@@ -376,6 +405,69 @@ describe("the user story typed on the plan page", () => {
       fetched: fetchMock.mock.calls.length,
     }).toEqual({
       result: { error: "The user story must be an issue of re-cinq/lore." },
+      fetched: 0,
+    });
+  });
+
+  it("saves nothing for a blank story", async () => {
+    expect({
+      result: await savePlanStoryAction("re-cinq/lore", "p1", " "),
+      fetched: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: {
+        error: "The user story must be a GitHub issue URL or its number.",
+      },
+      fetched: 0,
+    });
+  });
+
+  it("saves nothing for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await savePlanStoryAction("re-cinq/lore", "p1", "456"),
+      fetched: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
+      fetched: 0,
+    });
+  });
+
+  it("says lore-api's reason when the save is refused", async () => {
+    answer(404, { error: "plan not found" });
+
+    expect(await savePlanStoryAction("re-cinq/lore", "p1", "456")).toEqual({
+      error: "Plan not found.",
+    });
+  });
+});
+
+describe("removePlanStoryAction", () => {
+  it("saves the removal of plan p1's story, set by gedaiu", async () => {
+    answer(200, { issueNumber: null, issueUrl: null });
+
+    expect({
+      result: await removePlanStoryAction("re-cinq/lore", "p1"),
+      sent: sentToLoreApi(),
+    }).toEqual({
+      result: {},
+      sent: [
+        {
+          url: "http://api:3000/api/plans/p1/story",
+          body: { issueNumber: null, setBy: "gedaiu" },
+        },
+      ],
+    });
+  });
+
+  it("removes nothing for someone GitHub does not let see the repo", async () => {
+    canAccess.mockResolvedValue(false);
+
+    expect({
+      result: await removePlanStoryAction("re-cinq/lore", "p1"),
+      fetched: fetchMock.mock.calls.length,
+    }).toEqual({
+      result: { error: "You do not have access to this repo." },
       fetched: 0,
     });
   });

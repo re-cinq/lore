@@ -41,6 +41,28 @@ export function readPlan(planId: string): Promise<ApiResult<StoredPlan>> {
   return apiFetch("lore-api", `/api/plans/${planId}`);
 }
 
+/** The user story issue a plan has, and where it lives; both null when none is linked. */
+export interface PlanStory {
+  issueNumber: number | null;
+  issueUrl: string | null;
+}
+
+export function readPlanStory(planId: string): Promise<ApiResult<PlanStory>> {
+  return apiFetch("lore-api", `/api/plans/${planId}/story`);
+}
+
+/** Saves the plan's user story, or with a null issue number removes the link; every later planning run starts with what is saved here. */
+export function savePlanStory(
+  planId: string,
+  issueNumber: number | null,
+  setBy: string,
+): Promise<ApiResult<PlanStory>> {
+  return apiFetch("lore-api", `/api/plans/${planId}/story`, {
+    method: "POST",
+    body: { issueNumber, setBy },
+  });
+}
+
 /** Lore's own approve: refused before the status flips while the planning agent is still writing. */
 export function approvePlan(
   repo: string,

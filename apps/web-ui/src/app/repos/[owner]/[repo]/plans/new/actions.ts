@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   createPlan,
+  savePlanStory,
   seedPlan,
   startDrafting,
   type DraftingRequest,
@@ -37,7 +38,7 @@ export async function createPlanAction(
   redirect(`/repos/${fullName}/plans/${created.id}`);
 }
 
-// The plan in lore-api, with what the author already knew written into its intent, and the planning agent asked for its first draft.
+// The plan in lore-api, with what the author already knew written into its intent and the story it named saved, and the planning agent asked for its first draft.
 async function createSeededPlan(
   fullName: string,
   { input, user }: { input: NewPlanInput; user: PlanUser },
@@ -58,22 +59,19 @@ async function seedAndDraft(
   input: NewPlanInput,
   user: PlanUser,
 ): Promise<{ id: string } | { error: string; planId: string }> {
-  const seedError = await seedIntent(id, user.id, input.description);
+  const setupError =
+    (await seedIntent(id, user.id, input.description)) ??
+    (await saveStory(id, user.id, input.storyIssue));
 
-  if (seedError !== null) {
-    return { error: failureOf(seedError), planId: id };
+  if (setupError !== null) {
+    return { error: failureOf(setupError), planId: id };
   }
-  const drafted = await startDrafting(
-    fullName,
-    id,
-    draftingRequestOf(input, user),
-  );
+  const request = draftingRequestOf(input, user);
+  const drafted = await startDrafting(fullName, id, request);
 
-  if (drafted.status !== "ok") {
-    return { error: failureOf(drafted), planId: id };
-  }
-
-  return { id };
+  return drafted.status === "ok"
+    ? { id }
+    : { error: failureOf(drafted), planId: id };
 }
 
 // Resolves to an existing plan ID on retry, or creates a fresh plan.
@@ -151,6 +149,20 @@ async function seedIntent(
     return null;
   }
   const result = await seedPlan(planId, actor, [description]);
+
+  return result.status !== "ok" ? result : null;
+}
+
+// The story the form named is saved on the plan before the draft, so the planning run starts with it.
+async function saveStory(
+  planId: string,
+  actor: string,
+  storyIssue: number | undefined,
+): Promise<Exclude<ApiResult<unknown>, { status: "ok" }> | null> {
+  if (storyIssue === undefined) {
+    return null;
+  }
+  const result = await savePlanStory(planId, storyIssue, actor);
 
   return result.status !== "ok" ? result : null;
 }

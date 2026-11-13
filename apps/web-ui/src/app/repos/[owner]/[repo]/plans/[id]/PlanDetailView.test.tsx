@@ -9,12 +9,15 @@ vi.mock("@/components/Icon", () => ({ default: () => <i /> }));
 vi.mock("./PlanWorkspace", () => ({
   default: ({
     user,
+    story,
     onRefineFailures,
   }: {
     user: { name: string };
+    story: { issueNumber: number | null } | null;
     onRefineFailures: (failures: unknown[]) => void;
   }) => (
     <button
+      data-story={story?.issueNumber}
       onClick={() =>
         onRefineFailures([
           { slot: "scope", title: "Scope", reason: "no proposal came back" },
@@ -50,6 +53,9 @@ const actions = {
   reworkSpecs: async () => ({}),
   validate: async () => ({}),
   deletePlan: vi.fn(async () => ({})),
+  story: null,
+  saveStory: async () => ({}),
+  removeStory: async () => ({}),
   refreshRunFacts: async () => ({ run: null }),
 };
 
@@ -166,5 +172,27 @@ describe("PlanDetailView refine warning", () => {
     expect(screen.getByRole("alert").textContent).toContain(
       'could not refine "Scope": no proposal came back.',
     );
+  });
+});
+
+describe("PlanDetailView user story", () => {
+  it("hands the editor panel story #123 and keeps it out of the toolbar's bar", () => {
+    render(
+      <PlanDetailView
+        meta={META}
+        run={null}
+        user={{ id: "gedaiu", name: "Bogdan" }}
+        {...actions}
+        story={{
+          issueNumber: 123,
+          issueUrl: "https://github.com/re-cinq/lore/issues/123",
+        }}
+      />,
+    );
+
+    expect({
+      story: screen.getByText("editor for Bogdan").getAttribute("data-story"),
+      links: screen.queryAllByRole("link", { name: /123/ }),
+    }).toEqual({ story: "123", links: [] });
   });
 });

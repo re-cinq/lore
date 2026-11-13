@@ -65,14 +65,15 @@ const FAILED_RUN: PlanRun = {
   reason: "no cluster-agent claimed this run",
 };
 
-const STORY_URL = "https://github.com/re-cinq/lore/issues/4025";
-
 const DEFAULT_PROPS: ComponentProps<typeof PlanToolbar> = {
   meta: META,
   run: RUN,
   state: "writing",
+  story: null,
   draftAgain: async () => ({}),
   deletePlan: async () => ({}),
+  saveStory: async () => ({}),
+  removeStory: async () => ({}),
 };
 
 function renderToolbar(
@@ -112,66 +113,6 @@ describe("PlanToolbar", () => {
     expect(screen.getByText(/approved by gedaiu on/).textContent).toContain(
       new Date("2026-09-23T10:00:00.000Z").toLocaleDateString(),
     );
-  });
-
-  it("links User story #4025 when the run names it", () => {
-    renderToolbar({ run: { ...RUN, issueUrl: STORY_URL, issueNumber: 4025 } });
-    const link = screen.getByRole("link", { name: "User story #4025" });
-
-    expect({
-      href: link.getAttribute("href"),
-      leavesThePage: within(link).queryByTestId("icon-external") !== null,
-    }).toEqual({ href: STORY_URL, leavesThePage: true });
-  });
-
-  it("links no user story when the run names none", () => {
-    renderToolbar();
-
-    expect(screen.queryByRole("link", { name: /User story/ })).toBeNull();
-  });
-
-  it("offers the User story field when the run names no story", () => {
-    renderToolbar({ story: { value: "", onChange: vi.fn() } });
-
-    expect(
-      screen.getByRole("textbox", { name: "User story" }),
-    ).toHaveAccessibleDescription("Applies from the next draft or refine.");
-  });
-
-  it("hands #42 typed into the User story field to the page", () => {
-    const onChange = vi.fn();
-
-    renderToolbar({ story: { value: "", onChange } });
-
-    fireEvent.change(screen.getByRole("textbox", { name: "User story" }), {
-      target: { value: "#42" },
-    });
-
-    expect(onChange).toHaveBeenCalledWith("#42");
-  });
-
-  it("describes issue 42 of other/repo as not an issue of re-cinq/lore", () => {
-    renderToolbar({
-      story: {
-        value: "https://github.com/other/repo/issues/42",
-        onChange: vi.fn(),
-      },
-    });
-
-    expect(
-      screen.getByRole("textbox", { name: "User story" }),
-    ).toHaveAccessibleDescription(
-      "The user story must be an issue of re-cinq/lore.",
-    );
-  });
-
-  it("offers no User story field once the run carries story 4025", () => {
-    renderToolbar({
-      run: { ...RUN, issueUrl: STORY_URL, issueNumber: 4025 },
-      story: { value: "", onChange: vi.fn() },
-    });
-
-    expect(screen.queryByRole("textbox", { name: "User story" })).toBeNull();
   });
 
   it("says the plan waits for its people", () => {
@@ -414,5 +355,109 @@ describe("PlanToolbar bar", () => {
     expect(barRef.current?.contains(screen.getByText("Faster checkout"))).toBe(
       true,
     );
+  });
+});
+
+const LINKED_STORY = {
+  issueNumber: 123,
+  issueUrl: "https://github.com/re-cinq/lore/issues/123",
+};
+
+describe("PlanToolbar user story", () => {
+  it("lists User story in the actions menu", () => {
+    renderToolbar();
+    const before = screen.queryByRole("button", { name: /User story/ });
+
+    openActionsMenu();
+
+    expect({
+      before,
+      after: screen.queryByRole("button", { name: "User story…" }) !== null,
+    }).toEqual({ before: null, after: true });
+  });
+
+  it("lists User story before Delete plan in the actions menu", () => {
+    renderToolbar();
+    openActionsMenu();
+    const menu = screen.getByRole("button", { name: "User story…" })
+      .parentElement as HTMLElement;
+
+    expect(
+      within(menu)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["User story…", "Delete plan"]);
+  });
+
+  it("draws User story as a secondary menu item, not a filled button", () => {
+    renderToolbar();
+    openActionsMenu();
+
+    expect(screen.getByRole("button", { name: "User story…" }).className).toBe(
+      "btn-secondary",
+    );
+  });
+
+  it("opens the user story popup prefilled with 123 for a plan linked to #123", () => {
+    renderToolbar({ story: LINKED_STORY });
+    openActionsMenu();
+    fireEvent.click(screen.getByRole("button", { name: "User story…" }));
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("textbox", {
+        name: "Issue URL or number",
+      }),
+    ).toHaveValue("123");
+  });
+
+  it("keeps the popup open when a press lands inside it", () => {
+    renderToolbar({ story: LINKED_STORY });
+    openActionsMenu();
+    fireEvent.click(screen.getByRole("button", { name: "User story…" }));
+    fireEvent.mouseDown(
+      within(screen.getByRole("dialog")).getByRole("textbox", {
+        name: "Issue URL or number",
+      }),
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("saves story 456 from the popup through the page's action", async () => {
+    const saveStory = vi.fn(async (_text: string) => ({}));
+
+    renderToolbar({ story: LINKED_STORY, saveStory });
+    openActionsMenu();
+    fireEvent.click(screen.getByRole("button", { name: "User story…" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Issue URL or number" }),
+      {
+        target: { value: "456" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    expect(saveStory.mock.calls).toEqual([["456"]]);
+  });
+
+  it("closes the popup once the story is saved", async () => {
+    renderToolbar({ story: LINKED_STORY });
+    openActionsMenu();
+    fireEvent.click(screen.getByRole("button", { name: "User story…" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove link" }));
+    });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("leaves the story to the right panel and links none in the bar", () => {
+    renderToolbar({ story: LINKED_STORY });
+
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual(["/assembly-runs/r1"]);
   });
 });

@@ -9,6 +9,7 @@ import {
   type RefineFailure,
 } from "@re-cinq/planning-editor";
 import { FormError } from "@/components/FormError";
+import type { PlanStory } from "@/lib/api/plans";
 import type { LiveSocketClient } from "@/lib/live-socket/client";
 import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import { planProvider } from "@/lib/live-socket/plan-provider";
@@ -29,6 +30,8 @@ interface PlanEditorPanelProps extends PlanActions {
   prNumber: number | null;
   prTitle: string | null;
   prUnresolvedThreads: number | null;
+  /** The plan's user story, linked in the outline's actions. */
+  story: PlanStory | null;
   /** Told which sections' refines failed, and why, each time that list changes. */
   onRefineFailures: (failures: readonly RefineFailure[]) => void;
 }
