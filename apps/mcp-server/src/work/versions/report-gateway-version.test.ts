@@ -34,6 +34,18 @@ describe("reportGatewayVersion", () => {
   it("resolves when lore-api refuses the report", async () => {
     fetchMock.mockResolvedValue(new Response("", { status: 403 }));
 
-    await expect(reportGatewayVersion({})).resolves.toBe(undefined);
+    await expect(
+      reportGatewayVersion({}, { attempts: 1, wait: async () => {} }),
+    ).resolves.toBe(undefined);
+  });
+
+  it("reports again after a 404 from a lore-api that does not serve the route yet", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response("", { status: 404 }))
+      .mockResolvedValueOnce(new Response('{"ok":true}'));
+
+    await reportGatewayVersion({}, { attempts: 3, wait: async () => {} });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

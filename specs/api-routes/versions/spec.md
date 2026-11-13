@@ -3,7 +3,7 @@
 | Field      | Value                                                       |
 |------------|-------------------------------------------------------------|
 | Feature    | GET /api/versions API Route                                 |
-| Status     | Implemented                                                 |
+| Status     | In Progress                                                 |
 | Created    | 2026-11-13                                                  |
 | Owner      | Platform Engineering                                        |
 | Route      | `GET /api/versions`, `POST /api/service-versions`           |
@@ -30,7 +30,7 @@ A different floor-client copy resolved by libs/shared is reported beside the ser
 
 A failed write is logged and the service boots on. ([validated by resolves when the write fails @dccbdd49](libs/shared/src/outbound/project/service-versions/service-versions.test.ts#L154))
 
-lore-api writes its row after migrating the floor and stations after opening their pool, while the lore-mcp gateway, which holds no pool (ADR-032), posts `POST /api/service-versions` with `{service: "lore-mcp", build, packages}` from `startHttpGatewayFromEnv`, never from the laptop adapter. ([validated by posts the lore-mcp build and its MCP SDK version to /api/service-versions @dbaa30f7](apps/mcp-server/src/work/versions/report-gateway-version.test.ts#L18), [validated by resolves when lore-api refuses the report @5a6939b4](apps/mcp-server/src/work/versions/report-gateway-version.test.ts#L34), [validated by records the lore-mcp gateway's start @0d847ef3](apps/lore-api/src/transport/routes/platform/versions.test.ts#L63))
+lore-api writes its row after migrating the floor and stations after opening their pool, while the lore-mcp gateway, which holds no pool (ADR-032), posts `POST /api/service-versions` with `{service: "lore-mcp", build, packages}` from `startHttpGatewayFromEnv`, never from the laptop adapter. When lore-api does not answer it yet, as during a rollout that starts the gateway first, the gateway asks again every 30 seconds, up to 20 times, before it logs the refusal. ([validated by posts the lore-mcp build and its MCP SDK version to /api/service-versions @dbaa30f7](apps/mcp-server/src/work/versions/report-gateway-version.test.ts#L18), [validated by resolves when lore-api refuses the report @5a6939b4](apps/mcp-server/src/work/versions/report-gateway-version.test.ts#L34), [validated by records the lore-mcp gateway's start @0d847ef3](apps/lore-api/src/transport/routes/platform/versions.test.ts#L63)) ([validated by reports again after a 404 from a lore-api that does not serve the route yet @3b3ba4df](apps/mcp-server/src/work/versions/report-gateway-version.test.ts#L42))
 
 `POST /api/service-versions` accepts only `lore-mcp`; any other service is refused with 400, and it answers 503 without a database. ([validated by refuses a service other than the gateway with 400 @7f436d8a](apps/lore-api/src/transport/routes/platform/versions.test.ts#L81), [validated by answers 503 without a pool @7525bee0](apps/lore-api/src/transport/routes/platform/versions.test.ts#L91))
 
@@ -61,7 +61,7 @@ The UI part comes from the UI's version route with a 5 s limit; a UI that predat
 
 The floor part comes from the floor's `GET /version`, whose `clusters` list is read defensively: a floor that predates it answers none, and only the clusters that parse are kept. ([validated by answers no clusters from a floor that predates them @35dd88c6](apps/lore-api/src/work/versions/versions-answer.test.ts#L134), [validated by keeps only the clusters that parse, a subsystem-less one included @616bb17f](apps/lore-api/src/work/versions/versions-answer.test.ts#L148))
 
-`database` names the newest SQL migration and the newest `floor/` migration recorded in `lore.schema_migrations`. ([validated by answers the newest sql and floor migrations from schema_migrations @7d01ef71](apps/lore-api/src/work/versions/version-sources.test.ts#L62))
+`database` names the newest SQL migration and the newest `floor/` migration recorded in `lore.schema_migrations`. Only numbered `.sql` files count as the SQL migration; other rows in that table, such as the shipped-skills ones, do not. ([validated by answers the newest sql and floor migrations from schema_migrations @7d01ef71](apps/lore-api/src/work/versions/version-sources.test.ts#L62)) ([validated by counts only numbered sql files as the database migration, not floor or skills rows @66093a47](apps/lore-api/src/work/versions/version-sources.test.ts#L75))
 
 `onFloor` lists each shipped pipeline file's line id with the hash the floor holds for it (null when it holds none) and counts the agent definitions on the floor. ([validated by reads merge from a shipped pipeline file's line id @177e6464](apps/lore-api/src/work/versions/version-sources.test.ts#L12), [validated by answers each shipped line's hash on the floor, null for one it lacks, and the agent count @31d924c6](apps/lore-api/src/work/versions/version-sources.test.ts#L75))
 

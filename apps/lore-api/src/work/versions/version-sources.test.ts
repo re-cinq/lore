@@ -71,6 +71,21 @@ describe("latestMigrations", () => {
   });
 });
 
+describe("latestMigrations' query", () => {
+  it("counts only numbered sql files as the database migration, not floor or skills rows", async () => {
+    const asked: string[] = [];
+    const query = async (sql: string) => {
+      asked.push(sql);
+
+      return { rows: [{ migration: null, floor_migration: null }] };
+    };
+
+    await latestMigrations({ query } as unknown as Pool);
+
+    expect(asked[0]).toContain("version ~ '^[0-9]{4}_.*[.]sql$'");
+  });
+});
+
 describe("readOnFloor", () => {
   it("answers each shipped line's hash on the floor, null for one it lacks, and the agent count", async () => {
     const floor = {
