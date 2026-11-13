@@ -48,7 +48,8 @@ export type IconName =
   | "sidebarExpand"
   | "github"
   | "arrowRight"
-  | "info";
+  | "info"
+  | "issue";
 
 // Chicago (Win98) reuses the pixelarticons set — its blocky glyphs read as period-correct chrome next to the beveled silver controls.
 const PIXELART: Record<IconName, string> = {
@@ -100,6 +101,7 @@ const PIXELART: Record<IconName, string> = {
   github: "pixelarticons:github",
   arrowRight: "pixelarticons:arrow-right",
   info: "pixelarticons:info-box",
+  issue: "pixelarticons:clipboard",
 };
 
 // Lore and Elegant share the Lucide set: Lore v2 is drawn with Lucide icons.
@@ -152,6 +154,7 @@ const LUCIDE: Record<IconName, string> = {
   github: "lucide:github",
   arrowRight: "lucide:arrow-right",
   info: "lucide:info",
+  issue: "lucide:circle-dot",
 };
 
 export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {

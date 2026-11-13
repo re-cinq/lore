@@ -10201,7 +10201,6 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
-          storyIssue?: number;
         };
       };
     };
@@ -10244,7 +10243,6 @@ export interface operations {
           baseHash: string;
           inputs: unknown;
           uses: unknown;
-          storyIssue?: number;
         };
       };
     };
@@ -10359,7 +10357,6 @@ export interface operations {
       content: {
         "application/json": {
           createdBy: string;
-          storyIssue?: number;
         };
       };
     };

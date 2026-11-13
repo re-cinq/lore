@@ -23,8 +23,6 @@ export interface RefineRequest {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
-  /** The user story a round this ask starts carries; an ask reported to a waiting run cannot change the story that run started with. */
-  storyIssue?: number;
   /** Who asked, as the floor records it on the visit the ask opens. */
   actor: string;
 }

@@ -4,6 +4,7 @@ import ConfirmedActionButton from "@/components/ConfirmedActionButton";
 import { FormError } from "@/components/FormError";
 import Icon from "@/components/Icon";
 import { StatusPill } from "@/components/StatusPill";
+import type { PlanStory } from "@/lib/api/plans";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import ApprovePlanButton from "./ApprovePlanButton";
 import ReopenPlanButton from "./ReopenPlanButton";
@@ -26,6 +27,8 @@ interface PlanOutlineActionsProps extends Pick<
   prUnresolvedThreads: number | null;
   /** Why lore-api refused the last Refine: the Refine button sits in its section, often far below, so the outline says it. */
   refusal?: string | null;
+  /** The plan's user story; null while it could not be read, which the outline words as no story linked. */
+  story: PlanStory | null;
 }
 
 const APPROVABLE: ReadonlySet<PlanPageState> = new Set([
@@ -60,14 +63,44 @@ const SPEC_PR_TITLES: Partial<Record<PlanPageState, string>> = {
   delivered: "Spec merged",
 };
 
-/** The action the plan's state calls for, drawn under the outline: why a Refine was refused, validate and approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
+/** The plan's user story first, then the action the plan's state calls for, drawn under the outline: why a Refine was refused, validate and approve while writing, reopen or retry once approved, and the spec PR wherever one exists. */
 export default function PlanOutlineActions(props: PlanOutlineActionsProps) {
   return (
     <div className={styles.actions}>
+      <StoryLink story={props.story} />
       <FormError message={props.refusal} />
       <SpecPr {...props} />
       <StateAction {...props} />
     </div>
+  );
+}
+
+// The issue the plan's people read it for, opened in a new tab so the plan stays where it is.
+function StoryLink({ story }: Pick<PlanOutlineActionsProps, "story">) {
+  if (!story?.issueUrl) {
+    return <StoryPlaceholder />;
+  }
+
+  return (
+    <a
+      className={styles.story}
+      href={story.issueUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <Icon name="issue" size={14} inline />
+      Linked to #{story.issueNumber}
+      <Icon name="external" size={14} inline />
+    </a>
+  );
+}
+
+function StoryPlaceholder() {
+  return (
+    <p className={`meta ${styles.story}`}>
+      <Icon name="issue" size={14} inline />
+      No user story linked
+    </p>
   );
 }
 

@@ -152,7 +152,7 @@ describe("createPlanAction", () => {
     });
   });
 
-  it("asks for the draft with user story 42 when the form names re-cinq/lore issue 42", async () => {
+  it("asks for the draft without a story when the form names re-cinq/lore issue 42, which lore-api reads from the plan", async () => {
     await expect(
       createPlanAction(
         "re-cinq/lore",
@@ -167,7 +167,53 @@ describe("createPlanAction", () => {
     ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
     expect(calls().at(-1)).toEqual({
       url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting",
-      body: { known: "", createdBy: "gedaiu", storyIssue: 42 },
+      body: { known: "", createdBy: "gedaiu" },
+    });
+  });
+
+  it("saves story 12 named on the new-plan form on plan p1 before asking for the draft", async () => {
+    await expect(
+      createPlanAction(
+        "re-cinq/lore",
+        null,
+        form({
+          title: "Faster checkout",
+          type: "feature",
+          story: "#12",
+        }),
+      ),
+    ).rejects.toThrow(new Error("redirect /repos/re-cinq/lore/plans/p1"));
+    expect(calls().map(({ url, body }) => ({ url, body }))).toMatchObject([
+      { url: "http://api:3000/api/plans" },
+      {
+        url: "http://api:3000/api/plans/p1/story",
+        body: { issueNumber: 12, setBy: "gedaiu" },
+      },
+      { url: "http://api:3000/api/repos/re-cinq/lore/plans/p1/drafting" },
+    ]);
+  });
+
+  it("asks for no draft and keeps plan p1 for a retry when saving story 12 fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ meta: { id: "p1" }, documentName: "d" })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "story refused" }), {
+          status: 500,
+        }),
+      );
+
+    expect({
+      result: await createPlanAction(
+        "re-cinq/lore",
+        null,
+        form({ title: "Faster checkout", type: "feature", story: "12" }),
+      ),
+      urls: calls().map((call) => call.url),
+    }).toEqual({
+      result: { error: "story refused", planId: "p1" },
+      urls: ["http://api:3000/api/plans", "http://api:3000/api/plans/p1/story"],
     });
   });
 });

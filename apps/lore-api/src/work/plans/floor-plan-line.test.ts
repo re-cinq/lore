@@ -19,8 +19,9 @@ import {
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
 import type { RefineAsk } from "./refine-asks.js";
+import type { SavedStory } from "./plan-stories.js";
 import type { SpecReviewReads } from "./spec-rework.js";
-import { specBranchOf } from "./spec-branch.js";
+import { specBranchOf } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
 
 const DRAFT = {
   id: "p1",
@@ -99,6 +100,7 @@ function scene(
     visits?: VisitView[];
     pulls?: SpecReviewReads;
     specPrState?: "open" | "closed" | "merged" | null;
+    savedStory?: SavedStory;
   } = {},
 ) {
   const recorded = recordedPlanFloor({
@@ -117,6 +119,7 @@ function scene(
       given.specPrState ?? null
     ),
     pulls: given.pulls ?? REVIEWED,
+    savedStory: async () => given.savedStory,
     recordRefineAsk: async (ask) => {
       asks.push(ask);
     },
@@ -1031,30 +1034,63 @@ function startedStoryIssue(requests: FloorRequest[]): string | undefined {
   return body?.startItems?.story_issue?.ref;
 }
 
+const STORIED_RUN = planRun({
+  outcome: "failed",
+  finishedAt: "2026-10-01T10:00:00.000Z",
+  startItems: {
+    ...FINISHED.startItems,
+    story_issue: { kind: "value", ref: "42", by: "lore" },
+  },
+});
+
 describe("the user story a planning run carries", () => {
-  it("starts the run with story_issue 42 when the draft names issue 42", async () => {
-    const { deps, requests } = scene(NO_RUN);
+  it("starts the run with story_issue 12 when story 12 was saved on the plan", async () => {
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      savedStory: { issueNumber: 12 },
+    });
 
     await startFloorDrafting(deps, {
       plan: DRAFT,
       planMarkdown: MARKDOWN,
       brief: BRIEF,
-      storyIssue: 42,
     });
 
-    expect(startedStoryIssue(requests)).toBe("42");
+    expect(startedStoryIssue(requests)).toBe("12");
   });
 
-  it("carries story_issue 42 over from the finished run when a later round names no story", async () => {
-    const storied = planRun({
-      outcome: "failed",
-      finishedAt: "2026-10-01T10:00:00.000Z",
-      startItems: {
-        ...FINISHED.startItems,
-        story_issue: { kind: "value", ref: "42", by: "lore" },
-      },
+  it("starts the run with story_issue 12 rather than the finished run's 42 when story 12 was saved", async () => {
+    const { deps, requests } = scene({
+      runs: [STORIED_RUN],
+      savedStory: { issueNumber: 12 },
     });
-    const { deps, requests } = scene({ runs: [storied] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("12");
+  });
+
+  it("starts the run with no story_issue when the saved story was removed though the finished run carries 42", async () => {
+    const { deps, requests } = scene({
+      runs: [STORIED_RUN],
+      savedStory: { issueNumber: null },
+    });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBeUndefined();
+  });
+
+  it("carries story_issue 42 over from the finished run when nothing was saved on the plan", async () => {
+    const { deps, requests } = scene({ runs: [STORIED_RUN] });
 
     await startFloorDrafting(deps, {
       plan: DRAFT,
