@@ -10,6 +10,12 @@
 
 Collaborative Feature Planning lets several signed-in people shape the same feature draft at the same time — seeing who is on the page, typing into the same round feedback with live cursors, and merging their edits without conflicts — so a planning round carries the whole team's input instead of one author's.
 
+## Background
+
+*(Added 2026-11-13.)* Most of this spec is superseded by [ADR-047](../../adrs/ADR-047-plans-hosted-by-lore-api.md). It was written against the planning wizard: rounds of feedback, `user_answers`, the `feature_review` outcomes and `lore.features`. ADR-047 replaced the wizard with one live plan document that people and the planning agent write together, and migration 0088 dropped `lore.features`. There is no round, no seal and no feedback document any more.
+
+What the live plan does is specified in [`specs/7-feature-planning`](../7-feature-planning/spec.md), FR-17 and FR-18: a person is their GitHub login inside a plan, the collab token is minted only after GitHub confirms the person can see the repo, and people and the agent edit one document that lore-api stores. Presence, cursors and the merging of concurrent edits belong to the planning editor of [re-cinq/planning-station](https://github.com/re-cinq/planning-station), which specifies them itself. Each requirement below that the live plan replaced is marked superseded where it stands. A requirement with no mark is still open.
+
 ## Problem Statement
 
 Smart Feature Planning (`specs/7-feature-planning`) made spec authoring
@@ -62,6 +68,7 @@ merge when the connection returns.
   (FR-4.5) and the single-finalize rule (FR-12.11) all stand. The planning line
   (`analyze → author → …`) is unchanged; the `author` wait node is simply resumed
   by whichever collaborator acts.
+  *(Superseded by ADR-047, 2026-11-13: the `user_answers` contract, the accept / refine / abandon outcomes and the round rules went with the wizard. The planning line still waits on its people at `author`.)*
 - **Web-UI auth (`apps/web-ui/src/lib/session.ts`, `user-repo-access.ts`).** The
   GitHub session already identifies the viewer, and `userCanAccessRepo` already
   answers "may this person see this repo". Collaboration reuses both; it adds no
@@ -74,12 +81,15 @@ merge when the connection returns.
   Open Decisions) *before* implementation, per the ADR-before-implementation
   practice. The single-replica constraint (`lore-api-helm` `replicaCount: 1`)
   applies to it the same way and must be named, not assumed away.
+  *(Decided 2026-09-21 by ADR-047, see OD-1.)*
 - **Project facade & ports (ADR-024).** Shared feedback documents and
   contributor attribution are persisted behind the existing `features` port on
   the Project object, alongside iterations.
+  *(Superseded by ADR-047, 2026-11-13: there is no `features` port. lore-api's `pgPlanStore` keeps plans in `lore.plans`, `lore.plan_state` and `lore.plan_versions`.)*
 - **Planning prompt (`scripts/task-types.yaml`, FR-2.3/2.6).** The composed
   timeline gains authorship on each prior comment and answer. The prompt is still
   the yaml template verbatim.
+  *(Superseded by ADR-047, 2026-11-13: `scripts/task-types.yaml` is deleted and no timeline of rounds is composed.)*
 
 ## User Personas
 
@@ -100,10 +110,13 @@ relevant section and to see that their contribution was used.
 Operates the real-time service: needs it to fail safe (planning still works
 without it), stay within the single-replica deployment, and not leak a repo's
 draft to someone without access to that repo.
+*(Superseded by ADR-047, 2026-11-13, in part: planning does not work without the live service, see Scenario 6.)*
 
 ## User Scenarios & Acceptance Criteria
 
 ### Scenario 1: Joining a shared draft and seeing who is there
+
+*(Amended 2026-11-13: the shared draft is the live plan of ADR-047 and the page is the plan page. Presence is the planning editor's own and is specified in planning-station, not here. The wizard's gap sections are gone, and so is the `created_by` criterion with `lore.features`: creating a plan records the signed-in person as its author, `specs/7-feature-planning` FR-17.)*
 
 **Actor:** Collaborator
 
@@ -126,6 +139,8 @@ draft to someone without access to that repo.
   `created_by` instead of `"ui"`.
 
 ### Scenario 2: Co-editing round feedback live
+
+*(Superseded by ADR-047, 2026-11-13: there is no round feedback. People and the planning agent co-edit the plan itself in the planning editor, `specs/7-feature-planning` FR-17.)*
 
 **Actor:** Feature Author and Collaborators
 
@@ -151,6 +166,8 @@ draft to someone without access to that repo.
   leaving and returning later, shows the feedback as last edited.
 
 ### Scenario 3: Refining together
+
+*(Superseded by ADR-047, 2026-11-13: a Refine is asked per section of the live plan and seals nothing, `specs/7-feature-planning` FR-18.)*
 
 **Actor:** Any collaborator
 
@@ -182,6 +199,8 @@ draft to someone without access to that repo.
 
 ### Scenario 4: Accepting or abandoning with others present
 
+*(Superseded by ADR-047, 2026-11-13: a round is neither accepted nor abandoned. A plan is approved, reopened or deleted, each behind its own confirm popup, `specs/7-feature-planning` FR-17.)*
+
 **Actor:** Any collaborator
 
 **Flow:**
@@ -200,6 +219,8 @@ draft to someone without access to that repo.
 - The acting user's login is recorded against the `feature_review` outcome.
 
 ### Scenario 5: Losing and regaining the connection
+
+*(Superseded by ADR-047, 2026-11-13, in part: no round is sealed, so the second criterion has nothing left to describe. The other two are about the live plan's editor and are not marked.)*
 
 **Actor:** Collaborator
 
@@ -225,16 +246,18 @@ draft to someone without access to that repo.
 1. The real-time service is down or unreachable.
 2. The author opens a draft.
 
-**Acceptance Criteria:**
-- The page states that live collaboration is unavailable and the planning wizard
-  still works single-user, exactly as it does today (local form, submit on
-  **Refine again**).
-- No planning round, acceptance or abandonment depends on the real-time service
-  being reachable.
+**Acceptance Criteria:** *(rewritten 2026-11-13: ADR-047 removed the wizard's single-user form, so there is no planning path without the live service.)*
+- The plan page shows "Connecting…" until the tab's live socket has opened the
+  plan, and shows the reason in place when it cannot (`PlanEditorPanel`). There
+  is no local form to fall back to.
+- Reading, writing, refining and approving a plan all depend on lore-api, which
+  hosts the plan routes and the collaboration socket in one process (ADR-047).
 
 ## Functional Requirements
 
 ### FR-1: Identity & Access
+
+*(Amended 2026-11-13: a feature's session is now a plan's collab session, opened with the collab token of `specs/7-feature-planning` FR-17.)*
 
 - FR-1.1: Every collaboration action is attributed to the viewer's GitHub login
   taken from the person's lore-api session (`GET /api/auth/me`), never from a client-supplied
@@ -247,8 +270,11 @@ draft to someone without access to that repo.
   from one feature is delivered to a connection for another.
 - FR-1.4: Feature creation from the UI passes the creator's login as `createdBy`;
   `created_by` stops defaulting to `"ui"` for UI-created features.
+  *(Superseded by ADR-047, 2026-11-13: `lore.features` is gone. Creating a plan records the signed-in person as its author, `specs/7-feature-planning` FR-17.)*
 
 ### FR-2: Presence
+
+*(Amended 2026-11-13: presence is per plan and is the planning editor's own, specified in planning-station.)*
 
 - FR-2.1: The system tracks, per feature, the set of connected users with their
   login, avatar URL, colour, and currently focused section (if any).
@@ -257,6 +283,8 @@ draft to someone without access to that repo.
 - FR-2.3: A user with several connections to the same feature appears once.
 
 ### FR-3: Shared Feedback Document
+
+*(Superseded by ADR-047, 2026-11-13: there is no feedback document and nothing is sealed. The plan itself is the shared document, hosted by `@re-cinq/planning-sync` in lore-api and stored by `pgPlanStore`.)*
 
 - FR-3.1: Each feature has at most one *open* shared feedback document, bound to
   the iteration it will seed. It holds, per section, a comment (shared text) and a
@@ -275,6 +303,8 @@ draft to someone without access to that repo.
 
 ### FR-4: Round Actions
 
+*(Superseded by ADR-047, 2026-11-13: there are no rounds. Refine, Approve and Reopen are lore-api's plan routes, `specs/7-feature-planning` FR-17 and FR-18.)*
+
 - FR-4.1: **Refine again**, **Create the spec PR** and **Abandon** remain the
   existing API calls; the server, not the client, seals the shared document from
   its own copy when the call is accepted, so a client that has not received the
@@ -289,6 +319,8 @@ draft to someone without access to that repo.
 
 ### FR-5: Planning Prompt
 
+*(Superseded by ADR-047, 2026-11-13: no timeline of rounds is composed. A Refine's brief lists the settled inputs of its section, `specs/7-feature-planning` FR-18.)*
+
 - FR-5.1: The refinement round's composed timeline renders the contributor logins
   beside each prior section comment and question answer.
 - FR-5.2: A round seeded by a single contributor renders identically to today apart
@@ -298,13 +330,14 @@ draft to someone without access to that repo.
 
 - FR-6.1: The real-time service runs within the current single-replica deployment
   and documents that constraint and its multi-replica escape hatch, as ADR-037
-  does for SSE.
-- FR-6.2: Planning works without the real-time service (Scenario 6).
+  does for SSE. *(Amended 2026-11-13: ADR-047 names the constraint and what a second replica needs first, under its Consequences.)*
+- FR-6.2 *(rewritten 2026-11-13)*: Planning does not work without the live
+  service, and the plan page says when it cannot connect (Scenario 6).
 - FR-6.3: Message size and per-connection update rate are bounded so one client
   cannot degrade a session for others; a client exceeding the bound is
   disconnected with a stated reason.
 - FR-6.4: Shared feedback documents of features that are deleted are deleted with
-  them (cascade).
+  them (cascade). *(Superseded by ADR-047, 2026-11-13: deleting a plan removes its document and versions with it, `specs/7-feature-planning` FR-17.)*
 
 ## Success Criteria
 
@@ -312,16 +345,16 @@ draft to someone without access to that repo.
   edit to the others within 1 second (p95) on the production deployment.
 - Zero lost feedback: in a scripted concurrent-edit test with 5 clients and
   simultaneous **Refine again** presses, every character typed before the seal
-  appears in the round's `user_answers`, and exactly one round starts.
+  appears in the round's `user_answers`, and exactly one round starts. *(Superseded by ADR-047, 2026-11-13: nothing is sealed.)*
 - Within 30 days of release, at least 30% of planning rounds on active repos carry
-  input from 2 or more contributors.
+  input from 2 or more contributors. *(Superseded by ADR-047, 2026-11-13: there are no planning rounds to count.)*
 - Planning round success rate does not drop compared with the 30 days before
-  release, including during real-time service outages.
+  release, including during real-time service outages. *(Superseded by ADR-047, 2026-11-13: there are no rounds, and planning stops during an outage of the live service.)*
 
 ## Out of Scope (v1)
 
 - Hand-editing the generated draft spec markdown (`draft_spec_markdown`) — it
-  remains agent-owned.
+  remains agent-owned. *(Superseded by ADR-047, 2026-11-13: people write the plan themselves.)*
 - Invitations, per-feature roles, or restricting a draft to named people beyond
   repo access.
 - Threaded discussion, @mentions, notifications, or email/Slack alerts.
@@ -335,6 +368,7 @@ draft to someone without access to that repo.
   document snapshots and updates in Postgres; versus a managed service. The ADR
   must address the single-replica pin, auth at connect, and the offline merge
   semantics above. Evaluated with `evaluate-existing-solutions` before choosing.
+  *(Closed 2026-11-13: decided by [ADR-047](../../adrs/ADR-047-plans-hosted-by-lore-api.md) on 2026-09-21. Yjs through `@re-cinq/planning-sync` (Hocuspocus) inside lore-api, the document in Postgres through `pgPlanStore`, a collab token at connect, and the one-replica pin named under its Consequences. [ADR-048](../../adrs/ADR-048-one-websocket-for-live-channels.md) moved the socket onto the tab's one live socket at `/api/ws`.)*
 - **OD-2: Who may press Refine / Accept / Abandon.** This spec lets any
   collaborator with repo access do so. If the trust level (`TRUST_LEVELS`) that
   gates who may run planning should also gate these actions per user, that needs

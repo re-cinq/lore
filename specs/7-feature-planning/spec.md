@@ -26,7 +26,7 @@ read and write it (ADR-047). A section's **Refine** sends that section back to t
 agent, which edits it in the live plan while the section's people watch. Approval ends the
 plan: the same line analyses which specs it changes, writes and pushes them, waits
 for the spec PR to merge, and ends there: the merged spec's stories and tasks are
-filed by the `spec-tickets` line.
+filed by the `spec-tickets` line ([validated by answers drafting with 202 and the run it started when neither store holds a run for the plan @c00b532a](../../apps/lore-api/src/transport/routes/plans/plan-engine-routes.test.ts#L136), [validated by answers refine with 202 and starts the analyze node, writing no blob since the ask travels in no bag @43e39d47](../../apps/lore-api/src/transport/routes/plans/plan-engine-routes.test.ts#L179), [validated by walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event @0288e0fb](../../libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1061)).
 
 ## Functional Requirements
 
@@ -77,7 +77,7 @@ approved. lore-api hosts it with `@re-cinq/planning-sync`, on its own listener (
 One `feature-planning` assembly line carries a plan from its first draft to its
 merged spec. Its agent writes into the live plan through lore-api, its `author`
 node parks while people write, and approval moves the same line on to the spec
-PR; the tickets come from the `spec-tickets` line when it merges.
+PR; the tickets come from the `spec-tickets` line when it merges ([validated by walks feature-planning from analyze through author's waits to done, with validate entered only by its own start event @0288e0fb](../../libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1061)).
 
 - Creating a plan starts its line: a `feature-planning` task whose brief names plan.md and carries what the author already knows, whose run is keyed `plan:<id>` so one plan has one line in flight, and whose args carry the repo and the plan's title ([validated by @c4f788d7](../../apps/lore-api/src/work/plans/plan-briefs.test.ts#L30), [validated by @38d72596](../../libs/shared/src/outbound/project/assembly-runs/subject-keys.test.ts#L12), [validated by @37562f56](../../libs/shared/src/outbound/project/assembly-runs/subject-keys.test.ts#L38), [validated by starts the planning agent's draft of Ana's plan as a feature-planning run on the floor @d6ce8072](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L206)).
 - The planning agent edits the live plan op by op, never a file *(amended 2026-09-25)*: its recipe sends it to the gateway's `lore_plan_read` for every section with its blocks and their hashes, then to `lore_plan_edit` with one op per call, a `replace-block` or `remove-block` carrying the hash it read, so people watch the plan take shape and can edit beside it. An edit refused because a person changed that block since the read sends the agent to read the plan again and keep their words, and the agent never touches the conversation: question, answer, comment and finding blocks are people's, and it only adds questions. Before the pass the pod still downloads the live plan as `plan.md` from the Floor, which renders it from lore-api's live document when the pod asks — a read copy only, which nothing uploads back — so no plan content rides the prompt, the Agent object or the event stream. A cluster with no files endpoint never claims a planning pass, which stays with a cluster that serves the file ([validated by edits the live plan through lore_plan_read and lore_plan_edit instead of uploading a file @9d38ae1d](../../libs/shared/src/outbound/project/agents/agent-defaults-content.test.ts#L426), [validated by @1a20ff13](../../apps/lore-api/src/work/plans/plan-file.test.ts#L66), [validated by serves Ana's plan as the plan.md a planning pod edits, one marked heading per section @3549d911](../../apps/lore-api/src/integration-tests/plan-routes.test.ts#L399)).
@@ -195,10 +195,9 @@ conversation continuity, the shared view components — still runs, now for plan
 - **Feature-request task type (`specs/3`).** This feature is the interactive,
   multi-round successor to one-shot `feature-request`: same end artifact (a
   `spec.md` PR following repo conventions), but with a human in the loop, a
-  persistent draft, and gap-closing analysis. `feature-request` remains for the
-  fully-automated path: its one-shot handler commits the three spec artifacts
-  (`spec.md`/`data-model.md`/`tasks.md`) and only then opens the PR, and throws
-  without opening a PR when the model SKIPs every artifact.
+  persistent draft, and gap-closing analysis. `feature-request` is gone *(amended 2026-11-13)*:
+  no task is created from a description since 2026-10-02 (`specs/external-floor` FR16.7), and
+  creating a task of that type is refused with a pointer to the repository's Plans page ([validated by refuses the removed %s task type, pointing at the Plans page @5f7db30c](libs/shared/src/domain/task-types/retired-task-types.test.ts#L28)).
 
 ### FR-1: Features Tab, List & Detail
 
@@ -216,7 +215,7 @@ conversation continuity, the shared view components — still runs, now for plan
 
 ### FR-4: Per-Section Feedback & Iteration
 
-- FR-4.7 *(added 2026-08-14)*: The wizard is the worker of a NAMED station, not a screen the run happens to be watched from. The round's pause is a `feature_review` human station whose `route` names this page, so the run graph can link a reader straight to the form that unblocks it, and the interface stops keeping its own map of which node id means which phase — a map that silently omitted every node nobody remembered to add to it. The station's three outcomes are the three things the author can do: accept, refine, abandon.
+- FR-4.7 *(added 2026-08-14; rewritten 2026-11-13)*: The plan's wait on its people is a NAMED human station, not a screen the run happens to be watched from. The planning line's `author` station is drawn on the run graph as a `feature_review` node, and one record, `HUMAN_STATIONS`, gives each human station type its badge ("Waiting for you"), why the run is parked and the label of the link that opens the plan, so the interface keeps no map of its own of which node id means which phase. The wizard this statement described, the `route` to its form and the station's three outcomes (accept, refine, abandon) are superseded by ADR-047: a plan's people answer with Refine and Approve on the plan page (FR-17, FR-18). ([validated by answers the full meta for feature_review @0510e20c](apps/web-ui/src/lib/human-station.test.ts#L6), [validated by carries every human station type — the record IS the registration @bd75c5f7](apps/web-ui/src/lib/human-station.test.ts#L35), [validated by draws the human station that produces something as feature_review and the one that waits outside as pr_review, neither naming a station @c956683f](apps/lore-api/src/work/floor/floor-run-mapping.test.ts#L227))
 
 ### FR-7: Persistence & Project Port
 

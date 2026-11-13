@@ -28,15 +28,18 @@ config side; `project.agents.run()` stays the execution side). See ADR-024
 
 ## Scope
 
-In (this PR): the `lore.agent_definitions` table; resolution (project → org → yaml)
+In (the first cut, June 2026, kept as history *(amended 2026-11-13)*): the `lore.agent_definitions` table; resolution (project → org → yaml)
 via `project.agentDefs`; the agent-definitions HTTP API; the per-repo **Agents**
 nav tab (list with
 org/project labels + dedicated new/edit form pages with breadcrumbs); the `/lore-agents` skill; floor + runner
-resolution through the port.
+resolution through the port. Two of these are gone: migration 0122 dropped the table on 2026-10-31, and the yaml
+layer went with `scripts/task-types.yaml`. A definition now resolves from the floor, the repository's variant over
+the org default (FR2, FR-FLOOR-READ). The API, the tab and the skill are the ones the requirements below describe.
 
-Out (Phase 2): the `.lore/workflows/` loader (repo > built-in) and the workflow
-`on:` triggers + event-dispatch registry. The agent carries neither a `workflow`
-nor a `trigger` column — both belong on the workflow.
+Out, and never built *(amended 2026-11-13)*: the `.lore/workflows/` loader (repo > built-in) and the workflow
+`on:` triggers + event-dispatch registry. An assembly line is a floor pipeline file under
+`libs/assembly-lines/src/floor-pipelines/` (ADR-049). The agent carries neither a `workflow`
+nor a `trigger` field.
 
 In (base image selector):
 - The `base_image` field in the `lore.repos.settings` JSONB column (`libs/shared/src/domain/models/repo-settings.ts`) designates the repo-level base execution image for every assembly line running in that repo. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#scope-p-2))
@@ -93,8 +96,7 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
   `project.agentDefsWriter` and `project.agentDefs`, audits writes, and two-key gates an image change — applying
   an image create only after CODEOWNERS approval and returning `403` on a CODEOWNERS
   failure — updates an agent by name, and returns `503` without a DB pool. ([validated by creates an agent (admin tier) and audits it @cc48a50c](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L132), [validated by two-key gates a create that sets an image (no approval header) @5cfe9e75](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L158), [validated by `agents-route.test.ts@4b62c3cf`](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L534), [validated by `agents-route.test.ts@cea91744`](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L169), [validated by `agents-route.test.ts@2cf3779b`](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L194), [validated by `agents-route.test.ts@90402ab1`](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L212), [validated by two-key gates an update that sets an image (no approval header) @1b2a2dcb](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L226), [validated by applies an image update after CODEOWNERS approval @54c74384](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L236), [validated by returns 403 on a CODEOWNERS failure for an image update @83295db0](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L257), [validated by `agents-route.test.ts@da9a612b`](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L93))
-- **FR11 — Floor prompt resolution.** The worker/handler build the prompt from
-  the resolved definition, falling back to the yaml template.
+- **FR11 — Floor prompt resolution.** *(removed 2026-11-13)* Lore builds no prompt and has no yaml template to fall back to: the worker and handler that rendered one went with Lore's own Floor on 2026-10-02, and `scripts/task-types.yaml` is deleted. The external floor runs an agent from its own copy of the definition (FR-FLOOR-READ), which the md files only seed (FR-FLOOR-SEED-NEW).
 - **FR12 — Migration seed + backfill.** *(removed 2026-10-31)* Migration 0015 seeded the org rows and backfilled `task_overrides` into the table that migration 0122 drops.
 - **FR13 — Agents list.** The `/agents` page lists resolved agent definitions, labelling an inherited one `org` and an overridden one `project`, with a per-card edit link; the list also displays, for each agent, the effective image it will run, labelled by layer (agent-override / repo-base / org-default); the New-definition action sits in the section header, and an empty list renders a "no agent definitions resolved" state. ([validated by labels an inherited agent "org" and an overridden one "project" @c0448261](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L46), [validated by links each card to its edit page @5097c8c8](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L57), [validated by shows an empty state when there are no agent definitions @7be86076](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L94), [from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/99260c66-0f94-44fb-b9f4-88058eeeee4a#scope-p-6))
 - **FR13a — Edit is busy until the edit page is shown.** _(Added 2026-10-31, #4029.)_ On `/agents` and on a repo's Agents tab, Edit shows a spinner and is busy from the click until the edit page renders, and cannot be clicked again meanwhile. ([validated by shows Edit with a spinner, busy, while the edit page loads @c7ace75e](apps/web-ui/src/components/EditLink.test.tsx#L16))
@@ -153,7 +155,7 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
 - **FR23 — Pod resources as catalog data.** A definition's pod resources
   (requests/limits, Kubernetes quantity strings) are edited in the agents UI and
   stored on the definition, so raising one station's memory ceiling is data that
-  survives releases instead of a code change.
+  survives releases instead of a code change. ([validated by prefills the pod-resource inputs from the agent's config @5a3d3434](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L146), [validated by merges a 4Gi memory limit into fix-ci's config, keeping its lore-context skill @db152d74](apps/lore-api/src/transport/routes/agent-definitions/org-update.test.ts#L90))
   - The form renders six quantity inputs prefilled from the definition's config. ([validated by prefills the pod-resource inputs from the agent's config @5a3d3434](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L146))
   - Inputs without a stored value stay empty and show the platform defaults as placeholders. ([validated by renders empty pod-resource inputs with the default limits as placeholders when config carries none @11f94660](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentForm.test.tsx#L174))
   - The server action collects the six inputs into a `pod_resources` payload. ([validated by collects the six pod-resource inputs into pod_resources @3cae9124](apps/web-ui/src/lib/agents-form.test.ts#L71))
@@ -161,12 +163,12 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
   - The API keeps the block beside a null config on create — the route merges it over the config the new row inherits — accepts quantities up to the exa suffixes, and rejects a value that is not a Kubernetes quantity string at the edge. ([validated by keeps pod_resources beside a null config on create so the route can merge it over the inherited layer @50b7faa1](apps/lore-api/src/work/agents/agents-schema.test.ts#L63), [validated by accepts exa-scale quantities 1E and 2Ei @ce479b54](apps/lore-api/src/work/agents/agents-schema.test.ts#L76), [validated by rejects a pod_resources quantity that is not a Kubernetes quantity string @98e918c9](apps/lore-api/src/work/agents/agents-schema.test.ts#L87))
   - A patch carries `pod_resources` separately when present — null meaning clear — and omits it when absent. ([validated by carries pod_resources when present and omits it when absent @a225e4b8](apps/lore-api/src/work/agents/agents-schema.test.ts#L104), [validated by a null pod_resources means clear — carried as null @a8102b77](apps/lore-api/src/work/agents/agents-schema.test.ts#L120))
   - Writes merge the block over the config the row inherits so a project fork keeps the keys it inherits — config is whole-object across layers. A create merges in the route over the resolved org/yaml config (null removes the block, an empty result collapses to null); an update reads the stored pod_resources and deep-merges the patch at the sub-key level in the route — so a partial PUT never drops unstated keys — then hands the adapter the merged block plus the inherited config for the config-level merge inside the upsert. ([validated by keeps the resolved config's other keys while replacing pod_resources @a60fb8c6](apps/lore-api/src/work/agents/agents-schema.test.ts#L201), [validated by null removes pod_resources and an empty result collapses to null @5549de2b](apps/lore-api/src/work/agents/agents-schema.test.ts#L216), [validated by null existing config plus pod_resources yields just the block @566ef0e4](apps/lore-api/src/work/agents/agents-schema.test.ts#L223), [validated by a create with pod_resources writes the block merged over the inherited config, never the block alone @21bf1746](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L284), [validated by an update with pod_resources hands the adapter the block plus the inherited config to merge inside the upsert @1bed8bde](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L310), [validated by a partial PUT for pod_resources merges per sub-key, not replaces the whole block @0cdbd7ec](apps/lore-api/src/transport/routes/agent-definitions/agents-route.test.ts#L331))
-  - The sync render honours the stored block on the rendered Station. *(amended 2026-09-02)* A stored override merges PER KEY onto the platform defaults instead of replacing the whole object: a memory-only override used to silently drop the ephemeral-storage defaults, Autopilot backfilled a bare 1Gi, and every tdd-round pod was evicted mid-install for a setting that only meant to raise memory. The price — a default cannot be unset, only overridden — is deliberate.
+  - *(removed 2026-11-13)* The sync render that honoured the stored block on the rendered Station went with Lore's cluster agent and its catalog sync on 2026-10-02. Lore renders no pod now: the external floor builds it from the definition. While the render ran *(amended 2026-09-02)*, a stored override merged PER KEY onto the platform defaults instead of replacing the whole object: a memory-only override used to silently drop the ephemeral-storage defaults, Autopilot backfilled a bare 1Gi, and every tdd-round pod was evicted mid-install for a setting that only meant to raise memory.
 
 - **FR24 — Org-default definitions editable from the global /agents page.** The
   catalog every repo inherits is edited where it is listed: the global page
   links each definition to an org editor whose save writes the floor
-  definition's `settings` — per-repo overrides stay on a repo's Agents tab.
+  definition's `settings` — per-repo overrides stay on a repo's Agents tab. ([validated by orgEditable links each row to the global org-default editor @e3561828](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L202), [validated by puts fix-ci's settings on the floor with model claude-opus-4-8 and timeout 45, answering the written definition @38136967](apps/lore-api/src/transport/routes/agent-definitions/org-update.test.ts#L69))
   - `PUT /api/agent-definitions/{name}` (admin scope) writes the org default and returns it. ([validated by puts fix-ci's settings on the floor with model claude-opus-4-8 and timeout 45, answering the written definition @38136967](apps/lore-api/src/transport/routes/agent-definitions/org-update.test.ts#L69))
   - The org write merges `pod_resources` into the definition's own config, keeping its other keys; null removes the block. ([validated by merges a 4Gi memory limit into fix-ci's config, keeping its lore-context skill @db152d74](apps/lore-api/src/transport/routes/agent-definitions/org-update.test.ts#L90))
   - A body that never mentions `pod_resources` keeps the definition's config exactly as it was. ([validated by keeps fix-ci's config as it was when the PUT never mentions pod_resources @e6cf5bdb](apps/lore-api/src/transport/routes/agent-definitions/org-update.test.ts#L198))
@@ -259,9 +261,11 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
 
 ## Verification (manual / integration)
 
-Migration 0015 applied to a throwaway Postgres confirmed the org seed (10 rows),
-the `task_overrides` backfill, idempotency, and the project-over-org resolve
-query (documented in the PR). Suites green: shared, mcp-server, floor, web-ui. The table is gone since migration 0122.
+*(History, amended 2026-11-13.)* When the table first shipped, in June 2026, migration 0015 was applied to a
+throwaway Postgres, which confirmed the org seed (10 rows), the `task_overrides` backfill, idempotency, and the
+project-over-org resolve query (documented in that PR). The suites green then were shared, mcp-server, floor and web-ui.
+None of it can be repeated: migration 0122 dropped the table on 2026-10-31 and `apps/floor` was deleted on 2026-10-02.
+The floor-backed store that replaced it is covered by the tests of FR-FLOOR-READ to FR-FLOOR-READBACK.
 
 ## Resolved Questions
 

@@ -71,7 +71,7 @@ The evals are run from a developer machine, not on a schedule, in CI, or in the 
 
 ## The model
 
-Decision: the eval's model calls go through `Llm.for("eval")` (`specs/shared-utilities`, FR — Llm.for), so the vendor is configuration. The lore-api chart sets `LORE_EVAL_LLM_PROVIDER=vertex` and `LORE_EVAL_LLM_MODEL=gemini-2.5-flash`; Vertex is reached under the pod's own Google identity and no model key is stored. Writing a question and judging an answer against its document are easy tasks, so the cheapest model that judges reliably is the right one.
+Decision: the eval's model calls go through `Llm.for("eval")` (`specs/shared-utilities`, FR — Llm.for), so the vendor is configuration. The lore-api chart sets `LORE_EVAL_LLM_PROVIDER=vertex` and `LORE_EVAL_LLM_MODEL=gemini-2.5-flash`; Vertex is reached under the pod's own Google identity and no model key is stored. Writing a question and judging an answer against its document are easy tasks, so the cheapest model that judges reliably is the right one. ([validated by returns a vertex provider for the eval use when LORE_EVAL_LLM_PROVIDER=vertex, and keeps the process-wide one @8191c085](libs/shared/src/outbound/llm/llm.test.ts#L72))
 
 ## Open Questions
 
