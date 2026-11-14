@@ -59,13 +59,21 @@ function dropOldest(kept: Map<string, unknown>, limit: number): void {
   }
 }
 
-let production: RunRepoReader | undefined;
+const production = new WeakMap<Pool, RunRepoReader>();
 
-/** The repository of a run in Postgres or on the floor; null for an unknown run. */
+/** The repository of a run in Postgres or on the floor; null for an unknown run. Kept per pool, so a second server in the process does not read through the first one's. */
 export function runRepoOf(pool: Pool, runId: string): Promise<string | null> {
-  production ??= keepingRunRepos(
+  const reader = production.get(pool) ?? readerFor(pool);
+
+  return reader(runId);
+}
+
+function readerFor(pool: Pool): RunRepoReader {
+  const reader = keepingRunRepos(
     async (id) => (await runsReadingFloor(pool).getById(id))?.repo ?? null,
   );
 
-  return production(runId);
+  production.set(pool, reader);
+
+  return reader;
 }
