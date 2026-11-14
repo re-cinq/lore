@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import NodeLogPanel from "./NodeLogPanel";
 import { SAMPLE_LOG } from "@/lib/agent-log-entries.fixtures";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -56,7 +57,7 @@ describe("NodeLogPanel", () => {
   it("fetches on mount when opened by default", async () => {
     const fetchMock = vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     render(
       <NodeLogPanel
         assemblyLineId="run-1"
@@ -75,7 +76,7 @@ describe("NodeLogPanel", () => {
   it("renders the collapsed label without fetching until opened", () => {
     const fetchMock = vi.fn();
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
 
     renderPanel();
 
@@ -84,7 +85,7 @@ describe("NodeLogPanel", () => {
   });
 
   it("renders formatted entries inside an opened panel serving the sample log", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
+    liveRequestsFrom(vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
 
     const { container } = renderPanel();
 
@@ -98,7 +99,7 @@ describe("NodeLogPanel", () => {
   });
 
   it("switches the open panel to the raw blob when Raw is clicked", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
+    liveRequestsFrom(vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
 
     const { container } = renderPanel();
 
@@ -112,7 +113,7 @@ describe("NodeLogPanel", () => {
   });
 
   it("keeps the '(no output yet)' placeholder when available logs are empty", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse("")));
+    liveRequestsFrom(vi.fn().mockResolvedValue(logsResponse("")));
 
     const { container } = renderPanel();
 

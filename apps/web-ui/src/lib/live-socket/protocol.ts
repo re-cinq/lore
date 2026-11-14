@@ -25,9 +25,13 @@ const SERVER_TYPES: ReadonlySet<string> = new Set<LiveServerMessage["type"]>([
   "data",
   "runs",
   "plan_run",
+  "response",
   "closed",
   "error",
 ]);
+
+const needsChannel = (type: string, body: Record<string, unknown>): boolean =>
+  type !== "error" && str(body.channel) === null;
 
 /** A server message, or null for non-JSON, an unknown type, or a message without the channel its type needs; one bad frame never takes the socket down. */
 export function decodeServerMessage(text: string): LiveServerMessage | null {
@@ -39,7 +43,9 @@ export function decodeServerMessage(text: string): LiveServerMessage | null {
       return null;
     }
 
-    if (type !== "error" && str(body.channel) === null) {
+    if (
+      type === "response" ? str(body.id) === null : needsChannel(type, body)
+    ) {
       return null;
     }
 

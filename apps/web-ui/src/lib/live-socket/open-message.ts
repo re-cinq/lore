@@ -1,6 +1,10 @@
 import type { ChannelSpec } from "./client";
 import type { ChannelKind, LiveClientMessage } from "./protocol";
 
+/** A run or runs channel with no token of its own opens on the person's session; an empty token would be a bad message. */
+const tokenField = (token: string): { token?: string } =>
+  token === "" ? {} : { token };
+
 const OPEN_MESSAGES: {
   [K in ChannelKind]: (
     id: string,
@@ -19,7 +23,7 @@ const OPEN_MESSAGES: {
     channel: id,
     kind: "run",
     subject: spec.subject,
-    token,
+    ...tokenField(token),
     after: spec.after?.(),
   }),
   runs: (id, spec, token) => ({
@@ -27,7 +31,7 @@ const OPEN_MESSAGES: {
     channel: id,
     kind: "runs",
     subject: spec.subject,
-    token,
+    ...tokenField(token),
   }),
   "plan-run": (id, spec, token) => ({
     type: "open",

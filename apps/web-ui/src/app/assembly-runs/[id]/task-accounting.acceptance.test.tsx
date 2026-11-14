@@ -1,15 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunLiveShell, { type RunLiveShellProps } from "./RunLiveShell";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 import { implementationDefinition } from "@/lib/definition-fixtures";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
-
-vi.mock("./live-actions", () => ({
-  openRunChannelAction: async () => ({ token: "tok" }),
-}));
+import { answeringSocketFrom } from "@/lib/live-socket/answering-socket";
 
 const run: AssemblyRun = {
   id: "run-1",
@@ -34,17 +31,10 @@ const run: AssemblyRun = {
 
 function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   FakeWebSocket.reset();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ events: [] }),
-    }),
-  );
+  const socket = answeringSocketFrom(async () => Response.json({ events: [] }));
 
   return render(
-    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+    <LiveSocketProvider url="ws://test/api/ws" socket={socket}>
       <RunLiveShell
         run={run}
         nodes={[]}

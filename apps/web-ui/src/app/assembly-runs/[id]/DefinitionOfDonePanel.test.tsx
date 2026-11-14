@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import DefinitionOfDonePanel from "./DefinitionOfDonePanel";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -16,7 +17,7 @@ function stubProgress(...bodies: unknown[]) {
       new Response(JSON.stringify(body), { status: 200 }),
     );
   }
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }
@@ -30,7 +31,7 @@ async function settle() {
 }
 
 describe("DefinitionOfDonePanel", () => {
-  it("reads the run's progress through the proxy on mount and renders the card", async () => {
+  it("reads the run's progress over the live socket on mount and renders the card", async () => {
     const fetchMock = stubProgress({
       present: true,
       acceptanceTests: [],
@@ -70,8 +71,7 @@ describe("DefinitionOfDonePanel", () => {
   });
 
   it("renders nothing while the read is pending or after it failed", async () => {
-    vi.stubGlobal(
-      "fetch",
+    liveRequestsFrom(
       vi.fn().mockResolvedValue(new Response("nope", { status: 500 })),
     );
     const { container } = render(

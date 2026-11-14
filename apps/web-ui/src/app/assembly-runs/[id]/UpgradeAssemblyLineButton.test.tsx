@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { UpgradeAssemblyLineButton } from "./UpgradeAssemblyLineButton";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const push = vi.fn();
 
@@ -17,7 +18,7 @@ function answering(status: number, body: object) {
     .fn()
     .mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }
@@ -31,7 +32,7 @@ async function clickUpgrade() {
 }
 
 describe("UpgradeAssemblyLineButton", () => {
-  it("posts to the old-run upgrade proxy and opens the run the floor started", async () => {
+  it("asks over the live socket to upgrade the old run and opens the run the floor started", async () => {
     const fetchMock = answering(201, { run_id: "new-run" });
 
     render(<UpgradeAssemblyLineButton runId="old-run" />);

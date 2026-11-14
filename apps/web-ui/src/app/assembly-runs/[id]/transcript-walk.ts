@@ -8,6 +8,7 @@ import {
   serverReportsMore,
   turnsUrl,
 } from "./turn-transcript-presenter";
+import { liveFetch } from "@/lib/live-fetch";
 
 /** The whole run's turns, from the first. */
 export function walkAllTurns(runId: string, isDisposed: () => boolean) {
@@ -44,9 +45,7 @@ export async function walkTurns(runId: string, walk: TurnWalk) {
 }
 
 async function fetchTurnsPage(runId: string, cursor: string) {
-  const res = await fetch(turnsUrl(runId, cursor), {
-    signal: AbortSignal.timeout(15_000),
-  });
+  const res = await liveFetch(turnsUrl(runId, cursor));
 
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);

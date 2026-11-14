@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import FileDiffDrawer from "./FileDiffDrawer";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -23,7 +24,7 @@ const filesBody = {
 function stubFetch(response: Response) {
   const fetchMock = vi.fn().mockResolvedValue(response);
 
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }

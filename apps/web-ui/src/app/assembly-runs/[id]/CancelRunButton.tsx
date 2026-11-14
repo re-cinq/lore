@@ -6,6 +6,7 @@ import PendingActionButton from "@/components/PendingActionButton";
 import { useRefreshingAction } from "@/components/useRefreshingAction";
 import type { components } from "@/lib/api/schema";
 import styles from "./CancelTaskButton.module.scss";
+import { liveFetch } from "@/lib/live-fetch";
 
 type CancelAnswer = Partial<components["schemas"]["AssemblyRunCancelled"]> & {
   error?: string;
@@ -57,9 +58,9 @@ function CancelRunConfirm({ runId, onKeep }: CancelRunConfirmProps) {
 }
 
 async function askToCancel(runId: string): Promise<CancelAnswer> {
-  const res = await fetch(
+  const res = await liveFetch(
     `/api/assembly-runs/${encodeURIComponent(runId)}/cancel`,
-    { method: "POST", signal: AbortSignal.timeout(30_000) },
+    { method: "POST" },
   );
   const answer = (await res.json()) as CancelAnswer;
 

@@ -31,7 +31,7 @@ function useRunBag(runId: string, refreshKey: string): RunBag | null {
   useEffect(() => {
     const read = new AbortController();
 
-    readRunBag(runId, read.signal)
+    readRunBag(runId)
       .then((next) => {
         if (next !== null && !read.signal.aborted) {
           setBag(next);

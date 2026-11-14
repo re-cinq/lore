@@ -377,3 +377,17 @@ describe("connection machine — the server closes a channel", () => {
     ).toEqual([]);
   });
 });
+
+describe("connection machine — waiting requests", () => {
+  it("sends no close on the wire when the stand-in channel for requests is released", () => {
+    const { effects } = run([
+      { type: "channel_requested", id: "requests", kind: "requests" },
+      { type: "socket_open" },
+      { type: "channel_released", id: "requests" },
+    ]);
+
+    expect(effects.filter((effect) => effect.type === "send_close")).toEqual(
+      [],
+    );
+  });
+});

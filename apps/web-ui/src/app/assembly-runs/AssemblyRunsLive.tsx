@@ -2,7 +2,7 @@
 
 // The run list's container: owns the live channel and the page's reducer, and hands the pure view its runs. A gap in the channel is closed by reloading the page the person is on.
 import { useReducer, useRef, type Dispatch } from "react";
-import type { FloorRunsPage } from "@/lib/api/floor-runs";
+import { loadFloorRunsPage, type FloorRunsPage } from "@/lib/floor-runs-page";
 import { floorRunOf } from "@/lib/assembly-run-rows";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
 import type { RunListFrame } from "@/lib/live-socket/protocol";
@@ -12,7 +12,6 @@ import {
   reduceRunList,
   type RunListAction,
 } from "./run-list-reducer";
-import { loadRunsPageAction } from "./runs-live-actions";
 import { useRunsChannel } from "./useRunsChannel";
 
 interface AssemblyRunsLiveProps {
@@ -83,7 +82,7 @@ function usePageReload(
   const readState = useRef<ReadState>("idle");
   const readPage = async () => {
     const { repo, activeStatus: status, cursor } = query;
-    const page = await loadRunsPageAction({ repo, status, cursor });
+    const page = await loadFloorRunsPage({ repo, status, cursor });
 
     dispatch({ type: "page_loaded", ...page });
   };

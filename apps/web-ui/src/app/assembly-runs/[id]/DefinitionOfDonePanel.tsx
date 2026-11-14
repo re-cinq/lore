@@ -4,14 +4,13 @@
 import { useEffect, useState } from "react";
 import type { DodProgress } from "@/lib/dod-progress-view";
 import DefinitionOfDoneView from "./DefinitionOfDoneView";
+import { liveFetch } from "@/lib/live-fetch";
 
 export interface DefinitionOfDonePanelProps {
   runId: string;
   /** Changes when the run status or the CI check changed; each change re-reads the progress. */
   refreshKey: string;
 }
-
-const REQUEST_TIMEOUT_MS = 15_000;
 
 export default function DefinitionOfDonePanel({
   runId,
@@ -50,9 +49,8 @@ function useDodProgress(runId: string, refreshKey: string) {
 }
 
 async function readProgress(runId: string): Promise<DodProgress | null> {
-  const res = await fetch(
+  const res = await liveFetch(
     `/api/assembly-runs/${encodeURIComponent(runId)}/dod`,
-    { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
   );
 
   if (!res.ok) {

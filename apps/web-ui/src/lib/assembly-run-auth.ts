@@ -3,7 +3,6 @@ import { fetchAssemblyRun, type AssemblyRun } from "@/lib/assembly-runs";
 import { sessionToken } from "@/lib/session-token";
 import type { RunUpstream, UpstreamConfig } from "@/lib/floor-config";
 import { authorizeRepoUpstreamAccess } from "@/lib/floor-access";
-import { serverError } from "@/lib/api-error";
 
 export interface AssemblyRunAuth extends UpstreamConfig {
   run: AssemblyRun;
@@ -45,53 +44,4 @@ async function resolveSessionRun(
   }
 
   return run;
-}
-
-/** What a run proxy needs once the ladder has passed: the run id, the run the ladder resolved, the caller's request, and the upstream to ask. */
-export interface RunProxyContext extends UpstreamConfig {
-  id: string;
-  run: AssemblyRun;
-  req: Request;
-}
-
-/** A run-scoped proxy route. The id, the auth ladder and the failure label are the same for every one of them, so each route states only its upstream call and which backend answers it. */
-export function assemblyRunProxyRoute(
-  errorContext: string,
-  proxy: (ctx: RunProxyContext) => Promise<Response>,
-  upstream: RunUpstream = "lore-api",
-) {
-  return async function GET(
-    req: Request,
-    { params }: { params: Promise<{ id: string }> },
-  ) {
-    const { id } = await params;
-
-    try {
-      return await proxyAuthorizedRun(id, req, proxy, upstream);
-    } catch (err) {
-      return serverError(errorContext, err);
-    }
-  };
-}
-
-/** Runs the ladder and hands the proxy what it needs, or returns the ladder's own refusal untouched. */
-async function proxyAuthorizedRun(
-  id: string,
-  req: Request,
-  proxy: (ctx: RunProxyContext) => Promise<Response>,
-  upstream: RunUpstream,
-): Promise<Response> {
-  const auth = await authorizeAssemblyRunAccess(id, upstream);
-
-  if (isAssemblyRunAuthError(auth)) {
-    return auth;
-  }
-
-  return proxy({
-    id,
-    run: auth.run,
-    req,
-    upstreamUrl: auth.upstreamUrl,
-    token: auth.token,
-  });
 }

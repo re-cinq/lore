@@ -9,11 +9,8 @@ import {
 } from "@/lib/definition-fixtures";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
+import { answeringSocketFrom } from "@/lib/live-socket/answering-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
-
-vi.mock("./live-actions", () => ({
-  openRunChannelAction: async () => ({ token: "tok" }),
-}));
 
 const run: AssemblyRun = {
   id: "run-1",
@@ -46,17 +43,10 @@ async function settle() {
 
 function renderShell(extra: Partial<RunLiveShellProps> = {}) {
   FakeWebSocket.reset();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ events: [] }),
-    }),
-  );
+  const socket = answeringSocketFrom(async () => Response.json({ events: [] }));
 
   return render(
-    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+    <LiveSocketProvider url="ws://test/api/ws" socket={socket}>
       <RunLiveShell
         run={run}
         nodes={[]}

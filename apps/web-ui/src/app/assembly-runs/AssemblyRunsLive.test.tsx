@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { AssemblyRun } from "@/lib/assembly-run-rows";
@@ -8,13 +8,10 @@ import type { RunListFrame } from "@/lib/live-socket/protocol";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import AssemblyRunsLive from "./AssemblyRunsLive";
-import { loadRunsPageAction } from "./runs-live-actions";
+import { loadFloorRunsPage } from "@/lib/floor-runs-page";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("./runs-live-actions", () => ({
-  openRunsChannelAction: async () => ({ token: "t-1" }),
-  loadRunsPageAction: vi.fn(),
-}));
+vi.mock("@/lib/floor-runs-page", () => ({ loadFloorRunsPage: vi.fn() }));
 
 type WireRun = components["schemas"]["FloorRunPage"]["runs"][number];
 
@@ -74,16 +71,8 @@ const newerRunPage = {
 
 beforeEach(() => {
   FakeWebSocket.reset();
-  vi.mocked(loadRunsPageAction).mockReset();
-  vi.mocked(loadRunsPageAction).mockResolvedValue(oneRunPage);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ json: async () => ({}) })) as unknown as typeof fetch,
-  );
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
+  vi.mocked(loadFloorRunsPage).mockReset();
+  vi.mocked(loadFloorRunsPage).mockResolvedValue(oneRunPage);
 });
 
 type LiveProps = Partial<ComponentProps<typeof AssemblyRunsLive>>;
@@ -116,9 +105,9 @@ async function sendFrame(frame: RunListFrame): Promise<void> {
   });
 }
 
-const reads = () => vi.mocked(loadRunsPageAction).mock.calls.length;
+const reads = () => vi.mocked(loadFloorRunsPage).mock.calls.length;
 const askedAt = (index: number) =>
-  vi.mocked(loadRunsPageAction).mock.calls[index]?.[0];
+  vi.mocked(loadFloorRunsPage).mock.calls[index]?.[0];
 
 function lastWatched(): string[] | undefined {
   const watch = FakeWebSocket.latest.sent.filter((m) => m.type === "watch");
@@ -160,7 +149,7 @@ describe("AssemblyRunsLive", () => {
   });
 
   it("reads the page again once the channel is live, so run-2 started before the socket opened shows and is watched", async () => {
-    vi.mocked(loadRunsPageAction).mockResolvedValue(newerRunPage);
+    vi.mocked(loadFloorRunsPage).mockResolvedValue(newerRunPage);
     renderLive();
     await openChannel();
 
@@ -173,7 +162,7 @@ describe("AssemblyRunsLive", () => {
   });
 
   it("reads the first page with status failed and shows run-2 on run_started", async () => {
-    vi.mocked(loadRunsPageAction).mockResolvedValue(newerRunPage);
+    vi.mocked(loadFloorRunsPage).mockResolvedValue(newerRunPage);
     renderLive({ activeStatus: "failed" });
     await openChannel();
     const readsBeforeFrame = reads();
@@ -210,6 +199,15 @@ describe("AssemblyRunsLive", () => {
       status: undefined,
       cursor: "page-2",
     });
+  });
+
+  it("opens the runs channel with no token field", async () => {
+    renderLive();
+    await openChannel();
+
+    expect(FakeWebSocket.latest.opens).toEqual([
+      { type: "open", channel: "c1", kind: "runs", subject: "floor" },
+    ]);
   });
 
   it("shows the connection chip as Live once the channel is opened", async () => {
@@ -274,12 +272,12 @@ describe("AssemblyRunsLive", () => {
   });
 });
 
-type RunsPage = Awaited<ReturnType<typeof loadRunsPageAction>>;
+type RunsPage = Awaited<ReturnType<typeof loadFloorRunsPage>>;
 
 function holdReadsByHand(): Array<(page: RunsPage) => void> {
   const pending: Array<(page: RunsPage) => void> = [];
 
-  vi.mocked(loadRunsPageAction).mockImplementation(
+  vi.mocked(loadFloorRunsPage).mockImplementation(
     () => new Promise<RunsPage>((resolve) => pending.push(resolve)),
   );
 
