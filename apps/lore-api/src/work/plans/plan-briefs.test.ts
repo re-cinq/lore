@@ -26,6 +26,29 @@ const REQUEST = {
   uses: { questions: [], comments: [] },
 };
 
+const SETTLED_RULE =
+  "Write each answered question's answer into the plan. Read each resolved thread to its last message: what it settles is where it ends, not how it starts. Do what the people in it agreed should be done. Where they did the work themselves, said they will, or agreed nothing is needed, or where the plan already holds what they asked for, change nothing for that thread and name it in your final message. One whose outcome is unclear, or that you cannot use, ask about with `add-question` rather than guess: a refine that ends still marks every one of these used.";
+
+const THREAD_BEN_DID_IT = {
+  actor: "ana",
+  slot: "prototype",
+  title: "Prototype",
+  baseHash: "3f9a",
+  inputs: {
+    answered: [],
+    resolved: [
+      {
+        commentId: "c2",
+        said: [
+          { author: "Ana", text: "We need a section per station." },
+          { author: "Ben", text: "I wrote it under Constraints." },
+        ],
+      },
+    ],
+  },
+  uses: { questions: [], comments: ["c2"] },
+};
+
 describe("plan briefs", () => {
   it("asks for a draft of Faster checkout in plan.md with what the author knows", () => {
     expect(draftBrief(PLAN, "Mobile users drop off.")).toEqual(
@@ -53,7 +76,7 @@ describe("plan briefs", () => {
     );
   });
 
-  it("lists answered question q-target and resolved thread c1 by id, each on one line, to write into Intent or ask about", () => {
+  it("lists answered question q-target and resolved thread c1 by id, each on one line, to write the answer in and to act on where the thread ends", () => {
     const request = {
       actor: "ana",
       slot: "intent",
@@ -81,11 +104,29 @@ describe("plan briefs", () => {
 
     expect(refineBrief(PLAN, request).split("\n\n").slice(1)).toEqual([
       [
-        "Write each of these into the section. One you cannot use, ask about with `add-question` rather than leave out: a refine that ends without them still marks them used.",
+        SETTLED_RULE,
         '- Answered q-target: "Which number do we stop at?" — 300 ms',
         '- Resolved thread c1: Ben: "Keep the cache - under a minute."',
       ].join("\n"),
     ]);
+  });
+
+  it("lists Ana's ask and Ben's reply of resolved thread c2 on one line, in the order they were said", () => {
+    expect(refineBrief(PLAN, THREAD_BEN_DID_IT).split("\n").at(-1)).toEqual(
+      '- Resolved thread c2: Ana: "We need a section per station." Ben: "I wrote it under Constraints."',
+    );
+  });
+
+  it("tells the agent to change nothing for thread c2, where Ben says he wrote the section himself", () => {
+    expect(refineBrief(PLAN, THREAD_BEN_DID_IT)).toContain(
+      "Where they did the work themselves, said they will, or agreed nothing is needed, or where the plan already holds what they asked for, change nothing for that thread",
+    );
+  });
+
+  it("tells the agent to ask about thread c2 rather than guess when its outcome is unclear", () => {
+    expect(refineBrief(PLAN, THREAD_BEN_DID_IT)).toContain(
+      "One whose outcome is unclear, or that you cannot use, ask about with `add-question` rather than guess",
+    );
   });
 
   it("briefs a spec pass after spec PR #7 merged as an amendment of what is on main", () => {

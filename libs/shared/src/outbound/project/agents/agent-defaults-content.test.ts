@@ -413,7 +413,7 @@ describe("the feature-planning recipe", () => {
       ),
       askInstead: prompt.includes("ask with `add-question` instead"),
       everyInput: prompt.includes(
-        "Write in every settled input the brief lists",
+        "Write in every answered question the brief lists",
       ),
     }).toEqual({
       unreviewed: true,
@@ -952,6 +952,21 @@ describe("the planning recipes check a plan against what the platform has (issue
   });
 });
 
+describe("the planning agent on a resolved thread", () => {
+  it("tells the planning agent to act on where a resolved thread ends and to change nothing for one whose people did the work", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      readToTheEnd: prompt.includes(
+        "Read each resolved thread to its last message and do what it ends on",
+      ),
+      leftAlone: prompt.includes(
+        "did the work themselves, said they will, or agreed nothing is needed, or the plan already holds what they asked for, change nothing for it",
+      ),
+    }).toEqual({ readToTheEnd: true, leftAlone: true });
+  });
+});
+
 describe("the sketch agent", () => {
   it("tells the sketch agent to write each sketch with add-mockup", () => {
     const prompt = promptOnOneLine("plan-sketch");
@@ -975,6 +990,36 @@ describe("the sketch agent", () => {
       passRepo: true,
       result: true,
     });
+  });
+
+  it("tells the sketch agent to add a section after prototype, one sub-heading per item, when a resolved thread ends on asking for text", () => {
+    const prompt = promptOnOneLine("plan-sketch");
+
+    expect({
+      addSection: prompt.includes('"op": "add-section", "slot": "custom-'),
+      afterPrototype: prompt.includes('"after": "prototype"'),
+      subHeadingPerItem: prompt.includes("one `### ` sub-heading per item"),
+      ownSectionRewritten: prompt.includes(
+        '"op": "set-section-text", "slot": "custom-',
+      ),
+    }).toEqual({
+      addSection: true,
+      afterPrototype: true,
+      subHeadingPerItem: true,
+      ownSectionRewritten: true,
+    });
+  });
+
+  it("tells the sketch agent to change nothing for a thread whose people did the work themselves", () => {
+    expect(promptOnOneLine("plan-sketch")).toContain(
+      "did the work themselves, said they will, or agreed nothing is needed: change nothing",
+    );
+  });
+
+  it("tells the sketch agent to ask with add-question on prototype what the plan does not decide", () => {
+    expect(promptOnOneLine("plan-sketch")).toContain(
+      '"op": "add-question", "slot": "prototype"',
+    );
   });
 
   it("links the seven prototype skills to the sketch agent", () => {

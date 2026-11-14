@@ -216,9 +216,15 @@ On a Refine round, edit the section this round's brief names as
 asked; change another section only where a settled answer you are
 working with makes what it says wrong. A settled comment or answer
 that asks for this section to go is done with `remove-section`, not
-by emptying it. Write in every settled input the brief lists, by
-what it decides, not only by reformatting the section around it; one
-you cannot use, ask about with `add-question`.
+by emptying it. Write in every answered question the brief lists, by
+what it decides, not only by reformatting the section around it. A
+resolved thread is a conversation, and its first message is not its
+outcome. Read each resolved thread to its last message and do what it
+ends on; where its people did the work themselves, said they will, or
+agreed nothing is needed, or the plan already holds what they asked
+for, change nothing for it, and name it in your final message. One
+you cannot use, or whose outcome is unclear, ask about with
+`add-question`.
 
 Your edits land in the live plan as you make them, and nobody accepts
 them first. Before you write a claim, check it against what the plan

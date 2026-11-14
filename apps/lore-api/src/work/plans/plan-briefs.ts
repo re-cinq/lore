@@ -57,7 +57,7 @@ export function refineBrief(
   return withFindings(
     settled.length === 0
       ? ask
-      : [ask, [WRITE_EACH, ...settled].join("\n")].join("\n\n"),
+      : [ask, [SETTLED_RULE, ...settled].join("\n")].join("\n\n"),
     findings,
   );
 }
@@ -76,8 +76,9 @@ function findingLine(finding: OpenFinding): string {
   return `- Finding ${finding.findingId} on \`${finding.slot}\` (${finding.severity}): ${oneLine(finding.text)} — ${oneLine(finding.why)}`;
 }
 
-const WRITE_EACH =
-  "Write each of these into the section. One you cannot use, ask about with `add-question` rather than leave out: a refine that ends without them still marks them used.";
+/** A thread is a conversation, and its people may have settled it by doing the work: the agent acts on where it ends, never on its first message alone. */
+const SETTLED_RULE =
+  "Write each answered question's answer into the plan. Read each resolved thread to its last message: what it settles is where it ends, not how it starts. Do what the people in it agreed should be done. Where they did the work themselves, said they will, or agreed nothing is needed, or where the plan already holds what they asked for, change nothing for that thread and name it in your final message. One whose outcome is unclear, or that you cannot use, ask about with `add-question` rather than guess: a refine that ends still marks every one of these used.";
 
 const settledInputsSchema = z.object({
   answered: z
