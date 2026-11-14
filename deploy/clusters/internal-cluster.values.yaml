@@ -55,6 +55,17 @@ platform:
       host: lore.gcp.re-cinq.com
       service: lore-ui
       port: 3000
+    # The live socket on the UI's own host, so the session cookie rides the upgrade (ADR-048).
+    - name: lore-ui-live
+      namespace: lore-api
+      host: lore.gcp.re-cinq.com
+      path: /api/ws
+      pathType: Exact
+      service: lore-api
+      port: 3000
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     # GitHub deliveries: the public path is rewritten onto lore-api's route so
     # no repository's hook needs re-registering.
     - name: lore-webhook

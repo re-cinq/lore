@@ -4,7 +4,13 @@ import type {
   AssemblyRunRecord,
   AssemblyRunsPort,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { repoAllowed } from "../auth/login-grant.js";
 import type { ChannelHandle } from "./channel-registry.js";
+import {
+  NO_SESSION,
+  type SessionAccess,
+  type SocketPerson,
+} from "./socket-session.js";
 import type { FrameSink } from "./frame-sink.js";
 import type { LiveTokenVerifier } from "./live-tokens.js";
 import type { Membership, RunFeedRegistry } from "./run-feed.js";
@@ -40,9 +46,10 @@ export async function openRunChannel(
   message: RunOpenMessage,
   outlet: ChannelOutlet,
   deps: RunChannelDeps,
+  session: SessionAccess = NO_SESSION,
 ): Promise<ChannelHandle | null> {
   const { channel } = message;
-  const admission = await admit(message, deps);
+  const admission = await admit(message, deps, session);
   const membership =
     "run" in admission ? joinFeed(admission.run, message, outlet, deps) : null;
 
@@ -61,18 +68,41 @@ export async function openRunChannel(
 async function admit(
   message: RunOpenMessage,
   deps: RunChannelDeps,
+  session: SessionAccess,
 ): Promise<Admission> {
-  const viewer = await deps.verifyToken(message.token, {
-    kind: "run",
-    subject: message.subject,
-  });
+  const viewer = await viewerOf(message, deps, session);
 
   if (!viewer) {
     return { reason: "unauthorized" };
   }
   const run = await deps.runs.getById(message.subject);
 
-  return run ? { run } : { reason: "not_found" };
+  if (!run) {
+    return { reason: "not_found" };
+  }
+
+  return repoAllowed({ user: viewer.person }, run.repo)
+    ? { run }
+    : { reason: "unauthorized" };
+}
+
+/** The viewer a minted token vouches for (no person: the token is the grant), or else the person the session cookie names; null for neither. */
+async function viewerOf(
+  message: RunOpenMessage,
+  deps: RunChannelDeps,
+  session: SessionAccess,
+): Promise<{ person: SocketPerson | null } | null> {
+  if (message.token === undefined) {
+    const person = await session.person();
+
+    return person ? { person } : null;
+  }
+  const minted = await deps.verifyToken(message.token, {
+    kind: "run",
+    subject: message.subject,
+  });
+
+  return minted ? { person: null } : null;
 }
 
 /** The feed refuses only past its per-run cap, as a plain Error with a known prefix; anything else is a bug and rethrows. */

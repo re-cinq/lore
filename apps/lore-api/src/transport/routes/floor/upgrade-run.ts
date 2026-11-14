@@ -1,7 +1,7 @@
 // GET/POST /api/assembly-runs/{id}/upgrade — whether a newer version of the run's assembly line exists, and the new run started on it.
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
-import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import type { UpgradeRunFloor } from "../../../work/floor/upgrade-run.js";
 import { upgradeFor, upgradeRun } from "../../../work/floor/upgrade-run.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -26,15 +26,17 @@ const UPGRADE_RUN_OPTIONS = zodResponse(bearerScope("task"), UpgradedRun, {
   errors: [404, 409],
 });
 
+const upgradeFloor = (): UpgradeRunFloor => floorRunReader().upgradeFloor();
+
 /** The two routes of the run page's "Upgrade assembly line": whether one is available, and the upgrade itself. */
 export function upgradeRoutes(
-  floorOf: () => UpgradeRunFloor = floorClient,
+  floorOf: () => UpgradeRunFloor = upgradeFloor,
 ): ServerRoute[] {
   return [upgradeStateRoute(floorOf), upgradeRunRoute(floorOf)];
 }
 
 export function upgradeStateRoute(
-  floorOf: () => UpgradeRunFloor = floorClient,
+  floorOf: () => UpgradeRunFloor = upgradeFloor,
 ): ServerRoute {
   return {
     method: "GET",
@@ -45,7 +47,7 @@ export function upgradeStateRoute(
 }
 
 export function upgradeRunRoute(
-  floorOf: () => UpgradeRunFloor = floorClient,
+  floorOf: () => UpgradeRunFloor = upgradeFloor,
 ): ServerRoute {
   return {
     method: "POST",

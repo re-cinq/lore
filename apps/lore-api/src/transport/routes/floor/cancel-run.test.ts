@@ -30,6 +30,14 @@ function poolGranting(scopes: string[]): Pool {
   } as unknown as Pool;
 }
 
+function poolOfSession(login: string): Pool {
+  return {
+    query: vi.fn().mockResolvedValue({
+      rows: [{ scopes: ["admin"], kind: "user", login, repos: [] }],
+    }),
+  } as unknown as Pool;
+}
+
 function serve(source: CancelRunFloor, pool: Pool | null = null) {
   const server = Hapi.server();
 
@@ -90,6 +98,31 @@ describe("POST /api/assembly-runs/{id}/cancel", () => {
       status: 200,
       cancelled: [["plan-run", "cancelled from the run page"]],
     });
+  });
+
+  it("records ana as the one who cancelled when her session cancels run r1 with no body", async () => {
+    const source = floor({ finishedAt: null });
+
+    await cancel(serve(source, poolOfSession("ana")), {
+      headers: { authorization: "Bearer ana-session" },
+    });
+
+    expect(vi.mocked(source.runs.cancel).mock.calls).toEqual([
+      ["plan-run", "cancelled from the run page by ana"],
+    ]);
+  });
+
+  it("records ana, not the name in the body, when her session cancels a run", async () => {
+    const source = floor({ finishedAt: null });
+
+    await cancel(serve(source, poolOfSession("ana")), {
+      headers: { authorization: "Bearer ana-session" },
+      payload: { requested_by: "mallory" },
+    });
+
+    expect(vi.mocked(source.runs.cancel).mock.calls).toEqual([
+      ["plan-run", "cancelled from the run page by ana"],
+    ]);
   });
 
   it("answers 404 for a run the floor does not have", async () => {

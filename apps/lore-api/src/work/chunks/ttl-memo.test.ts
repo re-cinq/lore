@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { memoizeByKeyWithTtl, memoizeWithTtl } from "./ttl-memo.js";
+import {
+  memoizeByKeyStaleWhileRefreshing,
+  memoizeByKeyWithTtl,
+  memoizeWithTtl,
+} from "./ttl-memo.js";
 
 describe("memoizeWithTtl", () => {
   beforeEach(() => {
@@ -101,5 +105,87 @@ describe("memoizeByKeyWithTtl", () => {
     await read("re-cinq/lore");
 
     expect(reads).toEqual(["re-cinq/lore", "re-cinq/otto", "re-cinq/lore"]);
+  });
+});
+
+describe("memoizeByKeyStaleWhileRefreshing", () => {
+  const WINDOW = { freshMs: 20_000, staleMs: 10 * 60_000 };
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+  function clockedMemo(fn: (key: string) => Promise<string>) {
+    let clock = 0;
+    const memo = memoizeByKeyStaleWhileRefreshing(fn, WINDOW, () => clock);
+
+    return { memo, advance: (ms: number) => (clock += ms) };
+  }
+
+  it("answers the kept value at once 30 s later and refreshes it once in the background", async () => {
+    const read = vi
+      .fn<(key: string) => Promise<string>>()
+      .mockResolvedValueOnce("first")
+      .mockResolvedValueOnce("second");
+    const { memo, advance } = clockedMemo(read);
+
+    await memo("repo");
+    advance(30_000);
+    const answers = await Promise.all([memo("repo"), memo("repo")]);
+
+    await settle();
+
+    expect({
+      answers,
+      reads: read.mock.calls.length,
+      afterRefresh: await memo("repo"),
+    }).toEqual({
+      answers: ["first", "first"],
+      reads: 2,
+      afterRefresh: "second",
+    });
+  });
+
+  it("waits for the read 11 minutes later", async () => {
+    const read = vi
+      .fn<(key: string) => Promise<string>>()
+      .mockResolvedValueOnce("first")
+      .mockResolvedValueOnce("second");
+    const { memo, advance } = clockedMemo(read);
+
+    await memo("repo");
+    advance(11 * 60_000);
+
+    expect(await memo("repo")).toBe("second");
+  });
+
+  it("keeps the old value when the background refresh fails", async () => {
+    const read = vi
+      .fn<(key: string) => Promise<string>>()
+      .mockResolvedValueOnce("first")
+      .mockRejectedValue(new Error("github away"));
+    const { memo, advance } = clockedMemo(read);
+
+    await memo("repo");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    advance(30_000);
+    await memo("repo");
+    await settle();
+    const warned = warn.mock.calls.length;
+
+    expect({ kept: await memo("repo"), warned }).toEqual({
+      kept: "first",
+      warned: 1,
+    });
+    warn.mockRestore();
+  });
+
+  it("shares one first read between concurrent callers", async () => {
+    const read = vi
+      .fn<(key: string) => Promise<string>>()
+      .mockResolvedValue("v");
+    const { memo } = clockedMemo(read);
+
+    await Promise.all([memo("repo"), memo("repo")]);
+
+    expect(read).toHaveBeenCalledTimes(1);
   });
 });

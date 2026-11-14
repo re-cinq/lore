@@ -1,11 +1,15 @@
-import type { LiveSocketLimits } from "./live-socket.js";
+import type { LiveSocketDeps, LiveSocketLimits } from "./live-socket.js";
 import { WebSocket } from "ws";
 import type { LiveServerMessage } from "./protocol.js";
 
 type Waiter = (message: LiveServerMessage) => void;
 
-export function queuedClient(port: number, path = "/api/ws") {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+export function queuedClient(
+  port: number,
+  path = "/api/ws",
+  headers: Record<string, string> = {},
+) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, { headers });
 
   return {
     ws,
@@ -63,3 +67,15 @@ export function allowing(
     allowOpen: () => opensLeft-- > 0,
   };
 }
+
+const ANA = { login: "ana", name: "Ana", avatarUrl: null, repos: ["o/r"] };
+const BEN = { login: "ben", name: "Ben", avatarUrl: null, repos: ["x/y"] };
+
+/** Two people: "ana-session" belongs to Ana (who reads o/r), "ben-session" to Ben (who reads x/y); any other token is no person's. */
+export const personBySession: LiveSocketDeps["person"] = async (token) =>
+  ({ "ana-session": ANA, "ben-session": BEN })[token] ?? null;
+
+export const cookieOf = (session: string) => ({
+  cookie: `theme=dark; lore_session=${session}`,
+  origin: "http://localhost:3000",
+});

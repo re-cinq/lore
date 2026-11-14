@@ -429,6 +429,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/pull-files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/pull-files */
+    get: operations["get_api_assembly-runs_id_pull-files"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
@@ -3306,6 +3323,16 @@ export interface components {
         cost_usd: number | null;
       }[];
     };
+    AssemblyRunPullFiles: {
+      files: {
+        filename: string;
+        status: string;
+        additions: number;
+        deletions: number;
+        patch: string | null;
+        previousFilename?: string;
+      }[];
+    };
     AssemblyRunRead: {
       line: {
         [key: string]: unknown;
@@ -4276,7 +4303,7 @@ export interface components {
           /** @constant */
           kind: "run";
           subject: string;
-          token: string;
+          token?: string;
           after?: string;
         }
       | {
@@ -4294,7 +4321,7 @@ export interface components {
           /** @constant */
           kind: "runs";
           subject: string;
-          token: string;
+          token?: string;
         }
       | {
           /** @constant */
@@ -4321,6 +4348,16 @@ export interface components {
           /** @constant */
           type: "close";
           channel: string;
+        }
+      | {
+          /** @constant */
+          type: "request";
+          id: string;
+          /** @enum {string} */
+          method: "GET" | "POST" | "PUT" | "DELETE";
+          /** Format: starts_with */
+          path: string;
+          body?: unknown;
         };
     LiveServerMessage:
       | {
@@ -4531,6 +4568,13 @@ export interface components {
             | "slow"
             | "server";
           code?: number;
+        }
+      | {
+          /** @constant */
+          type: "response";
+          id: string;
+          status: number;
+          body: unknown;
         }
       | {
           /** @constant */
@@ -7222,8 +7266,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          requested_by: string;
-        };
+          requested_by?: string;
+        } | null;
       };
     };
     responses: {
@@ -7242,6 +7286,33 @@ export interface operations {
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_pull-files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every changed file on the run's pull request with its unified patch. 404 for a run with no pull request */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunPullFiles"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

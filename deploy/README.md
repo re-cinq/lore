@@ -30,6 +30,10 @@ ExternalSecrets, ingresses, the `lore-db` CloudNativePG cluster with its
 backups, Dgraph, and the monitoring objects. [`chart/README.md`](chart/README.md)
 describes the chart itself.
 
+One ingress shares a hostname: `lore-ui-live` sends `lore.gcp.re-cinq.com/api/ws`
+(the live socket, ADR-048) to lore-api, while every other path of that host stays
+with the UI, so the session cookie rides the socket's upgrade.
+
 ## How a release happens
 
 1. A pull request merges to `main`.
