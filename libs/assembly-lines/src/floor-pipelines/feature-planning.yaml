@@ -44,7 +44,8 @@ line:
     # while its Prototype section holds no sketch and no prototype link.
     - id: sketch-due
       station: plan-sketch-due
-    # The sketch agent draws the Prototype section. Reached from sketch-due, by
+    # The sketch agent draws the Prototype section, and writes a section a
+    # resolved thread on it asks for. Reached from sketch-due, by
     # hand with `node.sketch.start` (the plan page's Generate prototype, or a
     # Refine of that section), or as the entry of a run opened for it.
     - id: sketch
@@ -462,7 +463,7 @@ stations:
         kind: value
     produces: []
   plan-sketch:
-    description: An AI agent draws the plan's Prototype section, diagrams of its architecture, flows and data and sketches of the screens it changes, and writes nothing else.
+    description: An AI agent draws the plan's Prototype section, diagrams of its architecture, flows and data and sketches of the screens it changes, and writes a section of text only where a resolved comment thread on that section asks for one.
     kind: agent
     agent_definition: plan-sketch
     outcomes:
