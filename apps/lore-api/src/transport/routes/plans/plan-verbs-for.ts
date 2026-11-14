@@ -32,7 +32,11 @@ export interface PlanVerbSeams {
   pool?: () => Pool;
   /** The plan lifecycle service (approve, reopen, spec-work etc.); only needed at request time, not at route construction. */
   service?: PlanApprover & { reopenPlan(planId: string): Promise<PlanMeta> };
+  /** Answers as failed a Refine ask no agent ever took up; run when the plan's page opens. */
+  clearStaleAsks?: (plan: StalePlan) => Promise<unknown>;
 }
+
+import type { StalePlan } from "../../../work/plans/stale-refine-asks.js";
 
 const NO_FLOOR = "plans need the external floor, and this deployment has none";
 const NO_LIVE_PLAN = "the plan verbs on the floor need the live plan";
