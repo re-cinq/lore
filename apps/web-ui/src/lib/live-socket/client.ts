@@ -21,6 +21,7 @@ import {
 } from "./protocol";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 import { isStaleDeployment } from "./stale-deployment";
+import { openMessage } from "./open-message";
 
 /** The slice of the browser's WebSocket the client drives, so a test can hand in its own. */
 export interface SocketLike {
@@ -316,48 +317,3 @@ const INBOUND: {
     }),
   error: (client, message) => client.onError(message),
 };
-
-const OPEN_MESSAGES: {
-  [K in ChannelKind]: (
-    id: string,
-    spec: ChannelSpec,
-    token: string,
-  ) => LiveClientMessage;
-} = {
-  plan: (id, spec) => ({
-    type: "open",
-    channel: id,
-    kind: "plan",
-    subject: spec.subject,
-  }),
-  run: (id, spec, token) => ({
-    type: "open",
-    channel: id,
-    kind: "run",
-    subject: spec.subject,
-    token,
-    after: spec.after?.(),
-  }),
-  runs: (id, spec, token) => ({
-    type: "open",
-    channel: id,
-    kind: "runs",
-    subject: spec.subject,
-    token,
-  }),
-  "plan-run": (id, spec, token) => ({
-    type: "open",
-    channel: id,
-    kind: "plan-run",
-    subject: spec.subject,
-    token,
-  }),
-};
-
-function openMessage(
-  id: string,
-  spec: ChannelSpec,
-  token: string | undefined,
-): LiveClientMessage {
-  return OPEN_MESSAGES[spec.kind](id, spec, token ?? "");
-}
