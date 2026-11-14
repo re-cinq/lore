@@ -43,16 +43,21 @@ export const MOCKUP_HTML_CONFIG = {
   FORBID_ATTR: FORBID_HANDLERS,
 };
 
-/** The frame cannot measure itself (no same-origin), so a mermaid frame takes its height from the svg's viewBox. */
+/** A mermaid diagram's own size, from its viewBox: what it measures at 100%. */
+export function mermaidSize(
+  svg: string,
+): { width: number; height: number } | null {
+  const viewBox = /viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/.exec(svg);
+  const [width, height] = [Number(viewBox?.[1]), Number(viewBox?.[2])];
+
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/** The height a mermaid diagram is shown in: its own, capped. */
 export function mermaidFrameHeight(svg: string): number | null {
-  const viewBox = /viewBox="[-\d.]+ [-\d.]+ [-\d.]+ ([\d.]+)"/.exec(svg);
-  const height = viewBox ? Number(viewBox[1]) : NaN;
+  const size = mermaidSize(svg);
 
-  if (!(height > 0)) {
-    return null;
-  }
-
-  return Math.min(Math.ceil(height) + 16, MAX_MOCKUP_HEIGHT);
+  return size ? Math.min(Math.ceil(size.height) + 16, MAX_MOCKUP_HEIGHT) : null;
 }
 
 interface MaybePurifier {

@@ -439,6 +439,7 @@ export default tseslint.config(
   {
     files: [
       "apps/web-ui/src/app/repos/**/graph/**",
+      "apps/web-ui/src/app/repos/**/plans/**/MermaidCanvas.tsx",
       "apps/web-ui/src/app/**/icon.tsx",
     ],
     rules: { "re-lint/no-inline-styles": "off" },

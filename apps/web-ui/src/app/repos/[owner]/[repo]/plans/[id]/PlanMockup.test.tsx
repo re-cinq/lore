@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import PlanMockup from "./PlanMockup";
 
@@ -91,35 +97,100 @@ describe("PlanMockup", () => {
     );
 
     expect(screen.getByText("Drawing the sketch…")).toBeInTheDocument();
-    await screen.findByTitle("Empty Prototype section");
+    await screen.findByRole("img", { name: "Empty Prototype section" });
   });
 
-  it("draws a mermaid sketch in a frame sized to the diagram", async () => {
+  it("draws a mermaid sketch on the page at 100% with zoom controls", async () => {
     render(
       <PlanMockup
         {...sketch({ format: "mermaid", markup: "graph TD; A-->B" })}
       />,
     );
 
-    const frame = await screen.findByTitle("Empty Prototype section");
+    const diagram = await screen.findByRole("img", {
+      name: "Empty Prototype section",
+    });
 
-    expect(frame).toHaveAttribute("sandbox", "");
-    expect(frame).toHaveAttribute("height", "200");
-    expect(frame.getAttribute("srcdoc")).toContain("graph TD; A-->B");
+    expect({
+      text: diagram.textContent,
+      frames: document.querySelectorAll("iframe").length,
+      zoom: screen.getByText("100%").tagName,
+      controls: ["Zoom in", "Zoom out", "Fit"].map(
+        (name) => screen.getByRole("button", { name }).tagName,
+      ),
+    }).toEqual({
+      text: "graph TD; A-->B",
+      frames: 0,
+      zoom: "OUTPUT",
+      controls: ["BUTTON", "BUTTON", "BUTTON"],
+    });
   });
 
-  it("starts mermaid in strict mode with no html labels and no error drawing", async () => {
+  it("zooms a mermaid sketch to 125% with Zoom in", async () => {
     render(
       <PlanMockup {...sketch({ format: "mermaid", markup: "graph TD; A" })} />,
     );
-    await screen.findByTitle("Empty Prototype section");
+    await screen.findByRole("img", { name: "Empty Prototype section" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(screen.getByText("125%")).toBeInTheDocument();
+  });
+
+  it("drags a mermaid sketch 40 pixels right", async () => {
+    render(
+      <PlanMockup {...sketch({ format: "mermaid", markup: "graph TD; A" })} />,
+    );
+    const diagram = await screen.findByRole("img", {
+      name: "Empty Prototype section",
+    });
+
+    fireEvent.pointerDown(diagram, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(diagram, { clientX: 50, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(diagram, { pointerId: 1 });
+
+    expect(diagram.firstElementChild).toHaveStyle({
+      transform: "translate(40px, 0px) scale(1)",
+    });
+  });
+
+  it("starts mermaid in strict mode with no html labels, at full width, in the page's base theme", async () => {
+    render(
+      <PlanMockup {...sketch({ format: "mermaid", markup: "graph TD; A" })} />,
+    );
+    await screen.findByRole("img", { name: "Empty Prototype section" });
 
     expect(mermaidInitialize).toHaveBeenLastCalledWith({
       startOnLoad: false,
       securityLevel: "strict",
       suppressErrorRendering: true,
-      flowchart: { htmlLabels: false },
+      flowchart: { htmlLabels: false, useMaxWidth: false },
+      sequence: { useMaxWidth: false },
+      er: { useMaxWidth: false },
+      state: { useMaxWidth: false },
+      class: { useMaxWidth: false },
+      theme: "base",
+      themeVariables: expect.objectContaining({ darkMode: false }),
     });
+  });
+
+  it("redraws a mermaid sketch in dark colours when the page switches to dark", async () => {
+    render(
+      <PlanMockup {...sketch({ format: "mermaid", markup: "graph TD; A" })} />,
+    );
+    await screen.findByRole("img", { name: "Empty Prototype section" });
+
+    await act(async () => {
+      document.documentElement.setAttribute("data-color-scheme", "dark");
+    });
+    await waitFor(() =>
+      expect(mermaidInitialize).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          themeVariables: expect.objectContaining({ darkMode: true }),
+        }),
+      ),
+    );
+    document.documentElement.removeAttribute("data-color-scheme");
   });
 
   it("shows the source of a mermaid sketch that does not parse", async () => {
@@ -154,15 +225,15 @@ describe("PlanMockup", () => {
         {...sketch({ format: "mermaid", markup: "graph TD; New" })}
       />,
     );
-    await screen.findByTitle("Empty Prototype section");
+    await screen.findByRole("img", { name: "Empty Prototype section" });
 
     await act(async () => {
       finishFirst({ svg: '<svg viewBox="0 0 1 1"><text>stale</text></svg>' });
     });
 
     expect(
-      screen.getByTitle("Empty Prototype section").getAttribute("srcdoc"),
-    ).toContain("graph TD; New");
+      screen.getByRole("img", { name: "Empty Prototype section" }).textContent,
+    ).toBe("graph TD; New");
   });
 
   it("drops mermaid output that carries a script", async () => {
