@@ -421,3 +421,29 @@ describe("FloorRunReader.taskRunContexts", () => {
     });
   });
 });
+
+describe("FloorRunReader, a run's visits", () => {
+  it("asks the floor for finished run-2's visits once when its page is read twice", async () => {
+    const recorded = recordedFloor(floorWithFailedRunOnSecondPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({});
+    await floorReader.page({});
+
+    expect(
+      recorded.requests.filter((r) => r.path.startsWith("/station-runs")),
+    ).toHaveLength(1);
+  });
+
+  it("asks the floor for open run-1's visits on each of two page reads", async () => {
+    const recorded = recordedFloor(floorWithRunPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({});
+    await floorReader.page({});
+
+    expect(
+      recorded.requests.filter((r) => r.path.startsWith("/station-runs")),
+    ).toHaveLength(2);
+  });
+});
