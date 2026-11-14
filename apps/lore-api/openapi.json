@@ -1644,19 +1644,76 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "requested_by": {
-                    "type": "string",
-                    "minLength": 1
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "requested_by": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
                   }
-                },
-                "required": ["requested_by"],
-                "additionalProperties": false
+                ]
               }
             }
           }
         }
+      }
+    },
+    "/api/assembly-runs/{id}/pull-files": {
+      "get": {
+        "operationId": "get_api_assembly-runs_id_pull-files",
+        "summary": "GET /api/assembly-runs/{id}/pull-files",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every changed file on the run's pull request with its unified patch. 404 for a run with no pull request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunPullFiles"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/assembly-runs/{id}/stream-token": {
@@ -14369,6 +14426,47 @@
         "required": ["runs"],
         "additionalProperties": false
       },
+      "AssemblyRunPullFiles": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "additions": {
+                  "type": "number"
+                },
+                "deletions": {
+                  "type": "number"
+                },
+                "patch": {
+                  "type": ["string", "null"]
+                },
+                "previousFilename": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename",
+                "status",
+                "additions",
+                "deletions",
+                "patch"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["files"],
+        "additionalProperties": false
+      },
       "AssemblyRunRead": {
         "type": "object",
         "properties": {
@@ -18182,7 +18280,7 @@
                 "pattern": "^\\d+$"
               }
             },
-            "required": ["type", "channel", "kind", "subject", "token"],
+            "required": ["type", "channel", "kind", "subject"],
             "additionalProperties": false
           },
           {
@@ -18234,7 +18332,7 @@
                 "minLength": 1
               }
             },
-            "required": ["type", "channel", "kind", "subject", "token"],
+            "required": ["type", "channel", "kind", "subject"],
             "additionalProperties": false
           },
           {
@@ -18322,6 +18420,32 @@
               }
             },
             "required": ["type", "channel"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "request"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "method": {
+                "type": "string",
+                "enum": ["GET", "POST", "PUT", "DELETE"]
+              },
+              "path": {
+                "type": "string",
+                "format": "starts_with",
+                "pattern": "^\\/api\\/.*"
+              },
+              "body": {}
+            },
+            "required": ["type", "id", "method", "path"],
             "additionalProperties": false
           }
         ]
@@ -19078,6 +19202,26 @@
               }
             },
             "required": ["type", "channel", "reason"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "response"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "status": {
+                "type": "number"
+              },
+              "body": {}
+            },
+            "required": ["type", "id", "status", "body"],
             "additionalProperties": false
           },
           {

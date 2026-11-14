@@ -16,11 +16,17 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
+import { requestedByOf } from "./requested-by.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 /** The floor lines whose runs carry a `pipeline.tasks` row to revive. Mirrors `apps/stations/.../settle-task.ts`'s `TASK_LINES` — the two ends of the same task-status lifecycle. */
 const TASK_LINES: readonly string[] = [LOOP_LINE, ONBOARD_LINE];
 
-const RunNodeBody = z.object({ requested_by: z.string().min(1) });
+/** A service token names who it acts for; a person's session needs no body. */
+const RunNodeBody = z
+  .object({ requested_by: z.string().min(1).optional() })
+  .nullish();
 
 const NodeRunAsked = z.object({ run_id: z.string(), pending: z.boolean() });
 
@@ -59,11 +65,14 @@ async function serveRunNode(
   request: Request,
   h: ResponseToolkit,
 ) {
-  const { requested_by } = request.payload as z.infer<typeof RunNodeBody>;
+  const body = request.payload as z.infer<typeof RunNodeBody>;
+  const actor = requestedByOf(request, body?.requested_by);
+
+  enforceTrue(actor, apiError(400), "requested_by is required");
   const asked = await handleRunNode(floorOf(), pool, {
     runId: request.params.id,
     nodeId: request.params.node,
-    actor: requested_by,
+    actor,
   });
 
   return h.response(asked).code(202);

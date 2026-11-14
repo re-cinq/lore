@@ -5,7 +5,9 @@ import {
   FLOOR_RUN,
   FLOOR_RUN_LOOP,
 } from "../../../work/floor/floor-run.fixtures.js";
-import { handleRunNode } from "./run-node.js";
+import Hapi from "@hapi/hapi";
+import { registerBearerScope } from "../../http/bearer-scope.js";
+import { handleRunNode, runNodeRoute } from "./run-node.js";
 
 const ANSWERS: Record<string, unknown> = {
   "/assembly-runs/run-1": { run: FLOOR_RUN, bag: {} },
@@ -88,5 +90,63 @@ describe("handleRunNode", () => {
     );
 
     expect(pool.query).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/assembly-runs/{id}/nodes/{node}/run", () => {
+  it("records ana as the one who ran node review by hand when her session posts no body", async () => {
+    const { floor, requests } = recordedFloor(
+      (request) => ANSWERS[request.path],
+    );
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ scopes: ["admin"], kind: "user", login: "ana", repos: [] }],
+      }),
+    };
+    const server = Hapi.server();
+
+    registerBearerScope(server, () => pool as never);
+    server.route(
+      runNodeRoute(
+        () => pool as never,
+        () => floor,
+      ),
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/assembly-runs/run-1/nodes/review/run",
+      headers: { authorization: "Bearer ana-session" },
+    });
+
+    expect({
+      status: res.statusCode,
+      askedBy: requests.filter((r) => r.path === "/events").map((r) => r.body),
+    }).toMatchObject({
+      status: 202,
+      askedBy: [{ payload: { requestedBy: "ana" } }],
+    });
+  });
+
+  it("answers 400 when a service token posts no requested_by", async () => {
+    process.env.LORE_INGEST_TOKEN = "service-token";
+    const { floor } = recordedFloor((request) => ANSWERS[request.path]);
+    const server = Hapi.server();
+
+    registerBearerScope(server, () => null);
+    server.route(
+      runNodeRoute(
+        () => ({}) as never,
+        () => floor,
+      ),
+    );
+
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/assembly-runs/run-1/nodes/review/run",
+      headers: { authorization: "Bearer service-token" },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });

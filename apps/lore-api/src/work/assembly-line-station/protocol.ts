@@ -17,6 +17,8 @@ export const MAX_WATCHED_RUNS = 200;
 
 const Channel = z.string().min(1).max(64);
 
+const RequestId = z.string().min(1).max(64);
+
 /** Base64 of the tunnelled bytes; JSON has no binary. */
 const Bytes = z.string();
 
@@ -27,7 +29,8 @@ export const LiveClientMessageSchema = z.union([
     channel: Channel,
     kind: z.literal("run"),
     subject: z.string().min(1),
-    token: z.string().min(1),
+    /** Absent for a signed-in person: the socket's session cookie speaks for them. */
+    token: z.string().min(1).optional(),
     after: z.string().regex(/^\d+$/).optional(),
   }),
   z.object({
@@ -41,7 +44,8 @@ export const LiveClientMessageSchema = z.union([
     channel: Channel,
     kind: z.literal("runs"),
     subject: z.string().min(1),
-    token: z.string().min(1),
+    /** Absent for a signed-in person: the socket's session cookie speaks for them. */
+    token: z.string().min(1).optional(),
   }),
   z.object({
     type: z.literal("open"),
@@ -58,6 +62,14 @@ export const LiveClientMessageSchema = z.union([
   }),
   z.object({ type: z.literal("send"), channel: Channel, data: Bytes }),
   z.object({ type: z.literal("close"), channel: Channel }),
+  /** Any lore-api route, asked as the signed-in person the socket's cookie names; answered by one `response` carrying the same id. */
+  z.object({
+    type: z.literal("request"),
+    id: RequestId,
+    method: z.enum(["GET", "POST", "PUT", "DELETE"]),
+    path: z.string().startsWith("/api/"),
+    body: z.unknown().optional(),
+  }),
 ]);
 
 export const ClosedReasonSchema = z.enum([
@@ -109,6 +121,12 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
     code: z.number().optional(),
   }),
   z.object({
+    type: z.literal("response"),
+    id: RequestId,
+    status: z.number(),
+    body: z.unknown(),
+  }),
+  z.object({
     type: z.literal("error"),
     channel: Channel.optional(),
     code: LiveErrorCodeSchema,
@@ -118,6 +136,8 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
 export type LiveClientMessage = z.infer<typeof LiveClientMessageSchema>;
 export type LiveServerMessage = z.infer<typeof LiveServerMessageSchema>;
 export type OpenMessage = Extract<LiveClientMessage, { type: "open" }>;
+export type RequestMessage = Extract<LiveClientMessage, { type: "request" }>;
+export type ResponseMessage = Extract<LiveServerMessage, { type: "response" }>;
 export type WatchMessage = Extract<LiveClientMessage, { type: "watch" }>;
 export type RunListFrame = z.infer<typeof RunListFrameSchema>;
 export type ClosedReason = z.infer<typeof ClosedReasonSchema>;

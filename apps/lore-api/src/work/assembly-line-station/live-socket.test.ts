@@ -1,9 +1,16 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createServer, type Server } from "node:http";
 import { InMemoryRunNotifier } from "./run-notify-hub.js";
 import { memoryLiveTokens } from "./live-tokens.js";
 import { RunFeedRegistry } from "./run-feed.js";
-import { allowing, queuedClient } from "./live-socket.fixtures.js";
+import {
+  allowing,
+  cookieOf,
+  personBySession,
+  queuedClient,
+} from "./live-socket.fixtures.js";
+import type { SocketInject } from "./socket-request.js";
 import {
   mountLiveSocket,
   type LiveSocketDeps,
@@ -69,6 +76,7 @@ describe("the live socket", () => {
   let notifier: InMemoryRunNotifier;
   let feeds: RunFeedRegistry;
   const opened: ReturnType<typeof queuedClient>[] = [];
+  let inject: SocketInject;
 
   const connect = async () => {
     const c = queuedClient(port);
@@ -123,6 +131,8 @@ describe("the live socket", () => {
       runs: { verifyToken: tokens.verify, feed: null },
       planRun: planRunDeps(),
       collab: echoingCollabThatRefusesOnByte(),
+      person: personBySession,
+      inject: (options) => inject(options),
       pingMs: 50,
       log: () => {},
     });
@@ -318,8 +328,10 @@ describe("the live socket", () => {
     expect(feeds.feedCount).toBe(0);
   });
 
-  const upgradeStatus = (): Promise<number> => {
-    const attempt = queuedClient(port);
+  const upgradeStatus = (
+    headers: Record<string, string> = {},
+  ): Promise<number> => {
+    const attempt = queuedClient(port, "/api/ws", headers);
 
     opened.push(attempt);
 
@@ -339,6 +351,8 @@ describe("the live socket", () => {
       runs: { verifyToken: tokens.verify, feed: null },
       planRun: planRunDeps(),
       collab: echoingCollabThatRefusesOnByte(),
+      person: personBySession,
+      inject: (options) => inject(options),
       log: () => {},
       ...extra,
     });
@@ -443,6 +457,119 @@ describe("the live socket", () => {
         "task_event",
         "catchup_complete",
       ],
+    });
+  });
+
+  it("refuses the upgrade of a cookie socket from https://evil.example with 403", async () => {
+    const status = await upgradeStatus({
+      ...cookieOf("ana-session"),
+      origin: "https://evil.example",
+    });
+
+    expect({ status, sockets: mount.connectionCount }).toEqual({
+      status: 403,
+      sockets: 0,
+    });
+  });
+
+  it("admits a socket with no cookie from any origin", async () => {
+    expect(await upgradeStatus({ origin: "https://evil.example" })).toBe(101);
+  });
+
+  it("admits a cookie socket from an allowed origin", async () => {
+    expect(await upgradeStatus(cookieOf("ana-session"))).toBe(101);
+  });
+
+  const asSession = async (session: string) => {
+    const c = queuedClient(port, "/api/ws", cookieOf(session));
+
+    opened.push(c);
+    await c.open();
+
+    return c;
+  };
+
+  it("answers a request on Ana's cookie socket with the route's status and body", async () => {
+    inject = async ({ url, headers }) => ({
+      statusCode: 200,
+      payload: JSON.stringify({
+        url,
+        asAna: headers.authorization.endsWith("ana-session"),
+      }),
+    });
+    const c = await asSession("ana-session");
+
+    c.send({
+      type: "request",
+      id: "q1",
+      method: "GET",
+      path: "/api/floor-runs",
+    });
+
+    expect(await c.next()).toEqual({
+      type: "response",
+      id: "q1",
+      status: 200,
+      body: { url: "/api/floor-runs", asAna: true },
+    });
+  });
+
+  it("keeps the socket open when a route throws", async () => {
+    let calls = 0;
+
+    inject = async () => {
+      enforceTrue(calls++ !== 0, Error, "route exploded");
+
+      return { statusCode: 200, payload: "{}" };
+    };
+    const c = await asSession("ana-session");
+    const request = (id: string) =>
+      c.send({ type: "request", id, method: "GET", path: "/api/x" });
+
+    request("q1");
+    const first = await c.next();
+
+    request("q2");
+    const second = await c.next();
+
+    expect([first, second]).toMatchObject([
+      { id: "q1", status: 500 },
+      { id: "q2", status: 200 },
+    ]);
+  });
+
+  const openRunWithoutToken = (c: ReturnType<typeof queuedClient>) =>
+    c.send({ type: "open", channel: "r", kind: "run", subject: seed.run.id });
+
+  it("opens run r1 for Ana's session with no token", async () => {
+    const c = await asSession("ana-session");
+
+    openRunWithoutToken(c);
+
+    expect(await c.next()).toEqual({ type: "opened", channel: "r" });
+  });
+
+  it("closes run r1 as unauthorized for a socket with neither token nor session", async () => {
+    const c = await connect();
+
+    openRunWithoutToken(c);
+
+    expect(await c.next()).toEqual({
+      type: "closed",
+      channel: "r",
+      reason: "unauthorized",
+    });
+  });
+
+  it("closes a run in a repo outside Ben's list as unauthorized", async () => {
+    const c = await asSession("ben-session");
+
+    openRunWithoutToken(c);
+
+    expect(await c.next()).toEqual({
+      type: "closed",
+      channel: "r",
+      reason: "unauthorized",
     });
   });
 });

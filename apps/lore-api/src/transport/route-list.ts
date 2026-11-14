@@ -29,6 +29,7 @@ import { timelineRoute } from "./routes/tasks/task-timeline.js";
 import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
+import { runPullFilesRoute } from "./routes/assembly-lines/run-pull-files.js";
 import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
 import { floorRunsStreamTokenRoute } from "./routes/floor/floor-runs-stream-token.js";
 import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
@@ -215,6 +216,7 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     runReadRoute(getPool),
+    runPullFilesRoute(getPool),
     runDodRoute(getPool),
     runStreamTokenRoute(getPool),
     floorRunsStreamTokenRoute(getPool),

@@ -88,13 +88,39 @@ describe("parseClientMessage", () => {
     ]).toEqual([open, null]);
   });
 
-  it("returns null for non-JSON, an unknown type, a run open without a token, and a non-numeric cursor", () => {
+  it("reads a run open and a runs open with no token", () => {
+    const run = { type: "open", channel: "c", kind: "run", subject: "run-1" };
+    const runs = { type: "open", channel: "d", kind: "runs", subject: "floor" };
+
+    expect(
+      [run, runs].map((message) => parseClientMessage(JSON.stringify(message))),
+    ).toEqual([run, runs]);
+  });
+
+  it("reads a request and rejects one whose path is outside /api/", () => {
+    const request = {
+      type: "request",
+      id: "q1",
+      method: "GET",
+      path: "/api/floor-runs?limit=5",
+    };
+
+    expect(
+      [
+        request,
+        { ...request, path: "/admin" },
+        { ...request, method: "PATCH" },
+      ].map((message) => parseClientMessage(JSON.stringify(message))),
+    ).toEqual([request, null, null]);
+  });
+
+  it("returns null for non-JSON, an unknown type, a non-numeric cursor, and a plan-run open without a token", () => {
     expect(
       [
         "nope",
         '{"type":"dance","channel":"c"}',
-        '{"type":"open","channel":"c","kind":"run","subject":"run-1"}',
         '{"type":"open","channel":"c","kind":"run","subject":"run-1","token":"t","after":"x"}',
+        '{"type":"open","channel":"c","kind":"plan-run","subject":"p1"}',
       ].map(parseClientMessage),
     ).toEqual([null, null, null, null]);
   });

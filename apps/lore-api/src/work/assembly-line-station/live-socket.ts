@@ -11,6 +11,7 @@ import {
   type LiveClientMessage,
   type LiveServerMessage,
   type OpenMessage,
+  type RequestMessage,
 } from "./protocol.js";
 import {
   openRunChannel,
@@ -22,6 +23,8 @@ import {
   openPlanRunChannel,
   type PlanRunChannelDeps,
 } from "./plan-run-channel.js";
+import { answerRequest, type SocketInject } from "./socket-request.js";
+import type { SessionAccess, SocketPerson } from "./socket-session.js";
 import { webRequest } from "./web-request.js";
 import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
 
@@ -34,7 +37,7 @@ const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 const OPEN = 1;
 
-type ChannelMessage = Exclude<LiveClientMessage, OpenMessage>;
+type ChannelMessage = Exclude<LiveClientMessage, OpenMessage | RequestMessage>;
 
 let connectionSeq = 0;
 
@@ -43,6 +46,10 @@ export interface LiveSocketDeps {
   runs: RunsChannelDeps;
   planRun: PlanRunChannelDeps;
   collab: CollabServer;
+  /** The person a session token belongs to, or null for a token that is no person's (a service token) or no longer valid. */
+  person(token: string): Promise<SocketPerson | null>;
+  /** Runs a lore-api route in-process, for `request` messages. */
+  inject: SocketInject;
   limits?: LiveSocketLimits;
   pingMs?: number;
   maxSockets?: number;
@@ -96,6 +103,7 @@ class LiveConnection {
     private readonly ws: WebSocket,
     private readonly request: IncomingMessage,
     private readonly deps: LiveSocketDeps,
+    private readonly sessionToken: string | undefined,
   ) {}
 
   start(): void {
@@ -142,7 +150,28 @@ class LiveConnection {
       return this.open(message);
     }
 
+    if (message.type === "request") {
+      return void this.answer(message);
+    }
+
     return this.dispatchToChannel(message);
+  }
+
+  /** A route that throws is a 500 for that request; the socket and its channels stay up. */
+  private async answer(message: RequestMessage): Promise<void> {
+    try {
+      this.send(
+        await answerRequest(message, this.sessionToken, this.deps.inject),
+      );
+    } catch (err) {
+      this.log(`request failed: ${(err as Error).message}`);
+      this.send({
+        type: "response",
+        id: message.id,
+        status: 500,
+        body: { error: "internal error" },
+      });
+    }
   }
 
   private dispatchToChannel(message: ChannelMessage): void {
@@ -255,7 +284,14 @@ class LiveConnection {
     return open(message, outlet, {
       deps: this.deps,
       request: () => webRequest(this.request),
+      session: this.session(),
     });
+  }
+
+  private session(): SessionAccess {
+    const token = this.sessionToken;
+
+    return { person: async () => (token ? this.deps.person(token) : null) };
   }
 
   private outletFor(channel: string): ChannelOutlet {
@@ -275,6 +311,8 @@ interface OpenContext {
   deps: LiveSocketDeps;
   /** The upgrade request as a web Request, for the plan channel's collaboration handshake. */
   request: () => Request;
+  /** Who the socket's session cookie names, resolved when asked so a signed-out session is refused. */
+  session: SessionAccess;
 }
 
 type Opener<M extends OpenMessage> = (
@@ -289,9 +327,10 @@ const OPENERS: {
 } = {
   plan: async (message, outlet, { deps, request }) =>
     openPlanChannel(message.channel, request(), outlet, deps.collab),
-  run: (message, outlet, { deps }) => openRunChannel(message, outlet, deps.run),
-  runs: (message, outlet, { deps }) =>
-    openRunsChannel(message, outlet, deps.runs),
+  run: (message, outlet, { deps, session }) =>
+    openRunChannel(message, outlet, deps.run, session),
+  runs: (message, outlet, { deps, session }) =>
+    openRunsChannel(message, outlet, deps.runs, session),
   "plan-run": (message, outlet, { deps }) =>
     openPlanRunChannel(message, outlet, deps.planRun),
 };
@@ -300,6 +339,7 @@ function serve(
   ws: WebSocket,
   request: IncomingMessage,
   deps: LiveSocketDeps,
+  sessionToken: string | undefined,
 ): void {
-  new LiveConnection(ws, request, deps).start();
+  new LiveConnection(ws, request, deps, sessionToken).start();
 }

@@ -41,6 +41,8 @@ import {
   type VisitReadDeps,
 } from "./floor-visit-reads.js";
 import { type FloorNodeLogs } from "./floor-records.js";
+import { memoizeByKeyWithTtl } from "../chunks/ttl-memo.js";
+import type { UpgradeRunFloor } from "./upgrade-run.js";
 
 export type FloorRunSource = Pick<
   FloorClient,
@@ -54,6 +56,8 @@ const DEFAULT_LIST_LIMIT = 50;
 const TASK_SEARCH_PAGES = 10;
 
 const DEFAULT_PAGE_LIMIT = 25;
+
+const RUN_READ_TTL_MS = 3_000;
 
 export interface FloorRunListing {
   run: AssemblyRunSummary;
@@ -87,10 +91,24 @@ export class FloorRunReader {
   /** A line version is its content, so what it says about its nodes never changes once read. */
   private readonly lines = new Map<string, Promise<LineFacts>>();
 
+  /** A page asks for the same run several times in one burst (the run, its nodes, its upgrade); they share one floor read. */
+  private readonly runById = memoizeByKeyWithTtl(
+    (runId: string) => this.floor.runs.get(runId),
+    RUN_READ_TTL_MS,
+  );
+
   constructor(private readonly floor: FloorRunSource) {}
 
+  /** The floor as an upgrade reads it: this reader's shared run read, the client's own everything else. */
+  upgradeFloor(): UpgradeRunFloor {
+    return {
+      runs: { ...this.floor.runs, get: this.runById },
+      lines: this.floor.lines,
+    };
+  }
+
   async getById(runId: string): Promise<AssemblyRunRecord | null> {
-    const found = await this.floor.runs.get(runId);
+    const found = await this.runById(runId);
 
     return found ? this.recordOf(found.run) : null;
   }
@@ -220,13 +238,13 @@ export class FloorRunReader {
 
   /** One run as the list shows it; null for a run the floor does not hold. */
   async listing(runId: string): Promise<FloorRunListing | null> {
-    const found = await this.floor.runs.get(runId);
+    const found = await this.runById(runId);
 
     return found ? this.listingOf(found.run) : null;
   }
 
   async listStationRuns(runId: string): Promise<StationRunRecord[]> {
-    const found = await this.floor.runs.get(runId);
+    const found = await this.runById(runId);
 
     if (!found) {
       return [];
@@ -251,11 +269,11 @@ export class FloorRunReader {
   }
 
   private visitReadDeps(): VisitReadDeps {
-    const { runs, stationRuns, events } = this.floor;
+    const { stationRuns, events } = this.floor;
 
     return {
       visitById: (visitId) => stationRuns.get(visitId),
-      runById: async (runId) => (await runs.get(runId))?.run ?? null,
+      runById: async (runId) => (await this.runById(runId))?.run ?? null,
       eventsPage: (runId, since) =>
         events.feed({ run: runId, since }, { limit: EVENTS_PER_READ }),
       recordsOf: (visit, kind) =>
