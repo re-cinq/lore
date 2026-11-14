@@ -286,7 +286,7 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
        LORE_DB_HOST: <postgres host>
        GITHUB_APP_SLUG: <app slug>
        LORE_API_PUBLIC_URL: https://<lore_api host>   # where the browser reaches lore-api: the sign-in redirects there
-       LORE_WS_URL: wss://<lore_api host>/api/ws
+       LORE_WS_URL: wss://<lore_ui_hostname>/api/ws
    lore-stations:
      env:
        LORE_DB_HOST: <postgres host>
@@ -299,6 +299,8 @@ A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` 
    ```
 
    `GCP_PROJECT` and `LORE_LOG_BUCKET` stay unset off GCP.
+
+   `LORE_WS_URL` is the UI's own host: the browser reads the run pages over the live socket as the signed-in person, so the session cookie must ride the upgrade. The ingress must send `/api/ws` on the UI's host to lore-api (`deploy/README.md`, the `lore-ui-live` ingress); every other path of that host stays with the UI.
 
 6. **Install.**
 

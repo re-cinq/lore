@@ -1,20 +1,17 @@
 // @vitest-environment node
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { bagRefreshKey, readRunBag } from "./run-bag";
 import type { AssemblyRunNode } from "./assembly-run-rows";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const BAG = { task_id: { kind: "value", ref: "task-1", by: "lore" } };
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
 describe("readRunBag", () => {
-  it("reads the bag of run-1 through the session-authed proxy", async () => {
+  it("reads the bag of run-1 over the live socket", async () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ bag: BAG }));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
 
     expect(await readRunBag("run-1")).toEqual(BAG);
     expect(String(fetchMock.mock.calls[0][0])).toBe(
@@ -22,9 +19,8 @@ describe("readRunBag", () => {
     );
   });
 
-  it("is null when the proxy answers 404, as it does for a run Lore's own engine walked", async () => {
-    vi.stubGlobal(
-      "fetch",
+  it("is null when lore-api answers 404, as it does for a run Lore's own engine walked", async () => {
+    liveRequestsFrom(
       vi.fn().mockResolvedValue(new Response("{}", { status: 404 })),
     );
 
@@ -32,10 +28,7 @@ describe("readRunBag", () => {
   });
 
   it("is null for an answer with no bag in it", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(Response.json({ events: [] })),
-    );
+    liveRequestsFrom(vi.fn().mockResolvedValue(Response.json({ events: [] })));
 
     expect(await readRunBag("run-1")).toBeNull();
   });

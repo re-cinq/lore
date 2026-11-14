@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 export type VisitReader<Answer> = (
   runId: string,
   visitId: string,
-  cancel?: AbortSignal,
 ) => Promise<Answer[]>;
 
 export function useVisitRead<Answer>(
@@ -48,7 +47,7 @@ async function readInto<Answer>(ask: ReadInto<Answer>): Promise<void> {
   const { signal } = ask.read;
 
   try {
-    const next = await ask.reader(ask.runId, ask.visitId, signal);
+    const next = await ask.reader(ask.runId, ask.visitId);
 
     if (!signal.aborted) {
       ask.show({ visitId: ask.visitId, answers: next });

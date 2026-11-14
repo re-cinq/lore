@@ -1,13 +1,20 @@
 // @vitest-environment jsdom
 import { StrictMode } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  act,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import {
   MAX_TURNS_LOADED,
   MAX_WALK_PAGES,
   TURNS_PAGE_LIMIT,
 } from "./turn-transcript-presenter";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -47,13 +54,17 @@ function turnsResponse(turns: unknown[]) {
   return new Response(JSON.stringify({ turns }), { status: 200 });
 }
 
+let lastFetchMock = vi.fn();
+
 function stubFetch(...responses: Response[]) {
   const fetchMock = vi.fn();
+
+  lastFetchMock = fetchMock;
 
   for (const response of responses) {
     fetchMock.mockResolvedValueOnce(response);
   }
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }
@@ -93,13 +104,13 @@ function detailsOf(container: HTMLElement): HTMLDetailsElement {
 }
 
 describe("FullTranscriptPanel", () => {
-  it("renders open and starts the walk on mount, before any click", () => {
+  it("renders open and starts the walk on mount, before any click", async () => {
     const fetchMock = stubFetch(turnsResponse([]));
 
     render(<FullTranscriptPanel runId="run-1" nodeId="implement" />);
 
     expect(screen.getByText("Transcript")).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   });
 
   it("fetches the run's turns once opened and renders the assistant text, formatted", async () => {
@@ -221,7 +232,7 @@ describe("FullTranscriptPanel", () => {
   it("reopening while the first walk is in flight never starts a second one", async () => {
     const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
     );
@@ -309,7 +320,7 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
 
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
-    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    expect(lastFetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("a reopened retry shows Loading instead of the stale error", async () => {
@@ -317,7 +328,7 @@ describe("FullTranscriptPanel", () => {
 
     fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
     fetchMock.mockReturnValueOnce(new Promise(() => {}));
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
     );

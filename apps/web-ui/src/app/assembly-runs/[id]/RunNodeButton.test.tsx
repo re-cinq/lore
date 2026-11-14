@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { RunNodeButton } from "./RunNodeButton";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const refresh = vi.fn();
 
@@ -17,7 +18,7 @@ function answering(status: number, body: object) {
     .fn()
     .mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }
@@ -29,7 +30,7 @@ async function clickRun() {
 }
 
 describe("RunNodeButton", () => {
-  it("posts to the run-1 review proxy and refreshes the page once the floor took it", async () => {
+  it("asks over the live socket to run review of run-1 and refreshes the page once the floor took it", async () => {
     const fetchMock = answering(202, { run_id: "run-1", pending: false });
 
     render(<RunNodeButton runId="run-1" nodeId="review" />);

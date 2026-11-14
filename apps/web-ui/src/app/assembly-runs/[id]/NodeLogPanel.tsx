@@ -13,6 +13,7 @@ import {
   type NodeLogsResponse,
 } from "./node-pod-logs-presenter";
 import styles from "./NodeLogPanel.module.css";
+import { liveFetch } from "@/lib/live-fetch";
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -221,9 +222,7 @@ async function readNodeLogs(
   agentCrName: string,
 ): Promise<NodeLogsResponse | string> {
   try {
-    const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName), {
-      signal: AbortSignal.timeout(15_000),
-    });
+    const res = await liveFetch(nodeLogsUrl(assemblyLineId, agentCrName));
 
     if (res.status === 403) {
       return "Access denied — you do not have access to this repository.";

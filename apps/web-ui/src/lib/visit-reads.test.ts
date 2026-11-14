@@ -2,6 +2,7 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { readVisitEvents, readVisitModelCalls } from "./visit-reads";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const CALL = {
   seq: 1,
@@ -18,12 +19,12 @@ afterEach(() => {
 });
 
 describe("visit reads", () => {
-  it("reads visit-1's model calls through the session-authed proxy", async () => {
+  it("reads visit-1's model calls over the live socket", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(Response.json({ calls: [CALL] }));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
 
     expect({
       calls: await readVisitModelCalls("run-1", "visit-1"),
@@ -35,8 +36,7 @@ describe("visit reads", () => {
   });
 
   it("answers no events on a 404, as for a run Lore's own engine walked", async () => {
-    vi.stubGlobal(
-      "fetch",
+    liveRequestsFrom(
       vi.fn().mockResolvedValue(new Response("{}", { status: 404 })),
     );
 

@@ -2,6 +2,7 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { readBlobPreviews } from "./blob-previews";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const ISSUE = `sha256-${"a".repeat(64)}`;
 const PLAN = `sha256-${"c".repeat(64)}`;
@@ -30,7 +31,7 @@ describe("readBlobPreviews", () => {
         Response.json({ previews: { [PLAN]: preview(PLAN) } }),
       );
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     await readBlobPreviews("run-1", [ISSUE]);
     const both = await readBlobPreviews("run-1", [ISSUE, PLAN]);
 
@@ -44,8 +45,7 @@ describe("readBlobPreviews", () => {
   });
 
   it("answers no previews when the read fails with 503", async () => {
-    vi.stubGlobal(
-      "fetch",
+    liveRequestsFrom(
       vi.fn().mockResolvedValue(new Response("{}", { status: 503 })),
     );
 

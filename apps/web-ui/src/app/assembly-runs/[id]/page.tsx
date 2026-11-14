@@ -33,13 +33,24 @@ export default async function AssemblyLineResolverPage({
     return <p>Not found.</p>;
   }
 
-  const run = await fetchAssemblyRun(id);
+  const { run, reads } = await readRunBurst(id);
 
   if (!run) {
     return <TaskRunResolver taskId={id} />;
   }
 
-  return <RunPage run={run} view={await resolveRunView(run, id)} />;
+  return <RunPage run={run} view={await resolveRunView(run, reads)} />;
+}
+
+/** The run and what the page asks for beside it, started together so the floor answers all three from one read. */
+async function readRunBurst(id: string) {
+  const [run, nodes, upgradeAvailable] = await Promise.all([
+    fetchAssemblyRun(id),
+    fetchAssemblyRunNodes(id),
+    hasAssemblyRunUpgrade(id),
+  ]);
+
+  return { run, reads: { nodes, upgradeAvailable } };
 }
 
 /** The id named no run, so it may name a task: every link that knows only a task points here. */
@@ -59,13 +70,18 @@ async function TaskRunResolver({ taskId }: { taskId: string }) {
   );
 }
 
+/** What the page asks for beside the run itself. */
+interface RunReads {
+  nodes: Awaited<ReturnType<typeof fetchAssemblyRunNodes>>;
+  upgradeAvailable: boolean;
+}
+
 /** Everything the page renders from, resolved in one place. `agentEditHrefs` is built from RESOLVED definitions because those carry the `project_id` the "Edit agent" link routes on; `listAgents` degrades to an empty list when the API is unreachable, which costs the links and nothing else. */
-async function resolveRunView(run: AssemblyRun, id: string) {
+async function resolveRunView(
+  run: AssemblyRun,
+  { nodes, upgradeAvailable }: RunReads,
+) {
   const issueRead = resolveIssue(run);
-  const [nodes, upgradeAvailable] = await Promise.all([
-    fetchAssemblyRunNodes(id),
-    hasAssemblyRunUpgrade(id),
-  ]);
   const { events, llmCalls } = await resolveTaskContext(run.taskId);
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
 

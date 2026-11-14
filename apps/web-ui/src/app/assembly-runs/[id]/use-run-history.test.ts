@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useRunHistory, useHistoryPoll } from "./use-run-history";
 
-vi.mock("./live-actions", () => ({
-  openRunChannelAction: async () => ({ token: "tok" }),
-}));
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 
 function row(id: string): Record<string, unknown> {
@@ -38,7 +36,7 @@ function stubFetch(...pages: unknown[][]) {
     return { ok: true, json: async () => ({ events }) } as Response;
   });
 
-  global.fetch = fetchStub as unknown as typeof fetch;
+  liveRequestsFrom(fetchStub);
 
   return fetchStub;
 }
@@ -57,9 +55,7 @@ describe("useRunHistory", () => {
   });
 
   it("marks the connection offline when the history fetch fails", async () => {
-    global.fetch = vi.fn(async () => ({
-      ok: false,
-    })) as unknown as typeof fetch;
+    liveRequestsFrom(async () => new Response("{}", { status: 500 }));
     const dispatch = vi.fn();
     const { result } = renderHook(() => useRunHistory("run-1", dispatch));
 

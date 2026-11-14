@@ -34,7 +34,7 @@ A node's log is read on demand through lore-api and rendered by the run page.
 ```
 Run page, attempt inspector (AgentAttemptCard)
   ↓ Show: pod logs
-NodeLogPanel fetches /api/assembly-runs/{id}/nodes/{name}/logs (web-ui proxy)
+NodeLogPanel fetches /api/assembly-runs/{id}/nodes/{name}/logs (over the live socket)
   ↓
 lore-api GET /api/assembly-runs/{id}/nodes/{name}/logs
   ↓ Postgres first                      ↓ otherwise
@@ -69,19 +69,13 @@ parseAgentLog → LogEntriesView (Formatted), or the log text as answered (Raw)
 
 12. A visit that ended with no log record answers `available: false` with `reason: "no-records"` and its `Failed` or `Succeeded` phase. ([validated by says the floor kept no records, Failed, for a failed visit with no log @f708a85c](apps/lore-api/src/work/floor/floor-records.test.ts#L78))
 
-### The web-ui proxy
+### The web-ui read
 
-13. The browser reads a node's log from the web UI's own route, whose path `nodeLogsUrl` builds from the encoded run id and node name. ([validated by builds the proxy path and encodes the run id and the agent CR name @9429be47](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L20))
+13. The browser reads a node's log over the live socket from lore-api's route, whose path `nodeLogsUrl` builds from the encoded run id and node name. ([validated by builds the proxy path and encodes the run id and the agent CR name @9429be47](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L20))
 
-14. The proxy refuses a viewer who cannot access the run's repository with `403` and makes no upstream call. ([validated by returns 403 when the user cannot access the run repo @a74830e5](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L75))
+14. lore-api refuses a person who cannot read the run's repository with `403` before the route reads the log. ([validated by refuses Ben the events of a run in a repo outside his list with 403 @ee83635a](apps/lore-api/src/transport/http/run-repo-guard.test.ts#L62))
 
-15. The proxy requests the log on lore-api under the run and the node's name, with the `tail` it was given, at the URL `nodeLogsUpstream` builds. ([validated by requests the node's log on lore-api under the run and the node's name, with the tail @bf11ad9b](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L86), [validated by reads a node's logs from lore-api under the run and the encoded name @413a640b](apps/web-ui/src/lib/run-read-upstream.test.ts#L29))
-
-16. The proxy returns lore-api's status and body unchanged, on success and on a non-auth error. ([validated by returns the upstream status and body verbatim on success @03f7305b](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L96), [validated by passes a non-auth upstream error like 500 through unchanged @f2e5a692](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L66))
-
-17. An upstream `401` or `403` is returned as `502`, so the panel does not tell an authorized viewer that access is denied. ([validated by surfaces an upstream 401 as 502 so it cannot masquerade as the proxy's own auth ladder @b8e00245](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L45), [validated by surfaces an upstream 403 as 502 so NodeLogPanel does not render access denied for an authorized viewer @3e0c912a](apps/web-ui/src/app/api/assembly-runs/[id]/nodes/[name]/logs/route.test.ts#L57))
-
-18. The proxy answers `404` for a name that is not the `agentCrName` of one of the run's nodes.
+15. lore-api answers `404` for a floor node name that is no visit of the run. ([validated by answers 404 for a name of no visit of this run @c17afccb](apps/lore-api/src/transport/routes/floor/node-logs.test.ts#L45))
 
 ## Out of Scope
 
@@ -91,9 +85,9 @@ parseAgentLog → LogEntriesView (Formatted), or the log text as answered (Raw)
 
 ## Acceptance Criteria
 
-1. A pod-log panel that is open on mount fetches its log at once and renders it as formatted entries. ([validated by fetches on mount when opened by default @0af9c666](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L56), [validated by `NodeLogPanel.test.tsx@f00305c8`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86))
+1. A pod-log panel that is open on mount fetches its log at once and renders it as formatted entries. ([validated by fetches on mount when opened by default @0af9c666](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L57), [validated by `NodeLogPanel.test.tsx@f00305c8`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L87))
 
-2. A collapsed pod-log panel shows its label and fetches nothing until it is opened. ([validated by renders the collapsed label without fetching until opened @0ecb8fa2](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L75))
+2. A collapsed pod-log panel shows its label and fetches nothing until it is opened. ([validated by renders the collapsed label without fetching until opened @0ecb8fa2](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L76))
 
 3. The panel fetches again on a timer only while the last answer is available and its phase is `Running`. ([validated by returns false before any response @0a45bcf7](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L28), [validated by returns true while a live pod is running @92db978d](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L32), [validated by returns false once the pod reaches a terminal phase @df9e4c65](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L36), [validated by returns false when logs are unavailable @468ac80b](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L40))
 
@@ -103,17 +97,17 @@ parseAgentLog → LogEntriesView (Formatted), or the log text as answered (Raw)
 
 6. The panel polls every 5 seconds and scrolls to the newest line on every answer.
 
-7. A `403` from the proxy is shown as an access-denied message, and any other failed fetch as `Failed to load logs: <error>`.
+7. A `403` from lore-api is shown as an access-denied message, and any other failed fetch as `Failed to load logs: <error>`.
 
 ## Component Contract
 
 ### Readable transcript rendering (2026-07)
 
-The pod-log panel parses its log line by line and renders typed entries in place of the raw JSON. ([validated by `NodeLogPanel.test.tsx@f00305c8`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L86))
+The pod-log panel parses its log line by line and renders typed entries in place of the raw JSON. ([validated by `NodeLogPanel.test.tsx@f00305c8`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L87))
 
-The panel is formatted by default, and its Raw/Formatted toggle switches to the log text exactly as lore-api answered it. ([validated by `NodeLogPanel.test.tsx@7f5ef348`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L100))
+The panel is formatted by default, and its Raw/Formatted toggle switches to the log text exactly as lore-api answered it. ([validated by `NodeLogPanel.test.tsx@7f5ef348`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L101))
 
-An available but empty log shows the `(no output yet)` placeholder and no toggle. ([validated by `NodeLogPanel.test.tsx@a9a97ea5`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L114))
+An available but empty log shows the `(no output yet)` placeholder and no toggle. ([validated by `NodeLogPanel.test.tsx@a9a97ea5`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L115))
 
 A floor node whose visit kept no log shows "The floor kept no log for this node; its transcript is above." ([validated by says the floor kept no log for a floor run's node whose visit has no records @7d3a9d1d](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L60))
 
