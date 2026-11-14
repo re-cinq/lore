@@ -270,7 +270,7 @@ lore-ui:
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
-    tag: "f765993"
+    tag: "29397d3"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
