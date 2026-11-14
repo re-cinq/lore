@@ -36,7 +36,10 @@ export default function PlanDetailView(props: PlanDetailViewProps) {
   const { ref: barRef, height: barHeight } = useElementHeight<HTMLDivElement>();
 
   return (
-    <div style={{ ["--plan-toolbar-height" as string]: `${barHeight}px` }}>
+    <div
+      data-wide-page
+      style={{ ["--plan-toolbar-height" as string]: `${barHeight}px` }}
+    >
       <PlanDetailContent {...props} barRef={barRef} />
     </div>
   );

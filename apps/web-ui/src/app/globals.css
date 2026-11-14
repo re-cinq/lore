@@ -201,6 +201,12 @@ option {
   padding: 0;
 }
 
+/* A page that reads best at full width, such as a plan, marks its root `data-wide-page`: it spans the space between the side panels with small gutters. */
+.main-content:has(> [data-wide-page]) {
+  --main-max: 100%;
+  --main-pad-x: var(--space-5);
+}
+
 /* Mobile header — hidden on desktop */
 
 .mobile-header {
