@@ -43,6 +43,7 @@ import {
 import { type FloorNodeLogs } from "./floor-records.js";
 import { memoizeByKeyWithTtl } from "../chunks/ttl-memo.js";
 import type { UpgradeRunFloor } from "./upgrade-run.js";
+import { keepingSettledVisits } from "./settled-run-visits.js";
 
 export type FloorRunSource = Pick<
   FloorClient,
@@ -97,6 +98,11 @@ export class FloorRunReader {
     RUN_READ_TTL_MS,
   );
 
+  /** A run's visits: asked of the floor once for a finished run, every time for an open one. */
+  private readonly visitsOf = keepingSettledVisits((runId) =>
+    this.floor.stationRuns.list({ run: runId }),
+  );
+
   constructor(private readonly floor: FloorRunSource) {}
 
   /** The floor as an upgrade reads it: this reader's shared run read, the client's own everything else. */
@@ -135,7 +141,7 @@ export class FloorRunReader {
   private async contextOf(run: RunView): Promise<TaskRunContext> {
     const [graph, visits] = await Promise.all([
       this.graphOf(run),
-      this.floor.stationRuns.list({ run: run.id }),
+      this.visitsOf(run),
     ]);
 
     return {
@@ -313,7 +319,7 @@ export class FloorRunReader {
     known?: VisitView[],
   ): Promise<AssemblyRunRecord> {
     const [visits, graph] = await Promise.all([
-      known ?? this.floor.stationRuns.list({ run: run.id }),
+      known ?? this.visitsOf(run),
       this.graphOf(run),
     ]);
 
@@ -322,7 +328,7 @@ export class FloorRunReader {
 
   private async listingOf(run: RunView): Promise<FloorRunListing> {
     const [visits, graph] = await Promise.all([
-      this.floor.stationRuns.list({ run: run.id }),
+      this.visitsOf(run),
       this.graphOf(run),
     ]);
 
