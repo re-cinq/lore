@@ -307,6 +307,8 @@ const INBOUND: {
   plan_run: (client, message) =>
     client.deliverPlanRun(message.channel, message.run),
   data: (client, message) => client.deliverData(message.channel, message.data),
+  /** This client makes no request yet, so an answer is none of its own. */
+  response: () => undefined,
   closed: (client, message) =>
     client.dispatch({
       type: "server_closed",
