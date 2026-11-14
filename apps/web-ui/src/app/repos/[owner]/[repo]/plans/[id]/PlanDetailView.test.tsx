@@ -105,6 +105,16 @@ describe("PlanDetailView", () => {
     }).toEqual({ editor: null, drafting: true });
   });
 
+  it("marks the plan page wide, so it spans the space between the side panels", () => {
+    const { container } = render(
+      <PlanDetailView meta={META} run={null} user={null} {...actions} />,
+    );
+
+    expect(container.firstElementChild?.hasAttribute("data-wide-page")).toBe(
+      true,
+    );
+  });
+
   it("asks a visitor without a session to sign in instead of opening the editor", () => {
     render(<PlanDetailView meta={META} run={null} user={null} {...actions} />);
 
