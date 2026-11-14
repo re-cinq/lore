@@ -162,22 +162,24 @@ export class LiveSocketClient {
     const socket = new Socket(this.options.url);
 
     this.socket = socket;
-    socket.onopen = () => {
-      this.ifCurrent(socket, { type: "socket_open" });
-      this.requests.flush();
-    };
-    socket.onclose = () => {
-      this.ifCurrent(socket, { type: "socket_closed" });
-      this.requests.dropped();
-    };
+    socket.onopen = () =>
+      this.ifCurrent(socket, () => {
+        this.dispatch({ type: "socket_open" });
+        this.requests.flush();
+      });
+    socket.onclose = () =>
+      this.ifCurrent(socket, () => {
+        this.requests.dropped();
+        this.dispatch({ type: "socket_closed" });
+      });
     socket.onerror = null;
     socket.onmessage = (event) => this.receive(String(event.data));
   }
 
-  /** A stale socket's events must not drive the machine: the client may already be on its successor. */
-  private ifCurrent(socket: SocketLike, event: MachineEvent): void {
+  /** A stale socket's events must drive neither the machine nor the waiting requests: the client may already be on its successor. Requests are dropped before the close is told, so a socket only a write was waiting on goes idle instead of reconnecting. */
+  private ifCurrent(socket: SocketLike, react: () => void): void {
     if (this.socket === socket) {
-      this.dispatch(event);
+      react();
     }
   }
 

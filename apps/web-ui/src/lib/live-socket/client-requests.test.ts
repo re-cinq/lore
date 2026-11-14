@@ -100,6 +100,19 @@ describe("LiveSocketClient requests", () => {
     expect(await answer).toEqual({ error: "connection lost" });
   });
 
+  it("schedules no reconnect when only a POST was waiting as the socket dropped", async () => {
+    const { client, timers } = harness();
+    const answer = settled(client.request("POST", "/api/x/cancel"));
+
+    FakeWebSocket.latest.accept();
+    const before = timers.length;
+
+    FakeWebSocket.latest.drop();
+    await answer;
+
+    expect(timers.length).toBe(before);
+  });
+
   it("rejects a request unanswered for 30 s", async () => {
     const { client, fire } = harness();
     const answer = settled(client.request("GET", "/api/floor-runs"));
