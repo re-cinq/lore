@@ -5,6 +5,7 @@ import { useState } from "react";
 import PendingActionButton from "@/components/PendingActionButton";
 import { useRefreshingAction } from "@/components/useRefreshingAction";
 import type { components } from "@/lib/api/schema";
+import { liveFetch } from "@/lib/live-fetch";
 
 type RunAnswer = Partial<components["schemas"]["NodeRunAsked"]> & {
   error?: string;
@@ -51,9 +52,9 @@ function useRunNode({ runId, nodeId }: RunNodeButtonProps) {
 }
 
 async function askToRun(runId: string, nodeId: string): Promise<RunAnswer> {
-  const res = await fetch(
+  const res = await liveFetch(
     `/api/assembly-runs/${encodeURIComponent(runId)}/nodes/${encodeURIComponent(nodeId)}/run`,
-    { method: "POST", signal: AbortSignal.timeout(30_000) },
+    { method: "POST" },
   );
   const answer = (await res.json()) as RunAnswer;
 

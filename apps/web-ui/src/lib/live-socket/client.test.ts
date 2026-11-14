@@ -383,3 +383,25 @@ describe("the plan-run channel", () => {
     });
   });
 });
+
+describe("channels that open on the person's session", () => {
+  it("opens the run channel with no token field and the runs channel with no token field", async () => {
+    const { client } = harness();
+
+    client.open({ kind: "run", subject: "run-1", after: () => "7" });
+    client.open({ kind: "runs", subject: "floor" });
+    FakeWebSocket.latest.accept();
+    await flush();
+
+    expect(FakeWebSocket.latest.sent).toEqual([
+      {
+        type: "open",
+        channel: "c1",
+        kind: "run",
+        subject: "run-1",
+        after: "7",
+      },
+      { type: "open", channel: "c2", kind: "runs", subject: "floor" },
+    ]);
+  });
+});

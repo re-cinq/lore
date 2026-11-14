@@ -282,7 +282,7 @@ lore-ui:
     LORE_LOG_BUCKET: lore-task-logs-re-cinq-internal
     LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
     LORE_API_PUBLIC_URL: https://lore-api.gcp.re-cinq.com
-    LORE_WS_URL: wss://lore-api.gcp.re-cinq.com/api/ws
+    LORE_WS_URL: wss://lore.gcp.re-cinq.com/api/ws
     HEADLAMP_URL: https://headlamp.gcp.re-cinq.com
     GRAFANA_URL: https://grafana.gcp.re-cinq.com
     UTOPIA_URL: https://utopia.gcp.re-cinq.com

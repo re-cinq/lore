@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PendingActionButton from "@/components/PendingActionButton";
 import type { components } from "@/lib/api/schema";
+import { liveFetch } from "@/lib/live-fetch";
 
 type UpgradeAnswer = Partial<components["schemas"]["AssemblyRunUpgraded"]> & {
   error?: string;
@@ -45,9 +46,9 @@ function useUpgrade(runId: string) {
 }
 
 async function askToUpgrade(runId: string): Promise<UpgradeAnswer> {
-  const res = await fetch(
+  const res = await liveFetch(
     `/api/assembly-runs/${encodeURIComponent(runId)}/upgrade`,
-    { method: "POST", signal: AbortSignal.timeout(30_000) },
+    { method: "POST" },
   );
   const answer = (await res.json()) as UpgradeAnswer;
 

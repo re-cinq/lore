@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { CancelRunButton } from "./CancelRunButton";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const refresh = vi.fn();
 
@@ -17,7 +18,7 @@ function answering(status: number, body: object) {
     .fn()
     .mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
-  vi.stubGlobal("fetch", fetchMock);
+  liveRequestsFrom(fetchMock);
 
   return fetchMock;
 }
@@ -71,7 +72,7 @@ describe("CancelRunButton", () => {
     }).toMatchObject({ confirm: null, asked: 0 });
   });
 
-  it("posts to the plan-run cancel proxy and refreshes the page once the floor cancelled it", async () => {
+  it("asks over the live socket to cancel plan-run and refreshes the page once the floor cancelled it", async () => {
     const fetchMock = answering(200, { cancelled: true, run_id: "plan-run" });
 
     render(<CancelRunButton runId="plan-run" />);

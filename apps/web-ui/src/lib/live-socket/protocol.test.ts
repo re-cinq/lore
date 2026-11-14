@@ -27,6 +27,14 @@ describe("decodeServerMessage", () => {
     ]);
   });
 
+  it("reads a response by the request id it answers, with no channel", () => {
+    expect(
+      decodeServerMessage(
+        '{"type":"response","id":"r1","status":200,"body":{"a":1}}',
+      ),
+    ).toEqual({ type: "response", id: "r1", status: 200, body: { a: 1 } });
+  });
+
   it("reads a socket-level error with no channel", () => {
     expect(
       decodeServerMessage('{"type":"error","code":"bad_message"}'),

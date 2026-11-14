@@ -1,12 +1,11 @@
 "use client";
 
-// The run list's channel on the tab's live socket: opened once, closed on unmount, told which runs the page shows. Backoff and token refresh are the socket client's.
+// The run list's channel on the tab's live socket: opened once, closed on unmount, told which runs the page shows. It opens on the person's session with no token of its own; backoff is the socket client's.
 import { useEffect, useRef, type RefObject } from "react";
 import type { ChannelHandle, LiveSocketClient } from "@/lib/live-socket/client";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
 import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import type { RunListFrame } from "@/lib/live-socket/protocol";
-import { openRunsChannelAction } from "./runs-live-actions";
 
 export interface RunsChannelOptions {
   runIds: readonly string[];
@@ -57,19 +56,7 @@ function openRunsChannel(
   return client.open({
     kind: "runs",
     subject: "floor",
-    token: tokenForRuns,
     onRunsFrame: (frame) => latest.current.onFrame(frame),
     onState: (state) => latest.current.onConnectionChange(state),
   });
-}
-
-/** A refused grant throws, which the client reads as a failed open and retries after a pause. */
-async function tokenForRuns(): Promise<string> {
-  const grant = await openRunsChannelAction();
-
-  if ("error" in grant) {
-    throw new Error(grant.error);
-  }
-
-  return grant.token;
 }

@@ -10,12 +10,15 @@ import { HISTORY_PAGE_LIMIT } from "@/lib/run-stream-presenter";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
+import {
+  answeringSocketFrom,
+  liveRequestsFrom,
+  type FetchLike,
+} from "@/lib/live-socket/answering-socket";
+import { setLiveClient } from "@/lib/live-fetch";
+import type { SocketConstructor } from "@/lib/live-socket/client";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-
-vi.mock("./live-actions", () => ({
-  openRunChannelAction: async () => ({ token: "tok" }),
-}));
 
 const definition: AssemblyLineDefinition = {
   name: "implementation",
@@ -50,6 +53,9 @@ function eventRow(over: Record<string, unknown> = {}) {
   };
 }
 
+const historyAnswer = (events: unknown[]) => async () =>
+  Response.json({ events });
+
 function stubHistory(...pages: unknown[][]) {
   const fetchMock = vi.fn();
 
@@ -65,14 +71,26 @@ function stubHistory(...pages: unknown[][]) {
     status: 200,
     json: async () => ({ events: [] }),
   });
-  vi.stubGlobal("fetch", fetchMock);
+  stubReads(fetchMock);
 
   return fetchMock;
+}
+
+let socket: SocketConstructor = FakeWebSocket;
+
+function stubReads(
+  fetchLike: FetchLike,
+  accepts?: (instanceNumber: number) => boolean,
+) {
+  socket = answeringSocketFrom(fetchLike, accepts);
+  liveRequestsFrom(fetchLike);
 }
 
 function useFakeSocket() {
   FakeWebSocket.reset();
 }
+
+const openedChannels = () => FakeWebSocket.instances.flatMap((s) => s.opens);
 
 async function openChannels() {
   await act(async () => {
@@ -100,13 +118,15 @@ async function settle() {
 
 function renderPanel(runStatus: string) {
   return render(
-    <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+    <LiveSocketProvider url="ws://test/api/ws" socket={socket}>
       {panel(runStatus)}
     </LiveSocketProvider>,
   );
 }
 
 function renderPanelWithoutSocket(runStatus: string) {
+  setLiveClient(null);
+
   return render(panel(runStatus));
 }
 
@@ -136,7 +156,7 @@ describe("stream lifecycle", () => {
     renderPanel("finished");
     await settle();
 
-    expect(FakeWebSocket.instances).toHaveLength(0);
+    expect(openedChannels()).toEqual([]);
   });
 
   it("opens one run channel on the tab's socket for a running run", async () => {
@@ -147,8 +167,14 @@ describe("stream lifecycle", () => {
     await settle();
     await openChannels();
 
-    expect(FakeWebSocket.latest.opens).toMatchObject([
-      { kind: "run", subject: "run-1", token: "tok" },
+    expect(FakeWebSocket.latest.opens).toEqual([
+      {
+        type: "open",
+        channel: "c1",
+        kind: "run",
+        subject: "run-1",
+        after: "0",
+      },
     ]);
   });
 
@@ -186,7 +212,7 @@ describe("stream lifecycle", () => {
     renderPanelWithoutSocket("running");
     await settle();
 
-    expect(FakeWebSocket.instances).toHaveLength(0);
+    expect(openedChannels()).toEqual([]);
   });
 });
 
@@ -220,21 +246,24 @@ describe("history fold", () => {
     expect(String(historyCalls[1][0])).toContain(`after=${HISTORY_PAGE_LIMIT}`);
   });
 
-  it("renders the graph and folded history without a live socket", async () => {
+  it("renders the seeded graph with an offline label and no folded history when no live socket is configured", async () => {
     stubHistory([eventRow({ id: "3" })]);
     useFakeSocket();
 
     renderPanelWithoutSocket("running");
     await settle();
 
-    expect(screen.getByText("Implement")).toBeInTheDocument();
-    expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
+    expect({
+      graph: screen.getByText("Implement"),
+      offline: screen.getByText("Offline"),
+      running: screen.queryAllByText("Running"),
+    }).toMatchObject({ running: [] });
   });
 });
 
 describe("degradation", () => {
   it("renders the seeded graph with an offline label when the history fetch rejects", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
+    stubReads(vi.fn().mockRejectedValue(new Error("network")));
     useFakeSocket();
 
     renderPanel("running");
@@ -245,8 +274,7 @@ describe("degradation", () => {
   });
 
   it("renders the graph and opens no channel when the history read returns 404", async () => {
-    vi.stubGlobal(
-      "fetch",
+    stubReads(
       vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
@@ -259,7 +287,7 @@ describe("degradation", () => {
     await settle();
 
     expect(screen.getByText("Implement")).toBeInTheDocument();
-    expect(FakeWebSocket.instances).toHaveLength(0);
+    expect(openedChannels()).toEqual([]);
   });
 });
 
@@ -441,9 +469,15 @@ describe("stream give-up and history polling", () => {
     vi.useRealTimers();
   });
 
+  const stubFirstSocketThenPolling = (fetchLike: FetchLike) =>
+    stubReads(
+      fetchLike,
+      (instanceNumber) => instanceNumber === 1 || instanceNumber > 6,
+    );
+
   it("gives up the socket after six consecutive drops and degrades to Polling", async () => {
     vi.useFakeTimers();
-    stubHistory([]);
+    stubFirstSocketThenPolling(historyAnswer([]));
     useFakeSocket();
 
     renderPanel("running");
@@ -452,20 +486,18 @@ describe("stream give-up and history polling", () => {
 
     expect(FakeWebSocket.instances).toHaveLength(6);
     expect(screen.getByText("Polling")).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(60000);
-    });
-
-    expect(FakeWebSocket.instances).toHaveLength(6);
   });
 
-  it("polls the history proxy from the reducer cursor after giving up and applies new rows", async () => {
-    vi.useFakeTimers(); // eslint-disable-next-line re-lint/declare-near-use -- the history stub must be installed before the render it serves
-    const fetchMock = stubHistory([
-      eventRow({ id: "5", nodeId: "implement", eventType: "init" }),
-    ]);
+  it("polls the history over the socket from the reducer cursor after giving up and applies new rows", async () => {
+    vi.useFakeTimers();
+    const asked: string[] = [];
+    let page = [eventRow({ id: "5", nodeId: "implement", eventType: "init" })];
 
+    stubFirstSocketThenPolling(async (path) => {
+      asked.push(path);
+
+      return Response.json({ events: page });
+    });
     useFakeSocket();
 
     const { container } = renderPanel("running");
@@ -477,21 +509,15 @@ describe("stream give-up and history polling", () => {
 
     expect(validate?.getAttribute("data-tone")).toBe("idle");
 
-    fetchMock.mockClear();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        events: [eventRow({ id: "6", nodeId: "validate", eventType: "init" })],
-      }),
-    });
+    asked.length = 0;
+    page = [eventRow({ id: "6", nodeId: "validate", eventType: "init" })];
 
     await act(async () => {
       vi.advanceTimersByTime(15000);
     });
     await settle();
 
-    expect(String(fetchMock.mock.calls[0][0])).toContain("after=5");
+    expect(asked[0]).toContain("after=5");
     expect(
       container.querySelector('[data-node="validate"]')?.textContent,
     ).toContain("Running");
@@ -1152,7 +1178,7 @@ describe("a run that ended", () => {
     reason: string | null,
   ) {
     return render(
-      <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+      <LiveSocketProvider url="ws://test/api/ws" socket={socket}>
         <RunVisualizationPanel
           runId="run-1"
           runStatus={runStatus}

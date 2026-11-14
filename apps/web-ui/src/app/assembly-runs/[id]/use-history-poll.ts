@@ -4,8 +4,7 @@
 import { useEffect, useRef } from "react";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { HISTORY_POLL_MS, historyUrl } from "@/lib/run-stream-presenter";
-
-const HISTORY_TIMEOUT_MS = 15_000;
+import { liveFetch } from "@/lib/live-fetch";
 
 interface HistoryPage {
   events?: unknown[];
@@ -85,9 +84,7 @@ export async function fetchPage(
   runId: string,
   cursor: string,
 ): Promise<{ ok: boolean; rows: unknown[] }> {
-  const res = await fetch(historyUrl(runId, cursor), {
-    signal: AbortSignal.timeout(HISTORY_TIMEOUT_MS),
-  });
+  const res = await liveFetch(historyUrl(runId, cursor));
 
   if (!res.ok) {
     return { ok: false, rows: [] };

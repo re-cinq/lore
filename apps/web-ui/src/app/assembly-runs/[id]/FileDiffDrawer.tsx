@@ -6,6 +6,7 @@ import CollapsibleCard from "@/components/CollapsibleCard";
 import type { PullFileChange, PullFiles } from "@/lib/api/pull-files";
 import { diffViewModel, matchChangedFile } from "@/lib/pull-file-diff";
 import DiffView from "./DiffView";
+import { liveFetch } from "@/lib/live-fetch";
 
 export interface FileDiffDrawerProps {
   runId: string;
@@ -97,9 +98,7 @@ function DrawerContent({ state, path, prNumber }: DrawerContentProps) {
 }
 
 async function loadPullFiles(runId: string): Promise<FilesState> {
-  const res = await fetch(`/api/assembly-runs/${runId}/pull-files`, {
-    signal: AbortSignal.timeout(15_000),
-  });
+  const res = await liveFetch(`/api/assembly-runs/${runId}/pull-files`);
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
