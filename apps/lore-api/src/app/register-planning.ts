@@ -26,6 +26,13 @@ import {
   planVerbsFor,
   type PlanVerbSeams,
 } from "../transport/routes/plans/plan-verbs-for.js";
+import {
+  clearStaleAsks,
+  type StaleAskDeps,
+  type StalePlan,
+} from "../work/plans/stale-refine-asks.js";
+import { liveRefineAsks } from "../outbound/plans/refine-asks-live.js";
+import { agentHasThePlan } from "../work/plans/refine-refusal.js";
 import { DB_UNAVAILABLE } from "../transport/routes/common-schemas.js";
 import {
   floorClient,
@@ -61,6 +68,7 @@ export function registerPlanning(
   // onApproved reaches the library before the sync it reads the plan through exists, so the seams are filled once it does.
   seams.livePlan = livePlanOf(sync);
   seams.service = sync.service as PlanLifecyclePorts["service"];
+  seams.clearStaleAsks = staleAskCheck(sync, seams);
   routePlans(server, sync, seams, { pool });
   followPlanAgents(server, sync.writer);
 
@@ -93,6 +101,33 @@ function followPlanAgents(server: Server, writer: PresenceWriter): void {
   server.ext("onPostStart", () => presence.start());
   server.ext("onPreStop", () => presence.stop());
 }
+
+// A stale ask is only judged where a floor can say whether an agent holds the plan.
+function staleAskCheck(sync: PlanningSync, seams: PlanVerbSeams) {
+  return async (plan: StalePlan): Promise<unknown> => {
+    const floor = seams.floorDeps?.floor ?? floorIfConfigured();
+
+    return floor
+      ? clearStaleAsks(liveAskDeps(sync, floor), plan, new Date())
+      : [];
+  };
+}
+
+function liveAskDeps(sync: PlanningSync, floor: PlanFloorReads): StaleAskDeps {
+  return {
+    asks: (subject) => liveRefineAsks(sync.collab, subject),
+    agentWorking: async (subject) =>
+      agentHasThePlan(
+        await floorPlanLineState(floor, {
+          repo: subject.repo,
+          planId: subject.id,
+        }),
+      ),
+    failRefine: (request) => sync.writer.failRefine(request),
+  };
+}
+
+type PlanFloorReads = Parameters<typeof floorPlanLineState>[0];
 
 // The pool, answering 503 while the database is away.
 function livePool(getPool: () => Pool | null): () => Pool {

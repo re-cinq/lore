@@ -9,6 +9,7 @@ import {
   listPlanMetas,
   pgPlanStore,
 } from "../../../outbound/plans/plan-store-pg.js";
+import type { StalePlan } from "../../../work/plans/stale-refine-asks.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
 import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -41,7 +42,7 @@ export function plansRoutes(
   return [
     listPlansRoute(getPool),
     deletePlanRoute(getPool),
-    collabTokenRoute(getPool),
+    collabTokenRoute(getPool, seams),
     draftingRoute(getPool, seams),
     refineRoute(getPool, seams),
   ];
@@ -83,13 +84,16 @@ function deletePlanRoute(getPool: () => Pool | null): ServerRoute {
 const PlanDeletedSchema = z.object({ id: z.string() });
 
 // The web tier has already checked the person's session and repo access; lore-api only binds the token to this plan of this repo.
-function collabTokenRoute(getPool: () => Pool | null): ServerRoute {
+function collabTokenRoute(
+  getPool: () => Pool | null,
+  seams: PlanVerbSeams,
+): ServerRoute {
   return {
     method: "POST",
     path: `${BASE}/{id}/collab-token`,
     options: COLLAB_TOKEN_OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
-      serveCollabToken(() => pool, request, h),
+      serveCollabToken(() => pool, request, h, seams),
     ),
   };
 }
@@ -122,6 +126,7 @@ async function serveCollabToken(
   pool: () => Pool,
   request: Request,
   h: ResponseToolkit,
+  seams: PlanVerbSeams,
 ) {
   const repo = repoOf(request);
   const planId = String(request.params.id);
@@ -131,7 +136,16 @@ async function serveCollabToken(
   const body = request.payload as z.infer<typeof CollabTokenBody>;
   const token = await mintCollabToken(pool, { planId, repo, ...body });
 
+  clearStaleAsksLater(seams, { id: planId, repo });
+
   return h.response({ token, documentName: docName({ repo, planId }) });
+}
+
+// The page opening is when a stuck ask is noticed; the token never waits on it, and a failed check is logged for the next open to retry.
+function clearStaleAsksLater(seams: PlanVerbSeams, plan: StalePlan): void {
+  seams.clearStaleAsks?.(plan).catch((err: unknown) => {
+    console.warn(`[plans] stale Refine check of ${plan.id}: ${String(err)}`);
+  });
 }
 
 // The agent's first draft of a plan this repo owns, from what its author already knows.
