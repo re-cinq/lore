@@ -67,9 +67,13 @@ function validatedConfigFields(
 ): Partial<CacheConfig> {
   const v: Partial<CacheConfig> = {};
 
-  if (typeof raw.enabled === "boolean") {v.enabled = raw.enabled;}
+  if (typeof raw.enabled === "boolean") {
+    v.enabled = raw.enabled;
+  }
 
-  if (typeof raw.max_entries === "number") {v.max_entries = raw.max_entries;}
+  if (typeof raw.max_entries === "number") {
+    v.max_entries = raw.max_entries;
+  }
 
   if (
     raw.ttl_overrides != null &&
