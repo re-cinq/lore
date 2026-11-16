@@ -84,7 +84,9 @@ async function markMerged(
   const { task, prBody } = opts;
   const won = await deps.tasks.setStatusIf(task.id, task.status, "merged");
 
-  if (!won) {return "lost the status race";}
+  if (!won) {
+    return "lost the status race";
+  }
   await recordTaskMerged(deps, repo, task);
   await settleIssue(deps, repo, issueNumber);
 
