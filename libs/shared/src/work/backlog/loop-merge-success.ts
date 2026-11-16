@@ -88,10 +88,9 @@ async function markMerged(
     return "lost the status race";
   }
   await recordTaskMerged(deps, repo, task);
-  await settleIssue(deps, repo, issueNumber);
 
   if (!isPartialLorePr(prBody)) {
-    await deps.closeIssue(repo, issueNumber);
+    await settleIssue(deps, repo, issueNumber);
   }
   await deps.emitTick(repo);
 
@@ -155,4 +154,5 @@ async function settleIssue(
     issueNumber,
     "Lore's implementation loop sees this ticket's pull request merged and is marking it done, whatever the run itself reported.",
   );
+  await deps.closeIssue(repo, issueNumber);
 }

@@ -272,4 +272,39 @@ describe("settleMergedLoopTicket", () => {
     expect(ticked).toEqual([]);
     expect(result).toContain("lost the status race");
   });
+
+  it("settles the task and re-arms the loop while leaving the issue untouched when a partial-coverage pull request merges", async () => {
+    const {
+      deps: d,
+      flipped,
+      events,
+      labelsRemoved,
+      comments,
+      closed,
+      ticked,
+    } = deps();
+
+    await settleMergedLoopTicket(
+      d,
+      REPO,
+      BRANCH,
+      "Adds half the route.\n\nRefs #7\nLore-Task: task-1",
+    );
+
+    expect({
+      flipped,
+      events,
+      labelsRemoved,
+      comments,
+      closed,
+      ticked,
+    }).toEqual({
+      flipped: [{ id: "task-1", status: "merged" }],
+      events: [{ id: "task-1", from: "running", to: "merged" }],
+      labelsRemoved: [],
+      comments: [],
+      closed: [],
+      ticked: [REPO],
+    });
+  });
 });

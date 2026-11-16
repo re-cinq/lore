@@ -31,6 +31,7 @@ describe("mapGitHubEvent — pull_request", () => {
         head: { ref: "lore/feature-request/auth-abcd1234" },
         base: { ref: "main" },
         merge_commit_sha: "sha9",
+        body: "Refs #7\n\nLore-Task: task-1",
         labels: [{ name: "spec" }],
       },
     };
@@ -46,6 +47,7 @@ describe("mapGitHubEvent — pull_request", () => {
           branch: "lore/feature-request/auth-abcd1234",
           base_ref: "main",
           merge_commit_sha: "sha9",
+          body: "Refs #7\n\nLore-Task: task-1",
           labels: ["spec"],
         },
         dedupeKey: "github:d2",
@@ -82,6 +84,7 @@ describe("mapGitHubEvent — pull_request", () => {
           branch: "feature/x",
           base_ref: "",
           merge_commit_sha: null,
+          body: null,
           labels: [],
         },
         dedupeKey: "github:d3",
