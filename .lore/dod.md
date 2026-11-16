@@ -8,17 +8,17 @@
 
 ## Done when these pass
 
-- [ ] **query-trace empty doc with selector** — A selector query on a document with no graph data answers with a no-graph-data message.
+- [x] **query-trace empty doc with selector** — A selector query on a document with no graph data answers with a no-graph-data message.
   `libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts`
-- [ ] **query-trace callers formatter** — A callers query returns one line per caller with file and symbol, and 'no callers found' when empty.
+- [x] **query-trace callers formatter** — A callers query returns one line per caller with file and symbol, and 'no callers found' when empty.
   `libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts`
-- [ ] **trace-callers depth** — depth > 1 is refused with a 400 saying one hop is supported.
+- [x] **trace-callers depth** — depth > 1 is refused with a 400 saying one hop is supported.
   `apps/lore-api/src/transport/routes/trace/trace-callers.acceptance.test.ts`
 
 ## Facets
 
 - [x] Check for `doc.statements.length === 0` in `formatTraceQuery` before selector evaluation.
-- [x] Read and refuse `depth > 1` in `callersResult` API handler.
+- [x] Read and refuse `depth > 1` before projectFor (in serveTrace) so a 400 Boom propagates correctly.
 - [x] Format `callGraphQuery` response as a list of lines with file and symbol.
 - [x] Update `query-trace.ts` tool schema description to indicate only depth 1 is supported.
 
