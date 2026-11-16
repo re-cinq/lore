@@ -21,10 +21,14 @@ export interface ConfigWrite {
 
 /** Read surface implemented by all adapters. */
 export interface AgentDefsReadPort {
-  /** The effective definition for a task type in a repo (project → org), or null. */
-  resolve(repo: string, name: string): Promise<AgentDefinition | null>;
-  /** Every effective definition for a repo (org defaults overlaid with project rows). */
-  list(repo: string): Promise<AgentDefinition[]>;
+  /** The effective definition for a task type in a repo (project → org), or null. The optional baseImage inserts a repo-level layer between the per-agent variant and the org default. */
+  resolve(
+    repo: string,
+    name: string,
+    baseImage?: string | null,
+  ): Promise<AgentDefinition | null>;
+  /** Every effective definition for a repo (org defaults overlaid with project rows). The optional baseImage inserts a repo-level layer between the per-agent variant and the org default. */
+  list(repo: string, baseImage?: string | null): Promise<AgentDefinition[]>;
 }
 
 /** Write surface implemented only by FloorAgentDefs; the read-only adapters do not carry these methods. */

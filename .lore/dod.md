@@ -13,9 +13,9 @@
 
 ## Facets
 
-- [ ] Add baseImage optional parameter to AgentDefsReadPort methods resolve and list.
-- [ ] Implement the three-layer resolution logic in FloorAgentDefs.resolve using the new parameter.
-- [ ] Implement the three-layer resolution logic in FloorAgentDefs.list using the new parameter.
+- [x] Add baseImage optional parameter to AgentDefsReadPort methods resolve and list.
+- [x] Implement the three-layer resolution logic in FloorAgentDefs.resolve using the new parameter.
+- [x] Implement the three-layer resolution logic in FloorAgentDefs.list using the new parameter.
 - [ ] Update the floor dispatcher (the caller) to retrieve the repository's base_image from settings and pass it to resolve.
 
 ## Out of scope

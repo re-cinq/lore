@@ -43,17 +43,24 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     private readonly host: string = githubHost(),
   ) {}
 
-  async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
+  async resolve(
+    repo: string,
+    name: string,
+    baseImage?: string | null,
+  ): Promise<AgentDefinition | null> {
     const row = await this.definitions.get(name);
 
-    return row ? resolvedFor(name, row.body, repo) : null;
+    return row ? resolvedFor(name, row.body, repo, baseImage) : null;
   }
 
-  async list(repo: string): Promise<AgentDefinition[]> {
+  async list(
+    repo: string,
+    baseImage?: string | null,
+  ): Promise<AgentDefinition[]> {
     const rows = await this.definitions.list();
 
     return rows
-      .map((row) => resolvedFor(row.id, row.body, repo))
+      .map((row) => resolvedFor(row.id, row.body, repo, baseImage))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -160,6 +167,7 @@ function resolvedFor(
   name: string,
   body: AgentDefinitionBody,
   repo: string | null,
+  baseImage?: string | null,
 ): AgentDefinition {
   const entry = repo === null ? undefined : variantEntry(body, repo);
   const merged = mergedSettings(body.settings, entry?.variant);
@@ -169,12 +177,29 @@ function resolvedFor(
     model: orNull(merged.model),
     timeout_minutes: orNull(merged.timeoutMinutes),
     prompt: orNull(merged.prompt),
-    image: orNull(merged.image),
+    image: imageFor(entry?.variant, merged, baseImage),
     execution_mode: "claude-code",
     review_required: false,
     project_id: orNull(entry?.key),
     config: orNull(merged.config) as AgentDefinition["config"],
   };
+}
+
+/** Three-layer resolution: per-agent variant override → repo base image → org default. */
+function imageFor(
+  variant: Variant | undefined,
+  merged: Variant,
+  baseImage: string | null | undefined,
+): string | null {
+  if (variant?.image !== undefined) {
+    return orNull(merged.image);
+  }
+
+  if (baseImage != null) {
+    return baseImage;
+  }
+
+  return orNull(merged.image);
 }
 
 function orNull<Value>(value: Value | undefined): Value | null {
