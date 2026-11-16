@@ -32,21 +32,21 @@ The Spec maintenance loop automatically closes structural gaps without manual ov
 
 The loop ensures the spec always matches the present implementation if linked to a test. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-3)) Where a test exists that covers behaviour the spec describes but has not yet cited that test, the loop discovers the association and adds the missing test link to the matching spec statement. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#p_ba2e1147-2c13-49e2-bec6-a2ff3b9bde7f))
 
-- The align-implementation station MUST read every spec statement that carries a test-link parenthetical pointing to a test file or test identifier; for each linked statement it checks the current test result against the statement's wording and rewrites the statement to reflect the current assertion if the wording no longer matches what the test asserts. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-7))
+- The align-implementation station MUST read every spec statement that carries a test-link parenthetical pointing to a test file or test identifier; for each linked statement it checks the current test result against the statement's wording and rewrites the statement to reflect the current assertion if the wording no longer matches what the test asserts. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-7)) ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-3))
 - The align-implementation station MUST NOT touch statements that have no test link; it does not run, modify, or reference test files and reads only the test identifier to look up the recorded result. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-8))
 
 ### prune-decisions
 
 The loop drops historical amendment markers from spec statements and rewrites them in the present tense, keeping only the last decision in the present tense when multiple superseded decisions exist. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-4)) The repository's commit history already holds the full timeline of every change; the spec file needs to show only what is true now. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#p_d54a519a-856a-4a32-8d84-8b1f8ffeaf05))
 
-- The prune-decisions station MUST scan the spec for statements that carry inline amendment markers — text such as "(added 2026-10-01, amended 2026-10-23)" or similar date-annotated notes — and for each marked statement rewrite it in the present tense and strip the history annotation entirely. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-10))
+- The prune-decisions station MUST scan the spec for statements that carry inline amendment markers — text such as "(added 2026-10-01, amended 2026-10-23)" or similar date-annotated notes — and for each marked statement rewrite it in the present tense and strip the history annotation entirely. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-10)) ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-4))
 - The prune-decisions station MUST NOT choose between two conflicting statements or remove content that has no amendment marker. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-11))
 
 ### enforce-speckit
 
 The loop ensures specs match the SpecKit format ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-6)), and that only spec files in folders are managed; everything else is managed by Lore. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-7))
 
-- The enforce-speckit station MUST read the full spec file and the SpecKit template expected by the planning line; it validates section order, required metadata rows (Owner, Status, Linked plan), and statement format; any section that is out of order, any missing required row, or any statement that does not match the expected format is rewritten to conform to the template. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-13))
+- The enforce-speckit station MUST read the full spec file and the SpecKit template expected by the planning line; it validates section order, required metadata rows (Owner, Status, Linked plan), and statement format; any section that is out of order, any missing required row, or any statement that does not match the expected format is rewritten to conform to the template. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-13)) ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#intent-p-6))
 - The enforce-speckit station MUST change only structure and placement; it does not alter the meaning of any statement. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#custom-assembly-line-stations-p-14))
 
 ### check-length
@@ -78,7 +78,7 @@ When a spec is too long (over approximately 500 lines of code), the loop splits 
 
 ## SC-001 — 100% of spec files pass all structural checks without manual intervention
 
-- Every spec that fails a structural check is a gap the team must close by hand; the loop MUST reach and hold 100% of spec files passing all structural checks without manual intervention. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#k-spec-maint-1))
+- A metric tracks the percentage of spec files in the corpus that pass all structural checks without manual intervention; every spec that fails a structural check is a gap the team must close by hand; the loop MUST reach and hold this metric at 100%. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#k-spec-maint-1))
 
 ## SC-002 — 0% of spec files in feature directories exceed ~500 lines
 
