@@ -45,18 +45,27 @@ When a spec is too long (over approximately 500 lines of code), the loop splits 
 
 ## Constraints
 
-- The cleanup agent changes specification files only.
-- The cleanup agent lints specification files after changing them.
-- The cleanup agent must not run tests, type-checks, or builds.
-- A spec split always opens a separate pull request reviewed by the team named in the spec's Owner row.
-- The Spec maintenance loop is off by default for every repository.
-- The loop prevents two cleanup runs from acting on the same spec file in parallel.
+- The cleanup agent (`apps/stations/src/spec-maintenance/cleanup-agent/`, added by this feature) changes specification files only. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#constraints-p-1)) ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-6))
+- The cleanup agent lints specification files after changing them, following the same constraint the existing upkeep agent follows. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-6))
+- The cleanup agent must not run tests, type-checks, or builds (consistent with the existing upkeep agent policy). ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-12))
+- A spec split creates a new feature directory and rewrites the original spec to reference the new one; it opens a separate pull request for human review rather than committing directly to the default branch. The team named in the spec's Owner row is responsible for reviewing and merging it; the loop does not auto-merge its own split pull requests. The `open-pr` station (`apps/stations/src/spec-maintenance/open-pr/`, added by this feature) opens both the cleanup PR and, when the split flag is set, the separate split PR. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#constraints-p-2))
+- The Spec maintenance loop is off by default for every repository and must be switched on explicitly in the Loops tab, consistent with how every other loop in the product is gated; the settings key `spec_maintenance.enabled` in `libs/shared/src/domain/loops/loop-enabled.ts` (added by this feature) is false by omission. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#constraints-p-4))
+- A cleanup run for a spec must not start if there is an open pull request that will touch that specific spec; the `guard-open-pr` station (`apps/stations/src/spec-maintenance/guard-open-pr/`, added by this feature) halts the run when such a PR is found. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#constraints-p-3))
+
+- The on-demand "Run maintenance" button on the Specs tab (added to `apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.tsx` by this feature) MUST ship in the same release as the automatic push trigger; no new screen is required because the Specs tab already lists a repository's spec files today. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#delivery-p-2))
+- All five cleanup operations — test-link discovery, implementation alignment, decision pruning, length-based splitting, and SpecKit format compliance — MUST ship together in a single release. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#delivery-p-3))
 
 ## SC-001 — 100% of spec files pass all structural checks without manual intervention
 
+- Every spec that fails a structural check is a gap the team must close by hand; the loop MUST reach and hold 100% of spec files passing all structural checks without manual intervention. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#k-spec-maint-1))
+
 ## SC-002 — 0% of spec files in feature directories exceed ~500 lines
 
+- An oversized spec signals that sub-features have not been extracted; this metric MUST confirm the split operation is running and landing by reaching and remaining at 0% of spec files in feature directories exceeding approximately 500 lines. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#k-spec-maint-2))
+
 ## SC-003 — Median time from spec change landing to cleanup PR under 4 hours
+
+- A cleanup that arrives the same day as the change costs the reviewer little context; a cleanup that arrives a week later arrives cold and is more likely to be postponed. The median time from a spec file change landing to a cleanup PR opening MUST remain under 4 hours. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#k-spec-maint-3))
 
 ## Sketches
 
@@ -130,6 +139,36 @@ UI: Loops tab with Spec maintenance switch (off by default) beside existing loop
 Architecture: What each pipeline station does — inputs, outputs, and boundaries (runs in order shown).
 [m-architecture-2.html](./sketches/m-architecture-2.html)
 
+## Scope
+
+**In scope**
+
+- A new Spec maintenance loop, visible in the repository's Loops tab with its own on/off switch and board rows (Current, Parked, Recently addressed); a new `maintenance` key is appended to the `LOOP_KINDS` tuple in `libs/shared/src/domain/loops/loop-kinds.ts` and a matching `maintenance: specMaintenanceSwitchedOn` entry to `SWITCHED_ON_BY_KEY` in `libs/shared/src/domain/loops/loop-enabled.ts`, reading `spec_maintenance.enabled`, off by omission; the Loops tab at `apps/web-ui/src/app/repos/[owner]/[repo]/loops/` iterates `LOOP_KINDS` dynamically and needs no per-loop view fork. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-2))
+- An assembly line (`libs/assembly-lines/src/floor-pipelines/spec-maintenance.yaml`, added by this feature) that picks up a changed spec file from a feature directory and applies five cleanup operations in sequence: test-link discovery, implementation alignment, decision pruning, length-based splitting, and SpecKit format compliance. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-3))
+- Automatic triggering: when a spec file matching `specs/*/spec.md` inside a feature directory lands on the default branch, the loop starts one cleanup run for that file; the trigger is wired in `apps/stations/src/work/spec-maintenance-tick/` (added by this feature) via the `github.push` event handler in `apps/stations/src/events/`. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-4))
+- On-demand triggering from the existing repository Specs tab (`apps/web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx`, rendered by `SpecListView.tsx`): a "Run maintenance" button per spec card (sketch m-ui-1) starts a cleanup run for any spec; no new screen is needed. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-5))
+
+**Out of scope**
+
+- Plan and task artefacts inside a feature directory; the loop does not rewrite those files. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-8))
+- ADR files; they follow a different convention and are not spec files in the SpecKit sense. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-9))
+- Standalone spec files not inside a feature directory; those are managed directly by Lore and fall outside the SpecKit convention this loop enforces. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-10))
+- Any change to code, test files, build output, or configuration. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-11))
+- The existing weekly Spec upkeep loop; it continues to run independently and is not replaced or merged by this change. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#scope-p-13))
+
 ## Open Questions
 
 > **Question** (q-loop-label-conflict): The answer to the loop label question gives 'Spec upkeep' as the display name with the description 'Keep this repository's specifications true.' — but that is the name and description of the existing weekly Spec upkeep loop that already appears in the Loops tab. Two loops cannot share a name. Was the intent to rename this new loop to something that follows the same naming style, or to confirm a different name entirely?
+
+> **Question** (q-spec-screen): What is the "spec screen" that serves as the on-demand trigger point? Is it an existing UI surface in the product that shows a spec's content, or does a new screen need to be built? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#q-spec-screen))
+
+> **Question** (q-loop-name): What is the loop's name in the Loops tab? The plan uses "Spec maintenance" as a working name. Is that the intended name, or is a different name preferred? ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#q-loop-name))
+
+> **Question** (q-loop-label): What should the loop's display name and one-line description be in the Loops tab switch? For example, Spec upkeep shows as 'Spec upkeep' with the description 'Keep this repository's specifications true.' The plan uses 'Spec maintenance' as a working name but that has not been confirmed. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#q-loop-label))
+
+> **Question** (q-split-gating): Should the spec split operation be gated behind a separate opt-in flag per repository in the first release, or should it ship enabled alongside the other three cleanup operations?
+
+## Ownership
+
+- The Lore Platform Team owns the loop, its assembly line, and the cleanup agent definition. That team is responsible for the automatic trigger wiring, the board rows in the Loops tab, and the on-demand trigger surface. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#ownership-p-1))
+- The team named in a spec's Owner row is responsible for reviewing and merging any pull request the loop opens for that spec, including split pull requests that create new feature directories. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/143a6e64-0fa1-4146-9d90-99247bbac92e#ownership-p-2))
