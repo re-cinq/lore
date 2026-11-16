@@ -6700,7 +6700,7 @@ export interface operations {
           prompt?: string | null;
           image?: string | null;
           /** @enum {string} */
-          execution_mode?: "standard" | "delegate" | "review" | "sandbox";
+          execution_mode?: "claude-code" | "graph-ingest" | "station";
           review_required?: boolean;
           pod_resources?: {
             requests?: {
@@ -9127,7 +9127,7 @@ export interface operations {
           prompt?: string | null;
           image?: string | null;
           /** @enum {string} */
-          execution_mode?: "standard" | "delegate" | "review" | "sandbox";
+          execution_mode?: "claude-code" | "graph-ingest" | "station";
           review_required?: boolean;
           pod_resources?: {
             requests?: {

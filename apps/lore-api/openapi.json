@@ -379,7 +379,7 @@
                   },
                   "execution_mode": {
                     "type": "string",
-                    "enum": ["standard", "delegate", "review", "sandbox"]
+                    "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
                     "type": "boolean"
@@ -5738,7 +5738,7 @@
                   },
                   "execution_mode": {
                     "type": "string",
-                    "enum": ["standard", "delegate", "review", "sandbox"]
+                    "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
                     "type": "boolean"
