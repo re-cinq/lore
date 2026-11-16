@@ -104,6 +104,24 @@ describe("FloorRunFeeds", () => {
     expect(sink.ended).toBe("error");
   });
 
+  it("ends the viewer as an error and stops run-1's watch when the floor times out listing its visits", async () => {
+    const reader = new FloorRunReader(recordedFloor(floorWithOneRun).floor);
+    const scripted = scriptedWatch([]);
+    const sink = new RecordingSink();
+    const timedOut = {
+      listStationRuns: () => Promise.reject(new Error("timeout")),
+    };
+    const feeds = new FloorRunFeeds({ watch: scripted.watch, runs: timedOut });
+    const run = (await reader.getById("run-1"))!;
+
+    await feeds.join(run, sink, "0").ready;
+
+    expect({ ended: sink.ended, stopped: scripted.stopped }).toEqual({
+      ended: "error",
+      stopped: ["run-1"],
+    });
+  });
+
   it("drops a viewer that is 2 MB behind as slow and stops its watch", async () => {
     const { sink, stopped } = await joined([turnFrame(1)], {
       sink: new RecordingSink(2 * 1024 * 1024),

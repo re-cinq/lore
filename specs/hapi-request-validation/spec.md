@@ -26,7 +26,7 @@ its request body **by hand, inside the handler**:
 - Field validation is imperative and scattered: `if (!key || !value) return 400`
   in [`memory.ts@5aca40e7`](../../apps/lore-api/src/transport/routes/memory/memory.ts#L23),
   `if (!description?.trim())` in
-  [`task-post.ts@9d08a642`](../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L59),
+  [`task-post.ts@9d08a642`](../../apps/lore-api/src/transport/routes/tasks/task-post.ts#L55),
   `enforceFeatureInput(...)` in
   `feature-round-routes.ts`.
   There is no single declaration of "what a valid request to this route looks

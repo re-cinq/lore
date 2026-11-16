@@ -61,7 +61,7 @@
 
 [data-theme-family="lore"] .main-content {
   --main-pad-x: var(--space-8);
-  padding-block: var(--space-7);
+  --main-pad-y: var(--space-7);
 }
 
 [data-theme-family="lore"] .mobile-header {
@@ -79,7 +79,7 @@
 @media (max-width: 640px) {
   [data-theme-family="lore"] .main-content {
     --main-pad-x: var(--space-5);
-    padding-block: var(--space-6);
+    --main-pad-y: var(--space-6);
   }
 }
 

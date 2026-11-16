@@ -30,7 +30,6 @@ that's plumbing, not duplication.
 | `GET /api/tasks/:id/timeline` | [spec](task-timeline/spec.md) | read | Stage-commit timeline for a task. |
 | `GET /api/tasks/by-pr/:o/:r/:n` | [spec](task-by-pr/spec.md) | read | Resolve a PR → its task (DB → PR-body → trailer). |
 | `POST /api/task-logs` | [spec](task-logs/spec.md) | write | Upload a task's logs to GCS. |
-| `POST /api/task-turns/:taskId` | [spec](task-turns/spec.md) | write | Relay a local run's stream-json transcript to the Floor's turn store. |
 
 ## Memory
 | Route | Spec | Auth | Purpose |
@@ -65,4 +64,5 @@ that's plumbing, not duplication.
 | Route | Spec | Auth | Purpose |
 |-------|------|------|---------|
 | `GET /healthz` | [spec](healthz/spec.md) | none | Liveness probe. |
+| `GET /api/versions` | [spec](versions/spec.md) | read | Which build of every Lore part runs; `POST /api/service-versions` (write) records the gateway's start. |
 | `/api/tokens` | [spec](tokens/spec.md) | admin | API token create / list / revoke. |

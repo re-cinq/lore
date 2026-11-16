@@ -7,6 +7,7 @@ import { cancelRun } from "../../../work/floor/cancel-run.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { requestedByOf } from "./requested-by.js";
 
 const CancelRunBody = z
   .object({ requested_by: z.string().min(1).optional() })
@@ -46,7 +47,7 @@ async function serveCancel(floor: CancelRunFloor, request: Request) {
   const body = request.payload as z.infer<typeof CancelRunBody>;
   const cancelled = await cancelRun(floor, {
     runId: request.params.id,
-    requestedBy: body?.requested_by,
+    requestedBy: requestedByOf(request, body?.requested_by),
   });
 
   return { cancelled: true, run_id: cancelled.runId };

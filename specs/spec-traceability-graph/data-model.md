@@ -136,6 +136,8 @@ Spec.file_path:       string @index(hash) .
 Spec.content_hash:    string .                       # projection freshness gate
 Spec.feature:         uid @reverse .                  # the feature folder this md belongs to
 Spec.blocks:          [uid] @reverse @count .
+
+The schema declares `Spec.blocks` as a uid list predicate and adds it to the Spec type. ([validated by declares Spec.blocks as a uid list predicate @3739b33f](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L255), [validated by lists Spec.blocks in the Spec type @471e9ca5](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L270), [validated by calls alter with a schema declaring Spec.blocks as a uid list predicate and listing it in the Spec type @d2b82134](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L81))
 Spec.sections:        [uid] @reverse @count .
 Spec.acceptance_criteria: [uid] @reverse @count .
 
@@ -238,6 +240,8 @@ ADR.embedding:          float32vector @index(hnsw(metric:"cosine")) .
 ADR.supersedes:         [uid] @reverse @count .        # reverse = superseded_by
 ```
 
+
+The schema declares `Spec.blocks` as a uid list predicate and adds it to the Spec type. ([validated by declares Spec.blocks as a uid list predicate @3739b33f](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L255), [validated by lists Spec.blocks in the Spec type @471e9ca5](libs/shared/src/outbound/setup-spec-trace-schema.acceptance.test.ts#L270), [validated by calls alter with a schema declaring Spec.blocks as a uid list predicate and listing it in the Spec type @d2b82134](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L81))
 ## Call graph (cross-file symbol references)
 
 The schema declares `CodeChunk.references` and `CodeChunk.imports` as reversible uid list predicates (`[uid] @reverse @count`). ([validated by declares CodeChunk.references and CodeChunk.imports as uid list predicates for the call graph @fe892028](libs/shared/src/outbound/setup-spec-trace-schema.test.ts#L199))
@@ -657,6 +661,7 @@ from the graph — the inverse of the Block projection, and **document-agnostic*
    the exact inverse of the line-partition `segmentBlocks` performed.
 
 `recomputeSpecFile(repo, file_path, dgraph)` is a thin alias of `recomputeFile`
+([validated by `delegates to recomputeFile.` @46d4c9e2](libs/shared/src/outbound/spec-trace/recompute-spec-file.acceptance.test.ts#L5))
 (specs and ADRs reconstruct through the same reader).
 
 **Round-trip invariant — byte-exact:** `recomputeFile(...) === content` and

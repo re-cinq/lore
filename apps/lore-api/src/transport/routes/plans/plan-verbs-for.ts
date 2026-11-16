@@ -16,8 +16,9 @@ import {
   planSnapshot,
   type PlanFilePorts,
 } from "../../../work/plans/plan-file.js";
-import { ensureSpecBranch } from "../../../work/plans/spec-branch.js";
+import { ensureSpecBranch } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
 import { pgRefineAsks } from "../../../work/plans/refine-asks-pg.js";
+import { pgPlanStories } from "../../../work/plans/plan-stories-pg.js";
 import type { PlanApprover } from "../../../work/plans/plan-approval.js";
 import type { PlanMeta } from "@re-cinq/planning-document";
 
@@ -31,7 +32,11 @@ export interface PlanVerbSeams {
   pool?: () => Pool;
   /** The plan lifecycle service (approve, reopen, spec-work etc.); only needed at request time, not at route construction. */
   service?: PlanApprover & { reopenPlan(planId: string): Promise<PlanMeta> };
+  /** Answers as failed a Refine ask no agent ever took up; run when the plan's page opens. */
+  clearStaleAsks?: (plan: StalePlan) => Promise<unknown>;
 }
+
+import type { StalePlan } from "../../../work/plans/stale-refine-asks.js";
 
 const NO_FLOOR = "plans need the external floor, and this deployment has none";
 const NO_LIVE_PLAN = "the plan verbs on the floor need the live plan";
@@ -85,5 +90,6 @@ async function deploymentFloorDeps(
       (await pulls.get(prNumber))?.state ?? null,
     pulls,
     recordRefineAsk: (ask) => pgRefineAsks(pool).record(ask),
+    savedStory: (planId) => pgPlanStories(pool).saved(planId),
   };
 }

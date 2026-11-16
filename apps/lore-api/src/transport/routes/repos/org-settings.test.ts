@@ -163,6 +163,46 @@ describe("org settings + repo sessions", () => {
       });
     });
 
+    it("stores session_length_hours 168", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        { entries: [{ key: "session_length_hours", value: "168" }] },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        params: pool.query.mock.calls[0][1],
+      }).toEqual({
+        status: 200,
+        params: ["session_length_hours", "168"],
+      });
+    });
+
+    it("refuses session_length_hours 5 and writes nothing", async () => {
+      const pool = makePool();
+      const res = await call(
+        "PUT",
+        "/api/settings",
+        { entries: [{ key: "session_length_hours", value: "5" }] },
+        pool,
+      );
+
+      expect({
+        status: res.statusCode,
+        body: res.result,
+        writes: pool.query.mock.calls.length,
+      }).toEqual({
+        status: 400,
+        body: { error: "session_length_hours must be 8, 24, 168 or 720" },
+        writes: 0,
+      });
+    });
+
     it("refuses a context_llm_provider of ollama and writes nothing", async () => {
       const pool = makePool();
       const res = await call(

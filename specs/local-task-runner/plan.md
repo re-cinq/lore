@@ -14,12 +14,12 @@ task runs in background, PR created.
 - New file: `mcp-server/src/local-runner.ts`
 - `spawnLocalTask(taskId, prompt, repo, branch, model)` — creates worktree, spawns claude, returns PID
 - `monitorTask(taskId, pid, worktreePath, branch, repo, logFile)` — waits for exit, commits, pushes, creates PR, cleans up
-- `cleanupWorktree(taskId)` — removes worktree + PID file
+- `cleanupWorktree(taskId)` — removes worktree
 - `listLocalTasks()` — reads `~/.lore/local-tasks.json`
 - `cancelLocalTask(taskId)` — kills PID, cleans up
 - Uses `~/.lore/worktrees/{task-id}/` for worktrees
 - Uses `~/.lore/task-logs/{task-id}.log` for logs
-- PID tracked in `~/.lore/worktrees/{task-id}/.lore-task.json`
+- PID tracked in `~/.lore/local-tasks.json`, never in a file inside the worktree
 
 ### P1.3 MCP Tools
 - `lore_run_task_locally` — validates args, creates pipeline task via API, calls `spawnLocalTask`, returns task ID

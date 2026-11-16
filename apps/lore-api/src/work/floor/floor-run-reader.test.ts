@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { recordedFloor } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import { FloorRunReader } from "./floor-run-reader.js";
+import { upgradeFor } from "./upgrade-run.js";
 import type { RunView } from "@re-cinq/floor-client";
 import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import {
@@ -180,6 +181,21 @@ describe("FloorRunReader", () => {
 
   it("reads the run's cost as 0.42 dollars", async () => {
     expect(await reader().reader.costUsd("run-1")).toBe(0.42);
+  });
+
+  it("asks the floor for run r1 once when the run, its nodes and its upgrade are read together", async () => {
+    const { reader: floorReader, recorded } = reader();
+
+    await Promise.all([
+      floorReader.getById("run-1"),
+      floorReader.listStationRuns("run-1"),
+      floorReader.listing("run-1"),
+      upgradeFor(floorReader.upgradeFloor(), "run-1"),
+    ]);
+
+    expect(
+      recorded.requests.filter((r) => r.path === "/assembly-runs/run-1"),
+    ).toHaveLength(1);
   });
 
   it("reads the line version once for two reads of the same run", async () => {
@@ -403,5 +419,31 @@ describe("FloorRunReader.taskRunContexts", () => {
       ],
       byId: [],
     });
+  });
+});
+
+describe("FloorRunReader, a run's visits", () => {
+  it("asks the floor for finished run-2's visits once when its page is read twice", async () => {
+    const recorded = recordedFloor(floorWithFailedRunOnSecondPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({});
+    await floorReader.page({});
+
+    expect(
+      recorded.requests.filter((r) => r.path.startsWith("/station-runs")),
+    ).toHaveLength(1);
+  });
+
+  it("asks the floor for open run-1's visits on each of two page reads", async () => {
+    const recorded = recordedFloor(floorWithRunPage);
+    const floorReader = new FloorRunReader(recorded.floor);
+
+    await floorReader.page({});
+    await floorReader.page({});
+
+    expect(
+      recorded.requests.filter((r) => r.path.startsWith("/station-runs")),
+    ).toHaveLength(2);
   });
 });

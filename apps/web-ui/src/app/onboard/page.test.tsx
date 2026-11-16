@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 const createOnboardTask = vi.fn();
 const checkRepoAccess = vi.fn();
 const listAllRepos = vi.fn();
+const listAvailableRepos = vi.fn();
 const revalidatePath = vi.fn();
 const redirect = vi.fn((url: string) => {
   throw new Error(`NEXT_REDIRECT:${url}`);
@@ -12,6 +13,7 @@ const redirect = vi.fn((url: string) => {
 
 vi.mock("@/lib/api/repos", () => ({
   listAllRepos,
+  listAvailableRepos,
   reposOrThrow: (result: { data: unknown }) => result.data,
 }));
 vi.mock("@/lib/github", () => ({ checkRepoAccess }));
@@ -48,6 +50,7 @@ function form(fullName: string): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listAvailableRepos.mockResolvedValue({ status: "ok", data: [] });
   checkRepoAccess.mockResolvedValue("ok");
 });
 
@@ -86,5 +89,35 @@ describe("onboard action", () => {
     expect(state.error).toContain("not a valid repository");
     expect(createOnboardTask).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("onboard page", () => {
+  it("offers re-cinq/api and re-cinq/web when the installation lists them as available", async () => {
+    listAllRepos.mockResolvedValue({ data: { repos: [] } });
+    listAvailableRepos.mockResolvedValue({
+      status: "ok",
+      data: [{ full_name: "re-cinq/api" }, { full_name: "re-cinq/web" }],
+    });
+
+    const element = (await OnboardPage()) as ReactElement<{
+      available: { full_name: string }[];
+    }>;
+
+    expect(element.props.available).toEqual([
+      { full_name: "re-cinq/api" },
+      { full_name: "re-cinq/web" },
+    ]);
+  });
+
+  it("offers no repos when the available list fails with boom", async () => {
+    listAllRepos.mockResolvedValue({ data: { repos: [] } });
+    listAvailableRepos.mockResolvedValue({ status: "error", message: "boom" });
+
+    const element = (await OnboardPage()) as ReactElement<{
+      available: { full_name: string }[];
+    }>;
+
+    expect(element.props.available).toEqual([]);
   });
 });

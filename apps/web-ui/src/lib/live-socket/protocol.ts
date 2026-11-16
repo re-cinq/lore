@@ -11,16 +11,27 @@ export type ClosedReason = Extract<
 
 export type RunListFrame = components["schemas"]["RunListFrame"];
 
-export type ChannelKind = "run" | "plan" | "runs";
+/** A plan's current planning run as its `plan-run` channel describes it; null before one started. */
+export type PlanRunFacts = Extract<
+  LiveServerMessage,
+  { type: "plan_run" }
+>["run"];
+
+export type ChannelKind = "run" | "plan" | "runs" | "plan-run";
 
 const SERVER_TYPES: ReadonlySet<string> = new Set<LiveServerMessage["type"]>([
   "opened",
   "frame",
   "data",
   "runs",
+  "plan_run",
+  "response",
   "closed",
   "error",
 ]);
+
+const needsChannel = (type: string, body: Record<string, unknown>): boolean =>
+  type !== "error" && str(body.channel) === null;
 
 /** A server message, or null for non-JSON, an unknown type, or a message without the channel its type needs; one bad frame never takes the socket down. */
 export function decodeServerMessage(text: string): LiveServerMessage | null {
@@ -32,7 +43,9 @@ export function decodeServerMessage(text: string): LiveServerMessage | null {
       return null;
     }
 
-    if (type !== "error" && str(body.channel) === null) {
+    if (
+      type === "response" ? str(body.id) === null : needsChannel(type, body)
+    ) {
       return null;
     }
 

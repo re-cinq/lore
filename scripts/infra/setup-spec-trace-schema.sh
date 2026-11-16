@@ -133,6 +133,7 @@ AcceptanceCriterion.drift_severity: float .
 AcceptanceCriterion.violated: bool @index(bool) .
 AcceptanceCriterion.violation_reason: string .
 
+Spec.blocks: [uid] @reverse @count .
 Block.spec: uid @reverse .
 Block.repo: string @index(hash) .
 Block.file_path: string @index(hash) .
@@ -261,6 +262,7 @@ type Spec {
   Spec.feature
   Spec.sections
   Spec.acceptance_criteria
+  Spec.blocks
 }
 type Feature {
   Feature.xid

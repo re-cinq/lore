@@ -45,6 +45,8 @@ export function planPageState(
 // What the open node makes a draft, where that node alone says it.
 const DRAFT_STATES: Partial<Record<string, PlanPageState>> = {
   analyze: "refining",
+  sketch: "refining",
+  "sketch-pass-end": "refining",
   validate: "validating",
   "plan-findings": "validating",
 };

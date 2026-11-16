@@ -10,7 +10,7 @@ registerPipelineTools({
 } as never);
 
 describe("registerPipelineTools", () => {
-  it("registers the eleven pipeline tools in their fixed order", () => {
+  it("registers the seven pipeline tools in their fixed order", () => {
     expect(registered).toEqual([
       "lore_get_pipeline_status",
       "lore_list_pipeline_tasks",
@@ -19,10 +19,6 @@ describe("registerPipelineTools", () => {
       "lore_list_task_group",
       "lore_get_task_logs",
       "lore_get_job_logs",
-      "lore_list_pending_tasks",
-      "lore_skip_task",
-      "lore_enable_task_notifications",
-      "lore_disable_task_notifications",
     ]);
   });
 

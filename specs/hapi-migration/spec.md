@@ -175,7 +175,7 @@ low-risk reads before touching auth-sensitive writes:
 - **SC-4** Rate limiting still returns `429` + `Retry-After: 60` at the same
   per-bucket thresholds (webhook 30, task 60, default 200 per minute); a bucket
   allows requests up to its limit then blocks, and admits them again once the 60s
-  window slides past. ([validated by `rate-limit.test.ts@8a5b2059`](apps/lore-api/src/transport/http/rate-limit.test.ts#L68), [validated by `auth.test.ts@56b885a8`](apps/lore-api/src/transport/http/auth.test.ts#L22), [validated by `auth.test.ts@63c2dc93`](apps/lore-api/src/transport/http/auth.test.ts#L29))
+  window slides past. ([validated by `rate-limit.test.ts@8a5b2059`](apps/lore-api/src/transport/http/rate-limit.test.ts#L67), [validated by `auth.test.ts@56b885a8`](apps/lore-api/src/transport/http/auth.test.ts#L22), [validated by `auth.test.ts@63c2dc93`](apps/lore-api/src/transport/http/auth.test.ts#L29))
 - **SC-4a** A person's web session token (ADR-053) spends a `session` bucket of 600 a
   minute instead of the default one, since one page render reads many routes and
   every tab shares the token; the other buckets are unchanged *(2026-11-06)*. ([validated by routes a person's session token on /api/repos/re-cinq/otto/loops to the 600/min session bucket, and a service token to the 200/min default @23a54acb](apps/lore-api/src/transport/http/rate-limit.test.ts#L41))

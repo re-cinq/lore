@@ -66,7 +66,6 @@ Hand a job to Lore's background agents; they open a pull request for review.
 |---|---|---|---|
 | `lore_get_pipeline_status` | Checks how a job is going. | ☁️ Cloud | |
 | `lore_list_pipeline_tasks` | Lists recent jobs. | ☁️ Cloud | |
-| `lore_list_pending_tasks` | Shows jobs waiting to be picked up. | ☁️ Cloud | |
 | `lore_get_task_logs` | Reads a task's execution transcript. | ☁️ Cloud | ⚡ Cached (once the task finishes) |
 | `lore_get_job_logs` | Reads a scheduled background job's log. | ☁️ Cloud | ⚡ Cached |
 | `lore_get_pr_status` | Checks a pull request's status on GitHub. | ☁️ GitHub | |
@@ -76,18 +75,12 @@ Hand a job to Lore's background agents; they open a pull request for review.
 | `lore_list_task_group` | Tracks a group of related jobs across repos. | ☁️ Cloud (service-side) | |
 | `lore_sync_tasks` / `lore_ready_tasks` / `lore_claim_task` / `lore_complete_task` | Coordinate spec-driven tasks and their dependencies. | ☁️ Cloud (service-side) | |
 
-## Running work on your own machine
+## Running tests on your own machine
 
-These use your local checkout and (optionally) your own Claude subscription.
+These use your local checkout.
 
 | Tool | What it does | Where |
 |---|---|---|
-| `lore_run_task_locally` | Runs a job on your machine instead of the cloud. | 💻 Your computer |
-| `lore_claim_and_run_locally` | Picks up a waiting job and runs it locally. | 💻 Your computer |
-| `lore_enable_task_notifications` / `lore_disable_task_notifications` | Start or stop a local poller that surfaces new pending jobs in your statusline, so you can grab one to run locally. | 💻 Your computer |
-| `lore_skip_task` | Dismiss a pending-job notification locally (the cloud job is unaffected). | 💻 Your computer |
-| `lore_list_local_tasks` / `lore_cancel_local_task` | See or stop your local jobs. | 💻 Your computer |
-| `lore_configure_local_runner` | Settings for the local runner. | 💻 Your computer |
 | `lore_list_tests` / `lore_run_test` | Lists and runs your project's own tests. | 💻 Your computer |
 
 ## Managing repositories

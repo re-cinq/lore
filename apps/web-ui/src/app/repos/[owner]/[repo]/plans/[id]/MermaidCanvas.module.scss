@@ -1,0 +1,72 @@
+// A diagram drawn in the page's own colours, dragged and zoomed inside a fixed viewport.
+.canvas {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+
+  button {
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg-surface);
+    color: var(--text);
+    font-size: var(--font-size-sm, 12px);
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button:active {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
+  }
+}
+
+.zoom {
+  min-width: 4ch;
+  text-align: center;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewport {
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.diagram {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+
+  svg {
+    display: block;
+    max-width: none;
+  }
+}

@@ -136,6 +136,21 @@ if [ "${API_OK:-0}" = "1" ]; then
   fi
 fi
 
+# Informational: which build of every Lore part runs (GET /api/versions); never a pass or a fail.
+if [ "${API_OK:-0}" = "1" ] && command -v jq >/dev/null 2>&1; then
+  VERSIONS="$(curl -sf -m 10 -H "Authorization: Bearer $LORE_TOKEN" "${LORE_API_URL%/}/api/versions" 2>/dev/null || true)"
+  if [ -n "$VERSIONS" ]; then
+    echo ""
+    echo "[lore] Versions (latest build: $(printf '%s' "$VERSIONS" | jq -r '.latest.build'), this adapter: $(cut -c1-7 "$HOME/.lore/mcp-build-head" 2>/dev/null || echo unknown))"
+    printf '%s' "$VERSIONS" | jq -r '
+      (.lore | to_entries[] | "  \(.key): \(.value.build // ("error: " + .value.error))"),
+      "  floor: \(.floor.build // ("error: " + .floor.error))",
+      (.floor.clusters // [] | .[] | "    cluster \(.id): agent \(.build // "unknown"), subsystem \(.subsystem.version // "unknown")"),
+      "  database: \(if .database.error then "error: " + .database.error else "\(.database.migration // "none"), floor \(.database.floorMigration // "none")" end)",
+      "  agent image: \(.agentImage // "none")"'
+  fi
+fi
+
 echo ""
 echo "[lore] Results: $PASS passed, $FAIL failed"
 

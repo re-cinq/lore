@@ -8,6 +8,7 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { setEvalDepsForTests } from "./context-evals.js";
+import { UnreachableModel } from "./unreachable-model.js";
 
 const originalEnv = { ...process.env };
 const ADR = "adrs/ADR-032-split-local-remote-api.md";
@@ -208,6 +209,21 @@ describe("POST /api/context-evals", () => {
       },
       top_k_overlap: 0,
       only_answered_by: "lore",
+    });
+  });
+
+  it("answers 502 naming the failure when the eval model answers 404", async () => {
+    setEvalDepsForTests({
+      llm: new UnreachableModel("Gemini API error: 404 Not Found"),
+      document: async () => "The adapter holds no pool.",
+      assemble: async () => ({ text: "<context/>", sources: [] }),
+    });
+
+    const res = await post({ repo: "re-cinq/lore", path: ADR });
+
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(res.payload)).toEqual({
+      error: "the eval could not be made: Gemini API error: 404 Not Found",
     });
   });
 });

@@ -5,29 +5,19 @@ import type { Pool } from "pg";
 import type { z } from "zod";
 import { LIVE_RUNS_SUBJECT } from "@re-cinq/lore-shared/models/live-token.js";
 import { mintLiveToken } from "../../../work/assembly-line-station/live-tokens.js";
-import { bearerScope } from "../../http/bearer-scope.js";
-import { zodResponse } from "../../http/zod-response.js";
-import { zodValidate } from "../../http/zod-validate.js";
 import {
-  RunStreamTokenSchema,
   StreamTokenBody,
+  streamTokenOptions,
 } from "../assembly-lines/run-stream-token.js";
 import { withPool } from "../with-pool.js";
 
 type LiveUser = { id: string; name: string };
 
-const OPTIONS = zodResponse(
-  {
-    ...bearerScope("write"),
-    validate: { payload: zodValidate(StreamTokenBody) },
-  },
-  RunStreamTokenSchema,
-  {
-    name: "FloorRunsStreamToken",
-    description:
-      "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
-  },
-);
+const OPTIONS = streamTokenOptions({
+  name: "FloorRunsStreamToken",
+  description:
+    "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
+});
 
 export function floorRunsStreamTokenRoute(
   getPool: () => Pool | null,

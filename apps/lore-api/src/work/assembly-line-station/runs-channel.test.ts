@@ -8,7 +8,11 @@ import {
 } from "../floor/floor-runs-feed.fixtures.js";
 import { memoryLiveTokens } from "./live-tokens.js";
 import { mountLiveSocket, type LiveSocketMount } from "./live-socket.js";
-import { queuedClient } from "./live-socket.fixtures.js";
+import {
+  cookieOf,
+  personBySession,
+  queuedClient,
+} from "./live-socket.fixtures.js";
 
 const ANA = { id: "ana", name: "Ana" };
 
@@ -21,7 +25,10 @@ describe("the runs channel", () => {
     http.close();
   });
 
-  async function connect(feed: FloorRunsFeed | null) {
+  async function connect(
+    feed: FloorRunsFeed | null,
+    headers: Record<string, string> = {},
+  ) {
     const tokens = memoryLiveTokens();
     const unused = () => {
       throw new Error("not used by the runs channel");
@@ -36,11 +43,26 @@ describe("the runs channel", () => {
         feeds: { join: unused },
       },
       collab: { handleConnection: unused },
+      person: personBySession,
+      inject: unused,
       runs: { verifyToken: tokens.verify, feed },
+      planRun: {
+        verifyToken: tokens.verify,
+        planExists: unused,
+        planRuns: unused,
+        runs: { getById: unused },
+        prStatus: unused,
+        feeds: { join: unused },
+        watch: null,
+      },
       pingMs: 50,
       log: () => {},
     });
-    const client = queuedClient((http.address() as { port: number }).port);
+    const client = queuedClient(
+      (http.address() as { port: number }).port,
+      "/api/ws",
+      headers,
+    );
 
     await client.open();
 
@@ -185,5 +207,21 @@ describe("the runs channel", () => {
       channel: "c1",
       reason: "server",
     });
+  });
+
+  it("opens the runs channel for a session with no token", async () => {
+    const { client } = await connect(
+      feedOverFloor().feed,
+      cookieOf("ana-session"),
+    );
+
+    client.send({
+      type: "open",
+      channel: "c1",
+      kind: "runs",
+      subject: "floor",
+    });
+
+    expect(await client.next()).toEqual({ type: "opened", channel: "c1" });
   });
 });

@@ -1,40 +1,45 @@
 import { describe, it, expect } from "vitest";
 import { deriveUpdateStatus } from "./mcp-update.js";
 
+const BUILT = "aaaaaaa1111111111111111111111111111111111";
+
 describe("deriveUpdateStatus", () => {
-  it("origin/main 3 commits ahead of the build returns updateAvailable with commitsBehind 3", () => {
-    expect(deriveUpdateStatus("aaaaaaa", "bbbbbbb", 3)).toEqual({
+  it("offers an update with 3 commits when the deployed build is 3 commits ahead of the adapter", () => {
+    expect(deriveUpdateStatus(BUILT, "bbbbbbb", "behind", 3)).toEqual({
       updateAvailable: true,
       commitsBehind: 3,
-      builtSha: "aaaaaaa",
-      remoteSha: "bbbbbbb",
+      builtSha: BUILT,
+      latestSha: "bbbbbbb",
     });
   });
 
-  it("identical build and remote SHAs return not available", () => {
-    expect(deriveUpdateStatus("aaaaaaa", "aaaaaaa", 0)).toEqual({
-      updateAvailable: false,
-      commitsBehind: 0,
-      builtSha: "aaaaaaa",
-      remoteSha: "aaaaaaa",
+  it("offers an update with no count when the checkout lacks the deployed commit", () => {
+    expect(deriveUpdateStatus(BUILT, "bbbbbbb", "unknown", null)).toEqual({
+      updateAvailable: true,
+      commitsBehind: null,
+      builtSha: BUILT,
+      latestSha: "bbbbbbb",
     });
   });
 
-  it("zero commits behind despite differing SHAs returns not available", () => {
-    expect(deriveUpdateStatus("aaaaaaa", "bbbbbbb", 0)).toEqual({
-      updateAvailable: false,
-      commitsBehind: 0,
-      builtSha: "aaaaaaa",
-      remoteSha: "bbbbbbb",
-    });
+  it("offers nothing when the adapter was built from the deployed short sha", () => {
+    expect(
+      deriveUpdateStatus(BUILT, "aaaaaaa", "unknown", null).updateAvailable,
+    ).toBe(false);
   });
 
-  it("missing build SHA returns not available", () => {
-    expect(deriveUpdateStatus(null, "bbbbbbb", 5)).toEqual({
+  it("offers nothing when the adapter is ahead of the deployed build", () => {
+    expect(
+      deriveUpdateStatus(BUILT, "bbbbbbb", "ahead", null).updateAvailable,
+    ).toBe(false);
+  });
+
+  it("offers nothing when lore-api could not name the deployed build", () => {
+    expect(deriveUpdateStatus(BUILT, null, "unknown", null)).toEqual({
       updateAvailable: false,
-      commitsBehind: 0,
-      builtSha: null,
-      remoteSha: "bbbbbbb",
+      commitsBehind: null,
+      builtSha: BUILT,
+      latestSha: null,
     });
   });
 });

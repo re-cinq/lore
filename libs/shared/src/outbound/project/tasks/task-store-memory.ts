@@ -12,7 +12,6 @@ import {
 import type {
   TaskStorePort,
   TaskAction,
-  TaskTransitionMeta,
   TaskWithEvents,
   TaskListResult,
   FindOpenLikeInput,
@@ -272,12 +271,8 @@ export class InMemoryTaskStore implements TaskStorePort {
     return this.transitions.markMerged(id);
   }
 
-  transition(
-    id: string,
-    action: TaskAction,
-    meta?: TaskTransitionMeta,
-  ): Promise<PipelineTask> {
-    return this.transitions.transition(id, action, meta);
+  transition(id: string, action: TaskAction): Promise<PipelineTask> {
+    return this.transitions.transition(id, action);
   }
 
   findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {

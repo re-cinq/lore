@@ -206,6 +206,12 @@ stations:
         kind: file
       - name: spec_path
         kind: value
+      # The plan whose spec branch the merged pull request came from, whose saved
+      # story the filed story is written back to; not started with for a spec a
+      # person merged from their own branch.
+      - name: source_plan_id
+        kind: value
+        optional: true
     produces:
       - name: ticketing_result
         kind: file

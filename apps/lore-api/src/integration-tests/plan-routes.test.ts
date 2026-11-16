@@ -11,7 +11,7 @@ import {
   recordedPlanFloor,
   type PlanFloorScene,
 } from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
-import { specBranchOf } from "../work/plans/spec-branch.js";
+import { specBranchOf } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
 
 const TOKEN = "test-plan-routes-token";
 const READ_TOKEN = "test-plan-routes-read-token";
@@ -94,6 +94,7 @@ describe("/api/plans on lore-api", () => {
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
       recordRefineAsk: () => Promise.resolve(),
+      savedStory: async () => undefined,
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],

@@ -87,6 +87,7 @@ AcceptanceCriterion.drift_reason: string .
 AcceptanceCriterion.drift_severity: float .
 AcceptanceCriterion.violated: bool @index(bool) .
 AcceptanceCriterion.violation_reason: string .
+Spec.blocks: [uid] @reverse @count .
 Block.spec: uid @reverse .
 Block.repo: string @index(hash) .
 Block.file_path: string @index(hash) .

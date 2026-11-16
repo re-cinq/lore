@@ -1,10 +1,12 @@
 # Which store answers context questions best
 
-**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first run of 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27, the ticket grade and the reader change of 2026-10-31, and what they say about the switch. The latest evidence favours Utopia; the first run, which does not, was taken before its data was in place.
+**For people deciding where Lore's knowledge should live.** This records the side-by-side comparisons of Lore's own stores and Utopia as the source of the context an agent gets: the first run of 2026-10-16, the re-runs of 2026-10-19, the agent-question experiment of 2026-10-27, the ticket grade and the reader change of 2026-10-31, the three-run benchmark of 2026-11-13, and what they say about the switch. The latest evidence favours Utopia; the first run, which does not, was taken before its data was in place.
 
-## Where this stands (2026-10-31, updated 2026-11-05)
+## Where this stands (2026-10-31, updated 2026-11-13)
 
 Utopia is ahead of Lore on the evidence so far, with two caveats, and since 2026-10-31 its assembly reads six sections instead of two.
+
+- **Ticket grade on 2026-11-13, three runs per repository:** Utopia 2.38 against Lore 1.88 on lore and 2.17 against 1.50 on Otto, ahead in all six runs, in 13 to 15k characters against Lore's 23 to 27k. A new judge model scored these, so they do not compare with the rows below. On the 20 documents Utopia found more (19 and 20 against 18 and 17) and on lore answered fewer (15 against 18). Latency is still not measured on a quiet system: Utopia's database was at 3.1 to 3.7 cores throughout.
 
 - **Ticket grade after the 11-01 to 11-04 tuning:** Utopia 2.75 against Lore 2.25 on lore, 2.13 against 2.25 on Otto, in 4 to 13k characters against Lore's 30 to 33k. The context builder (`lore-v2`) scored 2.50 on lore and 1.88 on Otto on 11-04, in 4 to 6k characters and 30 to 36 s; after #4112 and #4116 on 11-05 it scores 2.75 on lore and 2.50 on Otto, in 4 to 4.6k characters and 17 to 20 s; after #4118, #4119 and #4120 the same day, 3.00 on lore and 2.75 on Otto, ahead of both stores, at 40 to 44 s. Details below.
 
@@ -159,6 +161,43 @@ The context builder of #4093 (`lore-v2`), graded on the same tickets on 11-05 on
 - **`lore-v2` as shipped sat between the two on lore and last on Otto; after #4112 and #4116 it is level with Utopia on lore (2.75) and ahead of both on Otto (2.50),** in the smallest block (4 to 4.6k characters) and 17 to 20 s at p50, down from 30 to 36 s. Where it reads code it is the most precise of the three: on lore #4012 it named `isOutOfBudget`, its argument and the existing `ranOutOfCredit` check, and on #4056 the two functions behind the bug. On 11-04 it failed on tickets whose answer was in no file it opened (lore #4057; Otto #673 and #689), and the judge named its scaffolding as noise on most blocks; on 11-05 lore #4057 scores 3 and only Otto #689 keeps its 1, the ticket no store answers. The noise the judge still names is the ticket's own sections (`Implements`, `References`, `How to test`), which the compose rule now forbids copying; whether the judge reads them in the block or in the ticket text it is also handed is the next thing to check.
 - **Round 3 (#4118 #4119 #4120) lifts lore-v2 to 3.00 on lore and 2.75 on Otto, ahead of both stores on both repos, at twice the latency.** #4118 answers the builder's questions over the repository's own store (Utopia by omission) instead of Lore's DB, #4120 reads the spec lines a ticket links as GitHub blob URLs, and #4119 stops the judge naming the ticket's own sections as the block's noise, which it had done on most verdicts (a rebuilt block for Otto #673 held none of them). Every lore ticket scores 3; on Otto only #689 keeps its 1. The cost is the evidence stage, 30 to 58 s against 7 to 13 s before, with three to five questions now answered in parallel by Utopia; p50 is 40 to 44 s and the slowest build 69 s, inside the MCP tool's 120 s. The next change caps the questions and gives each Utopia answer a time budget, aiming at the round-2 20 s with round-3 scores.
 - **The 11-05 reruns measured the whole path.** Half the builds after #4112 fell back on a 90 s write-up timeout and were graded as the template assembly, so the mean hid a builder that finished three times in eight; the eval's `Sections` column now says `builder` or `fallback: <reason>` per ticket, and a mean is read beside its built count.
+
+## Three runs per repository, 2026-11-13: Utopia ahead on tickets on both
+
+The earlier ticket grades were one run of eight tickets each, and the score drifts about 0.25 from run to run, which is half the lead they showed. On 2026-11-13 the same eval was run three times per repository, back to back, with the document evals after it: `run.mjs --tickets 8 --backend both` on the latest 8 `priority:*` tickets, then `--sample 20 --backend both`, from a laptop against production at main `1fabbbe`, between 11:25 and 12:00 UTC.
+
+Two things differ from the runs above, so these numbers stand beside them and not in line with them:
+
+- **The model that writes the question and judges is `gemini-3-flash-preview`.** Vertex stopped answering for `gemini-2.5-flash` in the project lore-api moved to on 2026-11-06, and every eval call failed with a bare 500 until #4551 changed the model the same morning (#4542).
+- **The tickets are a different eight.** The newest priority tickets on lore that day came out of a backlog audit and are narrower than the ones graded in early November.
+
+### Ticket grade, three runs
+
+| Repo | Store | Mean | Run 1 | Run 2 | Run 3 | p50 latency | Worst | Mean block |
+|---|---|---|---|---|---|---|---|---|
+| lore | Lore | 1.88 | 2.25 | 2.00 | 1.38 | 13.2 s | 18 s | 26,566 chars |
+| lore | Utopia | **2.38** | 2.38 | 2.12 | 2.62 | 7.7 s | 30 s | 15,274 chars |
+| Otto | Lore | 1.50 | 1.50 | 1.38 | 1.62 | 3.9 s | 9 s | 22,921 chars |
+| Otto | Utopia | **2.17** | 2.25 | 2.25 | 2.00 | 12.3 s | 30 s | 12,991 chars |
+
+### Document evals, one run of 20 documents
+
+| Repo | Store | Found | Answered | Useful share | p50 latency | Worst |
+|---|---|---|---|---|---|---|
+| lore | Lore | 18 | **18** | 35% | 6.0 s | 14 s |
+| lore | Utopia | **19** | 15 | **66%** | 3.3 s | 30 s |
+| Otto | Lore | 17 | **19** | **72%** | 3.8 s | 7 s |
+| Otto | Utopia | **20** | 18 | 62% | 4.6 s | 26 s |
+
+### What to read off it
+
+- **Utopia was ahead on tickets in six of six runs,** by 0.50 on lore and 0.67 on Otto on average, in a block a bit over half the size. On Otto this is new: the runs of early November had the two level.
+- **One ticket still moves a whole point or more between runs on either store.** Lore scored lore #4481 at 2, 0, 0; Utopia scored lore #4515 at 2, 0, 3. A mean over three runs is the smallest thing worth quoting.
+- **On lore, Utopia's lead is two tickets Lore's block could not serve.** Utopia scored 3 on #4075 and #4481 in all three runs, where Lore scored 0, 0, 0 and 2, 0, 0. Lore beat Utopia on one, #4194 (3, 3, 2 against 0, 2, 1).
+- **On documents Utopia finds more and, on lore, answers fewer.** It found 19 and 20 of 20 and answered 15 and 18; Lore found 18 and 17 and answered 18 and 19. That is the gap #4021 names: the hit is found and the requirement around it is cut.
+- **Latency is not measured.** `utopia-db` ran at 3.1 to 3.7 cores before and after the run, and 4 of the 48 Utopia ticket assemblies reached the 30 s limit. Lore's own p50 on lore, 13 s, is also far above the 2 s of early November.
+- **A reference table in the repository pollutes ticket context.** `docs/backlog-audit-2026-11-13.md`, a 480-line table of ticket numbers merged that morning, was named as noise in 5 of 24 Lore blocks and 8 of 24 Utopia blocks on lore.
+- **Still unmeasured:** memory written through Utopia and read back, and the tokens a loop run spends since the briefing went live on 2026-11-05.
 
 ## Re-run on 2026-10-19: the gap was missing data
 

@@ -23,8 +23,6 @@ export interface RefineRequest {
   baseHash: string;
   inputs: unknown;
   uses: unknown;
-  /** The user story a round this ask starts carries; an ask reported to a waiting run cannot change the story that run started with. */
-  storyIssue?: number;
   /** Who asked, as the floor records it on the visit the ask opens. */
   actor: string;
 }
@@ -59,7 +57,7 @@ export function refineBrief(
   return withFindings(
     settled.length === 0
       ? ask
-      : [ask, [WRITE_EACH, ...settled].join("\n")].join("\n\n"),
+      : [ask, [SETTLED_RULE, ...settled].join("\n")].join("\n\n"),
     findings,
   );
 }
@@ -78,8 +76,9 @@ function findingLine(finding: OpenFinding): string {
   return `- Finding ${finding.findingId} on \`${finding.slot}\` (${finding.severity}): ${oneLine(finding.text)} — ${oneLine(finding.why)}`;
 }
 
-const WRITE_EACH =
-  "Write each of these into the section. One you cannot use, ask about with `add-question` rather than leave out: a refine that ends without them still marks them used.";
+/** A thread is a conversation, and its people may have settled it by doing the work: the agent acts on where it ends, never on its first message alone. */
+const SETTLED_RULE =
+  "Write each answered question's answer into the plan. Read each resolved thread to its last message: what it settles is where it ends, not how it starts. Do what the people in it agreed should be done. Where they did the work themselves, said they will, or agreed nothing is needed, or where the plan already holds what they asked for, change nothing for that thread and name it in your final message. One whose outcome is unclear, or that you cannot use, ask about with `add-question` rather than guess: a refine that ends still marks every one of these used.";
 
 const settledInputsSchema = z.object({
   answered: z
@@ -127,6 +126,11 @@ function settledLines(inputs: unknown): string[] {
 /** People's text on one line: a newline in an answer would start what reads as another item of the list. */
 function oneLine(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+/** Someone asked for the Prototype section to be drawn: a run opened for it alone carries this as its brief. */
+export function sketchBrief(plan: PlanView): string {
+  return `Draw the Prototype section of the live plan "${plan.title}".`;
 }
 
 /** The approved plan, handed to the spec work that follows approval. */

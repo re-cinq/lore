@@ -33,6 +33,7 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   ".jsx": "tree-sitter-javascript.wasm",
   ".py": "tree-sitter-python.wasm",
   ".go": "tree-sitter-go.wasm",
+  ".rs": "tree-sitter-rust.wasm",
 };
 
 // ── Public API ──────────────────────────────────────────────────────

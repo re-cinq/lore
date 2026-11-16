@@ -15,6 +15,8 @@ interface ConfirmedActionButtonProps {
   question: ConfirmQuestion;
   /** What the action still waits on; while set, the button is off and says so in its tooltip. */
   waitingOn?: string;
+  /** Replaces the trigger's tone class; the dialog keeps the question's tone. */
+  buttonClassName?: string;
 }
 
 /** A server action asked first in a modal, run once on confirm, and the page reloaded onto what it changed. */
@@ -43,6 +45,7 @@ function AskButton({
   label,
   question,
   waitingOn,
+  buttonClassName,
   ask,
 }: ConfirmedActionButtonProps & { ask: () => void }) {
   return (
@@ -52,7 +55,7 @@ function AskButton({
       pendingText={label}
       disabled={waitingOn !== undefined}
       title={waitingOn}
-      className={toneClass(question.tone) ?? ""}
+      className={buttonClassName ?? toneClass(question.tone) ?? ""}
     />
   );
 }

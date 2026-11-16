@@ -8,6 +8,7 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { setTicketEvalDepsForTests } from "./context-eval-ticket.js";
+import { UnreachableModel } from "./unreachable-model.js";
 
 const originalEnv = { ...process.env };
 const TICKET = { number: 4024, title: "Ticket evals", body: "Grade blocks." };
@@ -110,5 +111,20 @@ describe("POST /api/context-evals/ticket", () => {
     const res = await post({ repo: "lore", ticket: TICKET });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it("answers 502 naming the failure when the eval model answers 404", async () => {
+    setTicketEvalDepsForTests({
+      llm: new UnreachableModel("Gemini API error: 404 Not Found"),
+      assemble: async () => ({ text: "run.mjs", sections: ["code"] }),
+      clock: () => 0,
+    });
+
+    const res = await post({ repo: "re-cinq/lore", ticket: TICKET });
+
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(res.payload)).toEqual({
+      error: "the eval could not be made: Gemini API error: 404 Not Found",
+    });
   });
 });

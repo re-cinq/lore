@@ -6,10 +6,6 @@ import { registerRetryTaskTool } from "./retry-task.js";
 import { registerListTaskGroupTool } from "./list-task-group.js";
 import { registerGetTaskLogsTool } from "./get-task-logs.js";
 import { registerGetJobLogsTool } from "./get-job-logs.js";
-import { registerListPendingTasksTool } from "./list-pending-tasks.js";
-import { registerSkipTaskTool } from "./skip-task.js";
-import { registerEnableTaskNotificationsTool } from "./enable-task-notifications.js";
-import { registerDisableTaskNotificationsTool } from "./disable-task-notifications.js";
 
 // Registers every lore_* pipeline tool, one file per tool.
 export function registerPipelineTools(server: McpServer) {
@@ -20,8 +16,4 @@ export function registerPipelineTools(server: McpServer) {
   registerListTaskGroupTool(server);
   registerGetTaskLogsTool(server);
   registerGetJobLogsTool(server);
-  registerListPendingTasksTool(server);
-  registerSkipTaskTool(server);
-  registerEnableTaskNotificationsTool(server);
-  registerDisableTaskNotificationsTool(server);
 }

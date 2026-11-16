@@ -4,20 +4,24 @@ import {
   approvedBrief,
   draftBrief,
   refineBrief,
+  sketchBrief,
   type RefineRequest,
 } from "./plan-briefs.js";
-import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
+import {
+  askFloorRefine,
+  reworkFloorSpec,
+  sketchFloorPlan,
+  validateFloorPlan,
+} from "./floor-plan-by-hand.js";
 import { floorPlanLineState } from "@re-cinq/lore-shared/feature-planning/floor-plan-runs.js";
 import { reopenWhenAuthorWaits } from "./planning-line.js";
 import type {
-  DraftingRequest,
   PlanContentVerbs,
   PlanSubject,
   PlanVerbs,
 } from "./plan-engine.js";
 import {
   approveFloorPlan,
-  askFloorRefine,
   decideFloorApproval,
   keyOf,
   reopenFloorPlan,
@@ -49,7 +53,11 @@ function markdownVerbs(
     return { plan, ...snapshot, brief: briefOf(snapshot) };
   };
 
-  return { ...draftingVerbs(deps, briefed), ...approvalVerbs(deps, briefed) };
+  return {
+    ...draftingVerbs(deps, briefed),
+    sketch: sketchVerb(deps, briefed),
+    ...approvalVerbs(deps, briefed),
+  };
 }
 
 /** The two verbs a plan still being written serves: the draft, and one section's Refine. */
@@ -61,7 +69,7 @@ function draftingVerbs(
     draft: async (plan, request) =>
       startFloorDrafting(
         deps,
-        await draftInput(briefed, plan, request),
+        await briefed(plan, draftBriefOf(plan, request.known)),
         request.createdBy,
       ),
     refine: async (plan, refine) =>
@@ -73,16 +81,16 @@ function draftingVerbs(
   };
 }
 
-/** The draft's brief and markdown, with the story the plan answers. */
-async function draftInput(
+/** The sketch agent over a plan still being written: a run opened for it alone is briefed to draw. */
+function sketchVerb(
+  deps: FloorPlanDeps,
   briefed: Briefed,
-  plan: PlanSubject,
-  request: DraftingRequest,
-): Promise<FloorPlanMarkdown> {
-  return {
-    ...(await briefed(plan, draftBriefOf(plan, request.known))),
-    storyIssue: request.storyIssue,
-  };
+): PlanContentVerbs["sketch"] {
+  return async (plan, actor) =>
+    sketchFloorPlan(deps, {
+      ...(await briefed(plan, () => sketchBrief(plan))),
+      actor,
+    });
 }
 
 const draftBriefOf =
@@ -108,11 +116,8 @@ function approvalVerbs(
         approvedBy,
       );
     },
-    startSpecWork: async (plan, _createdBy, storyIssue) =>
-      startFloorSpecWork(deps, {
-        ...(await briefed(plan, () => approvedBrief(plan))),
-        storyIssue,
-      }),
+    startSpecWork: async (plan) =>
+      startFloorSpecWork(deps, await briefed(plan, () => approvedBrief(plan))),
   };
 }
 

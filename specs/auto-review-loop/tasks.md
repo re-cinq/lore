@@ -1,5 +1,7 @@
 # Task Breakdown: Autonomous Review Loop
 
+> This file belongs to the original design (the Floor watcher's review-and-fix loop), superseded on 2026-10-01. [spec.md](spec.md) holds what runs.
+
 ## Phase 1: Runner Review Mode
 
 - [x] T001 [P] Add `gh` CLI to `docker/claude-runner/Dockerfile` — install via apt or GitHub release binary

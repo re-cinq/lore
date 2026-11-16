@@ -31,8 +31,10 @@ RUN npm run build --workspace=@re-cinq/lore-mcp
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
+ARG GIT_SHA=dev
+ENV LORE_BUILD_SHA=$GIT_SHA
 # Run as the shared MCP-over-HTTP gateway for agent pods (server/http-transport.ts).
-# server-mode=agent omits the pipeline/local-runner tools. The auth token, Lore API
+# server-mode=agent omits the pipeline tools. The auth token, Lore API
 # URL and port come from the Deployment env (LORE_MCP_AUTH_TOKEN, LORE_API_URL,
 # LORE_MCP_PORT). Override LORE_MCP_HTTP=0 to fall back to stdio.
 ENV LORE_MCP_HTTP=1

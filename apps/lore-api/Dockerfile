@@ -59,6 +59,8 @@ RUN set -eu; mkdir -p /out; \
 FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
+ARG GIT_SHA=dev
+ENV LORE_BUILD_SHA=$GIT_SHA
 # /app/libs mirrors the repo so the workspace symlinks in node_modules resolve,
 # and libs/server-core/templates is reachable from the compiled package.
 COPY --from=builder /app/libs ./libs

@@ -6,6 +6,7 @@ import type { ChannelHandle } from "./channel-registry.js";
 import type { EndReason } from "./frame-sink.js";
 import type { LiveTokenVerifier } from "./live-tokens.js";
 import type { OpenMessage } from "./protocol.js";
+import { NO_SESSION, type SessionAccess } from "./socket-session.js";
 import type { ChannelOutlet } from "./run-channel.js";
 import { HIGH_WATER_MARK } from "./run-feed.js";
 
@@ -22,16 +23,27 @@ export async function openRunsChannel(
   message: RunsOpenMessage,
   outlet: ChannelOutlet,
   deps: RunsChannelDeps,
+  session: SessionAccess = NO_SESSION,
 ): Promise<ChannelHandle | null> {
   const { channel } = message;
-  const { feed } = deps;
-  const refusal = (await isAdmitted(message, deps)) ? null : "unauthorized";
+  const refusal = (await isAdmitted(message, deps, session))
+    ? null
+    : "unauthorized";
 
-  if (!feed || refusal) {
+  if (!deps.feed || refusal) {
     outlet.send({ type: "closed", channel, reason: refusal ?? "not_found" });
 
     return null;
   }
+
+  return follow(channel, outlet, deps.feed);
+}
+
+function follow(
+  channel: string,
+  outlet: ChannelOutlet,
+  feed: Pick<FloorRunsFeed, "join">,
+): ChannelHandle {
   outlet.send({ type: "opened", channel });
   const membership = feed.join(runsViewer(channel, outlet, () => membership));
 
@@ -45,11 +57,15 @@ export async function openRunsChannel(
 async function isAdmitted(
   message: RunsOpenMessage,
   deps: RunsChannelDeps,
+  session: SessionAccess,
 ): Promise<boolean> {
-  const viewer = await deps.verifyToken(message.token, {
-    kind: "runs",
-    subject: message.subject,
-  });
+  const viewer =
+    message.token === undefined
+      ? await session.person()
+      : await deps.verifyToken(message.token, {
+          kind: "runs",
+          subject: message.subject,
+        });
 
   return message.subject === LIVE_RUNS_SUBJECT && viewer !== null;
 }

@@ -8,8 +8,11 @@ export type ChannelPhase = "pending" | "opening" | "open" | "closed";
 /** What a channel's consumer is told; the run page maps it onto its chip. */
 export type ChannelState = "connecting" | "live" | "reconnecting" | "offline";
 
+/** `requests` is the one stand-in channel that keeps the socket wanted while a request waits for an answer. */
+export type MachineChannelKind = ChannelKind | "requests";
+
 export interface ChannelEntry {
-  kind: ChannelKind;
+  kind: MachineChannelKind;
   phase: ChannelPhase;
   /** Consecutive server closes this channel has answered; reset the moment it opens. */
   attempt: number;
@@ -22,7 +25,7 @@ export interface MachineState {
 }
 
 export type MachineEvent =
-  | { type: "channel_requested"; id: string; kind: ChannelKind }
+  | { type: "channel_requested"; id: string; kind: MachineChannelKind }
   | { type: "channel_released"; id: string }
   | { type: "socket_open" }
   | { type: "socket_closed" }
@@ -126,7 +129,8 @@ function onChannelReleased(
 }
 
 const isOnWire = (entry: ChannelEntry): boolean =>
-  entry.phase === "open" || entry.phase === "opening";
+  entry.kind !== "requests" &&
+  (entry.phase === "open" || entry.phase === "opening");
 
 /** The socket is up: every channel waiting for it is opened. */
 function onSocketOpen(state: MachineState): Transition {

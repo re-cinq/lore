@@ -1,10 +1,10 @@
-// The pull request reads the Loops tab's routes share, held per repository for 20 seconds: code review, auto merge and spec upkeep each listed the open pull requests, two listed the week's merges, and auto merge read every head's checks, about a hundred GitHub calls on one board load, and again on every live refresh.
+// The pull request reads the Loops tab's routes share, held per repository for 20 seconds, and answered from the kept value while it refreshes for 10 minutes more: code review, auto merge and spec upkeep each listed the open pull requests, two listed the week's merges, and auto merge read every head's checks, about a hundred GitHub calls on one board load, and again on every live refresh.
 import type { Project } from "@re-cinq/lore-shared";
 import type {
   CheckRun,
   PullRef,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { memoizeByKeyWithTtl } from "../../../work/chunks/ttl-memo.js";
+import { memoizeByKeyStaleWhileRefreshing } from "../../../work/chunks/ttl-memo.js";
 
 export type LoopPulls = Pick<
   Project["pulls"],
@@ -20,6 +20,9 @@ export interface LoopPullReads {
 
 /** How long a read is shared: under the live refreshes' pace, over one board load. */
 const FRESH_MS = 20_000;
+
+/** How long a read may be answered, refreshed behind the caller, before a caller waits for a new one. */
+const STALE_MS = 10 * 60_000;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -42,15 +45,15 @@ export function loopPullReads(now: () => number = Date.now): LoopPullReads {
   };
 }
 
-/** A read shared by key for 20 seconds, made through the facade of the caller that missed: the memo calls it at once on a miss, so that caller's facade is the one in hand. */
+/** A read shared by key for 20 seconds (then answered from the kept value while one refresh runs, up to 10 minutes), made through the facade of the caller that missed: the memo calls it at once on a miss, so that caller's facade is the one in hand. */
 function sharedRead<T>(
   read: (pulls: LoopPulls, key: string) => Promise<T>,
   now: () => number,
 ): (key: string, pulls: LoopPulls) => Promise<T> {
   let caller: LoopPulls | undefined;
-  const memo = memoizeByKeyWithTtl(
+  const memo = memoizeByKeyStaleWhileRefreshing(
     (key) => read(caller as LoopPulls, key),
-    FRESH_MS,
+    { freshMs: FRESH_MS, staleMs: STALE_MS },
     now,
   );
 

@@ -16,10 +16,19 @@ import {
   type ChannelKind,
   type LiveClientMessage,
   type LiveServerMessage,
+  type PlanRunFacts,
   type RunListFrame,
 } from "./protocol";
 import type { RunStreamFrame } from "@/lib/run-stream-types";
 import { isStaleDeployment } from "./stale-deployment";
+import { openMessage } from "./open-message";
+import {
+  PendingRequests,
+  type RequestAnswer,
+  type RequestMethod,
+} from "./pending-requests";
+
+const REQUESTS_CHANNEL = "requests";
 
 /** The slice of the browser's WebSocket the client drives, so a test can hand in its own. */
 export interface SocketLike {
@@ -43,6 +52,7 @@ export interface ChannelSpec {
   after?: () => string;
   onFrame?: (frame: RunStreamFrame) => void;
   onRunsFrame?: (frame: RunListFrame) => void;
+  onPlanRun?: (run: PlanRunFacts) => void;
   onData?: (bytes: Uint8Array) => void;
   onState?: (state: ChannelState) => void;
 }
@@ -78,8 +88,32 @@ export class LiveSocketClient {
   private readonly specs = new Map<string, ChannelSpec>();
   private readonly watched = new Map<string, readonly string[]>();
   private nextId = 0;
+  readonly requests: PendingRequests;
 
-  constructor(private readonly options: LiveSocketOptions) {}
+  constructor(private readonly options: LiveSocketOptions) {
+    this.requests = new PendingRequests({
+      isLive: () => this.socket?.readyState === OPEN,
+      send: (message) => this.send(message),
+      startTimer: options.setTimer,
+      onBusy: () =>
+        this.dispatch({
+          type: "channel_requested",
+          id: REQUESTS_CHANNEL,
+          kind: "requests",
+        }),
+      onIdle: () =>
+        this.dispatch({ type: "channel_released", id: REQUESTS_CHANNEL }),
+    });
+  }
+
+  /** Asks lore-api for one of its routes as the signed-in person; the socket is opened for it when it is not up. */
+  request(
+    method: RequestMethod,
+    path: string,
+    body?: unknown,
+  ): Promise<RequestAnswer> {
+    return this.requests.ask(method, path, body);
+  }
 
   get phase(): MachineState["socket"] {
     return this.state.socket;
@@ -128,16 +162,24 @@ export class LiveSocketClient {
     const socket = new Socket(this.options.url);
 
     this.socket = socket;
-    socket.onopen = () => this.ifCurrent(socket, { type: "socket_open" });
-    socket.onclose = () => this.ifCurrent(socket, { type: "socket_closed" });
+    socket.onopen = () =>
+      this.ifCurrent(socket, () => {
+        this.dispatch({ type: "socket_open" });
+        this.requests.flush();
+      });
+    socket.onclose = () =>
+      this.ifCurrent(socket, () => {
+        this.requests.dropped();
+        this.dispatch({ type: "socket_closed" });
+      });
     socket.onerror = null;
     socket.onmessage = (event) => this.receive(String(event.data));
   }
 
-  /** A stale socket's events must not drive the machine: the client may already be on its successor. */
-  private ifCurrent(socket: SocketLike, event: MachineEvent): void {
+  /** A stale socket's events must drive neither the machine nor the waiting requests: the client may already be on its successor. Requests are dropped before the close is told, so a socket only a write was waiting on goes idle instead of reconnecting. */
+  private ifCurrent(socket: SocketLike, react: () => void): void {
     if (this.socket === socket) {
-      this.dispatch(event);
+      react();
     }
   }
 
@@ -240,6 +282,10 @@ export class LiveSocketClient {
     this.specs.get(channel)?.onRunsFrame?.(frame);
   }
 
+  deliverPlanRun(channel: string, run: PlanRunFacts): void {
+    this.specs.get(channel)?.onPlanRun?.(run);
+  }
+
   deliverData(channel: string, encoded: string): void {
     this.specs.get(channel)?.onData?.(base64ToBytes(encoded));
   }
@@ -266,7 +312,9 @@ interface ClientInternals {
   dispatch(event: MachineEvent): void;
   deliverFrame(channel: string, frame: RunStreamFrame): void;
   deliverRunsFrame(channel: string, frame: RunListFrame): void;
+  deliverPlanRun(channel: string, run: PlanRunFacts): void;
   deliverData(channel: string, encoded: string): void;
+  readonly requests: PendingRequests;
   sendWatch(id: string): void;
   onError(message: Extract<LiveServerMessage, { type: "error" }>): void;
 }
@@ -297,7 +345,14 @@ const INBOUND: {
     client.deliverFrame(message.channel, message.frame),
   runs: (client, message) =>
     client.deliverRunsFrame(message.channel, message.frame),
+  plan_run: (client, message) =>
+    client.deliverPlanRun(message.channel, message.run),
   data: (client, message) => client.deliverData(message.channel, message.data),
+  response: (client, message) =>
+    client.requests.deliver(message.id, {
+      status: message.status,
+      body: message.body,
+    }),
   closed: (client, message) =>
     client.dispatch({
       type: "server_closed",
@@ -306,41 +361,3 @@ const INBOUND: {
     }),
   error: (client, message) => client.onError(message),
 };
-
-const OPEN_MESSAGES: {
-  [K in ChannelKind]: (
-    id: string,
-    spec: ChannelSpec,
-    token: string,
-  ) => LiveClientMessage;
-} = {
-  plan: (id, spec) => ({
-    type: "open",
-    channel: id,
-    kind: "plan",
-    subject: spec.subject,
-  }),
-  run: (id, spec, token) => ({
-    type: "open",
-    channel: id,
-    kind: "run",
-    subject: spec.subject,
-    token,
-    after: spec.after?.(),
-  }),
-  runs: (id, spec, token) => ({
-    type: "open",
-    channel: id,
-    kind: "runs",
-    subject: spec.subject,
-    token,
-  }),
-};
-
-function openMessage(
-  id: string,
-  spec: ChannelSpec,
-  token: string | undefined,
-): LiveClientMessage {
-  return OPEN_MESSAGES[spec.kind](id, spec, token ?? "");
-}

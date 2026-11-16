@@ -55,6 +55,13 @@ the root `.env.local`, `npm start` runs only the UI against that backend. The
 root `.env.local` is the one env file; `apps/web-ui/.env.local` is ignored by
 `npm start`.
 
+The browser reads the run pages and the run list over the tab's one live socket
+(`LORE_WS_URL`, ADR-048). With no `LORE_WS_URL`, `npm start` derives
+`ws://localhost:3001/api/ws` from `LORE_API_URL`: a cookie on `localhost` is sent
+to every port and lore-api accepts a localhost origin, so local development needs
+nothing else. A deployment must route `/api/ws` on the UI's host to lore-api so the
+session cookie rides the upgrade.
+
 ## Deploy
 
 Built into a container via [`Dockerfile`](./Dockerfile) (Next standalone output)

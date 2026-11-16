@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import {
   PlanEditor,
   transportFor,
+  type PlanEditorAdapters,
   type ProviderTransport,
+  type RefineFailure,
 } from "@re-cinq/planning-editor";
 import { FormError } from "@/components/FormError";
+import type { PlanStory } from "@/lib/api/plans";
 import type { LiveSocketClient } from "@/lib/live-socket/client";
 import { useLiveSocket } from "@/lib/live-socket/LiveSocketProvider";
 import { planProvider } from "@/lib/live-socket/plan-provider";
@@ -15,9 +18,11 @@ import type { PlanPageState } from "@/lib/plan-page-state";
 import type { PlanUser } from "@/lib/plan-user";
 import type { PlanActions } from "./plan-actions";
 import PlanBlockAnchor from "./PlanBlockAnchor";
+import PlanMockup from "./PlanMockup";
 import PlanOutlineActions from "./PlanOutlineActions";
 import { useRefineAsk } from "./useRefineAsk";
 import { reloadingWhenStale } from "@/lib/live-socket/stale-deployment";
+import styles from "./PlanEditorPanel.module.scss";
 
 interface PlanEditorPanelProps extends PlanActions {
   meta: PlanMeta;
@@ -27,6 +32,10 @@ interface PlanEditorPanelProps extends PlanActions {
   prNumber: number | null;
   prTitle: string | null;
   prUnresolvedThreads: number | null;
+  /** The plan's user story, linked in the outline's actions. */
+  story: PlanStory | null;
+  /** Told which sections' refines failed, and why, each time that list changes. */
+  onRefineFailures: (failures: readonly RefineFailure[]) => void;
 }
 
 interface ConnectedPlanProps extends PlanEditorPanelProps {
@@ -54,21 +63,42 @@ function ConnectedPlan(props: ConnectedPlanProps) {
   const [canApprove, setCanApprove] = useState(false);
   const { meta, user, transport, refine, ...actions } = props;
   const { refusal, ask } = useRefineAsk(refine, props.state);
-  const outlineActions = { ...actions, canApprove, refusal };
+  const outline = { ...actions, canApprove, refusal };
+  const onGeneratePrototype = () => rejectingRefusal(actions.generatePrototype);
 
   return (
     <>
       <PlanBlockAnchor />
-      <PlanEditor
-        transport={transport}
-        user={user}
+      <FramedPlanEditor
+        {...{ transport, user, onRefine: ask, onGeneratePrototype }}
         readOnly={meta.status === "approved"}
         validationPhase="approval"
         onValidation={(report) => setCanApprove(report.passed)}
-        onRefine={ask}
-        outlineFooter={<PlanOutlineActions {...outlineActions} />}
+        onRefineFailures={actions.onRefineFailures}
+        outlineFooter={<PlanOutlineActions {...outline} />}
       />
     </>
+  );
+}
+
+const SKETCH_ADAPTERS: PlanEditorAdapters = {
+  renderMockup: (mockup) => <PlanMockup {...mockup} />,
+};
+
+// The editor shows a rejection under Generate prototype, as it does for a refused Refine.
+async function rejectingRefusal(ask: PlanActions["generatePrototype"]) {
+  const asked = await ask();
+
+  if (asked.error) {
+    throw new Error(asked.error);
+  }
+}
+
+function FramedPlanEditor(props: ComponentProps<typeof PlanEditor>) {
+  return (
+    <div className={styles.editor}>
+      <PlanEditor {...props} adapters={SKETCH_ADAPTERS} />
+    </div>
   );
 }
 

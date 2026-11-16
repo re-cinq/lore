@@ -119,8 +119,8 @@ page shows a passive informational note — a bootstrap-style alert box drawn fr
 the status tokens, announced politely as a `role="status"` region rather than an
 interruptive `role="alert"` (that stays FormError's job).
 
-- It defaults to the `info` variant. ([validated by @07514c2e](apps/web-ui/src/components/Alert.test.tsx#L7))
-- It offers a muted `secondary` variant for ambient notes. ([validated by @cff5b617](apps/web-ui/src/components/Alert.test.tsx#L16))
+- It defaults to the `info` variant. ([validated by @07514c2e](apps/web-ui/src/components/Alert.test.tsx#L11))
+- It offers a muted `secondary` variant for ambient notes. ([validated by @cff5b617](apps/web-ui/src/components/Alert.test.tsx#L20))
 
 The `CollapsibleCard` atom (`specs/7-feature-planning` documents its folding
 behaviour) is also the card chrome other views extract into — the run page's

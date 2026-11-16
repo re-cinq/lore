@@ -1,0 +1,38 @@
+// A sketch is a picture of another app: a white surface keeps it legible in dark mode.
+.frame {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+
+.svg {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  overflow: auto;
+
+  svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+  }
+}
+
+.text {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-family: var(--font-mono);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.note {
+  color: var(--text-muted);
+}

@@ -1,4 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import {
@@ -21,14 +20,11 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 
-// POST /api/task multiplexes its shapes with irregular dispatch (status-update has no `action`, a body naming no task is refused), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
+// POST /api/task multiplexes its shapes with irregular dispatch (a body naming no task is refused), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
 const TaskBody = z.object({
   action: z.string().optional(),
   task_id: z.string().optional(),
-  status: z.string().optional(),
   priority: z.string().optional(),
-  pr_url: z.string().optional(),
-  error: z.string().optional(),
 });
 
 type TaskBody = z.infer<typeof TaskBody>;
@@ -96,10 +92,7 @@ async function actOnExistingTask(
     return knownAction(pool, h, parsed, taskId);
   }
 
-  return (
-    (await setPriority(pool, h, parsed, taskId)) ??
-    (await reportRunnerStatus(pool, h, parsed, taskId))
-  );
+  return setPriority(pool, h, parsed, taskId);
 }
 
 const REVISED_ON_THE_PR =
@@ -180,86 +173,6 @@ async function setPriority(
   );
 
   return h.response({ ok: true, task_id: taskId, priority });
-}
-
-/** The local runner reporting progress: no action field, a task id and a status. */
-async function reportRunnerStatus(
-  pool: Pool,
-  h: ResponseToolkit,
-  parsed: TaskBody,
-  taskId: string,
-): Promise<ResponseObject | null> {
-  if (parsed.action || !parsed.status) {
-    return null;
-  }
-
-  return h.response(
-    await updateTaskStatus(pool, taskId, {
-      status: parsed.status,
-      prUrl: parsed.pr_url,
-      error: parsed.error,
-    }),
-  );
-}
-
-const ALLOWED_STATUSES = [
-  "running",
-  "pr-created",
-  "completed",
-  "failed",
-  "needs-human-help",
-  "cancelled",
-];
-
-/** Status update from the local runner (no action field, has task_id + status). */
-interface RunnerStatusUpdate {
-  status: string;
-  prUrl: string | undefined;
-  error: string | undefined;
-}
-
-async function updateTaskStatus(
-  pool: Pool,
-  taskId: string,
-  update: RunnerStatusUpdate,
-) {
-  const { status } = update;
-
-  enforceTrue(
-    ALLOWED_STATUSES.includes(status),
-    apiError(400),
-    `invalid status: ${status}`,
-  );
-  const { clauses, values } = statusSetClauses(update);
-
-  values.push(taskId);
-  await pool.query(
-    `UPDATE pipeline.tasks SET ${clauses.join(", ")} WHERE id = $${values.length}`,
-    values,
-  );
-
-  return { ok: true, task_id: taskId, status };
-}
-
-/** The SET list and its bind values built together, because each optional column's placeholder number is decided by how many values precede it. */
-function statusSetClauses({ status, prUrl, error }: RunnerStatusUpdate): {
-  clauses: string[];
-  values: unknown[];
-} {
-  const clauses = ["status = $1", "updated_at = now()"];
-  const values: unknown[] = [status];
-
-  if (prUrl) {
-    clauses.push(`pr_url = $${values.length + 1}`);
-    values.push(prUrl);
-  }
-
-  if (error) {
-    clauses.push(`error = $${values.length + 1}`);
-    values.push(error);
-  }
-
-  return { clauses, values };
 }
 
 /** A body with no task id used to create a task. None is created from a description any more, so the caller is told where that work goes instead. */

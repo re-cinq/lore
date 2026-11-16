@@ -40,6 +40,9 @@ env:
   LORE_MCP_SERVER_MODE: agent
   LORE_MCP_PORT: "8080"
   LORE_METRICS_PORT: "9464"
+  # The read cache is for a laptop that lost the API (specs/local-read-cache
+  # AC1). One gateway serves every agent pod, so it never caches.
+  LORE_CACHE_ENABLED: "false"
   # In-cluster lore-api. The gateway is a normal Deployment (NOT under the
   # agent-job NetworkPolicy), so it may use the ClusterIP directly. Agent pods
   # reach it by its Service too, through templates/agent-egress.yaml.

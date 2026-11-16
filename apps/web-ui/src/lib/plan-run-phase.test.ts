@@ -159,3 +159,11 @@ describe("canRegenerate", () => {
     ]).toEqual([false, false, false]);
   });
 });
+
+describe("planRunPhase while the sketch agent draws", () => {
+  it("says the sketch agent is drawing the prototype while sketch is open", () => {
+    expect(running(visit("analyze", "success"), visit("sketch", null))).toEqual(
+      { tone: "working", text: "The sketch agent is drawing the prototype." },
+    );
+  });
+});

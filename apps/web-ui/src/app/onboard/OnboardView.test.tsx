@@ -95,4 +95,31 @@ describe("OnboardView", () => {
     render(<OnboardView onboarded={[]} onboardRepoAction={action} />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("suggests each available repo in the Repository combobox", () => {
+    const { container } = render(
+      <OnboardView
+        onboarded={[]}
+        available={[{ full_name: "re-cinq/api" }, { full_name: "re-cinq/web" }]}
+        onboardRepoAction={action}
+      />,
+    );
+    const suggestions = [
+      ...container.querySelectorAll<HTMLOptionElement>(
+        "datalist#available-repos option",
+      ),
+    ].map((option) => option.value);
+
+    expect(screen.getByRole("combobox", { name: "Repository" })).toBeVisible();
+    expect(suggestions).toEqual(["re-cinq/api", "re-cinq/web"]);
+  });
+
+  it("keeps the Repository combobox usable with no suggestions when none is available", () => {
+    const { container } = render(
+      <OnboardView onboarded={[]} onboardRepoAction={action} />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Repository" })).toBeVisible();
+    expect(container.querySelectorAll("datalist option")).toHaveLength(0);
+  });
 });

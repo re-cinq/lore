@@ -73,13 +73,54 @@ describe("parseClientMessage", () => {
     ]);
   });
 
-  it("returns null for non-JSON, an unknown type, a run open without a token, and a non-numeric cursor", () => {
+  it("reads a plan-run open of plan p1 with its token, and refuses one without a token", () => {
+    const open = {
+      type: "open",
+      channel: "c2",
+      kind: "plan-run",
+      subject: "p1",
+      token: "t-2",
+    };
+
+    expect([
+      parseClientMessage(JSON.stringify(open)),
+      parseClientMessage(JSON.stringify({ ...open, token: undefined })),
+    ]).toEqual([open, null]);
+  });
+
+  it("reads a run open and a runs open with no token", () => {
+    const run = { type: "open", channel: "c", kind: "run", subject: "run-1" };
+    const runs = { type: "open", channel: "d", kind: "runs", subject: "floor" };
+
+    expect(
+      [run, runs].map((message) => parseClientMessage(JSON.stringify(message))),
+    ).toEqual([run, runs]);
+  });
+
+  it("reads a request and rejects one whose path is outside /api/", () => {
+    const request = {
+      type: "request",
+      id: "q1",
+      method: "GET",
+      path: "/api/floor-runs?limit=5",
+    };
+
+    expect(
+      [
+        request,
+        { ...request, path: "/admin" },
+        { ...request, method: "PATCH" },
+      ].map((message) => parseClientMessage(JSON.stringify(message))),
+    ).toEqual([request, null, null]);
+  });
+
+  it("returns null for non-JSON, an unknown type, a non-numeric cursor, and a plan-run open without a token", () => {
     expect(
       [
         "nope",
         '{"type":"dance","channel":"c"}',
-        '{"type":"open","channel":"c","kind":"run","subject":"run-1"}',
         '{"type":"open","channel":"c","kind":"run","subject":"run-1","token":"t","after":"x"}',
+        '{"type":"open","channel":"c","kind":"plan-run","subject":"p1"}',
       ].map(parseClientMessage),
     ).toEqual([null, null, null, null]);
   });
@@ -93,6 +134,24 @@ describe("server messages", () => {
         type: "frame",
         channel: "c",
         frame: { type: "catchup_complete", last_id: "3" },
+      },
+      { type: "plan_run", channel: "c", run: null },
+      {
+        type: "plan_run",
+        channel: "c",
+        run: {
+          id: "run-1",
+          status: "running",
+          outcome: null,
+          reason: null,
+          issue_url: "https://github.com/o/r/issues/4",
+          issue_number: 4,
+          pr_url: "https://github.com/o/r/pull/7",
+          pr_number: 7,
+          pr_title: "Spec: checkout",
+          pr_unresolved_threads: 2,
+          spec_plan_summary: null,
+        },
       },
       { type: "data", channel: "p", data: "AQI=" },
       { type: "closed", channel: "c", reason: "slow" },

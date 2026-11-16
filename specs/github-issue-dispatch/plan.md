@@ -1,5 +1,7 @@
 # Implementation Plan: github-issue-dispatch
 
+This is the plan of the original design, superseded on 2026-10-02. `spec.md` holds what runs.
+
 | Field   | Value    |
 |---------|----------|
 | Status  | Shipped  |

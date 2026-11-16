@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
 import { handleSkillsRequest } from "./skills-registry.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
+import { reportGatewayVersion } from "../work/versions/report-gateway-version.js";
 
 export interface HttpGatewayOptions {
   port: number;
@@ -73,9 +74,10 @@ interface GatewayWiring {
   authorized: (req: IncomingMessage) => boolean;
 }
 
-/** The gateway as the chart configures it: LORE_MCP_PORT is required, LORE_MCP_SERVER_MODE=agent drops the laptop-only tools. */
+/** The gateway as the chart configures it: LORE_MCP_PORT is required, LORE_MCP_SERVER_MODE=agent drops the laptop-only tools. It reports its build to lore-api at start; the laptop adapter never does. */
 export function startHttpGatewayFromEnv(env: NodeJS.ProcessEnv): Server {
   void startGatewayMetrics(env);
+  void reportGatewayVersion(env);
 
   return startHttpGateway({
     port: requiredPort(env, "LORE_MCP_PORT"),

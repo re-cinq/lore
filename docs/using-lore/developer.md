@@ -46,12 +46,6 @@ claude "what's the status of my last pipeline task?"
 # → Returns status, PR link, duration
 ```
 
-## Run a task locally (zero API cost)
-
-Say "run locally" and Claude Code spawns a background process in an isolated git worktree on your machine. It uses your Claude Code subscription — no API credits — and your interactive session continues uninterrupted. The background process has its own MCP server instance and calls `lore_assemble_context` and `lore_search_memory` before it writes any code, so it starts with the same context a GKE task would.
-
-<p align="center"><img src="../../badges/flow5-local-runner.svg" width="600" alt="Local task runner" /></p>
-
 ## Dispatch from a GitHub Issue
 
 Add a `lore` label to any Issue on an onboarded repo, or open one with a Lore issue template, and the Issue joins the repo's backlog. The implementation loop works it, opens a PR, and links it back to the Issue. No UI, no CLI, no context switch. There is no task to create: the label is the whole opt-in.
@@ -140,12 +134,6 @@ The issues Lore files when a plan is approved carry the `lore-managed` label (st
 | `lore_write_episode` | Memory | Ingest raw text; auto-extracts facts and updates the knowledge graph |
 | `lore_query_graph` | Memory | Query the live knowledge graph for entities and relationships |
 | `lore_agent_stats` | Memory | Health, memory count, episode count, facts, searches, daily breakdown |
-| `lore_run_task_locally` | Pipeline | Run a task in the background on your machine (uses your subscription) |
-| `lore_list_local_tasks` | Pipeline | Show running/completed local background tasks |
-| `lore_cancel_local_task` | Pipeline | Cancel a local background task |
-| `lore_enable_task_notifications` | Pipeline | Start watching for pending tasks (statusline indicator) |
-| `lore_list_pending_tasks` | Pipeline | Show tasks available to claim locally |
-| `lore_claim_and_run_locally` | Pipeline | Claim a pending task and run it in the background |
 | `lore_get_pipeline_status` | Pipeline | Task status and event timeline |
 | `lore_list_pipeline_tasks` | Pipeline | List tasks with a status filter |
 | `lore_cancel_task` | Pipeline | Cancel a running or pending task |

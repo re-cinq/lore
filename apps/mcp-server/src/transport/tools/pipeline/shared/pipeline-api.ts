@@ -21,7 +21,7 @@ export type RemoteTaskLite = {
 
 export type ToolText = { content: [{ type: "text"; text: string }] };
 
-export interface ApiCredentials {
+interface ApiCredentials {
   apiUrl: string;
   token: string;
 }

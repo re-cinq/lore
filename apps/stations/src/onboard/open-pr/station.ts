@@ -26,8 +26,20 @@ const productionDeps: OpenOnboardPrDeps = {
   recordOnboardingPr: (repo, url) => settings().setOnboardingPrUrl(repo, url),
 };
 
-const SUMMARY =
-  "Onboards this repository to Lore: the workflows and templates Lore keeps current, and the repository-specific files written from the onboarding ticket.";
+const WHY =
+  "## Why\n\nOnboards this repository to Lore: the workflows and templates Lore keeps current, and the repository-specific files written from the onboarding ticket.";
+
+const WHAT_CHANGED =
+  "## What Changed\n\nAdded Lore's standard workflows, templates, and repository-specific configuration files to this repository.";
+
+const TESTING =
+  "## Testing\n\nThe generated files and workflows have been reviewed for correctness before this pull request was opened. Build verification follows in the next step.";
+
+const ALTERNATIVES =
+  "## Alternatives Considered\n\nSkipping onboarding would leave this repository without Lore's context infrastructure, shared conventions, and automated workflows.";
+
+const ADR_ARCH =
+  "## ADRs & Architecture\n\nThis onboarding follows the standard Lore onboarding process documented in `specs/4-ux-repo-onboarding`.";
 
 /** GitHub's refusal to open a pull request from a branch that holds nothing its base lacks. */
 const NOTHING_TO_OPEN = /no commits between/i;
@@ -84,7 +96,14 @@ async function opened(
 }
 
 function prBody({ attention, taskId }: Onboarding): string {
-  const sections = [SUMMARY, attention].filter((section) => section !== "");
+  const sections = [
+    WHY,
+    WHAT_CHANGED,
+    TESTING,
+    ALTERNATIVES,
+    ADR_ARCH,
+    attention,
+  ].filter((section) => section !== "");
 
   return sections.join("\n\n") + prFooter({ taskId });
 }

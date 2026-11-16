@@ -14,10 +14,8 @@ import {
   type Attention,
   type RepoFilter,
 } from "./HomeView.filters";
-import {
-  freshnessIndicator,
-  ingestAge,
-} from "./repos/[owner]/[repo]/repo-freshness";
+import { formatShortAge } from "@/lib/assembly-run-presenter";
+import { freshnessIndicator } from "./repos/[owner]/[repo]/repo-freshness";
 
 // A PICK over the published shape, not a copy — types still come from the contract.
 export type Repo = Pick<
@@ -209,10 +207,9 @@ function RepoCard({ repo: r, attention }: RepoCardProps) {
     >
       <CardHead repo={r} />
       <CardStats repo={r} />
-      {attention ? (
-        <AttentionNote attention={attention} />
-      ) : (
-        <div className={styles.cardNote}>{ingestionSummary(r)}</div>
+      {attention && <AttentionNote attention={attention} />}
+      {!attention && !r.last_ingested_at && (
+        <div className={styles.cardNote}>{onboardingSummary(r)}</div>
       )}
     </Link>
   );
@@ -263,7 +260,13 @@ function IngestValue({ lastIngestedAt }: { lastIngestedAt: string | null }) {
   return (
     <>
       <FreshnessDot lastIngestedAt={lastIngestedAt} />
-      {ingestAge(lastIngestedAt)}
+      {lastIngestedAt ? (
+        <span title={new Date(lastIngestedAt).toLocaleString()}>
+          {formatShortAge(lastIngestedAt)}
+        </span>
+      ) : (
+        "Never"
+      )}
     </>
   );
 }
@@ -326,11 +329,7 @@ function FreshnessDot({ lastIngestedAt }: { lastIngestedAt: string | null }) {
   );
 }
 
-function ingestionSummary(repo: Repo): string {
-  if (repo.last_ingested_at) {
-    return `Last ingested ${new Date(repo.last_ingested_at).toLocaleDateString()}`;
-  }
-
+function onboardingSummary(repo: Repo): string {
   if (repo.onboarding_pr_merged) {
     return "Onboarded, awaiting ingestion";
   }

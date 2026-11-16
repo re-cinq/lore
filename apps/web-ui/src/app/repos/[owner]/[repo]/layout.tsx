@@ -2,6 +2,7 @@ import { getRepoMeta } from "@/lib/github";
 import { getRepo } from "@/lib/api/repos";
 import TabNav from "./TabNav";
 import RepoHeader from "./RepoHeader";
+import RepoChrome from "./RepoChrome";
 import styles from "./layout.module.css";
 
 interface RepoLayoutProps {
@@ -12,10 +13,30 @@ interface RepoLayoutProps {
 export default async function RepoLayout(props: RepoLayoutProps) {
   const { owner, repo } = await props.params;
   const base = `/repos/${owner}/${repo}`;
-  const { meta, record } = await readHeader(`${owner}/${repo}`);
+  const header = await readHeader(`${owner}/${repo}`);
 
   return (
     <div>
+      <RepoChrome
+        base={base}
+        fullName={`${owner}/${repo}`}
+        full={fullChrome({ owner, repo, base, ...header })}
+      />
+      <div className={styles.body}>{props.children}</div>
+    </div>
+  );
+}
+
+interface FullChromeProps extends Awaited<ReturnType<typeof readHeader>> {
+  owner: string;
+  repo: string;
+  base: string;
+}
+
+/** The repo header and tab bar every page but a single plan's shows. */
+function fullChrome({ owner, repo, base, meta, record }: FullChromeProps) {
+  return (
+    <>
       <RepoHeader
         owner={owner}
         repo={repo}
@@ -23,8 +44,7 @@ export default async function RepoLayout(props: RepoLayoutProps) {
         record={record}
       />
       <TabNav tabs={repoTabs(base)} base={base} />
-      <div className={styles.body}>{props.children}</div>
-    </div>
+    </>
   );
 }
 

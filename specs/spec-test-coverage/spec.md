@@ -70,8 +70,8 @@ _(Added 2026-10-01.)_ Where an external floor is configured, the weekly backfill
 
 ## Acceptance Criteria
 
-1. The runner claims a pending task before GKE picks it up.
-   ([validated by runner.local.test.ts:91 @ae47e120](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L91))
+1. A lease held by one holder is refused to a second.
+   ([validated by `lease-backends.test.ts@28540d65`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L45))
 2. Tasks survive rollout restarts via the lease backend.
    ([validated by `lease-backends.test.ts@36c9466c`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L14),
    [`lease-backends.test.ts@7b23ea8c`](libs/shared/src/outbound/project/leases/lease-backends.test.ts#L142))
@@ -193,8 +193,8 @@ A `#Lnn` anchor names a line by number, so every insertion above the cited line 
 - Writing a hash into a label twice gives the same label, so the fixer's second pass changes nothing. ([validated by rewrites a bare file label and its own output to the same hashed file label @fee7defa](libs/shared/src/domain/spec-link-parser.test.ts#L459))
 - A hashed link means the line of the cited file carrying its hash, nearest the written line. ([validated by returns line 3, where the hash now sits, for a link written at line 1 @050d7a46](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L10), [validated by returns lines 1 and 3 of a source that repeats the hashed line @81597803](libs/shared/src/domain/anchor-hash.test.ts#L27), [validated by returns 40 near 30 and 10 near 25 from lines 10 and 40 @2bdf6259](libs/shared/src/domain/anchor-hash.test.ts#L37))
 - When no line of the cited file carries its hash, the link means the line it was written with. ([validated by returns the written line 7 for a hash no line carries @c2a3fd15](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L14), [validated by returns the written line 7 for a link with no hash @77a0e87f](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L18), [validated by returns the written line 7 when the cited file cannot be read @bde92473](libs/shared/src/domain/spec-trace/resolve-anchor-line.test.ts#L22))
-- The graph stores a hashed test link at the line its hash sits on in the file at the ingested commit, with the hash. ([validated by stores a hashed test link at line 3, where its hash now sits, with the hash @6deb0229](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L421))
-- The graph keys a hashed code link by repository, path and hash, so its chunk keeps its identity when the cited line moves. ([validated by keys a hashed code link by repo|path|hash, so the chunk keeps its xid when the line moves @36fbe282](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L448))
+- The graph stores a hashed test link at the line its hash sits on in the file at the ingested commit, with the hash. ([validated by stores a hashed test link at line 3, where its hash now sits, with the hash @6deb0229](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L429))
+- The graph keys a hashed code link by repository, path and hash, so its chunk keeps its identity when the cited line moves. ([validated by keys a hashed code link by repo|path|hash, so the chunk keeps its xid when the line moves @36fbe282](libs/shared/src/work/spec-trace/project-spec-file.test.ts#L456))
 - The ingest hands the spec projector the commit of the delta, where it reads the files a spec's links cite. ([validated by hands the projector the delta's commit, where the files a spec's links cite are read @42ab44e9](apps/lore-api/src/transport/routes/ingest/ingest-delta.test.ts#L833))
 - lore-code-trace stamps each test descriptor with the hash of its declaration line. ([validated by TestStampAnchorHashesHashesTheDeclarationLineAndSkipsAMissingFile @b6628a35](apps/lore-code-trace/anchor_hash_test.go#L39))
 - A link whose hash is a test's declaration hash binds that test, wherever its written line lies. ([validated by binds a link whose stale line 99 lies outside every test by its hash aaaaaaaa @f1ecde97](libs/shared/src/work/spec-trace/bind-descriptors-to-spec-links.test.ts#L143), [validated by binds the farewell statement, not the greeting one, to a second descriptor whose declaration hash is bbbbbbbb @739c9fba](libs/shared/src/work/spec-trace/bind-descriptors-to-spec-links.test.ts#L158))
@@ -255,7 +255,7 @@ Author commits, opens PR.
           ([validated by lease-backend.test.ts:42](...))
     -  3. The runner re-queues a stale task after 30 minutes.
     +  3. The runner re-queues a stale task after 30 minutes.
-    +     ([validated by runner.local.test.ts:146 @a8ee69ed](apps/mcp-server/src/work/pipeline/runner.local.test.ts#L146))
+    +     ([validated by requeues-stale.test.ts:146](...))
 
   Author reviews, merges (or rejects with a comment explaining why
   the suggestion misses).
@@ -486,7 +486,7 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 
 1. **Backfill cost.** Existing specs across the org have ~zero markdown test links today. The first weekly backfill run will open one PR per spec with suggestions — potentially dozens of PRs at once. Mitigation: rate-limit the first run, or gate the backfill on a feature flag and ramp slowly. Document the burst. ([validated by staggers PR creation with an explicit limit across repositories on an initial burst @70a16c05](libs/shared/src/work/spec-upkeep/floor-spec-upkeep.acceptance.test.ts#L6))
 2. **Multiple test links per statement.** Format A handles this via comma-separation inside one paren. The rehype detection wraps all of them; the popover lists all of them. Tested.
-3. **Manually-added links may not match the cron's preferred format.** The validate pass tolerates any markdown link whose href passes `isTestFile()` — the parenthetical wrapper is the cron's emission style, not a requirement on the author. An author who writes `It [does the thing](src/x.test.ts#L<line>).` mid-statement also gets the green wrap.
+3. **Manually-added links may not match the cron's preferred format.** The validate pass tolerates any markdown link whose href passes `isTestFile()` — the parenthetical wrapper is the cron's emission style, not a requirement on the author. An author who writes `It [does the thing](src/x.test.ts#L<line>).` mid-statement also gets the green wrap. *(Amended 2026-11-13, #3561: the green wrap is all a mid-statement link gets. `lore-code-trace links` reports it as misplaced and fails the `spec-links` check, AC27 and AC29, so a link has to end its statement to merge.)*
 4. **Link rot UX.** The validate pass posts PR comments; comments on closed PRs aren't visible. Need a fallback: if no open PR exists for the spec's repo, open a `link-rot` labelled issue. Tracked as F-validate-fallback.
 5. **No pass/fail status.** Out of scope (v2 limitation carries). Coverage-ingestion (deferred spec) could later feed run-status into the UI.
 6. **Statement segmentation determinism.** The cron and UI must agree on what counts as a statement (so the backfill PR's inserted parenthetical lands on the right statement). `segmentStatements()` from shared is deterministic; this AC is verified by the existing shared test suite.

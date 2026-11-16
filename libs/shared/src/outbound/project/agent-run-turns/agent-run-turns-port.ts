@@ -14,7 +14,7 @@ export interface AgentRunTurnInsert {
   eventType: string | null;
   /** Envelope as JSON **text**, not parsed object: ingest path already holds raw NDJSON line as string, handing string straight through means hot path neither re-parses nor re-serializes. Adapter casts to jsonb in statement; readers get it back parsed. */
   envelope: string;
-  /** Idempotency key for re-ingested lines (#1389): task-turns relay stamps one per relayed line, so retried POST skips rows already stored instead of duplicating transcript. Null/absent (every non-relay producer) means "never dedup" — the fidelity default. */
+  /** Idempotency key for re-ingested lines (#1389): the deleted task-turns relay stamped one per relayed line, so a retried POST skipped rows already stored. Null/absent (every producer since the relay went) means "never dedup" — the fidelity default. */
   dedupKey?: string | null;
 }
 

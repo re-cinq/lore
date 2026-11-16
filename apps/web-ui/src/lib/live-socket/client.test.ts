@@ -331,3 +331,77 @@ describe("LiveSocketClient on a page from an older deployment", () => {
     });
   });
 });
+
+describe("the plan-run channel", () => {
+  it("opens plan p1's plan-run channel with a fresh token on each open and delivers its plan_run, then reopens with a new token after a drop", async () => {
+    const { client, fireTimers } = harness();
+    const runs: unknown[] = [];
+    let minted = 0;
+
+    client.open({
+      kind: "plan-run",
+      subject: "p1",
+      token: async () => `t-${++minted}`,
+      onPlanRun: (run) => runs.push(run),
+    });
+    const first = FakeWebSocket.latest;
+
+    first.accept();
+    await flush();
+    first.receive({ type: "opened", channel: "c1" });
+    first.receive({ type: "plan_run", channel: "c1", run: null });
+    first.drop();
+    fireTimers();
+    const second = FakeWebSocket.latest;
+
+    second.accept();
+    await flush();
+
+    expect({
+      runs,
+      opens: [...first.sent, ...second.sent].filter(
+        (message) => message.type === "open",
+      ),
+    }).toEqual({
+      runs: [null],
+      opens: [
+        {
+          type: "open",
+          channel: "c1",
+          kind: "plan-run",
+          subject: "p1",
+          token: "t-1",
+        },
+        {
+          type: "open",
+          channel: "c1",
+          kind: "plan-run",
+          subject: "p1",
+          token: "t-2",
+        },
+      ],
+    });
+  });
+});
+
+describe("channels that open on the person's session", () => {
+  it("opens the run channel with no token field and the runs channel with no token field", async () => {
+    const { client } = harness();
+
+    client.open({ kind: "run", subject: "run-1", after: () => "7" });
+    client.open({ kind: "runs", subject: "floor" });
+    FakeWebSocket.latest.accept();
+    await flush();
+
+    expect(FakeWebSocket.latest.sent).toEqual([
+      {
+        type: "open",
+        channel: "c1",
+        kind: "run",
+        subject: "run-1",
+        after: "7",
+      },
+      { type: "open", channel: "c2", kind: "runs", subject: "floor" },
+    ]);
+  });
+});

@@ -107,7 +107,6 @@ not a slash command:
 | change an agent's model, prompt or timeout | `/lore-agents` |
 | set up Lore for a new organisation | `/lore-init` |
 | hand work to a background agent | put a `priority:*` label on a ticket (the implementation loop), or start a plan |
-| run that work on my own machine instead | `lore_run_task_locally` (tool) |
 | find why we decided something | `lore_search_memory`, `lore_search_context` (tools) |
 | see what a task did, or why it failed | `lore_get_pipeline_status`, `lore_get_task_logs` (tools) |
 | know what a repo's context looks like | `lore_assemble_context` (tool) |
@@ -117,7 +116,7 @@ not a slash command:
 
 - **Context** — assemble or search the org's ingested knowledge (`lore_assemble_context`, `lore_search_context`).
 - **Memory** — durable, org-wide learning: write, search, and the knowledge graph (`lore_write_memory`, `lore_search_memory`, `lore_write_episode`, `lore_query_graph`).
-- **Pipeline** — delegate and track work (`lore_get_pipeline_status`, `lore_get_task_logs`, the local runner family).
+- **Pipeline** — delegate and track work (`lore_get_pipeline_status`, `lore_get_task_logs`).
 - **Traceability** — specs, tests and coverage (`lore_list_tests`, `lore_run_test`, `query_trace`).
 
 Point at `docs/mcp-tools.md` (plain language) and

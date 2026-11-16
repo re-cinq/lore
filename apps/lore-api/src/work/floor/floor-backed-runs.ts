@@ -62,6 +62,20 @@ async function mergedSummaries(
   );
 }
 
+/** Both engines' runs for the query, newest first. Unlike {@link floorBackedRuns}' list, a floor out of reach throws: for a reader that must not take an outage for "no runs", such as the plan page's choice of its run. */
+export async function summariesOfBoth(
+  local: Pick<FloorRunReads, "listSummaries">,
+  floor: Pick<FloorRunReads, "listSummaries"> | null,
+  query: AssemblyRunQuery,
+): Promise<AssemblyRunSummary[]> {
+  const [localRuns, floorRuns] = await Promise.all([
+    local.listSummaries(query),
+    floor ? floor.listSummaries(query) : [],
+  ]);
+
+  return newestFirst([...localRuns, ...floorRuns]);
+}
+
 /** A floor out of reach costs the list its floor runs, not the whole page: Postgres's runs are still worth showing. */
 function floorListLost(err: unknown): AssemblyRunSummary[] {
   console.warn(

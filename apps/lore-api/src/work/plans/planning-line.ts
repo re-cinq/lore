@@ -49,6 +49,9 @@ function refusalFor(open: string): string {
 const PLANNING_NODES = new Set([
   "analyze",
   "plan-pass-end",
+  "sketch-due",
+  "sketch",
+  "sketch-pass-end",
   "validate",
   "plan-findings",
 ]);

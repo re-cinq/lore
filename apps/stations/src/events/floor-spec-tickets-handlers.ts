@@ -46,6 +46,7 @@ const MERGED_CLOSE = z.object({
   merged: z.boolean(),
   base_ref: z.string(),
   merge_commit_sha: z.string(),
+  branch: z.string(),
 });
 
 /** A close that names no merge commit, or no pull request, is not one to ticket; whether the close was a merge is the line starter's to decide. */
@@ -59,6 +60,7 @@ export function specMergeOf(params: Record<string, unknown>): SpecMerge | null {
         merged: close.data.merged,
         baseRef: close.data.base_ref,
         mergeCommitSha: close.data.merge_commit_sha,
+        branch: close.data.branch,
       }
     : null;
 }

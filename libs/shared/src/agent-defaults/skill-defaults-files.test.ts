@@ -31,6 +31,13 @@ const SHIPPED_SKILL_NAMES = [
   "legacy-find-missing-tests",
   "mutation-testing",
   "observability",
+  "prototype-api",
+  "prototype-architecture",
+  "prototype-data-model",
+  "prototype-flows",
+  "prototype-states",
+  "prototype-text-output",
+  "prototype-ui",
   "react-testing",
   "structure-codebase",
   "tdd-loop",
@@ -88,7 +95,7 @@ const UNSHIPPED_PLAIN_WORD_SKILL_NAMES = [
 describe("loadSkillDefaults", () => {
   const skills = loadSkillDefaults();
 
-  it("returns the 22 shipped skill names sorted", () => {
+  it("returns the 29 shipped skill names sorted", () => {
     expect(skills.map((skill) => skill.name)).toEqual(SHIPPED_SKILL_NAMES);
   });
 
@@ -201,6 +208,13 @@ const RECINQ_ORIGINAL_SKILLS = [
   "check-tests",
   "legacy-add-tests",
   "legacy-find-missing-tests",
+  "prototype-api",
+  "prototype-architecture",
+  "prototype-data-model",
+  "prototype-flows",
+  "prototype-states",
+  "prototype-text-output",
+  "prototype-ui",
   "tdd-loop",
   "tdd-start",
 ];

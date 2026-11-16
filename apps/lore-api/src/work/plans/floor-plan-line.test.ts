@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { reworkFloorSpec, validateFloorPlan } from "./floor-plan-by-hand.js";
+import {
+  askFloorRefine,
+  reworkFloorSpec,
+  sketchFloorPlan,
+  validateFloorPlan,
+} from "./floor-plan-by-hand.js";
 import { floorPlanVerbs } from "./floor-plan-verbs.js";
 import type { Report, RunView, VisitView } from "@re-cinq/floor-client";
 import {
@@ -11,7 +16,6 @@ import {
 import type { FloorRequest } from "@re-cinq/lore-shared/floor/recorded-floor.js";
 import {
   approveFloorPlan,
-  askFloorRefine,
   decideFloorApproval,
   reopenFloorPlan,
   startFloorDrafting,
@@ -19,8 +23,9 @@ import {
   type FloorPlanDeps,
 } from "./floor-plan-line.js";
 import type { RefineAsk } from "./refine-asks.js";
+import type { SavedStory } from "./plan-stories.js";
 import type { SpecReviewReads } from "./spec-rework.js";
-import { specBranchOf } from "./spec-branch.js";
+import { specBranchOf } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
 
 const DRAFT = {
   id: "p1",
@@ -99,11 +104,14 @@ function scene(
     visits?: VisitView[];
     pulls?: SpecReviewReads;
     specPrState?: "open" | "closed" | "merged" | null;
+    savedStory?: SavedStory;
+    lineNodes?: string[];
   } = {},
 ) {
   const recorded = recordedPlanFloor({
     runs: given.runs ?? [planRun()],
     visits: { "run-open": given.visits ?? [] },
+    lineNodes: given.lineNodes,
   });
   const branchesFor: string[] = [];
   const asks: RefineAsk[] = [];
@@ -117,6 +125,7 @@ function scene(
       given.specPrState ?? null
     ),
     pulls: given.pulls ?? REVIEWED,
+    savedStory: async () => given.savedStory,
     recordRefineAsk: async (ask) => {
       asks.push(ask);
     },
@@ -349,6 +358,30 @@ describe("askFloorRefine", () => {
       message: "the planning agent is still working on this plan",
     });
     expect({ posts: posts(requests), asks }).toEqual({ posts: [], asks: [] });
+  });
+
+  it("sends a Refine of the Prototype section to the sketch node", async () => {
+    const { deps, requests, asks } = scene({ visits: ON_AUTHOR });
+
+    await askFloorRefine(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+      refine: { ...REFINE, slot: "prototype", title: "Prototype" },
+      actor: "ana",
+    });
+
+    expect({ post: posts(requests).at(-1), asked: asks.at(0)?.slot }).toEqual({
+      post: {
+        method: "POST",
+        path: "/events",
+        body: {
+          name: "node.sketch.start",
+          payload: { runId: "run-open", requestedBy: "ana" },
+        },
+      },
+      asked: "prototype",
+    });
   });
 
   it("starts a run when the plan has none, since there is no run to start a node on", async () => {
@@ -930,6 +963,82 @@ describe("validateFloorPlan", () => {
   });
 });
 
+describe("sketchFloorPlan", () => {
+  const ASK = { plan: DRAFT, planMarkdown: MARKDOWN, brief: BRIEF };
+
+  it("starts the sketch node on plan p1's open run", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    const runId = await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect({ runId, posts: posts(requests) }).toEqual({
+      runId: "run-open",
+      posts: [
+        {
+          method: "POST",
+          path: "/events",
+          body: {
+            name: "node.sketch.start",
+            payload: { runId: "run-open", requestedBy: "gedaiu" },
+          },
+        },
+      ],
+    });
+  });
+
+  it("starts a run at sketch for a plan with no run", async () => {
+    const { deps, requests } = scene(NO_RUN);
+
+    const runId = await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect({ runId, start: posts(requests).at(-1) }).toEqual({
+      runId: "run-new",
+      start: started("sketch"),
+    });
+  });
+
+  it("cancels plan p1's run on a line version without sketch and starts a run at sketch", async () => {
+    const { deps, requests } = scene({
+      visits: ON_AUTHOR,
+      lineNodes: ["analyze", "author"],
+    });
+
+    await sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" });
+
+    expect(posts(requests)).toEqual([
+      {
+        method: "POST",
+        path: "/assembly-runs/run-open/cancel",
+        body: { reason: "redrawn on the current planning line" },
+      },
+      expect.objectContaining({ path: "/blobs" }),
+      started("sketch"),
+    ]);
+  });
+
+  it("refuses to sketch an approved plan", async () => {
+    const { deps, requests } = scene({ visits: ON_AUTHOR });
+
+    await expect(
+      sketchFloorPlan(deps, { ...ASK, plan: APPROVED, actor: "gedaiu" }),
+    ).rejects.toMatchObject({ output: { statusCode: 409 } });
+    expect(posts(requests)).toEqual([]);
+  });
+
+  it("refuses to sketch while the sketch agent still draws plan p1", async () => {
+    const { deps } = scene({
+      visits: [planVisit("author", SUCCESS), planVisit("sketch", null)],
+    });
+
+    await expect(
+      sketchFloorPlan(deps, { ...ASK, actor: "gedaiu" }),
+    ).rejects.toMatchObject({
+      output: { statusCode: 409 },
+      message: "the planning agent is still working on this plan",
+    });
+  });
+});
+
 describe("reworkFloorSpec", () => {
   it("posts node.rework.start naming run-open and gedaiu when spec PR 12 has an unresolved review", async () => {
     const { deps, requests } = scene({ visits: ON_MERGED });
@@ -1031,30 +1140,63 @@ function startedStoryIssue(requests: FloorRequest[]): string | undefined {
   return body?.startItems?.story_issue?.ref;
 }
 
+const STORIED_RUN = planRun({
+  outcome: "failed",
+  finishedAt: "2026-10-01T10:00:00.000Z",
+  startItems: {
+    ...FINISHED.startItems,
+    story_issue: { kind: "value", ref: "42", by: "lore" },
+  },
+});
+
 describe("the user story a planning run carries", () => {
-  it("starts the run with story_issue 42 when the draft names issue 42", async () => {
-    const { deps, requests } = scene(NO_RUN);
+  it("starts the run with story_issue 12 when story 12 was saved on the plan", async () => {
+    const { deps, requests } = scene({
+      runs: [FINISHED],
+      savedStory: { issueNumber: 12 },
+    });
 
     await startFloorDrafting(deps, {
       plan: DRAFT,
       planMarkdown: MARKDOWN,
       brief: BRIEF,
-      storyIssue: 42,
     });
 
-    expect(startedStoryIssue(requests)).toBe("42");
+    expect(startedStoryIssue(requests)).toBe("12");
   });
 
-  it("carries story_issue 42 over from the finished run when a later round names no story", async () => {
-    const storied = planRun({
-      outcome: "failed",
-      finishedAt: "2026-10-01T10:00:00.000Z",
-      startItems: {
-        ...FINISHED.startItems,
-        story_issue: { kind: "value", ref: "42", by: "lore" },
-      },
+  it("starts the run with story_issue 12 rather than the finished run's 42 when story 12 was saved", async () => {
+    const { deps, requests } = scene({
+      runs: [STORIED_RUN],
+      savedStory: { issueNumber: 12 },
     });
-    const { deps, requests } = scene({ runs: [storied] });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBe("12");
+  });
+
+  it("starts the run with no story_issue when the saved story was removed though the finished run carries 42", async () => {
+    const { deps, requests } = scene({
+      runs: [STORIED_RUN],
+      savedStory: { issueNumber: null },
+    });
+
+    await startFloorDrafting(deps, {
+      plan: DRAFT,
+      planMarkdown: MARKDOWN,
+      brief: BRIEF,
+    });
+
+    expect(startedStoryIssue(requests)).toBeUndefined();
+  });
+
+  it("carries story_issue 42 over from the finished run when nothing was saved on the plan", async () => {
+    const { deps, requests } = scene({ runs: [STORIED_RUN] });
 
     await startFloorDrafting(deps, {
       plan: DRAFT,

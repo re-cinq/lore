@@ -120,3 +120,20 @@ describe("reopenWhenAuthorWaits", () => {
     });
   });
 });
+
+describe("approvalDecisionOf while the sketch agent draws", () => {
+  it("refuses with 'still refining' while sketch-due, sketch or sketch-pass-end is open", () => {
+    expect(
+      ["sketch-due", "sketch", "sketch-pass-end"].map(
+        (node) =>
+          approvalDecisionOf(lineOn(node)).kind === "refused" &&
+          approvalDecisionOf(lineOn(node)),
+      ),
+    ).toEqual(
+      Array(3).fill({
+        kind: "refused",
+        reason: "the planning agent is still refining a section",
+      }),
+    );
+  });
+});

@@ -6,20 +6,12 @@ import { createHash } from "node:crypto";
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
 export type RateBucket =
-  | "webhook"
-  | "task"
-  | "embed"
-  | "turns"
-  | "ws"
-  | "wsOpen"
-  | "session"
-  | "default";
+  "webhook" | "task" | "embed" | "ws" | "wsOpen" | "session" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30,
   task: 60,
   embed: 1200,
-  turns: 300,
   ws: 30,
   wsOpen: 30,
   // A person's web session: one page render reads many routes, and every tab shares the one token.
@@ -107,6 +99,9 @@ export interface UserIdentity {
   name: string;
   avatarUrl: string | null;
   repos: string[];
+  /** When the person signed in, and when that sign-in stops working. */
+  startedAt: string;
+  expiresAt: string | null;
 }
 
 /** Who a bearer token speaks for: its scopes, the person when it is a user's web session, and the hash a sign-out revokes it by. */
@@ -123,6 +118,8 @@ interface TokenRow {
   displayName?: string | null;
   avatarUrl?: string | null;
   repos?: string[];
+  startedAt: Date;
+  expiresAt: Date | null;
 }
 
 // Resolves a bearer token to its principal (null if missing/invalid/revoked/expired); the legacy LORE_INGEST_TOKEN resolves to full access, and to no person, without a DB hit.
@@ -162,7 +159,8 @@ async function lookupPrincipal(
        WHERE token_hash = $1 AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > now())
        RETURNING scopes, kind, login, display_name AS "displayName",
-                 avatar_url AS "avatarUrl", repos`,
+                 avatar_url AS "avatarUrl", repos,
+                 created_at AS "startedAt", expires_at AS "expiresAt"`,
     [tokenHash],
   );
 
@@ -183,6 +181,14 @@ function userOf(row: TokenRow): UserIdentity | null {
     name: row.displayName ?? row.login,
     avatarUrl: row.avatarUrl ?? null,
     repos: row.repos ?? [],
+    ...periodOf(row),
+  };
+}
+
+function periodOf(row: TokenRow) {
+  return {
+    startedAt: row.startedAt.toISOString(),
+    expiresAt: row.expiresAt?.toISOString() ?? null,
   };
 }
 

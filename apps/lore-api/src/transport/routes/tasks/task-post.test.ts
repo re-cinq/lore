@@ -215,35 +215,11 @@ describe("POST /api/task", () => {
     expect(res.result).toMatchObject({ priority: "normal" });
   });
 
-  it("updates status with pr_url and error", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({});
-    const res = await post(
-      { task_id: "t1", status: "pr-created", pr_url: "u", error: "e" },
-      pool,
-    );
-
-    expect(res.result).toEqual({
-      ok: true,
-      task_id: "t1",
-      status: "pr-created",
-    });
-  });
-
-  it("updates status without optional fields", async () => {
-    const pool = makePool();
-
-    pool.query.mockResolvedValue({});
-    const res = await post({ task_id: "t1", status: "completed" }, pool);
-
-    expect(res.result).toMatchObject({ status: "completed" });
-  });
-
-  it("rejects an invalid status", async () => {
-    const res = await post({ task_id: "t1", status: "bogus" });
+  it("answers 400 with where the work goes now for a status-only body", async () => {
+    const res = await post({ task_id: "t1", status: "completed" });
 
     expect(res.statusCode).toBe(400);
+    expect(res.result).toEqual({ error: NO_TYPED_TASKS });
   });
 
   it.each(["review", "runbook", "gap-fill", "feature-request", "general"])(

@@ -1,8 +1,11 @@
-// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames, the run list's changes and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
+// The live socket's wire protocol (ADR-048): one JSON text frame per message, a client-chosen channel id on every one, so one connection carries a run's frames, the run list's changes, a plan's current run and a plan's tunnelled bytes side by side. Published in OpenAPI as `LiveClientMessage` / `LiveServerMessage` so the web-ui reads both as generated types.
 
 import { z } from "zod";
 import { FloorRunRowSchema } from "../floor/floor-run-rows.js";
-import { RunStreamFrameSchema } from "./run-stream-frame.js";
+import {
+  PlanRunFactsSchema,
+  RunStreamFrameSchema,
+} from "./run-stream-frame.js";
 
 export const LIVE_SOCKET_PATH = "/api/ws";
 
@@ -14,17 +17,20 @@ export const MAX_WATCHED_RUNS = 200;
 
 const Channel = z.string().min(1).max(64);
 
+const RequestId = z.string().min(1).max(64);
+
 /** Base64 of the tunnelled bytes; JSON has no binary. */
 const Bytes = z.string();
 
-// A plain union: two `open` shapes share the discriminator and differ on `kind`.
+// A plain union: the `open` shapes share the discriminator and differ on `kind`.
 export const LiveClientMessageSchema = z.union([
   z.object({
     type: z.literal("open"),
     channel: Channel,
     kind: z.literal("run"),
     subject: z.string().min(1),
-    token: z.string().min(1),
+    /** Absent for a signed-in person: the socket's session cookie speaks for them. */
+    token: z.string().min(1).optional(),
     after: z.string().regex(/^\d+$/).optional(),
   }),
   z.object({
@@ -38,6 +44,15 @@ export const LiveClientMessageSchema = z.union([
     channel: Channel,
     kind: z.literal("runs"),
     subject: z.string().min(1),
+    /** Absent for a signed-in person: the socket's session cookie speaks for them. */
+    token: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("open"),
+    channel: Channel,
+    kind: z.literal("plan-run"),
+    /** The plan's id. */
+    subject: z.string().min(1),
     token: z.string().min(1),
   }),
   z.object({
@@ -47,6 +62,14 @@ export const LiveClientMessageSchema = z.union([
   }),
   z.object({ type: z.literal("send"), channel: Channel, data: Bytes }),
   z.object({ type: z.literal("close"), channel: Channel }),
+  /** Any lore-api route, asked as the signed-in person the socket's cookie names; answered by one `response` carrying the same id. */
+  z.object({
+    type: z.literal("request"),
+    id: RequestId,
+    method: z.enum(["GET", "POST", "PUT", "DELETE"]),
+    path: z.string().startsWith("/api/"),
+    body: z.unknown().optional(),
+  }),
 ]);
 
 export const ClosedReasonSchema = z.enum([
@@ -84,12 +107,24 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
     channel: Channel,
     frame: RunListFrameSchema,
   }),
+  /** The plan's current planning run, or null before one started; sent first on a `plan-run` channel and again whenever its facts change or another run takes over. */
+  z.object({
+    type: z.literal("plan_run"),
+    channel: Channel,
+    run: PlanRunFactsSchema.nullable(),
+  }),
   z.object({ type: z.literal("data"), channel: Channel, data: Bytes }),
   z.object({
     type: z.literal("closed"),
     channel: Channel,
     reason: ClosedReasonSchema,
     code: z.number().optional(),
+  }),
+  z.object({
+    type: z.literal("response"),
+    id: RequestId,
+    status: z.number(),
+    body: z.unknown(),
   }),
   z.object({
     type: z.literal("error"),
@@ -101,6 +136,8 @@ export const LiveServerMessageSchema = z.discriminatedUnion("type", [
 export type LiveClientMessage = z.infer<typeof LiveClientMessageSchema>;
 export type LiveServerMessage = z.infer<typeof LiveServerMessageSchema>;
 export type OpenMessage = Extract<LiveClientMessage, { type: "open" }>;
+export type RequestMessage = Extract<LiveClientMessage, { type: "request" }>;
+export type ResponseMessage = Extract<LiveServerMessage, { type: "response" }>;
 export type WatchMessage = Extract<LiveClientMessage, { type: "watch" }>;
 export type RunListFrame = z.infer<typeof RunListFrameSchema>;
 export type ClosedReason = z.infer<typeof ClosedReasonSchema>;

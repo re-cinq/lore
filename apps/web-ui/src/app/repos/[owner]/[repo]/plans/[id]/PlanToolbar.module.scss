@@ -1,0 +1,91 @@
+.toolbar {
+  --toolbar-bg: color-mix(in srgb, var(--bg) 80%, transparent);
+  position: sticky;
+  /* A sticky box pins inside the scroller's padding; the negative offset takes it to the window's edge. */
+  top: calc(-1 * var(--main-pad-y, 0px));
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding-block: var(--space-3);
+
+  /* The bar's box stays in the column; this layer spans the scroller's whole visible width (--bleed-left and --bleed-right are measured), so its fill, its blur of what scrolls under it and its bottom border all start and end at the same edges. */
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: calc(-1 * var(--bleed-right, 0px));
+    bottom: 0;
+    left: calc(-1 * var(--bleed-left, 0px));
+    pointer-events: none;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border-hover);
+    -webkit-backdrop-filter: blur(var(--space-3));
+    backdrop-filter: blur(var(--space-3));
+    transition:
+      background-color var(--transition),
+      box-shadow var(--transition);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  /* The bar's content is drawn over its paint layer. */
+  > * {
+    position: relative;
+    z-index: var(--z-raised);
+  }
+
+  /* Scrolled, the bar lifts off the page with a shadow, since in some themes the page and the surface share a colour. */
+  &[data-scrolled] {
+    --toolbar-bg: color-mix(in srgb, var(--bg-surface) 75%, transparent);
+
+    &::before {
+      box-shadow: var(--shadow);
+    }
+  }
+}
+
+.title {
+  visibility: hidden;
+  width: 0;
+  margin-left: calc(-1 * var(--space-3));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .toolbar[data-scrolled] & {
+    visibility: visible;
+    width: auto;
+    margin-left: 0;
+    max-width: 24rem;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.openRun {
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-sm);
+
+  &:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
+    color: var(--text);
+    text-decoration: none;
+  }
+}

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunFactsCard from "./RunFactsCard";
 import type { AssemblyRun } from "@/lib/assembly-runs";
+import { liveRequestsFrom } from "@/lib/live-socket/answering-socket";
 
 const run: AssemblyRun = {
   id: "run-1",
@@ -43,10 +44,7 @@ async function settle() {
 
 describe("RunFactsCard", () => {
   it("shows the facts at once and the run's bag when its read arrives", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(Response.json(bagOf("task-1"))),
-    );
+    liveRequestsFrom(vi.fn().mockResolvedValue(Response.json(bagOf("task-1"))));
 
     render(<RunFactsCard run={run} refreshKey="a" />);
 
@@ -64,7 +62,7 @@ describe("RunFactsCard", () => {
       .mockResolvedValueOnce(Response.json(bagOf("task-1")))
       .mockResolvedValueOnce(Response.json(bagOf("task-2")));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     const { rerender } = render(<RunFactsCard run={run} refreshKey="a" />);
 
     await settle();
@@ -75,29 +73,23 @@ describe("RunFactsCard", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("cancels the read still in flight when the refresh key changes", async () => {
-    const signals: AbortSignal[] = [];
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((_url: string, init: RequestInit) => {
-        signals.push(init.signal as AbortSignal);
-
-        return new Promise<Response>(() => {});
-      }),
-    );
+  it("asks for the bag again when the refresh key changes while the first read is in flight", async () => {
+    const asked = liveRequestsFrom(() => new Promise<Response>(() => {}));
     const { rerender } = render(<RunFactsCard run={run} refreshKey="a" />);
 
     rerender(<RunFactsCard run={run} refreshKey="b" />);
+    await settle();
 
-    expect(signals.map((signal) => signal.aborted)).toEqual([true, false]);
+    expect(asked.map((request) => request.path)).toEqual([
+      "/api/assembly-runs/run-1/bag",
+      "/api/assembly-runs/run-1/bag",
+    ]);
   });
 
   it("drops an answer that arrived after the refresh key had already changed", async () => {
     let answerFirstRead = (_response: Response) => {};
 
-    vi.stubGlobal(
-      "fetch",
+    liveRequestsFrom(
       vi
         .fn()
         .mockReturnValueOnce(
@@ -117,8 +109,7 @@ describe("RunFactsCard", () => {
   });
 
   it("shows the facts without a bag when the read fails", async () => {
-    vi.stubGlobal(
-      "fetch",
+    liveRequestsFrom(
       vi.fn().mockResolvedValue(new Response("{}", { status: 404 })),
     );
 
@@ -135,7 +126,7 @@ describe("RunFactsCard", () => {
       .mockResolvedValueOnce(Response.json(bagOf("task-1")))
       .mockRejectedValueOnce(new Error("offline"));
 
-    vi.stubGlobal("fetch", fetchMock);
+    liveRequestsFrom(fetchMock);
     const { rerender } = render(<RunFactsCard run={run} refreshKey="a" />);
 
     await settle();

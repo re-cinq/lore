@@ -65,6 +65,8 @@ const TAG_RULES: Array<[RegExp, string]> = [
   ],
   // Platform health (model access status) tagged analytics: same audience, same question.
   [/^\/api\/platform\//, "Analytics"],
+  // Which build each Lore part runs: the same audience asks it.
+  [/^\/api\/(versions|service-versions)$/, "Analytics"],
   [/\/plans\b/, "Plans"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/skill-definitions\b/, "Agents"],

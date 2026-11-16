@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import path from "node:path";
+import { planningPackageVersions } from "./src/lib/build-packages";
 
 // Old paths (/pipeline, /assembly-lines) live on in GitHub Issues/PR bodies posted before the ADR-024/FR6.41 renames; permanent:false since a 301 can't be undone.
 const LEGACY_REDIRECTS = [
@@ -29,6 +30,10 @@ const LEGACY_REDIRECTS = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Baked in at build: the standalone image has no node_modules manifests to read at run time.
+  env: {
+    LORE_UI_PACKAGES: JSON.stringify(planningPackageVersions(process.cwd())),
+  },
   // Next 16 type-checks tests during build; they reach into libs/**, which the image and web-ui-build CI job lack.
   typescript: { tsconfigPath: "tsconfig.build.json" },
   // Sass can't see the "@/" TS alias; src/ on the load path lets `@use "styles/tokens"` skip the ../ hops. Turbopack reads the modern API's loadPaths, not the legacy includePaths.

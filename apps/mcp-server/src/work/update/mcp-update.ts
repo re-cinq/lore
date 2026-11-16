@@ -1,70 +1,95 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+import { adapterBuild, latestBuild } from "../versions/versions-api.js";
 
 const execFileP = promisify(execFile);
 
 /** The installed checkout the local MCP runs from (set by install.sh). */
 const LORE_DIR =
   process.env.CONTEXT_PATH || join(homedir(), ".re-cinq", "lore");
-/** SHA the running dist was built from — written by lore-update.sh / install.sh. */
-const BUILD_MARKER = join(homedir(), ".lore", "mcp-build-head");
 /** The audited updater the lore_update tool runs. */
 const UPDATE_SCRIPT = join(LORE_DIR, "scripts", "lore-update.sh");
 
+/** Where the deployed build stands to the adapter's: "ahead" when it is an ancestor of the adapter's build, "behind" when not, "unknown" when the local checkout lacks one of them. */
+export type Relation = "behind" | "ahead" | "unknown";
+
 export interface UpdateStatus {
   updateAvailable: boolean;
-  commitsBehind: number;
+  /** Known only when the local checkout holds both commits. */
+  commitsBehind: number | null;
   builtSha: string | null;
-  remoteSha: string | null;
+  /** lore-api's `latest.build` from GET /api/versions: the build deployed now. */
+  latestSha: string | null;
 }
 
-const NO_UPDATE: UpdateStatus = {
-  updateAvailable: false,
-  commitsBehind: 0,
-  builtSha: null,
-  remoteSha: null,
-};
-
-// Pure decision: an update is offered only when origin/main is strictly ahead of the SHA the running dist was built from.
+// Pure decision: offered when the adapter's build is not the deployed one and the deployed one is not behind it. The deployed build is a short sha, the marker a full one.
 export function deriveUpdateStatus(
   builtSha: string | null,
-  remoteSha: string | null,
-  commitsBehind: number,
+  latestSha: string | null,
+  relation: Relation,
+  commitsBehind: number | null,
 ): UpdateStatus {
-  const sameOrMissing = !builtSha || !remoteSha || builtSha === remoteSha;
+  const current = !builtSha || !latestSha || builtSha.startsWith(latestSha);
+  const updateAvailable = !current && relation !== "ahead";
 
-  if (sameOrMissing || commitsBehind <= 0) {
-    return { ...NO_UPDATE, builtSha, remoteSha };
-  }
-
-  return { updateAvailable: true, commitsBehind, builtSha, remoteSha };
+  return {
+    updateAvailable,
+    commitsBehind: updateAvailable ? commitsBehind : null,
+    builtSha,
+    latestSha,
+  };
 }
 
-// Fetches origin/main and compares to the built SHA; any failure (no checkout, offline, git missing) resolves to "no update" so the MCP never nags on a bad signal.
+// Asks lore-api for the deployed build and compares it to the adapter's; a missing build, an unreachable API or a checkout git cannot read resolves to "no update", so the MCP never nags on a bad signal.
 export async function computeUpdateStatus(): Promise<UpdateStatus> {
-  try {
-    const marker = await readFile(BUILD_MARKER, "utf8").catch(() => "");
-    const builtSha =
-      marker.trim() || (await git(["rev-parse", "HEAD"]).catch(() => ""));
+  const [builtSha, latestSha] = await Promise.all([
+    builtBuild(),
+    latestBuild().catch(() => null),
+  ]);
 
-    if (!builtSha) {
-      return NO_UPDATE;
-    }
-    await git(["fetch", "--quiet", "origin", "main"]);
-    const remoteSha = await git(["rev-parse", "origin/main"]);
-    const count = await git([
-      "rev-list",
-      "--count",
-      `${builtSha}..${remoteSha}`,
-    ]).catch(() => "0");
-
-    return deriveUpdateStatus(builtSha, remoteSha, parseInt(count, 10) || 0);
-  } catch {
-    return NO_UPDATE;
+  if (!builtSha || !latestSha) {
+    return deriveUpdateStatus(builtSha, latestSha, "unknown", null);
   }
+  const relation = await relationOf(builtSha, latestSha);
+  const count =
+    relation === "behind" ? await commitsBetween(builtSha, latestSha) : null;
+
+  return deriveUpdateStatus(builtSha, latestSha, relation, count);
+}
+
+async function builtBuild(): Promise<string | null> {
+  const marker = await adapterBuild();
+
+  return marker || (await git(["rev-parse", "HEAD"]).catch(() => "")) || null;
+}
+
+async function relationOf(
+  builtSha: string,
+  latestSha: string,
+): Promise<Relation> {
+  try {
+    await git(["merge-base", "--is-ancestor", latestSha, builtSha]);
+
+    return "ahead";
+  } catch (err) {
+    return (err as { code?: number }).code === 1 ? "behind" : "unknown";
+  }
+}
+
+async function commitsBetween(
+  builtSha: string,
+  latestSha: string,
+): Promise<number | null> {
+  const count = await git([
+    "rev-list",
+    "--count",
+    `${builtSha}..${latestSha}`,
+  ]).catch(() => "");
+
+  return count ? parseInt(count, 10) : null;
 }
 
 async function git(args: string[], timeoutMs = 8000): Promise<string> {
@@ -87,7 +112,7 @@ export function getUpdateStatus(): Promise<UpdateStatus> {
   return cached;
 }
 
-/** Prefix line for lore_assemble_context when the local MCP is behind (else ""). */
+/** Prefix line for lore_assemble_context when the local MCP is behind the deployed build (else ""). */
 export async function updateBanner(): Promise<string> {
   const status = await getUpdateStatus();
 
@@ -96,9 +121,17 @@ export async function updateBanner(): Promise<string> {
   }
 
   return (
-    `⚠ lore_mcp_update_available: your local Lore MCP is ${status.commitsBehind} ` +
-    `commit(s) behind origin/main. Offer to run the lore_update tool, then restart Claude Code.\n\n`
+    `⚠ lore_mcp_update_available: your local Lore MCP is ${behindText(status)}. ` +
+    `Offer to run the lore_update tool, then restart Claude Code.\n\n`
   );
+}
+
+/** "behind the deployed version (built → latest)", with the commit count when the checkout knows it. */
+export function behindText(status: UpdateStatus): string {
+  const count =
+    status.commitsBehind === null ? "" : `, ${status.commitsBehind} commit(s)`;
+
+  return `behind the deployed version (${status.builtSha?.slice(0, 7)} → ${status.latestSha})${count}`;
 }
 
 // Runs the audited updater (git pull + npm ci --ignore-scripts + build) and resets the cached status so a later check reflects the rebuild.

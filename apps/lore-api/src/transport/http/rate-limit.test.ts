@@ -52,13 +52,12 @@ describe("rate-limit ext", () => {
     expect(rateLimit("session", "token:person")).toBe(false);
   });
 
-  it("routes /api/webhook/slack and /api/task-turns/x to webhook and turns buckets, and /api/webhook/github and /healthz to unlimited", async () => {
+  it("routes /api/webhook/slack to the webhook bucket, and /api/webhook/github and /healthz to unlimited", async () => {
     const { bucketFor } = await import("./rate-limit.js");
 
     expect(bucketFor("/api/webhook/slack")).toBe("webhook");
     expect(bucketFor("/api/webhook/github")).toBe("unlimited");
     expect(bucketFor("/healthz")).toBe("unlimited");
-    expect(bucketFor("/api/task-turns/abc-123")).toBe("turns");
     expect(bucketFor("/api/task")).toBe("task");
     expect(bucketFor("/api/task/abc-123")).toBe("task");
     expect(bucketFor("/api/tasks")).toBe("task");

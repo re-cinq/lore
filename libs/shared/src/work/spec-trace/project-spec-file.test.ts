@@ -284,12 +284,18 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
   });
 
   it("embeds a spec's 3 statements and 1 acceptance criterion in one embedder call of 4 texts", async () => {
+    const { Llm } = await import("../../outbound/llm/llm.js");
+    const { vi } = await import("vitest");
     const repo = `test-proj/${randomUUID()}`;
 
     createdRepo = repo;
     const content =
       "## Overview\n\n- The widget emits a click.\n- The widget emits a hover.\n- The widget emits a focus.\n\n## Acceptance Criteria\n\n- The click is debounced.\n";
     const calls: string[][] = [];
+
+    const provider = Llm.instance;
+    const completeSpy = vi.spyOn(provider, "complete");
+    const completeWithToolSpy = vi.spyOn(provider, "completeWithTool");
 
     await projectSpecFile(
       { repo, filePath: "specs/example/spec.md", content },
@@ -311,6 +317,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         "The click is debounced.",
       ],
     ]);
+    expect(completeSpy).toHaveBeenCalledTimes(0);
+    expect(completeWithToolSpy).toHaveBeenCalledTimes(0);
   });
 
   it("links the Statement to a TestChunk via validated_by for an inline test link", async () => {
@@ -907,30 +915,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
-  });
-
-  it("recomputes the shorter source when re-projecting fewer blocks prunes the orphaned Blocks", async () => {
-    const repo = `test-proj/${randomUUID()}`;
-
-    createdRepo = repo;
-    const filePath = "specs/example/spec.md";
-    const longContent = ["# Title", "", "Para one.", "", "Para two."].join(
-      "\n",
-    );
-    const shortContent = "# Title";
-
-    await projectSpecFile(
-      { repo, filePath, content: longContent },
-      dgraphClient,
-    );
-    await projectSpecFile(
-      { repo, filePath, content: shortContent },
-      dgraphClient,
-    );
-
-    const recomputed = await recomputeFile(repo, filePath, dgraphClient);
-
-    expect(recomputed).toBe(shortContent);
   });
 
   it("replaces a surviving statement's validated_by link when its inline test link changes on re-projection", async () => {

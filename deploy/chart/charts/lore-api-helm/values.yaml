@@ -64,7 +64,7 @@ env:
   # under the pod's own Google identity (gcpProject above). These two name the
   # vendor for evals only; every other model call keeps the process-wide one.
   LORE_EVAL_LLM_PROVIDER: vertex
-  LORE_EVAL_LLM_MODEL: gemini-2.5-flash
+  LORE_EVAL_LLM_MODEL: gemini-3-flash-preview
   # LORE_EVAL_JUDGE_MODEL names a stronger model for the verdict alone. Unset:
   # gemini-2.5-pro judged a full run on 2026-10-03 and changed no verdict.
 

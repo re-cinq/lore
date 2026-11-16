@@ -253,6 +253,7 @@ export * from "./domain/anchor-hash.js";
 export * from "./domain/blocked-reason.js";
 export * from "./domain/codeowners.js";
 export * from "./domain/context-model.js";
+export * from "./domain/session-length.js";
 export * from "./domain/context-template.js";
 export * from "./domain/digest-settings.js";
 export * from "./domain/dod-verdict.js";

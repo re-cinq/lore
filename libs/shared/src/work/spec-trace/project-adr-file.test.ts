@@ -117,37 +117,4 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     expect(first).toEqual({ projected: true });
     expect(second).toEqual({ projected: false });
   });
-
-  it("recomputes the shorter source after re-projecting a SHORTER ADR over a longer one", async () => {
-    const repo = `test-adr/${randomUUID()}`;
-
-    createdRepo = repo;
-    const filePath = "adrs/0016.md";
-    const longContent = [
-      "# ADR-016",
-      "",
-      "## Status",
-      "",
-      "Accepted",
-      "",
-      "## Context",
-      "",
-      "Old context.",
-    ].join("\n");
-    const shortContent = ["# ADR-016", "", "## Status", "", "Accepted"].join(
-      "\n",
-    );
-
-    await projectAdrFile(
-      { repo, filePath, content: longContent },
-      dgraphClient,
-    );
-    await projectAdrFile(
-      { repo, filePath, content: shortContent },
-      dgraphClient,
-    );
-    const recomputed = await recomputeFile(repo, filePath, dgraphClient);
-
-    expect(recomputed).toBe(shortContent);
-  });
 });

@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { LiveSocketClient, type SocketConstructor } from "./client";
 import { reloadPage } from "./stale-deployment";
+import { setLiveClient } from "@/lib/live-fetch";
 
 const LiveSocketContext = createContext<LiveSocketClient | null>(null);
 
@@ -19,11 +20,16 @@ export function LiveSocketProvider({
   children,
   socket,
 }: LiveSocketProviderProps) {
-  const [client] = useState(() =>
-    url === undefined
-      ? null
-      : new LiveSocketClient({ url, socket, onStaleDeployment: reloadPage }),
-  );
+  const [client] = useState(() => {
+    const created =
+      url === undefined
+        ? null
+        : new LiveSocketClient({ url, socket, onStaleDeployment: reloadPage });
+
+    setLiveClient(created);
+
+    return created;
+  });
 
   return (
     <LiveSocketContext.Provider value={client}>

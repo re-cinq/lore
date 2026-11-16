@@ -19,6 +19,7 @@ type SettingsViewData = Omit<
   | "regenerateToken"
   | "saveSlackPeople"
   | "saveContextModel"
+  | "saveSessionLength"
 >;
 
 /** A refused Slack-people save comes back here with the text as typed and the lines it could not read. */
@@ -41,6 +42,7 @@ export default async function SettingsPage({
       saveApprovalConfig={saveApprovalConfig}
       saveSlackPeople={saveSlackPeople}
       saveContextModel={saveContextModel}
+      saveSessionLength={saveSessionLength}
       regenerateToken={regenerateToken}
     />
   );
@@ -62,16 +64,17 @@ function viewDataFrom(
     slackPeopleLines:
       refused.slack_people ?? formatSlackPeople(loaded.settingsMap.slack_users),
     slackPeopleRejected: refused.slack_people_rejected?.split("\n") ?? [],
-    ...contextModelFrom(loaded.settingsMap),
+    ...serviceChoicesFrom(loaded.settingsMap),
     githubInstallations: loaded.githubInstallations,
     githubInstallUrl: githubAppInstallUrl(process.env.GITHUB_APP_SLUG),
   };
 }
 
-function contextModelFrom(settingsMap: Record<string, string>) {
+function serviceChoicesFrom(settingsMap: Record<string, string>) {
   return {
     contextProvider: settingsMap.context_llm_provider || "",
     contextModel: settingsMap.context_llm_model || "",
+    sessionLengthHours: settingsMap.session_length_hours || "",
   };
 }
 
@@ -182,6 +185,18 @@ async function saveContextModel(formData: FormData) {
   await putOrgSettings([
     { key: "context_llm_provider", value: provider },
     { key: "context_llm_model", value: model },
+  ]);
+  revalidatePath("/settings");
+}
+
+/** lore-api refuses a length the form does not offer. */
+async function saveSessionLength(formData: FormData) {
+  "use server";
+  await putOrgSettings([
+    {
+      key: "session_length_hours",
+      value: (formData.get("session_length_hours") as string) || "",
+    },
   ]);
   revalidatePath("/settings");
 }

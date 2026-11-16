@@ -14,16 +14,16 @@ Work runs as a run of an assembly line on the external floor ([re-cinq/floor](ht
 
 ## Onboard a repo
 
-Onboarding inspects the target repo, checks what files already exist, and generates only what's missing — so it's safe to run against repos that already have some of these files.
+Onboarding opens one PR on the target repo. Lore commits its own workflows and templates on the branch, then an agent reads the repo and writes the files that are missing. A file the repo already has is left alone, except Lore's own files, which are brought up to date. It is safe to run against a repo that already has some of these files.
 
 **Via the UI:**
 
 1. Go to `LORE_UI_DOMAIN/onboard`
 2. Enter `owner/repo` (e.g. `re-cinq/my-service`)
 3. Click **Onboard Repository**
-4. The agent inspects the repo and generates the files below
-5. A PR appears on the target repo — review and merge it
-6. Ingest secrets are configured automatically
+4. Lore creates the dispatch labels and sets the repo's ingest variable and secret (`LORE_INGEST_URL`, `LORE_INGEST_TOKEN`), before the PR opens
+5. Lore commits its own files on the onboarding branch, and the agent writes the rest (tables below)
+6. A PR appears on the target repo. Anything Lore could not set is listed in it. Review and merge it
 
 **Via the CLI:**
 
@@ -37,18 +37,31 @@ For repos not yet onboarded, developers can still ingest specific files manually
 claude "ingest CLAUDE.md and the ADRs into Lore"
 ```
 
-**What gets generated** (only files that don't already exist):
+**Committed by Lore** (the same content for every repo, before the agent runs):
+
+| File | Purpose | When |
+|------|---------|------|
+| `.github/workflows/lore-ingest.yml` | Push-triggered context ingestion | Always; rewritten when it differs from Lore's copy |
+| `.github/workflows/lore-trace-impact.yml` | Spec impact check on every pull request | Always; rewritten when it differs from Lore's copy |
+| `.github/ISSUE_TEMPLATE/lore-implementation.yml`, `lore-review.yml`, `lore-general.yml` | Issue forms for Lore | Always; rewritten when they differ from Lore's copy |
+| `.github/ISSUE_TEMPLATE/config.yml` | Issue template chooser | Only when absent |
+| `.claude/settings.json` | SessionStart hook that tells Claude Code to call `lore_assemble_context` first | Only when absent |
+
+**Written by the agent** (each only when the repo does not have it yet):
 
 | File | Purpose |
 |------|---------|
 | `AGENTS.md` | Context loading order, workflow commands, conventions for AI agents |
-| `adrs/ADR-*.md` | Architectural decisions inferred from the codebase |
+| `adrs/ADR-*.md` | Starter ADRs inferred from the codebase, only when the repo has no `adrs/` or `docs/` directory |
 | `.specify/spec.md` | A system specification describing what the repo does today |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Structured PR template (Why, Alternatives, ADRs) |
 | `.github/workflows/pr-description-check.yml` | CI enforcing PR description quality |
-| `.github/workflows/lore-ingest.yml` | Push-triggered context ingestion |
+| `.lore/test-commands.yml` | Suggested test-command manifest, only when the repo declares none |
+| `.github/workflows/lore-tests.yml` | Runs the repo's tests and posts the results to Lore |
 
-After the PR merges, the agent automatically configures ingest secrets so context stays fresh on every push.
+Onboarding never writes `CLAUDE.md`: the repo's owners author it.
+
+The ingest variable and secret are set before the PR opens, so context ingestion starts with the first push to `main` after the merge.
 
 ## Monitor the pipeline
 
@@ -96,10 +109,9 @@ Each onboarded repo has configurable settings at `LORE_UI_DOMAIN/repos/{owner}/{
 | **Task Types** | Allowed task types (comma-separated) |
 | **Slack Channel** | Maps a Slack channel for `/lore` command dispatch |
 | **Dispatch Label** | GitHub label that triggers task creation (default: `lore`) |
-| **Trust Level** | Controls which task types agents can run: docs → tests → implementation → full. Auto-promotes after 3 successful merges |
+| **Trust Level** | One of four levels, `docs` → `tests` → `implementation` → `full`. Each level allows more task types; these are level names, not task types. Auto-promotes after 3 successful merges |
 | **Auto-review** | Automatically review agent PRs against conventions |
 | **Cross-repo context** | Multi-select: which other repos to include in context assembly. Links are bidirectional |
-| **Task overrides** | Per-task-type: model, timeout, system_prompt_suffix, review_required (via API/DB) |
 
 ## Global settings
 

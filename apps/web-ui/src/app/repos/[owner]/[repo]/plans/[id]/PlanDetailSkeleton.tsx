@@ -1,36 +1,28 @@
 import Skeleton from "@/components/Skeleton";
 import styles from "./PlanDetailSkeleton.module.scss";
 
-/** The plan page before its data: the header, the run card and the editor, shaped like the page so nothing jumps when the content arrives. */
+/** The plan page before its data: the toolbar and the editor, shaped like the page so nothing jumps when the content arrives. */
 export default function PlanDetailSkeleton() {
   return (
     <div role="status" aria-label="Loading plan">
-      <PlanHeaderSkeleton />
-      <PlanRunSkeleton />
+      <PlanToolbarSkeleton />
       <PlanBodySkeleton />
     </div>
   );
 }
 
-/** The facts line on the left; the status badge and Delete button on the right. */
-export function PlanHeaderSkeleton() {
+/** The toolbar: badge and facts on the left; the run's text, the Open the run link, Regenerate plan and the actions menu on the right. */
+export function PlanToolbarSkeleton() {
   return (
-    <div className={styles.header} aria-hidden>
-      <Skeleton width="45%" />
-      <div className={styles.headerActions}>
-        <Skeleton width={72} height={22} />
-        <Skeleton width={96} height={30} />
+    <div className={styles.toolbar} aria-hidden>
+      <Skeleton width={72} height={22} />
+      <Skeleton width={220} />
+      <div className={styles.toolbarActions}>
+        <Skeleton width={240} />
+        <Skeleton width={120} height={30} />
+        <Skeleton width={130} height={30} />
+        <Skeleton width={34} height={30} />
       </div>
-    </div>
-  );
-}
-
-/** The run's summary row: what the run is doing, then the outlined "Open the run" link beside it. */
-export function PlanRunSkeleton() {
-  return (
-    <div className={styles.run} aria-hidden>
-      <Skeleton width="40%" />
-      <Skeleton width={120} height={30} />
     </div>
   );
 }

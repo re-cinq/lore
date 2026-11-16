@@ -27,6 +27,14 @@ describe("decodeServerMessage", () => {
     ]);
   });
 
+  it("reads a response by the request id it answers, with no channel", () => {
+    expect(
+      decodeServerMessage(
+        '{"type":"response","id":"r1","status":200,"body":{"a":1}}',
+      ),
+    ).toEqual({ type: "response", id: "r1", status: 200, body: { a: 1 } });
+  });
+
   it("reads a socket-level error with no channel", () => {
     expect(
       decodeServerMessage('{"type":"error","code":"bad_message"}'),
@@ -68,5 +76,16 @@ describe("client messages and bytes", () => {
       text: "AAEC/w==",
       back: bytes,
     });
+  });
+});
+
+describe("the plan-run channel", () => {
+  it("reads a plan_run message, and refuses one without its channel", () => {
+    expect(
+      [
+        '{"type":"plan_run","channel":"c2","run":null}',
+        '{"type":"plan_run","run":null}',
+      ].map(decodeServerMessage),
+    ).toEqual([{ type: "plan_run", channel: "c2", run: null }, null]);
   });
 });

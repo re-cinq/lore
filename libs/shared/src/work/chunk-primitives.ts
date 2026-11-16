@@ -52,6 +52,18 @@ export const DECLARATION_TYPES: Record<string, Set<string>> = {
     "var_declaration",
     "const_declaration",
   ]),
+  ".rs": new Set([
+    "function_item",
+    "struct_item",
+    "enum_item",
+    "impl_item",
+    "trait_item",
+    "type_item",
+    "const_item",
+    "static_item",
+    "mod_item",
+    "macro_definition",
+  ]),
 };
 
 /** A single chunk spanning the whole file — the shared fallback when a chunker finds no internal boundaries. */

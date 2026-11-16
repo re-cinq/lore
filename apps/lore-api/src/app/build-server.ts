@@ -8,10 +8,13 @@ import Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-server-core/platform/otel.js";
-import { rateLimit } from "../transport/http/auth.js";
+import { rateLimit, resolvePrincipal } from "../transport/http/auth.js";
 import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
+import { registerRunRepoGuard } from "../transport/http/run-repo-guard.js";
+import { runRepoOf } from "../work/auth/run-repo.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
 import {
   generateOpenApi,
@@ -28,6 +31,7 @@ import {
   type LiveSocketLimits,
 } from "../work/assembly-line-station/live-socket.js";
 import {
+  planRunChannelDepsFromPool,
   runChannelDepsFromPool,
   runsChannelDepsFromPool,
 } from "../work/assembly-line-station/station-wiring.js";
@@ -47,6 +51,7 @@ export function buildServer(
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
+  registerRunRepoGuard(server, (runId) => runRepoOf(poolOf(getPool), runId));
 
   const routes = registerRoutes(server, getPool, planFloor);
 
@@ -56,6 +61,14 @@ export function buildServer(
   }
 
   return server;
+}
+
+function poolOf(getPool: () => Pool | null): Pool {
+  const pool = getPool();
+
+  enforceTrue(pool !== null, Error, "database unavailable");
+
+  return pool;
 }
 
 function newServer(port: number): Hapi.Server {
@@ -101,10 +114,15 @@ function registerLiveSocket(
   getPool: () => Pool | null,
   collab: RegisteredPlanning["collab"],
 ): void {
+  const run = runChannelDepsFromPool(getPool);
   const liveSocket = mountLiveSocket(server.listener, {
-    run: runChannelDepsFromPool(getPool),
+    run,
     runs: runsChannelDepsFromPool(getPool),
+    planRun: planRunChannelDepsFromPool(getPool, run),
     collab,
+    person: async (token) =>
+      (await resolvePrincipal(getPool(), token))?.user ?? null,
+    inject: (options) => server.inject(options),
     limits: LIVE_SOCKET_LIMITS,
   });
 

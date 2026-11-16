@@ -103,6 +103,7 @@ function handleFor(
   return specTicketsIssuesHandle({
     runOf: () => Promise.resolve("run-1"),
     project: () => Promise.resolve(project),
+    savePlanStory: () => Promise.resolve(),
     ...overrides,
   });
 }
@@ -172,11 +173,88 @@ describe("specTicketsIssuesHandle", () => {
     const handle = specTicketsIssuesHandle({
       runOf: () => Promise.resolve("run-1"),
       project: () => Promise.reject(new Error("github unreachable")),
+      savePlanStory: () => Promise.resolve(),
     });
 
     expect(await handle(brief(), TOOLS)).toEqual({
       outcome: "failed",
       error: "github unreachable",
     });
+  });
+});
+
+describe("specTicketsIssuesHandle on a spec that came from a plan", () => {
+  const FROM_PLAN = {
+    ...brief(),
+    needs: { ...brief().needs, source_plan_id: "p1" },
+  };
+
+  function storySaves() {
+    const saved: Array<{ planId: string; issueNumber: number }> = [];
+
+    return {
+      saved,
+      savePlanStory: async (planId: string, issueNumber: number) => {
+        saved.push({ planId, issueNumber });
+      },
+    };
+  }
+
+  it("saves story 100 on plan p1 after filing", async () => {
+    const repository = fakeRepository(LABELS);
+    const { saved, savePlanStory } = storySaves();
+
+    const report = await handleFor(repository.project, { savePlanStory })(
+      FROM_PLAN,
+      TOOLS,
+    );
+
+    expect({ report, saved }).toEqual({
+      report: { outcome: "success" },
+      saved: [{ planId: "p1", issueNumber: 100 }],
+    });
+  });
+
+  it("saves story 100 on plan p1 after the verified filing", async () => {
+    const repository = fakeRepository(LABELS);
+    const { saved, savePlanStory } = storySaves();
+
+    await handleFor(repository.project, { savePlanStory })(
+      {
+        ...FROM_PLAN,
+        needs: { ...FROM_PLAN.needs, verified_decomposition: "verified" },
+      },
+      TOOLS,
+    );
+
+    expect(saved).toEqual([{ planId: "p1", issueNumber: 100 }]);
+  });
+
+  it("saves nothing for a spec with no source plan", async () => {
+    const repository = fakeRepository(LABELS);
+    const { saved, savePlanStory } = storySaves();
+
+    await handleFor(repository.project, { savePlanStory })(brief(), TOOLS);
+
+    expect(saved).toEqual([]);
+  });
+
+  it("saves nothing on plan p1 when the filing asked for rework", async () => {
+    const repository = fakeRepository(["area:web-ui", "lore-managed"]);
+    const { saved, savePlanStory } = storySaves();
+
+    await handleFor(repository.project, { savePlanStory })(FROM_PLAN, TOOLS);
+
+    expect(saved).toEqual([]);
+  });
+
+  it("reports failed when lore-api refuses the story, so a rerun writes it again", async () => {
+    const repository = fakeRepository(LABELS);
+
+    const report = await handleFor(repository.project, {
+      savePlanStory: () => Promise.reject(new Error("POST failed: 503")),
+    })(FROM_PLAN, TOOLS);
+
+    expect(report).toEqual({ outcome: "failed", error: "POST failed: 503" });
   });
 });

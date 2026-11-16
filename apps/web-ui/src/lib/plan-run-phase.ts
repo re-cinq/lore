@@ -16,6 +16,10 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
     tone: "working",
     text: "The planning agent is drafting the plan.",
   },
+  sketch: {
+    tone: "working",
+    text: "The sketch agent is drawing the prototype.",
+  },
   author: {
     tone: "waiting",
     text: "Waiting for you: refine sections or approve the plan.",
@@ -32,7 +36,7 @@ const NODE_PHASES: Partial<Record<string, PlanRunPhase>> = {
   },
 };
 
-const LAST_PASS_FAILED: PlanRunPhase = {
+export const LAST_PASS_FAILED: PlanRunPhase = {
   tone: "failed",
   text: "The planning agent's last pass failed. Refine a section or regenerate the plan to ask again.",
 };

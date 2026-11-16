@@ -231,8 +231,6 @@ The tool retrieves from all available sources:
     truncation order when token budget is tight.
   - `section.max_tokens`: per-section token budget (optional).
   - `section.header`: the section header in the output.
-  - `section.filter`: optional filter (e.g., only ADRs with
-    status "accepted").
 - FR-3.3: The "default" template includes all sources with
   sensible priorities. ([validated by includes sections for repo, adrs, memories, facts, and graph. @556eaf31](apps/mcp-server/src/template-default.acceptance.test.ts#L7), [validated by exists at apps/mcp-server/templates/default.yaml @1d96578b](apps/mcp-server/src/template-default.test.ts#L9), [validated by includes a facts section source @e2e2822e](apps/mcp-server/src/template-default.test.ts#L13))
 - FR-3.4: Built-in templates: "default", "review", "implementation",

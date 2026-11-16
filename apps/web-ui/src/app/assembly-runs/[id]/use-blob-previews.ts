@@ -37,7 +37,7 @@ function readPreviewsFor(
   }
   const read = new AbortController();
 
-  readBlobPreviews(runId, key.split(","), read.signal)
+  readBlobPreviews(runId, key.split(","))
     .then((previews) => {
       if (!read.signal.aborted) {
         setShown({ key, previews });

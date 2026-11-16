@@ -6,10 +6,6 @@ import type { AssemblyRun } from "@/lib/assembly-runs";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { FakeWebSocket } from "@/lib/live-socket/fake-web-socket";
 
-vi.mock("./live-actions", () => ({
-  openRunChannelAction: async () => ({ token: "tok" }),
-}));
-
 describe("RunPage Blocked Reason", () => {
   afterEach(() => {
     vi.restoreAllMocks();

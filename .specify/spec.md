@@ -97,7 +97,7 @@ Events are written by lore-api (GitHub webhooks → `github.*`) and by stations 
 
 | Role | Interface | Primary actions |
 |---|---|---|
-| Developer | Claude Code (MCP) | Context loading, memory, local task runner, PR description, feature planning |
+| Developer | Claude Code (MCP) | Context loading, memory, PR description, feature planning |
 | Developer | Web UI | Spec browser, run list, agent config |
 | Product Manager | Claude Code (`/lore-feature`) | Feature specs → plan → backlog tickets |
 | Platform Engineer | Web UI + CLI | Repo onboarding, settings, analytics, agent definitions |

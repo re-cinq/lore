@@ -55,6 +55,17 @@ platform:
       host: lore.gcp.re-cinq.com
       service: lore-ui
       port: 3000
+    # The live socket on the UI's own host, so the session cookie rides the upgrade (ADR-048).
+    - name: lore-ui-live
+      namespace: lore-api
+      host: lore.gcp.re-cinq.com
+      path: /api/ws
+      pathType: Exact
+      service: lore-api
+      port: 3000
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     # GitHub deliveries: the public path is rewritten onto lore-api's route so
     # no repository's hook needs re-registering.
     - name: lore-webhook
@@ -207,7 +218,7 @@ lore-api:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "0f814c3"
+    tag: "be2849d"
   env:
     PORT: "3000"
     CONTEXT_PATH: /context
@@ -224,6 +235,8 @@ lore-api:
     LORE_WEBHOOK_URL: https://lore-events.gcp.re-cinq.com/api/events
     LORE_API_URL: https://lore-api.gcp.re-cinq.com
     LORE_UI_URL: https://lore.gcp.re-cinq.com
+    # GET /api/versions reads the UI's build from its public /api/version in-cluster.
+    LORE_UI_INTERNAL_URL: http://lore-ui.lore-ui.svc.cluster.local:3000
     # GKE Autopilot general-purpose, europe-west1; /spend's estimate rates.
     LORE_GKE_CPU_HOUR_USD: "0.0489"
     LORE_GKE_MEM_GIB_HOUR_USD: "0.0054"
@@ -251,13 +264,13 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "0f814c3"
+    tag: "be2849d"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
-    tag: "1991645"
+    tag: "be2849d"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
@@ -269,7 +282,7 @@ lore-ui:
     LORE_LOG_BUCKET: lore-task-logs-re-cinq-internal
     LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
     LORE_API_PUBLIC_URL: https://lore-api.gcp.re-cinq.com
-    LORE_WS_URL: wss://lore-api.gcp.re-cinq.com/api/ws
+    LORE_WS_URL: wss://lore.gcp.re-cinq.com/api/ws
     HEADLAMP_URL: https://headlamp.gcp.re-cinq.com
     GRAFANA_URL: https://grafana.gcp.re-cinq.com
     UTOPIA_URL: https://utopia.gcp.re-cinq.com
@@ -285,7 +298,7 @@ lore-db-helm:
 lore-stations:
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "0f814c3"
+    tag: "be2849d"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com

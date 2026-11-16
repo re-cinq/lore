@@ -186,9 +186,10 @@ option {
 .main-content {
   --main-max: 1336px;
   --main-pad-x: var(--space-7);
+  --main-pad-y: var(--space-6);
   flex: 1;
   overflow-y: auto;
-  padding-block: var(--space-6);
+  padding-block: var(--main-pad-y);
   padding-inline: max(
     var(--main-pad-x),
     calc((100% - var(--main-max)) / 2 + var(--main-pad-x))
@@ -198,6 +199,12 @@ option {
 /* A page that lays out its own gutters marks its root `data-flush-page`, so the shell's padding does not double them (the run page). */
 .main-content:has(> [data-flush-page]) {
   padding: 0;
+}
+
+/* A page that reads best at full width, such as a plan, marks its root `data-wide-page`: it spans the space between the side panels with small gutters. */
+.main-content:has(> [data-wide-page]) {
+  --main-max: 100%;
+  --main-pad-x: var(--space-5);
 }
 
 /* Mobile header — hidden on desktop */
@@ -732,21 +739,6 @@ pre {
   color: var(--text-muted);
 }
 
-/* Inline mockup SVGs (DOMPurify-sanitized in MockupSection). White surface keeps
-   light-designed diagrams legible in dark mode; svg scales to the card width. */
-.mockup-svg {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  overflow: auto;
-}
-.mockup-svg svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 0 auto;
-}
 .spec-card input:focus,
 .spec-card select:focus,
 .spec-card textarea:focus {
@@ -1236,7 +1228,7 @@ textarea:focus-visible,
 
   .main-content {
     --main-pad-x: var(--space-5);
-    padding-block: var(--space-5);
+    --main-pad-y: var(--space-5);
   }
 
   .main-content h1 {

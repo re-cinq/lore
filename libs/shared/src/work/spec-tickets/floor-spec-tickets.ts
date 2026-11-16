@@ -8,6 +8,7 @@ import {
   valueItem,
 } from "../../outbound/floor/floor-items.js";
 import { startLine } from "../review/floor-line-start.js";
+import { planIdOfSpecBranch } from "../feature-planning/spec-branch.js";
 
 export const SPEC_TICKETS_LINE = "spec-tickets";
 
@@ -19,6 +20,8 @@ export interface SpecMerge {
   merged: boolean;
   baseRef: string;
   mergeCommitSha: string;
+  /** The pull request's head branch. */
+  branch: string;
 }
 
 export interface ChangedFile {
@@ -208,16 +211,20 @@ async function startFor(
   return true;
 }
 
+/** `source_plan_id` is no `plan_id` on purpose: the issues station reads a `plan_id` as the key its tickets are recognised by. */
 function startItemsOf(
   specPath: string,
   key: string,
-  { repo, baseRef, mergeCommitSha }: SpecMerge,
+  { repo, baseRef, mergeCommitSha, branch }: SpecMerge,
 ) {
+  const sourcePlanId = planIdOfSpecBranch(branch);
+
   return {
     target: gitItem(repo, baseRef),
     spec_path: valueItem(specPath),
     merge_sha: valueItem(mergeCommitSha),
     key: valueItem(key),
+    ...(sourcePlanId ? { source_plan_id: valueItem(sourcePlanId) } : {}),
   };
 }
 

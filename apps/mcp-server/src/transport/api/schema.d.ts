@@ -429,6 +429,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/assembly-runs/{id}/pull-files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/assembly-runs/{id}/pull-files */
+    get: operations["get_api_assembly-runs_id_pull-files"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/assembly-runs/{id}/stream-token": {
     parameters: {
       query?: never;
@@ -1282,6 +1299,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/available": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/available */
+    get: operations["get_api_repos_available"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}": {
     parameters: {
       query?: never;
@@ -1986,6 +2020,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/plans/{id}/prototype": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/prototype */
+    post: operations["post_api_repos_owner_repo_plans_id_prototype"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/plans/{id}/refine": {
     parameters: {
       query?: never;
@@ -2014,6 +2065,23 @@ export interface paths {
     put?: never;
     /** POST /api/repos/{owner}/{repo}/plans/{id}/reopen */
     post: operations["post_api_repos_owner_repo_plans_id_reopen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/plans/{id}/run-stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/plans/{id}/run-stream-token */
+    post: operations["post_api_repos_owner_repo_plans_id_run-stream-token"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2496,6 +2564,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/service-versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/service-versions */
+    post: operations["post_api_service-versions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/session-summary": {
     parameters: {
       query?: never;
@@ -2647,26 +2732,6 @@ export interface paths {
     get: operations["get_api_task-stats"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/task-turns/{taskId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * POST /api/task-turns/{taskId}
-     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
-     */
-    post: operations["post_api_task-turns_taskId"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2838,6 +2903,23 @@ export interface paths {
     put?: never;
     /** POST /api/utopia/memory */
     post: operations["post_api_utopia_memory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/versions */
+    get: operations["get_api_versions"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3241,6 +3323,16 @@ export interface components {
         cost_usd: number | null;
       }[];
     };
+    AssemblyRunPullFiles: {
+      files: {
+        filename: string;
+        status: string;
+        additions: number;
+        deletions: number;
+        patch: string | null;
+        previousFilename?: string;
+      }[];
+    };
     AssemblyRunRead: {
       line: {
         [key: string]: unknown;
@@ -3284,6 +3376,8 @@ export interface components {
       name: string;
       avatar_url: string | null;
       scopes: string[];
+      started_at: string;
+      expires_at: string | null;
     };
     AutoMerge: {
       current: {
@@ -3362,6 +3456,11 @@ export interface components {
         blocked: string | null;
       }[];
     };
+    AvailableRepos: {
+      full_name: string;
+      owner: string;
+      name: string;
+    }[];
     BlobPreviews: {
       previews: {
         [key: string]: {
@@ -4206,7 +4305,7 @@ export interface components {
           /** @constant */
           kind: "run";
           subject: string;
-          token: string;
+          token?: string;
           after?: string;
         }
       | {
@@ -4223,6 +4322,15 @@ export interface components {
           channel: string;
           /** @constant */
           kind: "runs";
+          subject: string;
+          token?: string;
+        }
+      | {
+          /** @constant */
+          type: "open";
+          channel: string;
+          /** @constant */
+          kind: "plan-run";
           subject: string;
           token: string;
         }
@@ -4242,6 +4350,16 @@ export interface components {
           /** @constant */
           type: "close";
           channel: string;
+        }
+      | {
+          /** @constant */
+          type: "request";
+          id: string;
+          /** @enum {string} */
+          method: "GET" | "POST" | "PUT" | "DELETE";
+          /** Format: starts_with */
+          path: string;
+          body?: unknown;
         };
     LiveServerMessage:
       | {
@@ -4417,6 +4535,24 @@ export interface components {
         }
       | {
           /** @constant */
+          type: "plan_run";
+          channel: string;
+          run: {
+            id: string;
+            status: string;
+            outcome: string | null;
+            reason: string | null;
+            issue_url: string | null;
+            issue_number: number | null;
+            pr_url: string | null;
+            pr_number: number | null;
+            pr_title: string | null;
+            pr_unresolved_threads: number | null;
+            spec_plan_summary: string | null;
+          } | null;
+        }
+      | {
+          /** @constant */
           type: "data";
           channel: string;
           data: string;
@@ -4434,6 +4570,13 @@ export interface components {
             | "slow"
             | "server";
           code?: number;
+        }
+      | {
+          /** @constant */
+          type: "response";
+          id: string;
+          status: number;
+          body: unknown;
         }
       | {
           /** @constant */
@@ -4811,6 +4954,9 @@ export interface components {
     PlanOpenedForAuthor: {
       reopened: boolean;
     };
+    PlanPrototypeStarted: {
+      run_id: string;
+    };
     PlanRefineAsked: {
       slot: string;
     };
@@ -4842,6 +4988,11 @@ export interface components {
       createdBy: string;
       /** Format: date-time */
       updatedAt: string;
+    };
+    PlanRunStreamToken: {
+      token: string;
+      /** Format: date-time */
+      expires_at: string;
     };
     PlanSpecReworkStarted: {
       run_id: string;
@@ -5419,6 +5570,10 @@ export interface components {
         backend?: "lore" | "utopia";
       }[];
       notes?: string[];
+    };
+    ServiceVersionRecorded: {
+      /** @constant */
+      ok: true;
     };
     SessionSummaryResult:
       | {
@@ -6075,10 +6230,6 @@ export interface components {
     TraceRead: {
       [key: string]: unknown;
     };
-    TurnsRelayed: {
-      forwarded: number;
-      skipped: number;
-    };
     UtopiaBackfillSummary: {
       commit: string;
       documents: number;
@@ -6212,6 +6363,93 @@ export interface components {
       updated: number;
       unchanged: number;
       failed: string[];
+    };
+    Versions: {
+      lore: {
+        "lore-api":
+          | {
+              build: string;
+              /** Format: date-time */
+              startedAt: string;
+              packages: {
+                [key: string]: string;
+              };
+            }
+          | {
+              error: string;
+            };
+        stations:
+          | {
+              build: string;
+              /** Format: date-time */
+              startedAt: string;
+              packages: {
+                [key: string]: string;
+              };
+            }
+          | {
+              error: string;
+            };
+        "lore-mcp":
+          | {
+              build: string;
+              /** Format: date-time */
+              startedAt: string;
+              packages: {
+                [key: string]: string;
+              };
+            }
+          | {
+              error: string;
+            };
+        "lore-ui":
+          | {
+              build: string;
+              packages: {
+                [key: string]: string;
+              };
+            }
+          | {
+              error: string;
+            };
+      };
+      latest: {
+        build: string;
+      };
+      floor:
+        | {
+            build: string;
+            schemaVersion: number;
+            clusters: {
+              id: string;
+              build: string | null;
+              subsystem: unknown | null;
+              lastSeenAt: string;
+            }[];
+          }
+        | {
+            error: string;
+          };
+      database:
+        | {
+            migration: string | null;
+            floorMigration: string | null;
+          }
+        | {
+            error: string;
+          };
+      onFloor:
+        | {
+            pipelines: {
+              id: string;
+              hash: string | null;
+            }[];
+            agentDefinitions: number;
+          }
+        | {
+            error: string;
+          };
+      agentImage: string | null;
     };
     VisitEvents: {
       events: {
@@ -7030,8 +7268,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          requested_by: string;
-        };
+          requested_by?: string;
+        } | null;
       };
     };
     responses: {
@@ -7050,6 +7288,33 @@ export interface operations {
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_assembly-runs_id_pull-files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every changed file on the run's pull request with its unified patch. 404 for a run with no pull request */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssemblyRunPullFiles"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -8662,6 +8927,30 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  get_api_repos_available: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description GitHub App repos not yet onboarded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AvailableRepos"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   get_api_repos_owner_repo: {
     parameters: {
       query?: never;
@@ -10179,7 +10468,6 @@ export interface operations {
         "application/json": {
           known: string;
           createdBy: string;
-          storyIssue?: number;
         };
       };
     };
@@ -10197,6 +10485,44 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_plans_id_prototype: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          actor: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Runs the sketch agent over a draft plan: it draws the Prototype section on the plan's run, or on a run opened for it when the plan has none; refused for an approved plan and while an agent is working on it */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanPrototypeStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
@@ -10222,7 +10548,6 @@ export interface operations {
           baseHash: string;
           inputs: unknown;
           uses: unknown;
-          storyIssue?: number;
         };
       };
     };
@@ -10284,6 +10609,46 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_repos_owner_repo_plans_id_run-stream-token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          user: {
+            id: string;
+            name: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description A short-lived token that opens this plan's plan-run channel of the live socket (/api/ws) as one person: the plan's current planning run, followed across runs */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlanRunStreamToken"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_repos_owner_repo_plans_id_spec-rework": {
     parameters: {
       query?: never;
@@ -10337,7 +10702,6 @@ export interface operations {
       content: {
         "application/json": {
           createdBy: string;
-          storyIssue?: number;
         };
       };
     };
@@ -11206,6 +11570,43 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_service-versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @constant */
+          service: "lore-mcp";
+          build: string;
+          packages: {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description The lore-mcp gateway's start was recorded */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ServiceVersionRecorded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_session-summary": {
     parameters: {
       query?: never;
@@ -11484,10 +11885,7 @@ export interface operations {
         "application/json": {
           action?: string;
           task_id?: string;
-          status?: string;
           priority?: string;
-          pr_url?: string;
-          error?: string;
         };
       };
     };
@@ -11621,38 +12019,6 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  "post_api_task-turns_taskId": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        taskId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/x-ndjson": string;
-      };
-    };
-    responses: {
-      /** @description Turns accepted from a local runner */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TurnsRelayed"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -11950,6 +12316,30 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_versions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The build every Lore service runs, the floor and its clusters, the database schema, what is on the floor and the agent image; a source that fails answers its own error */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Versions"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

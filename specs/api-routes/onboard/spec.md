@@ -132,7 +132,7 @@ A `reonboard` submission is queued for an already-onboarded repo but still refus
 
 `onboardRepo` takes one pooled connection and commits both the onboard task and the `lore.repos` row inside the single transaction that holds the lock — a second connection for the task would deadlock the pool once concurrent submissions reach its size, and a task committed outside the transaction would survive the rollback and then block every retry as in-flight. A failing write rolls back, creates nothing, and skips the webhook ensure. ([validated by commits the task and the repos row on the one locked connection @727a6be2](apps/lore-api/src/work/repo/repo-onboard.test.ts#L120), [`rolls back and creates nothing when a write fails` @3151ac93](apps/lore-api/src/work/repo/repo-onboard.test.ts#L152))
 
-Onboard tasks are created only here: `POST /api/task` creates no task of any type (since 2026-10-02 it only acts on an existing one). ([validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L263))
+Onboard tasks are created only here: `POST /api/task` creates no task of any type (since 2026-10-02 it only acts on an existing one). ([validated by creates nothing for a body that names neither a task nor a type @59811ed1](apps/lore-api/src/transport/routes/tasks/task-post.test.ts#L239))
 
 ### What the route no longer does
 

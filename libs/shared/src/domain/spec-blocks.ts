@@ -49,6 +49,8 @@ class BlockAccumulator {
   // Single accumulating-run for multi-line kinds (paragraph, table); per-line/heading are flushed separately.
   private pending: { kind: BlockKind; lines: string[] } | null = null;
   private inFence = false;
+  private fenceChar = "";
+  private fenceLen = 0;
   private codeBuffer: string[] = [];
 
   private emit(kind: BlockKind, text: string, level?: number): void {
@@ -79,20 +81,51 @@ class BlockAccumulator {
     this.pending.lines.push(line);
   }
 
-  /** A ``` line either closes the fence in progress or opens a new one. */
-  private handleFenceDelimiter(line: string): void {
-    if (!this.inFence) {
-      this.flushPending();
-      this.inFence = true;
-      this.codeBuffer = [line];
+  private openFence(line: string, char: string, len: number): void {
+    this.flushPending();
+    this.inFence = true;
+    this.fenceChar = char;
+    this.fenceLen = len;
+    this.codeBuffer = [line];
+  }
 
-      return;
-    }
-
+  private closeFence(line: string): void {
     this.codeBuffer.push(line);
     this.emit("code", this.codeBuffer.join("\n"));
     this.codeBuffer = [];
     this.inFence = false;
+  }
+
+  private isClosingFence(
+    char: string,
+    len: number,
+    afterFence: string,
+  ): boolean {
+    return (
+      char === this.fenceChar &&
+      len >= this.fenceLen &&
+      /^\s*$/.test(afterFence)
+    );
+  }
+
+  private handleFenceLine(
+    line: string,
+    char: string,
+    len: number,
+    afterFence: string,
+  ): void {
+    if (!this.inFence) {
+      this.openFence(line, char, len);
+
+      return;
+    }
+
+    if (this.isClosingFence(char, len, afterFence)) {
+      this.closeFence(line);
+
+      return;
+    }
+    this.codeBuffer.push(line);
   }
 
   private handleClassifiedLine(line: string): void {
@@ -109,8 +142,16 @@ class BlockAccumulator {
   }
 
   addLine(line: string): void {
-    if (/^```/.test(line)) {
-      this.handleFenceDelimiter(line);
+    // CommonMark fenced code: 3+ backticks or tildes, optionally preceded by up to 3 spaces.
+    const fenceMatch = line.match(/^( {0,3})(```+|~~~+)/);
+
+    if (fenceMatch) {
+      this.handleFenceLine(
+        line,
+        fenceMatch[2][0],
+        fenceMatch[2].length,
+        line.slice(fenceMatch[0].length),
+      );
 
       return;
     }

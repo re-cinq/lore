@@ -202,6 +202,27 @@ describe("chunkFile", () => {
 
     expect(chunk.metadata.content_hash).toBe(expectedHash);
   });
+
+  it("produces identical hashes for identical content on repeated calls", async () => {
+    const markdown = "Content is identical.";
+    const chunks1 = await chunkFile(markdown, "notes.md", "doc");
+    const chunks2 = await chunkFile(markdown, "notes.md", "doc");
+
+    expect(chunks1[0].metadata.content_hash).toBe(
+      chunks2[0].metadata.content_hash,
+    );
+  });
+
+  it("produces different hashes for changed content", async () => {
+    const markdown1 = "Content one.";
+    const markdown2 = "Content two.";
+    const chunks1 = await chunkFile(markdown1, "notes.md", "doc");
+    const chunks2 = await chunkFile(markdown2, "notes.md", "doc");
+
+    expect(chunks1[0].metadata.content_hash).not.toBe(
+      chunks2[0].metadata.content_hash,
+    );
+  });
 });
 
 describe("buildIngestedChunkMetadata", () => {

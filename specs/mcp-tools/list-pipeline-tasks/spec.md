@@ -27,7 +27,7 @@ Registered via `server.tool` ([registration](apps/mcp-server/src/transport/tools
 - **description** (verbatim):
 
 ```text
-Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_pending_tasks for unclaimed work to grab locally; lore_ready_tasks for dependency-ready spec-tasks in one repo; lore_list_task_group for one feature's group; lore_list_local_tasks for tasks running on your machine.
+Lists pipeline tasks newest-first as JSON, optionally filtered by status. General browse view across all tasks and statuses. Instead: lore_list_task_group for one feature's group.
 ```
 
 ### Input schema (Zod)
@@ -88,4 +88,3 @@ The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it
 
 - Single-task detail + timeline (covered by `lore_get_pipeline_status`).
 - Group-scoped listing (covered by `lore_list_task_group`).
-- Pending-only local-claim view (covered by `lore_list_pending_tasks`).

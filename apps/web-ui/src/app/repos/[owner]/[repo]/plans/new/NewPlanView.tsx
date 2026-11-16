@@ -30,7 +30,7 @@ export default function NewPlanView({ action }: { action: CreateAction }) {
   );
 }
 
-/** Title and template are required; the description seeds the plan's intent, and the user story is carried on its planning run. */
+/** Title and template are required; the description seeds the plan's intent, and the user story is saved on the plan. */
 function PlanFields() {
   return (
     <>

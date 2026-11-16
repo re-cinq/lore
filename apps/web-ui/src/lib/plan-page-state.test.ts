@@ -167,3 +167,21 @@ describe("planPageState for an approved plan", () => {
     ).toBe("delivered");
   });
 });
+
+describe("planPageState while the sketch agent draws", () => {
+  it("is refining while sketch or sketch-pass-end is open", () => {
+    expect([
+      planPageState(
+        "draft",
+        run("running", [visit("author", null), visit("sketch", null)]),
+      ),
+      planPageState(
+        "draft",
+        run("running", [
+          visit("sketch", "success"),
+          visit("sketch-pass-end", null),
+        ]),
+      ),
+    ]).toEqual(["refining", "refining"]);
+  });
+});

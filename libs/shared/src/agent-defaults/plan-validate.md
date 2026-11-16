@@ -34,7 +34,10 @@ and people edit it while you work, so read it yourself rather than
 trusting any copy. Then read this repository's `specs/`, `adrs/`,
 `CLAUDE.md`, and any code or file the plan names, from the read-only
 clone at /workspace/target, so you can tell a claim that holds from one
-that doesn't. Call
+that doesn't. When the read answers `story: {number, url, title,
+state, body}`, the plan answers that GitHub issue: a section that
+drops or contradicts what the story asks for is a finding, and a
+`title` of null only means GitHub could not be read. Call
 `lore_assemble_context` first, and `lore_search_memory` for prior
 decisions the plan may be repeating or contradicting. Pass `repo`
 (the owner/name your task names above) on every `lore_*` call: the

@@ -6,7 +6,7 @@
 | Spec    | [spec.md](spec.md)                             |
 | Contract| [contracts/test-commands.md](contracts/test-commands.md) |
 | Graph   | [../spec-traceability-graph/data-model.md](../spec-traceability-graph/data-model.md) |
-| Supersedes | ../coverage-ingestion/spec.md |
+| Supersedes | `coverage-ingestion` (its spec file was deleted on 2026-06-10) |
 | Status  | Draft                                          |
 | Created | 2026-06-05                                     |
 
@@ -129,7 +129,7 @@ run-locally error.
 | `web-ui/.../specs/` + onboarding result | 8 | "Set up test commands" action renders the prompt (copy-to-clipboard) |
 | `.claude/skills/lore-test-commands/SKILL.md` | 8 | same prompt as a `/lore-test-commands` skill |
 | `scripts/trace/run-tests.ts` | 8 | local CLI |
-| `specs/coverage-ingestion/spec.md` | 7 | Superseded by |
+| `specs/coverage-ingestion/spec.md` | 7 | Deleted on 2026-06-10 (superseded) |
 | `specs/spec-traceability-graph/data-model.md` | 7 | `violated`/`violation_reason` predicates |
 | `specs/spec-traceability-graph/spec.md` + contract | 7 | point here |
 | `CLAUDE.md` | 8 | document manifest + endpoints + MCP tools |

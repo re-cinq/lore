@@ -200,20 +200,12 @@ describe("InMemoryTaskStore status writes", () => {
     });
   });
 
-  it("transition claim sets claimed_by and later transitions keep it (COALESCE)", async () => {
+  it("transition cancel sets the status to cancelled", async () => {
     const seed: SeedStoreTask[] = [{ id: "t1", status: "pending" }];
     const store = new InMemoryTaskStore(seed, { now: tick(T0) });
 
-    await store.transition("t1", "claim", { agentId: "local-runner" });
-    expect(seed[0]).toMatchObject({
-      status: "running-local",
-      claimed_by: "local-runner",
-    });
     await store.transition("t1", "cancel");
-    expect(seed[0]).toMatchObject({
-      status: "cancelled",
-      claimed_by: "local-runner",
-    });
+    expect(seed[0]).toMatchObject({ status: "cancelled" });
   });
 });
 
@@ -438,6 +430,6 @@ describe("InMemoryTaskStore.transition no-match", () => {
   it("returns undefined for an unknown id, mirroring the Pg rows[0] on a no-match UPDATE", async () => {
     const store = new InMemoryTaskStore([]);
 
-    expect(await store.transition("missing", "claim")).toBeUndefined();
+    expect(await store.transition("missing", "cancel")).toBeUndefined();
   });
 });

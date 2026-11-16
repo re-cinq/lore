@@ -78,6 +78,16 @@ describe("setupSpecTraceSchema (applier unit)", () => {
     }
   });
 
+  it("calls alter with a schema declaring Spec.blocks as a uid list predicate and listing it in the Spec type", async () => {
+    const client = makeCapturingClient();
+
+    await setupSpecTraceSchema(client as unknown as DgraphClientPort);
+    const s = client.capturedSchema ?? "";
+
+    expect(s).toMatch(/^Spec\.blocks: \[uid\] @reverse @count \.$/m);
+    expect(s).toMatch(/type Spec \{[^}]*Spec\.blocks[^}]*\}/ms);
+  });
+
   it("retries alter on transient errors and resolves on the third attempt. ([validated by FR — setup-spec-trace-schema applier](libs/shared/src/outbound/setup-spec-trace-schema.applier.test.ts#L65))", async () => {
     vi.useFakeTimers();
     let calls = 0;

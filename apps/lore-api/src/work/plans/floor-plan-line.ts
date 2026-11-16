@@ -36,24 +36,16 @@ import {
   type PlanRef,
   type SpecPrState,
 } from "./planning-line.js";
-import {
-  AGENT_STILL_WORKING,
-  agentHasThePlan,
-  approvedRefineRefusal,
-} from "./refine-refusal.js";
-import { askNode } from "../floor/run-node-by-hand.js";
 import type { RefineAsk } from "./refine-asks.js";
+import type { PlanStories } from "./plan-stories.js";
+import { storyOf } from "./plan-story.js";
 import { type SpecReviewReads } from "./spec-rework.js";
 import { storeCitable, storeMarkdown } from "./plan-blobs.js";
-
-/** The node whose agent refines a section, and the start event it declares. */
-const ANALYZE_NODE = "analyze";
-const ANALYZE_EVENT = `node.${ANALYZE_NODE}.start`;
 
 export interface PlanFloor extends PlanLineFloor {
   /** `cancel` beyond the reads: reopening a plan ends the spec work writing specs from it. */
   runs: Pick<FloorClient["runs"], "list" | "cancel">;
-  lines: Pick<FloorClient["lines"], "start">;
+  lines: Pick<FloorClient["lines"], "start" | "version">;
   events: Pick<FloorClient["events"], "post">;
   blobs: Pick<FloorClient["blobs"], "put">;
 }
@@ -69,6 +61,8 @@ export interface FloorPlanDeps {
   pulls: SpecReviewReads;
   /** Writes the pending Refine down, where the agent and `plan-pass-end` read it. */
   recordRefineAsk(ask: RefineAsk): Promise<void>;
+  /** The user story a person saved on the plan, which every run this line starts carries. */
+  savedStory: PlanStories["saved"];
 }
 
 export interface FloorPlanMarkdown {
@@ -78,8 +72,6 @@ export interface FloorPlanMarkdown {
   citablePlan?: CitablePlan;
   /** What this round asks for, as the agent is told it: the draft's own brief, the section a Refine names, or which spec pass this is. Reading the plan cannot tell an agent which of its sections a person just clicked. */
   brief: string;
-  /** The issue number of the user story this plan answers, when the request names one; a round that names none keeps the one its plan's last run carried. */
-  storyIssue?: number;
 }
 
 export interface FloorRefineInput extends FloorPlanMarkdown {
@@ -91,7 +83,7 @@ export interface FloorRefineInput extends FloorPlanMarkdown {
 /** Drafts the plan: a run waiting on its author goes back to the agent with the edited plan and no section (a draft answers none); otherwise a run starts, or joins the one already open. The run's id either way. */
 export async function startFloorDrafting(
   deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, storyIssue }: FloorPlanMarkdown,
+  { plan, planMarkdown, brief }: FloorPlanMarkdown,
   actor?: string,
 ): Promise<string> {
   const line = await floorPlanLineState(deps.floor, keyOf(plan));
@@ -108,7 +100,7 @@ export async function startFloorDrafting(
     return line.lineId;
   }
 
-  return startPlanRun(deps, line, { plan, planMd, brief, storyIssue });
+  return startPlanRun(deps, line, { plan, planMd, brief });
 }
 
 // The author visit goes back to the agent with the edited plan; in the person's name, so the floor's retry budgets start afresh there.
@@ -127,45 +119,6 @@ async function answerAuthorWithDraft(
     },
     actor,
   );
-}
-
-/** Asks the planning agent to refine one section: the ask is written down and the `analyze` node is started by hand, so it needs no run waiting to take it. Refused only for an approved plan, whose sections its approval settled, and while a drafting pass still holds the plan — `analyze`, the `plan-pass-end` that settles it, or the validation and findings someone asked for — since two agents would edit the same blocks. */
-export async function askFloorRefine(
-  deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine, actor }: FloorRefineInput,
-): Promise<void> {
-  const line = await floorPlanLineState(deps.floor, keyOf(plan));
-
-  enforceTrue(
-    plan.status !== "approved",
-    apiError(409),
-    approvedRefineRefusal(line),
-  );
-  enforceTrue(!agentHasThePlan(line), apiError(409), AGENT_STILL_WORKING);
-
-  await deps.recordRefineAsk(askOf(plan, refine, brief));
-  await (line
-    ? askNode(deps.floor, { event: ANALYZE_EVENT, runId: line.lineId, actor })
-    : startRunToRefine(deps, { plan, planMarkdown, brief, refine, actor }));
-}
-
-// No run to start a node on, so the ask opens one; the agent reads the ask the same way.
-async function startRunToRefine(
-  deps: FloorPlanDeps,
-  { plan, planMarkdown, brief, refine }: FloorRefineInput,
-): Promise<void> {
-  await startPlanRun(deps, null, {
-    plan,
-    planMd: await storeMarkdown(deps.floor, planMarkdown),
-    brief,
-    storyIssue: refine.storyIssue,
-  });
-}
-
-function askOf(plan: PlanRef, refine: RefineRequest, brief: string): RefineAsk {
-  const { slot, title, baseHash, inputs, uses } = refine;
-
-  return { planId: plan.id, slot, title, baseHash, inputs, uses, brief };
 }
 
 /** The refusal for an approval, before the plan's status flips. */
@@ -303,7 +256,7 @@ async function reportApproved(
 async function startSpecPass(
   deps: FloorPlanDeps,
   line: FloorPlanLine | null,
-  { plan, planMarkdown, citablePlan, brief, storyIssue }: FloorPlanMarkdown,
+  { plan, planMarkdown, citablePlan, brief }: FloorPlanMarkdown,
 ): Promise<string> {
   const planMd = await storeMarkdown(deps.floor, planMarkdown);
   const { plan_blocks: planBlocks } = await storeCitable(
@@ -317,7 +270,6 @@ async function startSpecPass(
     planBlocks,
     brief,
     entry: SPEC_WORK_ENTRY,
-    storyIssue,
   });
 }
 
@@ -328,30 +280,33 @@ interface PlanRunStart {
   planBlocks?: string;
   brief: string;
   entry?: string;
-  storyIssue?: number;
 }
 
-// A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis.
-async function startPlanRun(
+// A start that names an entry skips the nodes before it: the plan is settled, so the run opens at the spec analysis, or a person asked for one agent and the run opens at it.
+export async function startPlanRun(
   deps: FloorPlanDeps,
   previous: FloorPlanLine | null,
   start: PlanRunStart,
 ): Promise<string> {
   const { plan, entry } = start;
-  const storyIssue = start.storyIssue ?? previous?.storyIssue ?? undefined;
+  const storyIssue = storyOf(
+    await deps.savedStory(plan.id),
+    previous?.storyIssue,
+  );
   const started = await startLine(deps.floor.lines, PLANNING_DEFINITION, {
     repo: floorRepoOf(plan.repo),
-    startItems: await startItemsOf(deps, { ...start, storyIssue }),
+    startItems: await startItemsOf(deps, start, storyIssue),
     ...(entry ? { entry } : {}),
   });
 
   return started.run.id;
 }
 
-/** What a planning run is started with: the spec branch to write on, the base the grounding and validation read, the plan, this round's brief and the user story it answers, when it names one. */
+/** What a planning run is started with: the spec branch to write on, the base the grounding and validation read, the plan, this round's brief and the user story the plan has, when it has one. */
 async function startItemsOf(
   deps: FloorPlanDeps,
-  { plan, planMd, planBlocks, brief, storyIssue }: PlanRunStart,
+  { plan, planMd, planBlocks, brief }: PlanRunStart,
+  storyIssue: number | null,
 ): Promise<Record<string, ReturnType<typeof valueItem>>> {
   const [branch, base] = await Promise.all([
     deps.specBranch(plan),

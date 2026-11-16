@@ -220,7 +220,8 @@ export function applyRequestBody(
 
   if (selfHandlesBody(route)) {
     coverage.selfHandled.push(key);
-    applySelfHandledBody(op, route);
+    op.description =
+      "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
 
     return;
   }
@@ -238,38 +239,6 @@ function selfHandlesBody(route: ServerRoute): boolean {
   const payload = optionsOf(route).payload as { parse?: boolean } | undefined;
 
   return payload?.parse === false;
-}
-
-/** Parse:false route with real API surface (NDJSON) declared via options.app.rawBody; not webhook. */
-interface RawBodyMeta {
-  contentType: string;
-  description: string;
-}
-
-/** Self-handled body: handler verifies it, not JSON parsing; publish declared shape or note. */
-function applySelfHandledBody(
-  op: { description?: string; requestBody?: JsonSchema },
-  route: ServerRoute,
-): void {
-  const raw = rawBodyOf(route);
-
-  if (!raw) {
-    op.description =
-      "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
-
-    return;
-  }
-  op.description = raw.description;
-  op.requestBody = {
-    required: true,
-    content: { [raw.contentType]: { schema: { type: "string" } } },
-  };
-}
-
-function rawBodyOf(route: ServerRoute): RawBodyMeta | undefined {
-  const app = optionsOf(route).app as { rawBody?: RawBodyMeta } | undefined;
-
-  return app?.rawBody;
 }
 
 const FREEFORM_BODY: JsonSchema = {

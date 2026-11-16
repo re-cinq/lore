@@ -11,6 +11,7 @@ import {
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
 import { withPool, type PooledHandler } from "../with-pool.js";
+import { evalOrRefusal } from "./eval-failure.js";
 import { assembleForTicket } from "../../../work/context-evals/assembled-for-eval.js";
 import {
   evaluateTicket,
@@ -87,11 +88,13 @@ const serveTicketEval: PooledHandler = async (
   } = request.payload as z.infer<typeof TicketEvalBody>;
 
   return h.response(
-    await evaluateTicket(depsOverride ?? ticketDeps(pool), {
-      repo,
-      ticket,
-      backend,
-    }),
+    await evalOrRefusal(() =>
+      evaluateTicket(depsOverride ?? ticketDeps(pool), {
+        repo,
+        ticket,
+        backend,
+      }),
+    ),
   );
 };
 

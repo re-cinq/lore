@@ -4,8 +4,10 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import type { WebSocket, WebSocketServer } from "ws";
 import { LIVE_SOCKET_PATH } from "./protocol.js";
+import { originAllowed, sessionCookieOf } from "./socket-session.js";
 import { urlOf } from "./web-request.js";
 
+const FORBIDDEN = "403 Forbidden";
 const MAX_SOCKETS = 2_000;
 const MAX_SOCKETS_PER_ADDRESS = 20;
 
@@ -21,6 +23,12 @@ export interface UpgradeGateDeps {
   maxSocketsPerAddress?: number;
 }
 
+interface PendingUpgrade {
+  request: IncomingMessage;
+  socket: Duplex;
+  head: Buffer;
+}
+
 /** Another mount (the plans library's) shares the listener; a foreign path is its business and is left untouched. */
 export class UpgradeGate<Deps extends UpgradeGateDeps> {
   private readonly held = new Map<string, number>();
@@ -32,6 +40,7 @@ export class UpgradeGate<Deps extends UpgradeGateDeps> {
       ws: WebSocket,
       request: IncomingMessage,
       deps: Deps,
+      sessionToken: string | undefined,
     ) => void,
   ) {}
 
@@ -44,19 +53,29 @@ export class UpgradeGate<Deps extends UpgradeGateDeps> {
       return;
     }
     const address = this.addressOf(request);
-    const refusal = this.refusal(address);
+    const sessionToken = sessionCookieOf(request.headers.cookie);
+    const refusal =
+      foreignSession(request, sessionToken) ?? this.refusal(address);
 
     if (refusal) {
       refuseUpgrade(socket, refusal);
 
       return;
     }
+    this.accept({ request, socket, head }, address, sessionToken);
+  };
+
+  private accept(
+    { request, socket, head }: PendingUpgrade,
+    address: string | undefined,
+    sessionToken: string | undefined,
+  ): void {
     this.sockets.handleUpgrade(request, socket, head, (ws) => {
       this.admit(address);
       ws.on("close", () => this.release(address));
-      this.serve(ws, request, this.deps);
+      this.serve(ws, request, this.deps, sessionToken);
     });
-  };
+  }
 
   private addressOf(request: IncomingMessage): string | undefined {
     return this.deps.limits?.addressOf(request);
@@ -104,9 +123,21 @@ export class UpgradeGate<Deps extends UpgradeGateDeps> {
   }
 }
 
+/** A cookie socket opened by another site would speak as the person: refused before it is admitted. */
+function foreignSession(
+  request: IncomingMessage,
+  sessionToken: string | undefined,
+): string | null {
+  return sessionToken !== undefined && !originAllowed(request.headers.origin)
+    ? FORBIDDEN
+    : null;
+}
+
 function refuseUpgrade(socket: Duplex, status: string): void {
+  const retryAfter = status === FORBIDDEN ? "" : "Retry-After: 60\r\n";
+
   socket.write(
-    `HTTP/1.1 ${status}\r\nRetry-After: 60\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
+    `HTTP/1.1 ${status}\r\n${retryAfter}Connection: close\r\nContent-Length: 0\r\n\r\n`,
   );
   socket.destroy();
 }

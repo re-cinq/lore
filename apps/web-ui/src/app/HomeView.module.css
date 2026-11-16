@@ -178,6 +178,7 @@
   font-size: var(--fs-lg);
   font-weight: var(--fw-medium);
   color: var(--text);
+  white-space: nowrap;
 }
 
 .statLabel {

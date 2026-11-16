@@ -2,12 +2,10 @@
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { healthzRoute } from "./routes/healthz/healthz.js";
-import { llmStatusRoute } from "./routes/platform/llm-status.js";
-import { distRoute } from "./routes/dist/dist.js";
+import { selfRoutes } from "./routes/platform/platform-routes.js";
 import { authRoutes } from "./routes/auth/auth-routes.js";
 import { repoStatusRoute } from "./routes/repos/repo-status.js";
-import { reposRoute } from "./routes/repos/repos.js";
+import { reposRoutes } from "./routes/repos/repos.js";
 import { repoRecordRoute } from "./routes/repos/repo-record.js";
 import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
@@ -31,6 +29,7 @@ import { timelineRoute } from "./routes/tasks/task-timeline.js";
 import { taskViewRoutes } from "./routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "./routes/assembly-lines/assembly-lines.js";
 import { runReadRoute } from "./routes/assembly-lines/run-read.js";
+import { runPullFilesRoute } from "./routes/assembly-lines/run-pull-files.js";
 import { runDodRoute } from "./routes/assembly-lines/run-dod.js";
 import { floorRunsStreamTokenRoute } from "./routes/floor/floor-runs-stream-token.js";
 import { runStreamTokenRoute } from "./routes/assembly-lines/run-stream-token.js";
@@ -39,7 +38,6 @@ import {
   taskLogsGetRoute,
   taskLogsPostRoute,
 } from "./routes/tasks/task-logs.js";
-import { taskTurnsPostRoute } from "./routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "./routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "./routes/tasks/task-post.js";
 import { taskGroupRoute } from "./routes/tasks/task-group.js";
@@ -87,6 +85,7 @@ import { traceAdrsRoute } from "./routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "./routes/trace/trace-specs.js";
 import { traceOverlayDropRoute } from "./routes/trace/trace-overlay-drop.js";
 import { plansRoutes } from "./routes/plans/plans.js";
+import { planRunStreamTokenRoute } from "./routes/plans/plan-run-stream-token.js";
 import { planLifecycleRoutes } from "./routes/plans/plan-lifecycle.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
@@ -160,12 +159,10 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
   ];
 }
 
-/** The service describing and serving itself: health, model status, the binary, and the OpenAPI docs. */
+/** The service describing and serving itself: health, model status, the versions of every part, the binary, and the OpenAPI docs. */
 function platformRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    healthzRoute(getPool),
-    llmStatusRoute(getPool),
-    distRoute(),
+    ...selfRoutes(getPool),
     openApiJsonRoute(getPool, routeList),
     docsRoute(getPool, routeList),
   ];
@@ -175,7 +172,7 @@ function platformRoutes(getPool: PoolGetter): ServerRoute[] {
 function repoRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     repoStatusRoute(getPool),
-    reposRoute(getPool),
+    ...reposRoutes(getPool),
     repoRecordRoute(),
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
@@ -219,9 +216,11 @@ function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     runReadRoute(getPool),
+    runPullFilesRoute(getPool),
     runDodRoute(getPool),
     runStreamTokenRoute(getPool),
     floorRunsStreamTokenRoute(getPool),
+    planRunStreamTokenRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -237,7 +236,6 @@ function backlogRoutes(
 ): ServerRoute[] {
   return [
     taskLogsPostRoute(),
-    taskTurnsPostRoute(getPool),
     ...plansRoutes(getPool, plans),
     ...planLifecycleRoutes({ ...plans, service: plans.service!, getPool }),
     ...implementationLoopRoutes(getPool),

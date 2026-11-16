@@ -17,7 +17,8 @@ import {
   type PlanLifecyclePorts,
 } from "./plan-lifecycle.js";
 import { plansRoutes } from "./plans.js";
-import { specBranchOf } from "../../../work/plans/spec-branch.js";
+import { specBranchOf } from "@re-cinq/lore-shared/feature-planning/spec-branch.js";
+import type { SavedStory } from "../../../work/plans/plan-stories.js";
 
 const originalEnv = { ...process.env };
 const REPO = "re-cinq/lore";
@@ -58,7 +59,12 @@ const REFINE = {
 };
 
 function subject(
-  given: { runs?: boolean; visits?: object[]; status?: string } = {},
+  given: {
+    runs?: boolean;
+    visits?: object[];
+    status?: string;
+    savedStory?: SavedStory;
+  } = {},
 ) {
   const recorded = recordedPlanFloor({
     runs: given.runs === false ? [] : [planRun()],
@@ -83,6 +89,7 @@ function subject(
       baseBranch: () => Promise.resolve("main"),
       specPrState: () => Promise.resolve(null),
       recordRefineAsk: () => Promise.resolve(),
+      savedStory: async () => given.savedStory,
       pulls: {
         listReviewThreads: async () => [],
         listComments: async () => [],
@@ -148,32 +155,21 @@ describe("the plan routes on a plan the floor holds", () => {
     ]);
   });
 
-  it("starts the run with story_issue 42 when drafting names user story 42", async () => {
-    const { server, requests } = subject({ runs: false });
+  it("starts the run with story_issue 12 when drafting a plan with story 12 saved", async () => {
+    const { server, requests } = subject({
+      runs: false,
+      savedStory: { issueNumber: 12 },
+    });
 
     const res = await post(server, "drafting", {
       known: "Slow.",
       createdBy: "ana",
-      storyIssue: 42,
     });
 
     expect(answer(res)).toEqual({ status: 202, body: { task_id: "run-new" } });
     expect(requests.at(-1)?.body).toMatchObject({
-      startItems: { story_issue: { kind: "value", ref: "42" } },
+      startItems: { story_issue: { kind: "value", ref: "12" } },
     });
-  });
-
-  it("answers drafting with 400 and starts nothing when the user story is issue 0", async () => {
-    const { server, requests } = subject({ runs: false });
-
-    const res = await post(server, "drafting", {
-      known: "Slow.",
-      createdBy: "ana",
-      storyIssue: 0,
-    });
-
-    expect(res.statusCode).toBe(400);
-    expect(writes(requests)).toEqual([]);
   });
 
   it("answers refine with 202 and starts the analyze node, writing no blob since the ask travels in no bag", async () => {
@@ -215,6 +211,44 @@ describe("the plan routes on a plan the floor holds", () => {
 
     expect(answer(res)).toEqual({ status: 202, body: { run_id: "run-open" } });
     expect(writes(requests)).toEqual(["/events"]);
+  });
+
+  it("answers prototype with 202 and run-open, where the floor is asked to start the sketch node", async () => {
+    const { server, requests } = subject({ visits: ON_AUTHOR });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), writes: writes(requests) }).toEqual({
+      answer: { status: 202, body: { run_id: "run-open" } },
+      writes: ["/events"],
+    });
+  });
+
+  it("answers prototype with 202 and run-new when the plan has no planning run", async () => {
+    const { server, requests } = subject({ runs: false });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), start: requests.at(-1)?.body }).toMatchObject(
+      {
+        answer: { status: 202, body: { run_id: "run-new" } },
+        start: { entry: "sketch" },
+      },
+    );
+  });
+
+  it("answers prototype with 409 while the planning agent is still working on the plan", async () => {
+    const { server, requests } = subject({ visits: WHILE_ANALYZING });
+
+    const res = await post(server, "prototype", { actor: "gedaiu" });
+
+    expect({ answer: answer(res), writes: writes(requests) }).toEqual({
+      answer: {
+        status: 409,
+        body: { error: "the planning agent is still working on this plan" },
+      },
+      writes: [],
+    });
   });
 
   it("answers spec-rework with 409 for a plan with no planning run", async () => {
@@ -283,37 +317,32 @@ describe("the user story a run started from the plan page carries", () => {
     process.env = { ...originalEnv };
   });
 
-  it("starts the run with story_issue 42 when a refine with no round waiting names user story 42", async () => {
-    const { server, requests } = subject({ runs: false });
+  it("starts the run with story_issue 12 when a refine with no round waiting finds story 12 saved", async () => {
+    const { server, requests } = subject({
+      runs: false,
+      savedStory: { issueNumber: 12 },
+    });
 
-    const res = await post(server, "refine", { ...REFINE, storyIssue: 42 });
+    const res = await post(server, "refine", REFINE);
 
     expect(res.statusCode).toBe(202);
     expect(requests.at(-1)?.body).toMatchObject({
-      startItems: { story_issue: { kind: "value", ref: "42" } },
+      startItems: { story_issue: { kind: "value", ref: "12" } },
     });
   });
 
-  it("answers refine with 400 and starts nothing when the user story is issue 0", async () => {
-    const { server, requests } = subject({ runs: false });
-
-    const res = await post(server, "refine", { ...REFINE, storyIssue: 0 });
-
-    expect(res.statusCode).toBe(400);
-    expect(writes(requests)).toEqual([]);
-  });
-
-  it("starts the spec pass with story_issue 42 when spec-work names user story 42", async () => {
-    const { server, requests } = subject({ runs: false, status: "approved" });
-
-    const res = await post(server, "spec-work", {
-      createdBy: "ana",
-      storyIssue: 42,
+  it("starts the spec pass with story_issue 12 when story 12 is saved on the approved plan", async () => {
+    const { server, requests } = subject({
+      runs: false,
+      status: "approved",
+      savedStory: { issueNumber: 12 },
     });
+
+    const res = await post(server, "spec-work", { createdBy: "ana" });
 
     expect(res.statusCode).toBe(202);
     expect(requests.at(-1)?.body).toMatchObject({
-      startItems: { story_issue: { kind: "value", ref: "42" } },
+      startItems: { story_issue: { kind: "value", ref: "12" } },
     });
   });
 });

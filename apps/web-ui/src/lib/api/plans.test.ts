@@ -15,6 +15,8 @@ const {
   seedPlan,
   startDrafting,
   askRefine,
+  readPlanStory,
+  savePlanStory,
 } = await import("./plans");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -187,5 +189,31 @@ describe("plans client", () => {
       method: "POST",
       body: refine,
     });
+  });
+
+  it("reads the user story of plan p1 from its story route", async () => {
+    await readPlanStory("p1");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/plans/p1/story",
+      method: "GET",
+      body: undefined,
+    });
+  });
+
+  it("saves story 12 on plan p1 set by gedaiu", async () => {
+    await savePlanStory("p1", 12, "gedaiu");
+
+    expect(request()).toEqual({
+      url: "http://api:3000/api/plans/p1/story",
+      method: "POST",
+      body: { issueNumber: 12, setBy: "gedaiu" },
+    });
+  });
+
+  it("saves the removal of plan p1's story as a null issue number", async () => {
+    await savePlanStory("p1", null, "gedaiu");
+
+    expect(request().body).toEqual({ issueNumber: null, setBy: "gedaiu" });
   });
 });

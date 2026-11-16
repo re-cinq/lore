@@ -11,6 +11,7 @@ const MERGED = {
   merged: true,
   base_ref: "main",
   merge_commit_sha: "abc123",
+  branch: "lore/feature-planning/p1",
 };
 
 describe("specMergeOf", () => {
@@ -21,6 +22,7 @@ describe("specMergeOf", () => {
       merged: true,
       baseRef: "main",
       mergeCommitSha: "abc123",
+      branch: "lore/feature-planning/p1",
     });
   });
 

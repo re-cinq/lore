@@ -13,9 +13,9 @@ The `lore-query-trace` MCP tool proxies a read to the remote `/trace/document` r
 
 ## Interface
 
-Registered via `server.tool` ([registration@cf264dab](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69)).
+Registered via `server.tool` ([registration@cf264dab](apps/mcp-server/src/transport/tools/spec-trace/query-trace.ts#L69), [validated by registers the domain's tools in order @8b744b0f](apps/mcp-server/src/transport/tools/spec-trace/index.test.ts#L6)).
 
-- **name**: `lore-query-trace`
+- **name**: `lore-query-trace` ([validated by registers the domain's tools in order @8b744b0f](apps/mcp-server/src/transport/tools/spec-trace/index.test.ts#L6))
 - **description** (verbatim):
 
 ```text

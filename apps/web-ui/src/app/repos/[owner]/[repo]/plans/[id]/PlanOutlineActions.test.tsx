@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import type { PlanPageState } from "@/lib/plan-page-state";
+import type { PlanStory } from "@/lib/api/plans";
 import PlanOutlineActions from "./PlanOutlineActions";
 
 const refresh = vi.fn();
@@ -26,11 +27,18 @@ const actions = {
   validate: vi.fn(async () => ({})),
 };
 
+interface OutlineOptions {
+  prUnresolvedThreads?: number | null;
+  story?: PlanStory | null;
+}
+
+const NO_OUTLINE_OPTIONS = { prUnresolvedThreads: null, story: null };
+
 const outline = (
   state: PlanPageState,
   pr: number | null = null,
   prTitle: string | null = null,
-  prUnresolvedThreads: number | null = null,
+  options: OutlineOptions = {},
 ) =>
   render(
     <PlanOutlineActions
@@ -39,7 +47,7 @@ const outline = (
       prUrl={pr ? `https://github.com/re-cinq/lore/pull/${pr}` : null}
       prNumber={pr}
       prTitle={prTitle}
-      prUnresolvedThreads={prUnresolvedThreads}
+      {...{ ...NO_OUTLINE_OPTIONS, ...options }}
       {...actions}
     />,
   );
@@ -161,7 +169,9 @@ describe("PlanOutlineActions", () => {
   });
 
   it("counts 3 unresolved comments under spec PR #7 while it waits for review", () => {
-    outline("spec-pr-open", 7, "spec: Faster checkout", 3);
+    outline("spec-pr-open", 7, "spec: Faster checkout", {
+      prUnresolvedThreads: 3,
+    });
 
     expect(
       screen.getByRole("region", { name: "Spec waiting for review" }),
@@ -169,13 +179,15 @@ describe("PlanOutlineActions", () => {
   });
 
   it("says spec PR #7 has no unresolved comments while it waits for review, and nothing once it merged", () => {
-    const { unmount } = outline("spec-pr-open", 7, null, 0);
+    const { unmount } = outline("spec-pr-open", 7, null, {
+      prUnresolvedThreads: 0,
+    });
     const waiting = screen.getByRole("region", {
       name: "Spec waiting for review",
     }).textContent;
 
     unmount();
-    outline("delivered", 7, null, 0);
+    outline("delivered", 7, null, { prUnresolvedThreads: 0 });
 
     expect({
       waiting,
@@ -236,7 +248,7 @@ describe("PlanOutlineActions", () => {
     );
   });
 
-  it("shows why lore-api refused a Refine as an alert at the top of the outline's actions", () => {
+  it("shows why lore-api refused a Refine as an alert right under the story link", () => {
     const refusal =
       "The plan is approved, so its sections are settled; reopen the plan to write again.";
     const { container } = render(
@@ -247,15 +259,73 @@ describe("PlanOutlineActions", () => {
         prNumber={null}
         prTitle={null}
         prUnresolvedThreads={null}
+        story={null}
         refusal={refusal}
         {...actions}
       />,
     );
-    const first = container.firstElementChild?.firstElementChild;
+    const first = container.firstElementChild?.children[1];
 
     expect({
       role: first?.getAttribute("role"),
       text: first?.textContent,
     }).toEqual({ role: "alert", text: refusal });
+  });
+});
+
+const LINKED_STORY: PlanStory = {
+  issueNumber: 123,
+  issueUrl: "https://github.com/re-cinq/lore/issues/123",
+};
+
+describe("PlanOutlineActions user story", () => {
+  it("links Linked to #123 to the issue, in a new tab", () => {
+    outline("writing", null, null, { story: LINKED_STORY });
+    const link = screen.getByRole("link", { name: "Linked to #123" });
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+      leavesThePage: within(link).queryByTestId("icon-external") !== null,
+    }).toEqual({
+      href: "https://github.com/re-cinq/lore/issues/123",
+      target: "_blank",
+      leavesThePage: true,
+    });
+  });
+
+  it("says No user story linked for a plan whose story is removed", () => {
+    outline("writing", null, null, {
+      story: { issueNumber: null, issueUrl: null },
+    });
+
+    expect({
+      text: screen.getByText("No user story linked").textContent,
+      links: screen.queryAllByRole("link"),
+    }).toEqual({ text: "No user story linked", links: [] });
+  });
+
+  it("says No user story linked while the story could not be read", () => {
+    outline("writing");
+
+    expect(screen.getByText("No user story linked")).toBeInTheDocument();
+  });
+
+  it("draws the story link before the spec PR and the draft actions", () => {
+    outline("writing", 7, "Spec for checkout", {
+      prUnresolvedThreads: 0,
+      story: LINKED_STORY,
+    });
+    const story = screen.getByRole("link", { name: "Linked to #123" });
+    const specPr = screen.getByRole("link", { name: /Spec for checkout/ });
+    const validate = screen.getByRole("button", { name: "Validate the plan" });
+
+    expect({
+      beforeSpecPr: story.compareDocumentPosition(specPr),
+      beforeValidate: story.compareDocumentPosition(validate),
+    }).toEqual({
+      beforeSpecPr: Node.DOCUMENT_POSITION_FOLLOWING,
+      beforeValidate: Node.DOCUMENT_POSITION_FOLLOWING,
+    });
   });
 });

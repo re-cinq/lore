@@ -17,7 +17,7 @@ import {
 } from "./github-read.js";
 
 // A GitHub read, not a table read, so this shape is stated rather than derived; mirrors `PullFileChange` in @re-cinq/lore-shared.
-const PullFilesSchema = z.object({
+export const PullFilesSchema = z.object({
   files: z.array(
     z.object({
       filename: z.string(),
@@ -57,8 +57,17 @@ async function servePullFiles(
 ): Promise<ResponseObject> {
   const { owner, repo, number } = request.params as unknown as RepoNumberParams;
 
+  return pullFilesOf(`${owner}/${repo}`, number, h);
+}
+
+/** The changed files of one pull request of an onboarded repo, as this route and the run's own `pull-files` route answer them. */
+export async function pullFilesOf(
+  repo: string,
+  number: number,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
   try {
-    const project = await onboardedProject(`${owner}/${repo}`);
+    const project = await onboardedProject(repo);
     const files = await project.pulls.listFileChanges(number);
 
     return h.response({ files });

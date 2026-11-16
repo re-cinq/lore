@@ -123,6 +123,20 @@ describe("the delivering recipes", () => {
     }
   });
 
+  it("documents all three provenance forms in loop-tdd-round — inline spec link, lore:validates annotation, and Lore-Validates trailer", () => {
+    const round = promptOf("loop-tdd-round");
+
+    expect({
+      inlineLink: round.includes("([validated by name](path/to/test.ts#L42))"),
+      annotation: round.includes("// lore:validates"),
+      trailer: round.includes("Lore-Validates: <specPath>#<ordinal>"),
+    }).toEqual({
+      inlineLink: true,
+      annotation: true,
+      trailer: true,
+    });
+  });
+
   it("tells every delivering recipe to bring its branch up to date with the base before it stops", () => {
     for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = promptOf(name);
@@ -399,7 +413,7 @@ describe("the feature-planning recipe", () => {
       ),
       askInstead: prompt.includes("ask with `add-question` instead"),
       everyInput: prompt.includes(
-        "Write in every settled input the brief lists",
+        "Write in every answered question the brief lists",
       ),
     }).toEqual({
       unreviewed: true,
@@ -935,6 +949,136 @@ describe("the planning recipes check a plan against what the platform has (issue
       protectedSections: true,
       noLongerForbidden: false,
     });
+  });
+});
+
+describe("the planning agent on a resolved thread", () => {
+  it("tells the planning agent to act on where a resolved thread ends and to change nothing for one whose people did the work", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      readToTheEnd: prompt.includes(
+        "Read each resolved thread to its last message and do what it ends on",
+      ),
+      leftAlone: prompt.includes(
+        "did the work themselves, said they will, or agreed nothing is needed, or the plan already holds what they asked for, change nothing for it",
+      ),
+    }).toEqual({ readToTheEnd: true, leftAlone: true });
+  });
+});
+
+describe("the sketch agent", () => {
+  it("tells the sketch agent to write each sketch with add-mockup", () => {
+    const prompt = promptOnOneLine("plan-sketch");
+
+    expect({
+      planIdSlot: prompt.includes("lore_plan_read {plan_id}"),
+      addMockup: prompt.includes('"op": "add-mockup"'),
+      idForm: prompt.includes("m-<kind>-<n>"),
+      removeBlock: prompt.includes('"op": "remove-block", "slot": "prototype"'),
+      neverSetPrototype: prompt.includes("Never send `set-prototype`"),
+      passRepo: prompt.includes(
+        "Pass `repo` (the owner/name your task names above) on every `lore_*` call",
+      ),
+      result: prompt.includes('LORE_NODE_RESULT: {"outcome":"success"}'),
+    }).toEqual({
+      planIdSlot: true,
+      addMockup: true,
+      idForm: true,
+      removeBlock: true,
+      neverSetPrototype: true,
+      passRepo: true,
+      result: true,
+    });
+  });
+
+  it("tells the sketch agent to add a section after prototype, one sub-heading per item, when a resolved thread ends on asking for text", () => {
+    const prompt = promptOnOneLine("plan-sketch");
+
+    expect({
+      addSection: prompt.includes('"op": "add-section", "slot": "custom-'),
+      afterPrototype: prompt.includes('"after": "prototype"'),
+      subHeadingPerItem: prompt.includes("one `### ` sub-heading per item"),
+      ownSectionRewritten: prompt.includes(
+        '"op": "set-section-text", "slot": "custom-',
+      ),
+    }).toEqual({
+      addSection: true,
+      afterPrototype: true,
+      subHeadingPerItem: true,
+      ownSectionRewritten: true,
+    });
+  });
+
+  it("tells the sketch agent to change nothing for a thread whose people did the work themselves", () => {
+    expect(promptOnOneLine("plan-sketch")).toContain(
+      "did the work themselves, said they will, or agreed nothing is needed: change nothing",
+    );
+  });
+
+  it("tells the sketch agent to ask with add-question on prototype what the plan does not decide", () => {
+    expect(promptOnOneLine("plan-sketch")).toContain(
+      '"op": "add-question", "slot": "prototype"',
+    );
+  });
+
+  it("links the seven prototype skills to the sketch agent", () => {
+    expect(SHIPPED.get("plan-sketch")?.config?.skills).toEqual([
+      "lore-context",
+      "prototype-architecture",
+      "prototype-flows",
+      "prototype-ui",
+      "prototype-data-model",
+      "prototype-states",
+      "prototype-api",
+      "prototype-text-output",
+    ]);
+  });
+
+  it("tells plan-analyze to leave the Prototype section to the sketch agent unless a person gave a prototype URL", () => {
+    const prompt = promptOnOneLine("plan-analyze");
+
+    expect({
+      sketchAgentsSection: prompt.includes(
+        "The Prototype section is the sketch agent's",
+      ),
+      urlOnly: prompt.includes(
+        "Send `set-prototype` only with a prototype URL a person gave",
+      ),
+    }).toEqual({ sketchAgentsSection: true, urlOnly: true });
+  });
+});
+
+describe("the plan's sketches downstream", () => {
+  const writers = ["spec-draft", "spec-rework"];
+
+  it("tells spec-draft to copy mermaid sketches into the spec", () => {
+    expect(
+      writers.map((name) =>
+        promptOnOneLine(name).includes(
+          "Put each `mockup-mermaid` sketch into that section as a ```mermaid block",
+        ),
+      ),
+    ).toEqual([true, true]);
+  });
+
+  it("tells spec-draft to save screen sketches under sketches/", () => {
+    expect(
+      writers.map((name) =>
+        promptOnOneLine(name).includes(
+          "`specs/<feature>/sketches/<mockupId>.<html|svg|txt>`",
+        ),
+      ),
+    ).toEqual([true, true]);
+  });
+
+  it("tells the ticket decomposer to name a ticket's sketch file", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      readsSketches: prompt.includes("`sketches/` folder beside the spec"),
+      namesFile: prompt.includes("names its sketch file"),
+    }).toEqual({ readsSketches: true, namesFile: true });
   });
 });
 
