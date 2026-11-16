@@ -1,9 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, symlinkSync, mkdirSync, chmodSync, readFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  symlinkSync,
+  mkdirSync,
+  chmodSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withReadCache } from "./proxy.js";
-import { buildKey, readFresh, store, isCacheEnabled, type ReadCachePolicy } from "./proxy-cache.js";
+import {
+  buildKey,
+  readFresh,
+  store,
+  isCacheEnabled,
+  type ReadCachePolicy,
+} from "./proxy-cache.js";
 
 let dir: string;
 
