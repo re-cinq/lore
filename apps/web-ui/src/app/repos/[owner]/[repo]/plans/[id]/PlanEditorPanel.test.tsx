@@ -20,8 +20,18 @@ const editorProps = vi.hoisted(
 vi.mock("@/lib/live-socket/LiveSocketProvider", () => ({
   useLiveSocket: () => client,
 }));
+const collab = vi.hoisted(() => ({ token: async () => "" }));
+
 vi.mock("@/lib/live-socket/plan-provider", () => ({
-  planProvider: () => ({ provider: {}, destroy: vi.fn() }),
+  planProvider: (
+    _client: unknown,
+    _name: string,
+    token: () => Promise<string>,
+  ) => {
+    collab.token = token;
+
+    return { provider: {}, destroy: vi.fn() };
+  },
 }));
 vi.mock("@re-cinq/planning-editor", () => ({
   PlanEditor: (received: typeof editorProps) => {
@@ -76,6 +86,22 @@ describe("PlanEditorPanel", () => {
       opened: first.mock.calls.length + second.mock.calls.length,
       destroyed: destroy.mock.calls.length,
     }).toEqual({ opened: 1, destroyed: 0 });
+  });
+
+  it("connects plan p1 first with the token the page rendered with, and asks for a fresh one on each reconnect", async () => {
+    const openSocket = vi
+      .fn()
+      .mockResolvedValueOnce({ documentName: "plan:p1", token: "t-page" })
+      .mockResolvedValue({ documentName: "plan:p1", token: "t-fresh" });
+    const view = render(<PlanEditorPanel {...props(openSocket)} />);
+
+    await waitFor(() => expect(view.getByText("editor")).toBeTruthy());
+    const tokens = [await collab.token(), await collab.token()];
+
+    expect({ tokens, opened: openSocket.mock.calls.length }).toEqual({
+      tokens: ["t-page", "t-fresh"],
+      opened: 2,
+    });
   });
 
   it("draws the editor's shape, named Connecting…, while plan p1's socket opens", () => {

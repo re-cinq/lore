@@ -52,20 +52,21 @@ const UNKNOWN: ChannelFold = {
   ),
 };
 
-/** Follows the plan's run on its own channel. `token` opens the first channel; every later open (a reconnect, a refused token, Retry) asks `mintToken` for a fresh one. */
+/** Follows the plan's run on its own channel. `token` opens the first channel; every later open (a reconnect, a refused token, Retry) asks `mintToken` for a fresh one. A page with no signed-in person has no `mintToken`, so it opens no channel and knows no run. */
 export function usePlanRunChannel(
   planId: string,
   token: string | null,
-  mintToken: MintToken,
+  mintToken: MintToken | null,
 ): PlanRunChannel {
+  const signedIn = mintToken !== null;
   const client = useLiveSocket();
   const [fold, dispatch] = useReducer(reduceChannel, UNKNOWN);
   const [attempt, setAttempt] = useState(0);
   const tokens = useTokenSource(token, mintToken);
 
   useEffect(
-    () => followPlanRun({ planId, client, tokens, dispatch }),
-    [planId, client, tokens, attempt],
+    () => followPlanRun({ planId, client, tokens, dispatch, signedIn }),
+    [planId, client, tokens, attempt, signedIn],
   );
   const retry = useCallback(() => {
     dispatch({ type: "reopened" });
@@ -80,10 +81,17 @@ interface Follow {
   client: LiveSocketClient | null;
   tokens: { current: () => Promise<string> };
   dispatch: (action: FoldAction) => void;
+  signedIn: boolean;
 }
 
-/** One attempt on the channel; returns its teardown. Without a socket there is nothing to open, and the run can never be known. */
+/** One attempt on the channel; returns its teardown. With no one signed in there is no run to show; without a socket there is nothing to open, and the run can never be known. */
 function followPlanRun(follow: Follow) {
+  if (!follow.signedIn) {
+    follow.dispatch({ type: "plan_run", run: null });
+
+    return undefined;
+  }
+
   if (follow.client === null) {
     follow.dispatch({ type: "failed" });
 
@@ -100,6 +108,7 @@ function followPlanRun(follow: Follow) {
 class PlanRunAttempt {
   private known = false;
   private reopened = false;
+  private stopped = false;
   private handle = { close: () => {} };
   private deadline: ReturnType<typeof setTimeout> | undefined;
 
@@ -114,6 +123,7 @@ class PlanRunAttempt {
   }
 
   stop(): void {
+    this.stopped = true;
     clearTimeout(this.deadline);
     this.handle.close();
   }
@@ -144,7 +154,11 @@ class PlanRunAttempt {
       return;
     }
     this.reopened = true;
+    // A page unmounted before the microtask runs has closed the channel; reopening it then would leave it open.
     queueMicrotask(() => {
+      if (this.stopped) {
+        return;
+      }
       this.handle.close();
       this.handle = this.open();
     });
@@ -158,7 +172,7 @@ class PlanRunAttempt {
 }
 
 /** The page's token for the first open, then a fresh one from `mintToken` for every open after it. A refused mint throws, which the socket client reads as a failed open and retries after a pause. */
-function useTokenSource(token: string | null, mintToken: MintToken) {
+function useTokenSource(token: string | null, mintToken: MintToken | null) {
   const unused = useRef(token);
   const latestMint = useRef(mintToken);
   const source = useRef(async () => {
@@ -176,8 +190,10 @@ function useTokenSource(token: string | null, mintToken: MintToken) {
   return source;
 }
 
-async function mintedToken(mintToken: MintToken): Promise<string> {
-  const minted = await mintToken();
+async function mintedToken(mintToken: MintToken | null): Promise<string> {
+  const minted = mintToken
+    ? await mintToken()
+    : { error: "No one is signed in." };
 
   if ("error" in minted) {
     throw new Error(minted.error);

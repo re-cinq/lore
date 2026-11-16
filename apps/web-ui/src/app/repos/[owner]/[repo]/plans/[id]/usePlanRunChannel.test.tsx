@@ -197,6 +197,43 @@ describe("usePlanRunChannel", () => {
     });
   });
 
+  it("opens no channel for a page no one is signed in to, and knows plan p1 shows no run", async () => {
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <LiveSocketProvider url="ws://test/api/ws" socket={FakeWebSocket}>
+        {children}
+      </LiveSocketProvider>
+    );
+    const { result } = renderHook(() => usePlanRunChannel("p1", null, null), {
+      wrapper,
+    });
+
+    await flush();
+
+    expect({
+      state: result.current.state,
+      run: result.current.run,
+      opens: FakeWebSocket.instances.flatMap((socket) => socket.opens),
+      minted: mint.mock.calls.length,
+    }).toEqual({ state: "known", run: null, opens: [], minted: 0 });
+  });
+
+  it("opens nothing more when the page unmounts before a refused channel reopens", async () => {
+    const { unmount } = follow();
+    const channel = await socketUp();
+
+    act(() => {
+      FakeWebSocket.latest.receive({
+        type: "closed",
+        channel,
+        reason: "unauthorized",
+      });
+      unmount();
+    });
+    await flush();
+
+    expect(FakeWebSocket.latest.opens).toHaveLength(1);
+  });
+
   it("fails at once when no live socket is configured", () => {
     const { result } = follow(NO_SOCKET);
 

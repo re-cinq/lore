@@ -21,7 +21,7 @@ export default function PlanDetailLive(props: PlanDetailLiveProps) {
   const channel = usePlanRunChannel(
     rest.meta.id,
     planRunToken,
-    mintPlanRunToken,
+    rest.user ? mintPlanRunToken : null,
   );
   const openPlanSocket = useFirstThen(collabSocket, openSocket);
 

@@ -158,7 +158,7 @@ function useLatest<T>(value: T) {
 
 const NO_SOCKET = "The live socket is not configured (LORE_WS_URL).";
 
-// Every (re)connect asks the server for a fresh token, so a channel outlives its ten-minute token.
+// The first connect uses the token the socket came with (minted while the page rendered); every reconnect asks the server for a fresh one, so a channel outlives its ten-minute token.
 async function connectPlan(
   meta: PlanMeta,
   openSocket: PlanActions["openSocket"],
@@ -173,13 +173,30 @@ async function connectPlan(
   if ("error" in socket) {
     return socket;
   }
-  const token = async () => {
-    const again = await openSocketOrReload();
+  const token = tokenSource(socket.token, openSocketOrReload);
+
+  return { transport: planTransport(client, socket.documentName, meta, token) };
+}
+
+/** `first` once, then a fresh token from `openSocket` on every call after. */
+function tokenSource(
+  first: string,
+  openSocket: PlanActions["openSocket"],
+): () => Promise<string> {
+  let unused: string | null = first;
+
+  return async () => {
+    const token = unused;
+
+    unused = null;
+
+    if (token !== null) {
+      return token;
+    }
+    const again = await openSocket();
 
     return "token" in again ? again.token : "";
   };
-
-  return { transport: planTransport(client, socket.documentName, meta, token) };
 }
 
 /** The editor's transport on a plan channel of the shared socket; destroying it tears the provider and its channel down together. */
