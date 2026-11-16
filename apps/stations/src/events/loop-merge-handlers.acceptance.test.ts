@@ -80,7 +80,7 @@ describe("loopMergeHandlers acceptance", () => {
         "d-1",
       );
 
-      await close(event.params);
+      await close(event.params ?? {});
 
       expect({
         flipped,
