@@ -88,7 +88,9 @@ function gateReason(gates: LoopGates): string | null {
 }
 
 function isBusyNow(current: unknown): boolean {
-  if (current == null) {return false;}
+  if (current == null) {
+    return false;
+  }
 
   return !Array.isArray(current) || current.length > 0;
 }
