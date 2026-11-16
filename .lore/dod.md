@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Inspect the pull request body from the event to detect if it's a partial merge.
-- [ ] Skip the `closeIssue` call in `settleIssue` when a partial merge is detected.
+- [x] Inspect the pull request body from the event to detect if it's a partial merge.
+- [x] Skip the `closeIssue` call in `settleIssue` when a partial merge is detected.
 
 ## Out of scope
 
