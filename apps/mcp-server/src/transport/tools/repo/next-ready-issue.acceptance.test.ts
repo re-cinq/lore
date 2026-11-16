@@ -86,62 +86,62 @@ describe("lore_next_ready_issue tool", () => {
   });
 });
 
-  it("returns no issue and a reason when the loop is disabled", async () => {
-    const handler = handlerFor("lore_next_ready_issue");
+it("returns no issue and a reason when the loop is disabled", async () => {
+  const handler = handlerFor("lore_next_ready_issue");
 
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({
-      ok: true,
-      body: JSON.stringify({
-        enabled: false,
-        onboarding: { merged: true },
-        current: null,
-        next: [{ number: 42, title: "Next pick" }],
-      }),
-    });
-
-    const result = await handler({ repo: "acme/widgets" });
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed.issue).toBeNull();
-    expect(parsed.reason).toMatch(/disabled/i);
+  vi.mocked(proxyGetApi).mockResolvedValueOnce({
+    ok: true,
+    body: JSON.stringify({
+      enabled: false,
+      onboarding: { merged: true },
+      current: null,
+      next: [{ number: 42, title: "Next pick" }],
+    }),
   });
 
-  it("returns no issue and a reason when onboarding is unmerged", async () => {
-    const handler = handlerFor("lore_next_ready_issue");
+  const result = await handler({ repo: "acme/widgets" });
+  const parsed = JSON.parse(result.content[0].text);
 
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({
-      ok: true,
-      body: JSON.stringify({
-        enabled: true,
-        onboarding: { merged: false },
-        current: null,
-        next: [{ number: 42, title: "Next pick" }],
-      }),
-    });
+  expect(parsed.issue).toBeNull();
+  expect(parsed.reason).toMatch(/disabled/i);
+});
 
-    const result = await handler({ repo: "acme/widgets" });
-    const parsed = JSON.parse(result.content[0].text);
+it("returns no issue and a reason when onboarding is unmerged", async () => {
+  const handler = handlerFor("lore_next_ready_issue");
 
-    expect(parsed.issue).toBeNull();
-    expect(parsed.reason).toMatch(/onboarding/i);
+  vi.mocked(proxyGetApi).mockResolvedValueOnce({
+    ok: true,
+    body: JSON.stringify({
+      enabled: true,
+      onboarding: { merged: false },
+      current: null,
+      next: [{ number: 42, title: "Next pick" }],
+    }),
   });
 
-  it("returns no issue and a reason when the repo is already busy", async () => {
-    const handler = handlerFor("lore_next_ready_issue");
+  const result = await handler({ repo: "acme/widgets" });
+  const parsed = JSON.parse(result.content[0].text);
 
-    vi.mocked(proxyGetApi).mockResolvedValueOnce({
-      ok: true,
-      body: JSON.stringify({
-        enabled: true,
-        onboarding: { merged: true },
-        current: { issue_number: 10, title: "Busy" },
-        next: [{ number: 42, title: "Next pick" }],
-      }),
-    });
+  expect(parsed.issue).toBeNull();
+  expect(parsed.reason).toMatch(/onboarding/i);
+});
 
-    const result = await handler({ repo: "acme/widgets" });
-    const parsed = JSON.parse(result.content[0].text);
+it("returns no issue and a reason when the repo is already busy", async () => {
+  const handler = handlerFor("lore_next_ready_issue");
 
-    expect(parsed.issue).toBeNull();
-    expect(parsed.reason).toMatch(/working on an issue/i);
+  vi.mocked(proxyGetApi).mockResolvedValueOnce({
+    ok: true,
+    body: JSON.stringify({
+      enabled: true,
+      onboarding: { merged: true },
+      current: { issue_number: 10, title: "Busy" },
+      next: [{ number: 42, title: "Next pick" }],
+    }),
   });
+
+  const result = await handler({ repo: "acme/widgets" });
+  const parsed = JSON.parse(result.content[0].text);
+
+  expect(parsed.issue).toBeNull();
+  expect(parsed.reason).toMatch(/working on an issue/i);
+});
