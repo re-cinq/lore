@@ -1,4 +1,5 @@
 import { enforceTrue } from "../../../lib/enforce.js";
+import { githubHost } from "../../../domain/github-host.js";
 import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
@@ -141,7 +142,7 @@ export class GitCli implements GitPort {
   }
 
   private host(): string {
-    return this.env.LORE_GIT_HOST ?? "github.com";
+    return githubHost(this.env);
   }
 
   /** Per-invocation git auth args (http.extraheader) when a token is configured, keeping the token off disk; empty (harmless) with no token. */

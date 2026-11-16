@@ -1,3 +1,5 @@
+import { githubHost, githubUrls } from "./github-host.js";
+
 /** Convert file paths, issues, task UUIDs into links; protect existing code/links/URLs. */
 export interface RefContext {
   /** "owner/name" */
@@ -6,6 +8,8 @@ export interface RefContext {
   branch?: string;
   /** web-ui base url; when absent, task UUIDs are left as plain text */
   uiUrl?: string;
+  /** GitHub host the links point at; defaults to the configured one */
+  host?: string;
 }
 
 export interface Segment {
@@ -91,16 +95,20 @@ function hrefFor(
   if (group === "file") {
     const path = match.replace(/^\.\//, "");
 
-    return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
+    return `${repoWebUrl(ctx)}/blob/${ctx.branch || "main"}/${path}`;
   }
 
   if (group === "issue") {
-    return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+    return `${repoWebUrl(ctx)}/issues/${match.slice(1)}`;
   }
 
   return ctx.uiUrl
     ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-runs/${match}`
     : undefined;
+}
+
+function repoWebUrl(ctx: RefContext): string {
+  return `${githubUrls(ctx.host ?? githubHost()).web}/${ctx.repo}`;
 }
 
 export function linkifyMarkdown(text: string, ctx: RefContext): string {

@@ -98,3 +98,20 @@ describe("repoAllowed", () => {
     expect(repoAllowed({ user: null }, "someone/else")).toBe(true);
   });
 });
+
+describe("authorizeUrl for host ghe.example.com", () => {
+  it("points at https://ghe.example.com/login/oauth/authorize", () => {
+    const url = new URL(
+      authorizeUrl({
+        clientId: "client-1",
+        redirectUri: "https://api.example/api/auth/callback",
+        state: "state-1",
+        host: "ghe.example.com",
+      }),
+    );
+
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://ghe.example.com/login/oauth/authorize",
+    );
+  });
+});

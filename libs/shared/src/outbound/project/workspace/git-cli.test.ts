@@ -133,3 +133,42 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     );
   });
 });
+
+describe.skipIf(!hasGit)("GitCli on GITHUB_HOST ghe.example.com", () => {
+  it("clones owner/name from https://ghe.example.com/owner/name.git", async () => {
+    const base = mkdtempSync(join(tmpdir(), "gitcli-ghe-"));
+    const bare = join(base, "hosted", "acme", "widgets.git");
+    const seed = join(base, "seed");
+    const identity = { ...process.env, ...IDENTITY };
+
+    try {
+      execFileSync("git", ["init", "--bare", "-b", "main", bare]);
+      execFileSync("git", ["clone", bare, seed], { env: identity });
+      execFileSync("git", ["-C", seed, "checkout", "-b", "main"], {
+        env: identity,
+      });
+      writeFileSync(join(seed, "README.md"), "# Hosted\n");
+      execFileSync("git", ["-C", seed, "add", "-A"], { env: identity });
+      execFileSync("git", ["-C", seed, "commit", "-m", "seed"], {
+        env: identity,
+      });
+      execFileSync("git", ["-C", seed, "push", "-u", "origin", "main"], {
+        env: identity,
+      });
+      const git = new GitCli({
+        ...identity,
+        GITHUB_HOST: "ghe.example.com",
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: `url.${join(base, "hosted")}/.insteadOf`,
+        GIT_CONFIG_VALUE_0: "https://ghe.example.com/",
+      });
+      const dest = join(base, "clone");
+
+      await git.clone("acme/widgets", dest);
+
+      expect(await git.readFile(dest, "README.md")).toBe("# Hosted\n");
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

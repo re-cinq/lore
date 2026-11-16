@@ -121,6 +121,8 @@ lore-platform:
       LORE_API_URL: https://lore-api.example.com
       LORE_UI_URL: https://lore.example.com
       GITHUB_ORG: CHANGE-ME
+      # A self-hosted GitHub Enterprise Server: its bare host name. Leave unset for github.com.
+      # GITHUB_HOST: ghe.example.com
       # Vertex needs Google Cloud; off it, Lore's own model calls use Anthropic.
       LORE_EVAL_LLM_PROVIDER: anthropic
       LORE_EVAL_LLM_MODEL: claude-haiku-4-5
@@ -129,6 +131,7 @@ lore-platform:
     env:
       LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
       GITHUB_APP_SLUG: CHANGE-ME
+      # GITHUB_HOST: ghe.example.com
       UTOPIA_URL: https://utopia.example.com
       LORE_API_PUBLIC_URL: https://lore-api.example.com
       # On the UI's host, not the API's: see the lore-ui-live ingress.
@@ -136,4 +139,5 @@ lore-platform:
   lore-stations:
     env:
       LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      # GITHUB_HOST: ghe.example.com
       LORE_UI_URL: https://lore.example.com

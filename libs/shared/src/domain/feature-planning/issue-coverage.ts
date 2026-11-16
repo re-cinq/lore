@@ -1,5 +1,6 @@
 // How much of a merged spec its task issues carry: every task names the spec.md lines where the statements it implements begin, its issue links each one, and the coverage check on the feature-planning line counts the testable statements no task names.
 
+import { githubHost, githubUrls } from "../github-host.js";
 import {
   buildIntroOrdinals,
   classifyByHeuristic,
@@ -133,6 +134,7 @@ export interface StatementLinkInput {
   /** The commit or branch the spec was read at, so the line is the one decompose saw. */
   ref: string;
   line: number;
+  host?: string;
 }
 
 export function statementLink({
@@ -140,8 +142,9 @@ export function statementLink({
   file,
   ref,
   line,
+  host = githubHost(),
 }: StatementLinkInput): string {
-  return `https://github.com/${repo}/blob/${ref}/${file}#L${line}`;
+  return `${githubUrls(host).web}/${repo}/blob/${ref}/${file}#L${line}`;
 }
 
 /** The coverage as the story issue shows it and decompose's next round reads it. */

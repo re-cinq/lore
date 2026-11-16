@@ -1,8 +1,10 @@
 // Parse refs (file paths, issues, UUIDs) from plain text; mirrors shared/src/references.ts (web-ui duplication); task UUIDs link to /assembly-runs.
+import { DEFAULT_GITHUB_HOST, githubUrls } from "./github-host";
 
 export interface RefContext {
   repo: string;
   branch?: string;
+  host?: string;
 }
 
 export interface Segment {
@@ -71,11 +73,11 @@ function hrefFor(
   if (group === "file") {
     const path = match.replace(/^\.\//, "");
 
-    return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
+    return `${githubUrls(ctx.host ?? DEFAULT_GITHUB_HOST).web}/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
   }
 
   if (group === "issue") {
-    return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+    return `${githubUrls(ctx.host ?? DEFAULT_GITHUB_HOST).web}/${ctx.repo}/issues/${match.slice(1)}`;
   }
 
   return `/assembly-runs/${match}`;

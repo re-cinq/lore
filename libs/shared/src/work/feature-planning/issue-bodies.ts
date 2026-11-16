@@ -1,5 +1,6 @@
 // The Markdown the issues station files: one story issue per plan, with its decomposed slices as sections, and one issue per task that a developer implements from alone. Pure.
 
+import { githubHost, githubUrls } from "../../domain/github-host.js";
 import type {
   DecompTask,
   UserStory,
@@ -9,6 +10,7 @@ import { implementationEvidenceLink } from "../../domain/feature-planning/ground
 
 export interface StoryIssueInput {
   repo: string;
+  host?: string;
   planTitle?: string;
   /** The plan page; the plan is named without a link when there is none. */
   planUrl?: string;
@@ -68,11 +70,11 @@ function planLine({ planTitle, planUrl, stories }: StoryIssueInput): string {
   return planUrl ? `**Plan:** [${title}](${planUrl})` : `**Plan:** ${title}`;
 }
 
-function specLine({ repo, specSlug }: StoryIssueInput): string[] {
+function specLine({ repo, specSlug, host }: StoryIssueInput): string[] {
   if (!specSlug) {
     return [];
   }
-  const base = `${blobBase(repo)}/specs/${specSlug}`;
+  const base = `${blobBase(repo, host)}/specs/${specSlug}`;
   const files = ["spec.md", "plan.md", "tasks.md"].map(
     (file) => `[${file}](${base}/${file})`,
   );
@@ -109,6 +111,7 @@ function taskLine(
 export interface TaskIssueInput {
   implementationCommit?: string;
   repo: string;
+  host?: string;
   /** The story issue this task is part of; absent when there is none to name. */
   storyNumber?: number;
   task: DecompTask;
@@ -128,7 +131,7 @@ export function taskIssueBody(input: TaskIssueInput): string {
 }
 
 function taskIssueLines(input: TaskIssueInput): string[] {
-  const { repo, storyNumber, task, dependsOn, specStatements } = input;
+  const { repo, host, storyNumber, task, dependsOn, specStatements } = input;
 
   return [
     ...placeLines(storyNumber, dependsOn),
@@ -141,7 +144,7 @@ function taskIssueLines(input: TaskIssueInput): string[] {
     ...targetFile(task.file_path),
     ...checklist("## Acceptance criteria", task.acceptance_criteria ?? []),
     ...section("How to test", task.test_plan),
-    ...references(repo, task.references ?? []),
+    ...references(repo, task.references ?? [], host),
   ];
 }
 
@@ -149,11 +152,14 @@ function targetFile(path: string | undefined): string[] {
   return path ? [`Target file: \`${path}\``, ""] : [];
 }
 
-function implementationSection({
-  repo,
-  task,
-  implementationCommit,
-}: Pick<TaskIssueInput, "repo" | "task" | "implementationCommit">): string[] {
+type ImplementationInput = Pick<
+  TaskIssueInput,
+  "repo" | "host" | "task" | "implementationCommit"
+>;
+
+function implementationSection(input: ImplementationInput): string[] {
+  const { task, implementationCommit } = input;
+
   if (!implementationCommit || !task.in_place?.length) {
     return [];
   }
@@ -161,13 +167,20 @@ function implementationSection({
   return [
     "## Already in place",
     "",
-    ...task.in_place.map(
-      (entry) =>
-        `- [${quoted(entry.text.replace(/\s+/g, " "))}](${implementationEvidenceLink(repo, implementationCommit, entry)})`,
-    ),
+    ...inPlaceLines(input, implementationCommit),
     "",
     ...section("Remaining work", task.remaining),
   ];
+}
+
+function inPlaceLines(
+  { repo, host, task }: ImplementationInput,
+  commit: string,
+): string[] {
+  return (task.in_place ?? []).map(
+    (entry) =>
+      `- [${quoted(entry.text.replace(/\s+/g, " "))}](${implementationEvidenceLink(repo, commit, entry, host)})`,
+  );
 }
 
 const CUT_NOTE = "\n\n*Cut short: GitHub holds 65,536 characters.*\n";
@@ -259,19 +272,27 @@ function checklist(heading: string, criteria: readonly string[]): string[] {
     : [];
 }
 
-function references(repo: string, refs: readonly string[]): string[] {
+function references(
+  repo: string,
+  refs: readonly string[],
+  host: string | undefined,
+): string[] {
   return refs.length
     ? [
         "## References",
         "",
-        ...refs.map((ref) => `- ${referenceLink(repo, ref)}`),
+        ...refs.map((ref) => `- ${referenceLink(repo, ref, host)}`),
         "",
       ]
     : [];
 }
 
 // A repository path becomes a link at the default branch; anything else (an ADR id, a URL) stays as written.
-function referenceLink(repo: string, ref: string): string {
+function referenceLink(
+  repo: string,
+  ref: string,
+  host: string | undefined,
+): string {
   if (!/^(specs|adrs)\//.test(ref)) {
     return ref;
   }
@@ -282,7 +303,7 @@ function referenceLink(repo: string, ref: string): string {
       ? ref
       : `${ref.slice(0, hash)}#${headingAnchor(ref.slice(hash + 1))}`;
 
-  return `[${ref}](${blobBase(repo)}/${target})`;
+  return `[${ref}](${blobBase(repo, host)}/${target})`;
 }
 
 // Decompose names a section by its heading as written; GitHub's anchor for it is lowercased, stripped of punctuation other than `-` and `_`, with each space a `-`.
@@ -294,6 +315,6 @@ function headingAnchor(heading: string): string {
     .replace(/\s/g, "-");
 }
 
-function blobBase(repo: string): string {
-  return `https://github.com/${repo}/blob/HEAD`;
+function blobBase(repo: string, host: string = githubHost()): string {
+  return `${githubUrls(host).web}/${repo}/blob/HEAD`;
 }

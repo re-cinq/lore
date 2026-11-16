@@ -86,6 +86,12 @@ floor:
               matchLabels: { app: lore-mcp-gateway }
         ports:
           - { protocol: TCP, port: 8080 }
+    # A GitHub Enterprise Server on a private IP: the default policy blocks
+    # 10/8, 172.16/12 and 192.168/16, so agents could not clone from it.
+    #  - to:
+    #      - ipBlock: { cidr: 10.20.30.40/32 }
+    #    ports:
+    #      - { protocol: TCP, port: 443 }
 
 # ---- Utopia -------------------------------------------------------------------
 # The knowledge graph Lore mirrors each repository's specs and ADRs into. It
@@ -124,6 +130,8 @@ utopia:
 # from.
 lore-platform:
   lore-api:
+    # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
+    # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     image:
       repository: ghcr.io/re-cinq/lore-api
       tag: "be2849d"

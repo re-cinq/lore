@@ -1,4 +1,5 @@
 // First-class assembly line runs (pipeline.assembly_runs, migration 0025) — the per-attempt records the list/tab/detail pages read through. PR/creator/cost join pipeline.tasks via task_id; task-less runs (code-review family) fall back to args.pr_number/args.actor and the assembly_run_id cost lateral (migration 0032).
+import { githubHost } from "@/lib/github-host";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 import {
@@ -82,7 +83,7 @@ async function readRuns(query: string): Promise<AssemblyRun[]> {
   }
   const { runs } = result.data;
 
-  return runs.map(toAssemblyRun);
+  return runs.map((row) => toAssemblyRun(row, githubHost()));
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */
@@ -94,7 +95,9 @@ export async function fetchAssemblyRun(
     `/api/assembly-lines/${encodeURIComponent(id)}`,
   );
 
-  return result.status === "ok" ? toAssemblyRun(result.data) : null;
+  return result.status === "ok"
+    ? toAssemblyRun(result.data, githubHost())
+    : null;
 }
 
 /** Newest run for a task, or null — a task-centric page (feature planning wizard) knows only its task id, and a retry mints a fresh row against the same task. */

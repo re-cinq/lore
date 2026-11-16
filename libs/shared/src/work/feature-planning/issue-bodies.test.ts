@@ -447,3 +447,38 @@ describe("taskIssueBody", () => {
     ]);
   });
 });
+
+describe("issue bodies on host ghe.example.com", () => {
+  it("links the spec files at https://ghe.example.com/re-cinq/lore/blob/HEAD/specs/loops", () => {
+    expect(
+      storyIssueBody({
+        repo: REPO,
+        host: "ghe.example.com",
+        specSlug: "loops",
+        stories: [],
+      }),
+    ).toContain(
+      "[spec.md](https://ghe.example.com/re-cinq/lore/blob/HEAD/specs/loops/spec.md)",
+    );
+  });
+
+  it("links a specs reference at https://ghe.example.com/re-cinq/lore/blob/HEAD", () => {
+    expect(
+      taskIssueBody({
+        repo: REPO,
+        host: "ghe.example.com",
+        dependsOn: [],
+        task: {
+          id: "T001",
+          description: "d",
+          depends_on: [],
+          parallelizable: false,
+          phase: 1,
+          references: ["specs/loops/plan.md"],
+        },
+      }),
+    ).toContain(
+      "[specs/loops/plan.md](https://ghe.example.com/re-cinq/lore/blob/HEAD/specs/loops/plan.md)",
+    );
+  });
+});

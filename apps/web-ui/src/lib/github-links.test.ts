@@ -85,3 +85,24 @@ describe("blobUrl", () => {
     );
   });
 });
+
+describe("github links on host ghe.example.com", () => {
+  it("rewrites a repo-relative path to https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts", () => {
+    expect(
+      resolveHref("src/a.ts", "re-cinq/lore", "main", "ghe.example.com"),
+    ).toEqual({
+      href: "https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts",
+      external: true,
+    });
+  });
+
+  it("builds https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts#L3-L9", () => {
+    expect(
+      blobUrl("re-cinq/lore", "main", "src/a.ts", {
+        start: 3,
+        end: 9,
+        host: "ghe.example.com",
+      }),
+    ).toBe("https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts#L3-L9");
+  });
+});

@@ -1,5 +1,6 @@
 "use server";
 
+import { githubHost } from "@/lib/github-host";
 import { redirect } from "next/navigation";
 import {
   createPlan,
@@ -129,7 +130,7 @@ async function planRequest(
   formData: FormData,
   fullName: string,
 ): Promise<{ input: NewPlanInput; user: PlanUser } | { error: string }> {
-  const input = newPlanInput(formData, fullName);
+  const input = newPlanInput(formData, fullName, githubHost());
   const user = planUserOf((await getSession()) as PlanSession | null);
 
   if ("error" in input) {

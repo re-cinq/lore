@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import { resolveHref } from "@/lib/github-links";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 
 type AnchorProps = React.ComponentPropsWithoutRef<"a"> & { node?: unknown };
 
@@ -19,7 +20,13 @@ export function useResolvedMarkdownLinks(repo: string, branch: string) {
 /** One markdown link resolved against the repo it was written in: a relative path becomes a blob URL on this branch, and anything leaving the site opens in a new tab with `noopener`. */
 function ResolvedAnchor(props: AnchorProps & { repo: string; branch: string }) {
   const { href, children, node: _node, repo, branch, ...rest } = props;
-  const { href: resolved, external } = resolveHref(href ?? "", repo, branch);
+  const host = useGithubHost();
+  const { href: resolved, external } = resolveHref(
+    href ?? "",
+    repo,
+    branch,
+    host,
+  );
   const ext = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
 
   return (

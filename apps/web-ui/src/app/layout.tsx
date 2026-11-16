@@ -9,6 +9,8 @@ import { RailToggle, SidebarSearch } from "@/components/shell/SidebarTools";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
 import { liveSocketUrl } from "@/lib/live-socket-url";
+import { GithubHostProvider } from "@/lib/GithubHostProvider";
+import { githubHost } from "@/lib/github-host";
 import { grafanaUrl, headlampUrl, utopiaUrl } from "@/lib/headlamp-url";
 import {
   inter,
@@ -53,7 +55,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
           <LiveSocketProvider url={liveSocketUrl(process.env)}>
-            <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            <GithubHostProvider host={githubHost()}>
+              <AppShell sidebar={<Sidebar />}>{children}</AppShell>
+            </GithubHostProvider>
           </LiveSocketProvider>
         </ThemeProvider>
       </body>

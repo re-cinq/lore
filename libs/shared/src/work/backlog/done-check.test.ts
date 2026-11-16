@@ -123,3 +123,31 @@ describe("doneCheckEnabled", () => {
     ]).toEqual([true, false, false]);
   });
 });
+
+describe("done check on host ghe.example.com", () => {
+  it("finds issue 42 by its https://ghe.example.com url and not by a github.com url", () => {
+    expect([
+      mentionsIssue(
+        "See https://ghe.example.com/re-cinq/otto/issues/42",
+        "re-cinq/otto",
+        42,
+        "ghe.example.com",
+      ),
+      mentionsIssue(
+        "See https://github.com/re-cinq/otto/issues/42",
+        "re-cinq/otto",
+        42,
+        "ghe.example.com",
+      ),
+    ]).toEqual([true, false]);
+  });
+
+  it("takes src/app/createApp.ts from a ghe.example.com blob link", () => {
+    expect(
+      namedPaths(
+        "see https://ghe.example.com/re-cinq/halengine/blob/b3ac62c/src/app/createApp.ts#L10",
+        "ghe.example.com",
+      ),
+    ).toEqual(["src/app/createApp.ts"]);
+  });
+});

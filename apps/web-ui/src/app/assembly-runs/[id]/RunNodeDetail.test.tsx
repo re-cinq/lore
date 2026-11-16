@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import RunNodeDetail from "./RunNodeDetail";
+import { GithubHostProvider } from "@/lib/GithubHostProvider";
 import { implementationDefinition } from "@/lib/definition-fixtures";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
@@ -289,5 +290,28 @@ describe("RunNodeDetail model fact", () => {
     );
 
     expect(screen.queryByText("Model")).not.toBeInTheDocument();
+  });
+});
+
+describe("RunNodeDetail inside GithubHostProvider for ghe.example.com", () => {
+  it("links the commit to https://ghe.example.com/re-cinq/lore/commit/deadbeefcafe", () => {
+    render(
+      <GithubHostProvider host="ghe.example.com">
+        <RunNodeDetail
+          nodeId="implement"
+          state={state()}
+          row={row()}
+          definition={implementationDefinition}
+          reason={null}
+          repo="re-cinq/lore"
+          attempts={[]}
+        />
+      </GithubHostProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "deadbee" })).toHaveAttribute(
+      "href",
+      "https://ghe.example.com/re-cinq/lore/commit/deadbeefcafe",
+    );
   });
 });

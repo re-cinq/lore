@@ -40,11 +40,11 @@ fi
 # Bound the attempt with ssh's own BatchMode + ConnectTimeout rather than the external
 # `timeout` binary, which is absent on macOS (GNU coreutils ships it as `gtimeout`).
 git_ssh_ok() {
-  ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1 | grep -qi "successfully" 2>/dev/null
+  ssh -o BatchMode=yes -o ConnectTimeout=5 -T "git@${GITHUB_HOST:-github.com}" 2>&1 | grep -qi "successfully" 2>/dev/null
 }
-check "Git can reach github.com (SSH)" \
+check "Git can reach ${GITHUB_HOST:-github.com} (SSH)" \
   git_ssh_ok || \
-  echo "     Fix: check SSH key config (ssh -T git@github.com)"
+  echo "     Fix: check SSH key config (ssh -T git@${GITHUB_HOST:-github.com})"
 
 # 5. Platform hooks
 check "Platform hooks installed" \

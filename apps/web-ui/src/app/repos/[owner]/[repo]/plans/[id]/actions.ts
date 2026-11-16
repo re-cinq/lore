@@ -1,5 +1,6 @@
 "use server";
 
+import { githubHost } from "@/lib/github-host";
 import { redirect } from "next/navigation";
 import {
   approvePlan,
@@ -205,7 +206,7 @@ export async function savePlanStoryAction(
   planId: string,
   text: string,
 ): Promise<{ error?: string }> {
-  const named = storyIssueOf(text, fullName);
+  const named = storyIssueOf(text, fullName, githubHost());
 
   if ("error" in named) {
     return named;

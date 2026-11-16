@@ -31,3 +31,11 @@ describe("repoCloneUrl", () => {
     expect(url).not.toContain("x-access-token");
   });
 });
+
+describe("repoCloneUrl on host ghe.example.com", () => {
+  it("builds https://ghe.example.com/re-cinq/lore.git", () => {
+    expect(repoCloneUrl("re-cinq/lore", "ghe.example.com")).toBe(
+      "https://ghe.example.com/re-cinq/lore.git",
+    );
+  });
+});

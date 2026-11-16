@@ -195,3 +195,23 @@ describe("podPermissions", () => {
     });
   });
 });
+
+describe("repoOfUrl on host ghe.example.com", () => {
+  it("returns re-cinq/lore for https://ghe.example.com/re-cinq/lore.git", () => {
+    expect(
+      repoOfUrl("https://ghe.example.com/re-cinq/lore.git", "ghe.example.com"),
+    ).toBe("re-cinq/lore");
+  });
+
+  it("returns null for https://github.com/re-cinq/lore, a repository on another host", () => {
+    expect(
+      repoOfUrl("https://github.com/re-cinq/lore", "ghe.example.com"),
+    ).toBeNull();
+  });
+
+  it("returns null for https://ghe.example.com.evil.io/a/b", () => {
+    expect(
+      repoOfUrl("https://ghe.example.com.evil.io/a/b", "ghe.example.com"),
+    ).toBeNull();
+  });
+});

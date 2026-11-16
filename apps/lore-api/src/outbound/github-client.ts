@@ -4,6 +4,9 @@ import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
 import { listReviewThreads } from "@re-cinq/lore-shared/project/lib/platform-github-pulls-review-reads.js";
 import { createAppAuth } from "@octokit/auth-app";
+import { request } from "@octokit/request";
+import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
+import { octokitOptions } from "@re-cinq/lore-shared/project/lib/platform-github-auth.js";
 
 const APP_ID = process.env.GITHUB_APP_ID || "";
 const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY || "";
@@ -29,7 +32,9 @@ export async function getOctokit(): Promise<Octokit> {
   const token = process.env.GITHUB_TOKEN;
 
   if (token) {
-    return withoutBlindRetryOnCreates(new Octokit({ auth: token }));
+    return withoutBlindRetryOnCreates(
+      new Octokit({ ...octokitOptions(process.env), auth: token }),
+    );
   }
   throw new Error(
     "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
@@ -40,6 +45,7 @@ export async function getOctokit(): Promise<Octokit> {
 function appAuthOctokit(): Octokit {
   return withoutBlindRetryOnCreates(
     new Octokit({
+      ...octokitOptions(process.env),
       authStrategy: createAppAuth,
       auth: {
         appId: APP_ID,
@@ -65,13 +71,23 @@ export async function getGitHubToken(): Promise<string | null> {
   return process.env.GITHUB_TOKEN || null;
 }
 
+/** What a standalone App auth needs: it does not inherit an Octokit base URL, so its request is pointed at the configured GitHub host. */
+export function appAuthOptions(env: NodeJS.ProcessEnv) {
+  return {
+    appId: env.GITHUB_APP_ID ?? "",
+    privateKey: env.GITHUB_APP_PRIVATE_KEY ?? "",
+    installationId: env.GITHUB_APP_INSTALLATION_ID ?? "",
+    request: request.defaults({ baseUrl: githubUrls(githubHost(env)).api }),
+  };
+}
+
+export function githubApiUrl(path: string, env: NodeJS.ProcessEnv): string {
+  return `${githubUrls(githubHost(env)).api}${path}`;
+}
+
 /** One App auth per process: it caches the installation token and renews it before it expires, so a read does not start by asking GitHub for a new one. */
 function sharedAppAuth(): ReturnType<typeof createAppAuth> {
-  appAuth ??= createAppAuth({
-    appId: APP_ID,
-    privateKey: PRIVATE_KEY,
-    installationId: INSTALLATION_ID,
-  });
+  appAuth ??= createAppAuth(appAuthOptions(process.env));
 
   return appAuth;
 }
@@ -176,7 +192,9 @@ async function countUnresolvedThreads(
 ): Promise<number | null> {
   try {
     const threads = await listReviewThreads(
-      withoutBlindRetryOnCreates(new Octokit({ auth: token })),
+      withoutBlindRetryOnCreates(
+        new Octokit({ ...octokitOptions(process.env), auth: token }),
+      ),
       repo,
       prNumber,
     );
@@ -229,7 +247,7 @@ async function ghFetch(
   token: string,
   path: string,
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(`https://api.github.com${path}`, {
+  const res = await fetch(githubApiUrl(path, process.env), {
     signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${token}`,

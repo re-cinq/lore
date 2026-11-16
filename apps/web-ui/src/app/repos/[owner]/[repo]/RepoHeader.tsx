@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import { githubHost, githubUrls } from "@/lib/github-host";
 import type { RepoRecord } from "@/lib/api/repos";
 import { freshnessIndicator, ingestAge } from "./repo-freshness";
 import styles from "./RepoHeader.module.css";
@@ -11,11 +12,13 @@ export interface RepoHeaderProps {
   description?: string | null;
   /** Lore's record of the repo; null when lore-api could not be read. */
   record: Pick<RepoRecord, "team" | "onboarded_at" | "last_ingested_at"> | null;
+  /** The GitHub host the link opens on; the install's own when left out. */
+  host?: string;
 }
 
 /** The header every repo tab shares: where the reader is, the repo's name, and how its context stands. */
 export default function RepoHeader(props: RepoHeaderProps) {
-  const { owner, repo, description, record } = props;
+  const { owner, repo, description, record, host = githubHost() } = props;
 
   return (
     <header className={styles.header}>
@@ -27,24 +30,28 @@ export default function RepoHeader(props: RepoHeaderProps) {
         </span>
       </nav>
       <h1 className={styles.title}>{repo}</h1>
-      <RepoFacts owner={owner} repo={repo} record={record} />
+      <RepoFacts
+        githubHref={`${githubUrls(host).web}/${owner}/${repo}`}
+        record={record}
+      />
       {description && <p className={styles.desc}>{description}</p>}
     </header>
   );
 }
 
+interface RepoFactsProps {
+  githubHref: string;
+  record: RepoHeaderProps["record"];
+}
+
 /** Team, onboarding date, ingest freshness and the GitHub link, on one wrapping line. */
-function RepoFacts({
-  owner,
-  repo,
-  record,
-}: Omit<RepoHeaderProps, "description">) {
+function RepoFacts({ githubHref, record }: RepoFactsProps) {
   return (
     <div className={styles.facts}>
       {record?.team && <span className={styles.team}>{record.team}</span>}
       {record && <RecordFacts record={record} />}
       <a
-        href={`https://github.com/${owner}/${repo}`}
+        href={githubHref}
         target="_blank"
         rel="noreferrer"
         className={styles.github}

@@ -18,10 +18,10 @@ function rankedSlice(direction: "ASC" | "DESC"): string {
                        ORDER BY cost_usd ${direction}, label LIMIT 5) u), '[]'::json)`;
 }
 
-// A ticket is its Issue: the task's issue_url, else the issue-<n> the loop branch names (the same url, so both merge), else the description older runs carry — on the task, or in the run's args when it has none. A call reaches its run by assembly_line_id, or its task alone when it was never attributed to a run.
+// $3 is the install's GitHub web address and $4 its regex source (window: $1, $2). A ticket is its Issue: the task's issue_url, else the issue-<n> the loop branch names (the same url, so both merge), else the description older runs carry — on the task, or in the run's args when it has none. A call reaches its run by assembly_line_id, or its task alone when it was never attributed to a run.
 export const TICKET_COSTS_SQL = rankedUnitsSql(`ticket_calls AS (
   SELECT l.cost_usd, ar.id AS run_id,
-         COALESCE(t.issue_url, 'https://github.com/' || COALESCE(ar.repo, t.target_repo)
+         COALESCE(t.issue_url, $3::text || '/' || COALESCE(ar.repo, t.target_repo)
                   || '/issues/' || substring(ar.branch FROM 'issue-([0-9]+)$')) AS url,
          COALESCE(ar.repo, t.target_repo) AS repo,
          COALESCE(t.description, ar.args->>'description', ar.branch, 'run ' || ar.id) AS title
@@ -32,7 +32,7 @@ export const TICKET_COSTS_SQL = rankedUnitsSql(`ticket_calls AS (
      AND (ar.blueprint_name = 'implementation-loop'
           OR (ar.id IS NULL AND t.task_type = 'implementation-loop'))
 ), units AS (
-  SELECT COALESCE(regexp_replace(max(url), '^https://github\\.com/([^/]+/[^/]+)/issues/([0-9]+)$', '\\1#\\2'),
+  SELECT COALESCE(regexp_replace(max(url), '^' || $4::text || '/([^/]+/[^/]+)/issues/([0-9]+)$', '\\1#\\2'),
                   left(max(title), 80)) AS label,
          max(url) AS url, count(DISTINCT run_id)::int AS runs, sum(cost_usd)::float8 AS cost_usd
     FROM ticket_calls
@@ -44,7 +44,7 @@ const REVIEW_LINES = `('code-review', 'code-review-recheck', 'code-review-reply'
 // A PR's review cost is every review-family run keyed to it — the first review, each recheck, each reply.
 export const REVIEW_PR_COSTS_SQL = rankedUnitsSql(`units AS (
   SELECT ar.repo || '#' || (ar.args->>'pr_number') AS label,
-         'https://github.com/' || ar.repo || '/pull/' || (ar.args->>'pr_number') AS url,
+         $3::text || '/' || ar.repo || '/pull/' || (ar.args->>'pr_number') AS url,
          count(DISTINCT ar.id)::int AS runs, sum(l.cost_usd)::float8 AS cost_usd
     FROM pipeline.llm_calls l
     JOIN pipeline.assembly_runs ar ON ar.id = l.assembly_line_id

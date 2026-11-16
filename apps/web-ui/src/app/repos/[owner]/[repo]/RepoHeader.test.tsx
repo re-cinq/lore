@@ -45,3 +45,20 @@ describe("RepoHeader", () => {
     expect(screen.getByText("Shared context")).toBeInTheDocument();
   });
 });
+
+describe("RepoHeader on host ghe.example.com", () => {
+  it("links to https://ghe.example.com/re-cinq/lore", () => {
+    render(
+      <RepoHeader
+        owner="re-cinq"
+        repo="lore"
+        record={record}
+        host="ghe.example.com"
+      />,
+    );
+    expect(screen.getByRole("link", { name: /GitHub/ })).toHaveAttribute(
+      "href",
+      "https://ghe.example.com/re-cinq/lore",
+    );
+  });
+});

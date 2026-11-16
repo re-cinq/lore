@@ -73,6 +73,7 @@ export type {
   PRStatus,
 } from "./domain/types.js";
 export * from "./domain/references.js";
+export * from "./domain/github-host.js";
 // Re-exported via index-spec-content.js: "./work/spec-summary.js" "./domain/spec-blocks.js" "./domain/spec-segment.js" "./domain/spec-sentence-split.js" "./domain/spec-status.js" "./work/spec-status-coverage.js" "./domain/test-paths.js" "./domain/test-command-manifest.js" "./domain/test-report.js" "./work/ingest-workflow.js" "./work/trace-impact-workflow.js" "./domain/spec-link-parser.js" "./domain/spec-judge.js" "./work/spec-judge-llm.js"
 export * from "./work/index-spec-content.js";
 

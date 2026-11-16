@@ -7,6 +7,7 @@ import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
 import { blobUrl } from "@/lib/github-links";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import { useResolvedMarkdownLinks } from "@/app/repos/[owner]/[repo]/useResolvedMarkdownLinks";
 import { languageForPath, fenceFor } from "@/lib/code-lang";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
@@ -63,13 +64,14 @@ function useChunkView({
   metadata,
 }: ChunkBodyProps) {
   const kind: ChunkKind = CODE_TYPES.has(contentType) ? "code" : "prose";
+  const host = useGithubHost();
 
   return {
     components: useResolvedMarkdownLinks(repo, branch),
     markdown: markdownFor(kind, content, filePath),
     rehypePlugins: rehypePluginsFor(kind),
     headerLabel: chunkHeader(contentType, metadata),
-    ghHref: ghHrefFor({ repo, branch, filePath, kind, metadata }),
+    ghHref: ghHrefFor({ repo, branch, filePath, kind, metadata, host }),
   };
 }
 
@@ -159,14 +161,19 @@ function ghHrefFor({
   filePath,
   kind,
   metadata,
+  host,
 }: {
   repo: string;
   branch: string;
   filePath: string;
   kind: ChunkKind;
   metadata?: ChunkMeta;
+  host: string;
 }) {
-  return blobUrl(repo, branch, filePath, codeLineRange(kind, metadata));
+  return blobUrl(repo, branch, filePath, {
+    ...codeLineRange(kind, metadata),
+    host,
+  });
 }
 
 function codeLineRange(
