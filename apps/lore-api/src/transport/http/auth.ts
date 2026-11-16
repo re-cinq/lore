@@ -181,6 +181,12 @@ function userOf(row: TokenRow): UserIdentity | null {
     name: row.displayName ?? row.login,
     avatarUrl: row.avatarUrl ?? null,
     repos: row.repos ?? [],
+    ...periodOf(row),
+  };
+}
+
+function periodOf(row: TokenRow) {
+  return {
     startedAt: row.startedAt.toISOString(),
     expiresAt: row.expiresAt?.toISOString() ?? null,
   };

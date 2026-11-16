@@ -63,8 +63,7 @@ describe("POST /api/auth/redeem", () => {
 
   const HOUR_MS = 60 * 60 * 1000;
 
-  /** The parameters of the token row a sign-in stored, with `saved` as the org's session_length_hours row. */
-  async function mintedWith(saved: { value: string }[]) {
+  async function queriesOfSignInWith(saved: { value: string }[]) {
     vi.useFakeTimers({
       now: new Date("2026-10-28T10:00:00Z"),
       toFake: ["Date"],
@@ -85,7 +84,7 @@ describe("POST /api/auth/redeem", () => {
   }
 
   it("stores a user token that expires in 8 hours with the person's repos when no length is saved", async () => {
-    const calls = await mintedWith([]);
+    const calls = await queriesOfSignInWith([]);
 
     expect({ asked: calls[0][1], minted: calls[1][1] }).toEqual({
       asked: ["session_length_hours"],
@@ -105,7 +104,7 @@ describe("POST /api/auth/redeem", () => {
   });
 
   it("stores a user token that expires in 168 hours when session_length_hours is 168", async () => {
-    const calls = await mintedWith([{ value: "168" }]);
+    const calls = await queriesOfSignInWith([{ value: "168" }]);
 
     expect(calls[1][1][4]).toEqual(new Date(Date.now() + 168 * HOUR_MS));
   });

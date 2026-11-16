@@ -38,6 +38,8 @@ function renderView(
       contextProvider=""
       contextModel=""
       saveContextModel={action}
+      sessionLengthHours=""
+      saveSessionLength={action}
       regenerateToken={action}
       githubInstallations={[]}
       githubInstallUrl={null}
@@ -59,6 +61,7 @@ describe("SettingsView", () => {
       "Platform",
       "Approval gates",
       "Slack people",
+      "Sign-in session",
       "Context builder",
       "Developer install",
       "Regenerate ingest token",

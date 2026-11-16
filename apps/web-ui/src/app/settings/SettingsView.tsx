@@ -9,6 +9,7 @@ import { SettingsHeader } from "@/components/SettingsHeader";
 import ApprovalGatesForm from "./ApprovalGatesForm";
 import SlackPeopleForm from "./SlackPeopleForm";
 import ContextModelForm from "./ContextModelForm";
+import SessionLengthForm from "./SessionLengthForm";
 import GithubConnectSection, {
   type GithubInstallationRow,
 } from "./GithubConnectSection";
@@ -42,6 +43,9 @@ export interface SettingsViewProps {
   contextProvider: string;
   contextModel: string;
   saveContextModel: (formData: FormData) => void | Promise<void>;
+  /** The org setting `session_length_hours`; empty when nothing is saved. */
+  sessionLengthHours: string;
+  saveSessionLength: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
@@ -56,6 +60,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-platform", label: "Platform" },
   { id: "set-approval", label: "Approval gates" },
   { id: "set-slack", label: "Slack people" },
+  { id: "set-session", label: "Sign-in session" },
   { id: "set-context", label: "Context builder" },
   { id: "set-install", label: "Developer install" },
   { id: "set-danger", label: "Danger zone", danger: true },
@@ -75,11 +80,21 @@ export default function SettingsView(props: SettingsViewProps) {
         <PlatformConfigForm {...props} />
         <ApprovalGatesForm {...props} />
         <SlackPeopleForm {...props} />
-        <ContextModelForm {...props} />
+        <ServiceForms {...props} />
         <InstallCommand {...props} />
         <RegenerateTokenSection regenerateToken={props.regenerateToken} />
       </SettingsLayout>
     </div>
+  );
+}
+
+/** How lore-api itself behaves for everyone: how long a sign-in lasts, and the model the context builder writes with. */
+function ServiceForms(props: SettingsViewProps) {
+  return (
+    <>
+      <SessionLengthForm {...props} />
+      <ContextModelForm {...props} />
+    </>
   );
 }
 
