@@ -16,6 +16,7 @@ export function formatTraceQuery(
   if (!selector?.trim()) {
     return summary(doc);
   }
+
   if (doc.statements.length === 0) {
     return `No graph data for ${doc.filePath} (not ingested, or the graph is empty on main).`;
   }
