@@ -6,21 +6,42 @@ import type {
   ConfigWrite,
 } from "./agent-defs-port.js";
 
+export interface RepoSettingsReader {
+  rawSettings(repo: string): Promise<Record<string, unknown> | null>;
+}
+
+function baseImageOf(
+  raw: Record<string, unknown> | null | undefined,
+): string | null {
+  const value = raw?.base_image;
+
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 /** project.agentDefs — repo-bound Agent *definitions* (config): resolve/list field-merge project → org. */
 export class AgentDefs {
   constructor(
     protected readonly repo: string,
     private readonly defs: AgentDefsReadPort,
+    private readonly settings?: RepoSettingsReader,
   ) {}
 
+  private async baseImage(): Promise<string | null> {
+    if (!this.settings) {
+      return null;
+    }
+
+    return baseImageOf(await this.settings.rawSettings(this.repo));
+  }
+
   /** The effective definition for a task type (project → org → yaml), or null. */
-  resolve(name: string): Promise<AgentDefinition | null> {
-    return this.defs.resolve(this.repo, name);
+  async resolve(name: string): Promise<AgentDefinition | null> {
+    return this.defs.resolve(this.repo, name, await this.baseImage());
   }
 
   /** Every effective definition for this repo. */
-  list(): Promise<AgentDefinition[]> {
-    return this.defs.list(this.repo);
+  async list(): Promise<AgentDefinition[]> {
+    return this.defs.list(this.repo, await this.baseImage());
   }
 }
 
@@ -29,8 +50,9 @@ export class AgentDefsWriter extends AgentDefs {
   constructor(
     repo: string,
     private readonly writableDefs: AgentDefsWritePort,
+    settings?: RepoSettingsReader,
   ) {
-    super(repo, writableDefs);
+    super(repo, writableDefs, settings);
   }
 
   create(def: AgentDefinitionInput): Promise<AgentDefinition> {
