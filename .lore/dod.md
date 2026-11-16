@@ -11,8 +11,8 @@
 
 ## Facets
 
-- [ ] Add `DatabaseVolumeFilling` PrometheusRule in `deploy/chart/templates/monitoring.yaml` for both `utopia` and `lore-db` PVCs.
-- [ ] Add a panel for volume usage to `deploy/chart/files/dashboards/lore-services.json` (or a dedicated DB dashboard).
+- [x] Add `DatabaseVolumeFilling` PrometheusRule in `deploy/chart/templates/monitoring.yaml` for both `utopia` and `lore-db` PVCs.
+- [x] Add a panel for volume usage to `deploy/chart/files/dashboards/lore-services.json` (or a dedicated DB dashboard).
 
 ## Out of scope
 
