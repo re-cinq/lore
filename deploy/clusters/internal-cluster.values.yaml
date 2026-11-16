@@ -298,7 +298,7 @@ lore-db-helm:
 lore-stations:
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "ef4c7a8"
+    tag: "be2849d"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
