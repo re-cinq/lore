@@ -1,3 +1,5 @@
+import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
+
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
 export type LoginFailure = "not_in_org" | "github_denied" | "state_expired";
@@ -31,6 +33,7 @@ export function authorizeUrl(input: {
   clientId: string;
   redirectUri: string;
   state: string;
+  host?: string;
 }): string {
   const query = new URLSearchParams({
     client_id: input.clientId,
@@ -39,7 +42,7 @@ export function authorizeUrl(input: {
     state: input.state,
   });
 
-  return `https://github.com/login/oauth/authorize?${query}`;
+  return `${githubUrls(input.host ?? githubHost()).oauthAuthorize}?${query}`;
 }
 
 export function redeemRedirect(returnUrl: string, code: string): string {

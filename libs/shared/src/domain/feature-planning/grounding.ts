@@ -1,5 +1,6 @@
 // Whether the names a generated spec or task issue puts in backticks exist on main: a path must be in the tree, an identifier in the file the same line names, and nothing retired may be named. The planning line's coverage stations send the writer back with these findings.
 
+import { githubHost, githubUrls } from "../github-host.js";
 import { z } from "zod";
 
 export const implementationEvidenceSchema = z.object({
@@ -45,8 +46,9 @@ export function implementationEvidenceLink(
   repo: string,
   commit: string,
   evidence: ImplementationEvidence,
+  host: string = githubHost(),
 ): string {
-  return `https://github.com/${repo}/blob/${commit}/${evidence.path}#L${evidence.start}-L${evidence.end}`;
+  return `${githubUrls(host).web}/${repo}/blob/${commit}/${evidence.path}#L${evidence.start}-L${evidence.end}`;
 }
 
 export interface GroundingInput {

@@ -188,3 +188,52 @@ describe("fetchUserRepos", () => {
     ]);
   });
 });
+
+describe("GitHub Enterprise Server host ghe.example.com", () => {
+  function recordingFetch(body: unknown) {
+    const urls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      urls.push(String(input));
+
+      return jsonResponse(body);
+    };
+
+    return { urls, fetchImpl };
+  }
+
+  it("exchanges the code at https://ghe.example.com/login/oauth/access_token", async () => {
+    const { urls, fetchImpl } = recordingFetch({ access_token: "gho_abc" });
+
+    await exchangeCode(app, fetchImpl, "ghe.example.com");
+
+    expect(urls).toEqual(["https://ghe.example.com/login/oauth/access_token"]);
+  });
+
+  it("reads the viewer at https://ghe.example.com/api/v3/user", async () => {
+    const { urls, fetchImpl } = recordingFetch({ login: "octocat" });
+
+    await fetchViewer("gho_abc", fetchImpl, "ghe.example.com");
+
+    expect(urls).toEqual(["https://ghe.example.com/api/v3/user"]);
+  });
+
+  it("reads the org role at https://ghe.example.com/api/v3/user/memberships/orgs/re-cinq", async () => {
+    const { urls, fetchImpl } = recordingFetch({ state: "active" });
+
+    await fetchOrgRole("gho_abc", "re-cinq", fetchImpl, "ghe.example.com");
+
+    expect(urls).toEqual([
+      "https://ghe.example.com/api/v3/user/memberships/orgs/re-cinq",
+    ]);
+  });
+
+  it("reads the repos at https://ghe.example.com/api/v3/user/repos", async () => {
+    const { urls, fetchImpl } = recordingFetch([]);
+
+    await fetchUserRepos("gho_abc", fetchImpl, "ghe.example.com");
+
+    expect(urls).toEqual([
+      "https://ghe.example.com/api/v3/user/repos?per_page=100&affiliation=owner,collaborator,organization_member",
+    ]);
+  });
+});

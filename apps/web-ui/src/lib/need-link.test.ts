@@ -75,3 +75,34 @@ describe("commitLink", () => {
     expect(commitLink("gitlab.com/re-cinq/lore@main", "abc1234")).toBeNull();
   });
 });
+
+describe("need links on host ghe.example.com", () => {
+  it("links ghe.example.com/re-cinq/lore@fix/login to that branch on https://ghe.example.com", () => {
+    expect(
+      needLink(
+        "ghe.example.com/re-cinq/lore@fix/login",
+        "run-1",
+        "ghe.example.com",
+      ),
+    ).toEqual({
+      href: "https://ghe.example.com/re-cinq/lore/tree/fix/login",
+      external: true,
+    });
+  });
+
+  it("links the commit abc123 on https://ghe.example.com", () => {
+    expect(
+      commitLink(
+        "ghe.example.com/re-cinq/lore@main",
+        "abc123",
+        "ghe.example.com",
+      ),
+    ).toBe("https://ghe.example.com/re-cinq/lore/commit/abc123");
+  });
+
+  it("leaves github.com/re-cinq/lore@main a plain value on host ghe.example.com", () => {
+    expect(
+      needLink("github.com/re-cinq/lore@main", "run-1", "ghe.example.com"),
+    ).toBeNull();
+  });
+});

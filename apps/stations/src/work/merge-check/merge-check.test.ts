@@ -16,3 +16,23 @@ describe("parseOnboardingPrUrl", () => {
     expect(parseOnboardingPrUrl("")).toBeNull();
   });
 });
+
+describe("parseOnboardingPrUrl on host ghe.example.com", () => {
+  it("reads owner, repo, and PR number from https://ghe.example.com/acme/widgets/pull/42", () => {
+    expect(
+      parseOnboardingPrUrl(
+        "https://ghe.example.com/acme/widgets/pull/42",
+        "ghe.example.com",
+      ),
+    ).toEqual({ owner: "acme", repoName: "widgets", number: 42 });
+  });
+
+  it("returns null for https://github.com/acme/widgets/pull/42", () => {
+    expect(
+      parseOnboardingPrUrl(
+        "https://github.com/acme/widgets/pull/42",
+        "ghe.example.com",
+      ),
+    ).toBeNull();
+  });
+});

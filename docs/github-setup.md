@@ -109,6 +109,10 @@ Lore's own App cannot approve the pull requests it opened, because GitHub refuse
 
 How to create it and which permissions it takes: [The lore-reviewer App](managing-secrets.md#the-lore-reviewer-app-lore-reviewer-app-) in the secrets guide. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
 
+## GitHub Enterprise Server
+
+A self-hosted GitHub Enterprise Server (3.11 or newer) works with one change: set `GITHUB_HOST` to its bare host name, for example `ghe.example.com`, in the `lore-api`, `lore-ui` and `lore-stations` `env:` blocks. Everything above then happens on that instance: create the GitHub App and the OAuth App in the Server's own organization settings, not on github.com, and use the Server's URLs in the checks below. Lore reaches its API at `https://<host>/api/v3` and sends sign-in to `https://<host>/login/oauth/authorize`. The full list of what the Server needs (Actions synced or GitHub Connect, egress for agents, runners reaching Lore) is in [section 1.6.1 of the install guide](INSTALL.md#161-github-enterprise-server).
+
 ## After the install
 
 Webhooks need no setup. When a repository is onboarded, Lore creates its webhook, pointed at `https://<webhook host>/api/events` and signed with `secrets.webhookSecret`. [Section 5 of the install guide](INSTALL.md#5-configure-webhooks) has the manual version, for the rare case the App may not manage webhooks.

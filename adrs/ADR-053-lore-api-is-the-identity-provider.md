@@ -1,7 +1,7 @@
 ---
 adr_number: 53
 title: "lore-api is the identity provider for the web UI"
-status: shipped
+status: in progress
 date: 2026-10-28
 deciders: ["Bogdan Szabo"]
 domains: [authentication, lore-api, web-ui, security, infrastructure]
@@ -37,3 +37,7 @@ lore-api is now an identity provider, so a bug there is a bug for every client. 
 The repo list is read once at sign-in and lives as long as the token, 8 hours by default and at most the 30 days the Settings page offers *(2026-11-16)*: access removed on GitHub is honored at the next sign-in, not at the next request, so a longer session keeps a removed person in for that long, and cutting one person off at once means deleting their token row. Enforcing repo access inside lore-api's own routes, instead of at the web UI's proxy points, is the follow-up this makes possible, and it now holds for the run routes *(2026-11-14)*: a person's session asking for `/api/assembly-runs/{id}/…`, or its older spelling `/api/assembly-lines/{id}/…`, of a run outside their repositories is refused `403`, a run that does not exist `404`, and a service token passes untouched; a run's repository is read once and kept, an unknown run or a failed read is not, and the oldest answer goes past 5,000 ([validated by refuses Ben the events of a run in a repo outside his list with 403 @ee83635a](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L69), [validated by answers Ana the events of a run in re-cinq/lore @5793a8de](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L84), [validated by lets a service token read any run @81c77abe](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L90), [validated by reads run r1's repo once for five requests @83ad42c5](../apps/lore-api/src/work/auth/run-repo.test.ts#L17), [validated by reads an unknown run again on the next request @415e97a8](../apps/lore-api/src/work/auth/run-repo.test.ts#L33), [validated by reads a run again after its read failed @8cad8f32](../apps/lore-api/src/work/auth/run-repo.test.ts#L43), [validated by drops the oldest answer once more than the cap are kept @24b30bb8](../apps/lore-api/src/work/auth/run-repo.test.ts#L56), [validated by answers 404 to a person asking for an unknown run @a716843f](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L100), [validated by lets a person list runs without naming one @84ef982c](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L109), [validated by refuses Ben run r1's nodes under the older /api/assembly-lines spelling with 403 @e1132f59](../apps/lore-api/src/transport/http/run-repo-guard.test.ts#L78)).
 
 The migration is additive in lore-api first (new routes, a new token kind), then the web UI switches over and drops NextAuth, its service-token secrets and the NextAuth secret, and the old OAuth app callback on the UI host is removed.
+
+## Amendment 2026-11-16: the GitHub host is configurable
+
+The OAuth host follows `GITHUB_HOST` (default `github.com`): the sign-in redirects to `https://<host>/login/oauth/authorize`, the code is exchanged at `https://<host>/login/oauth/access_token`, and the viewer, organization and repository reads go to `https://<host>/api/v3` (`https://api.github.com` for github.com), so a self-hosted GitHub Enterprise Server can be the identity source. One install uses one host.

@@ -5,6 +5,7 @@ import CopyButton from "@/components/CopyButton";
 import Markdown from "@/components/Markdown";
 import type { BlobPreview } from "@/lib/blob-previews";
 import { itemValueOf, type ItemValue as ShownValue } from "@/lib/item-value";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import FoldedValue from "./FoldedValue";
 import JsonView from "./JsonView";
 import styles from "./ItemValue.module.css";
@@ -31,7 +32,7 @@ export default function ItemValue({ runId, value, preview }: ItemValueProps) {
 }
 
 function ValueBody({ runId, value, preview }: ItemValueProps) {
-  const shown = itemValueOf(value, runId);
+  const shown = itemValueOf(value, runId, useGithubHost());
   const Body = BODIES[shown.kind] as (
     props: BodyProps<typeof shown>,
   ) => ReactNode;

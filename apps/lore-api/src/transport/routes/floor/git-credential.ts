@@ -14,6 +14,10 @@ import {
   type DeclaredErrorStatus,
 } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import {
+  githubHost,
+  githubHostPattern,
+} from "@re-cinq/lore-shared/github-host.js";
 
 const FloorGitCredentialBody = z.object({
   repoUrl: z.string().min(1),
@@ -25,12 +29,14 @@ const GitCredentialPair = z.object({
   password: z.string(),
 });
 
-const GITHUB_REPO_URL =
-  /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/;
-
-/** `owner/name` of a github.com repository url (optional `.git` and trailing slash), or null for any other host or shape. */
-export function repoOfUrl(repoUrl: string): string | null {
-  const match = GITHUB_REPO_URL.exec(repoUrl);
+/** `owner/name` of a repository url on the configured GitHub host (optional `.git` and trailing slash), or null for any other host or shape. */
+export function repoOfUrl(
+  repoUrl: string,
+  host: string = githubHost(),
+): string | null {
+  const match = new RegExp(
+    `^https://${githubHostPattern(host)}/([^/\\s]+)/([^/\\s]+?)(?:\\.git)?/?$`,
+  ).exec(repoUrl);
 
   return match ? `${match[1]}/${match[2]}` : null;
 }

@@ -1,3 +1,4 @@
+import { githubHost, githubUrls } from "../github-host.js";
 // The names the mirror gives entities. Utopia resolves an entity by its lower-cased name, so every builder that names the same thing must name it here.
 
 export function fileName(repo: string, path: string): string {
@@ -30,11 +31,11 @@ export function testName(repo: string, path: string, title: string): string {
 }
 
 /** The default branch's tree, which GitHub resolves from `HEAD`: a link that names no commit stays the same from run to run, so an unchanged item re-pushes byte for byte and Utopia keeps no new version of it. */
-export function blobUrl(repo: string): string {
-  return `https://github.com/${repo}/blob/HEAD`;
+export function blobUrl(repo: string, host: string = githubHost()): string {
+  return `${githubUrls(host).web}/${repo}/blob/HEAD`;
 }
 
-/** A commit, a pull request and an issue are named as their GitHub page's path, so `https://github.com/<name>` is each one's permalink and a pull request and an issue with one number stay apart. */
+/** A commit, a pull request and an issue are named as their GitHub page's path, so `<github host>/<name>` is each one's permalink and a pull request and an issue with one number stay apart. */
 export function commitName(repo: string, sha: string): string {
   return `${repo}/commit/${sha}`;
 }
@@ -70,11 +71,11 @@ export function markdownFilename(id: string, title: string): string {
   return `${[id, slug(title)].filter((part) => part !== "").join("-")}.md`;
 }
 
-export function githubPage(name: string): string {
-  return `https://github.com/${name}`;
+export function githubPage(name: string, host: string = githubHost()): string {
+  return `${githubUrls(host).web}/${name}`;
 }
 
 /** A person is named as their GitHub profile's path, so a commit's author and a pull request's author with one login are one entity. */
-export function personName(login: string): string {
-  return `github.com/${login}`;
+export function personName(login: string, host: string = githubHost()): string {
+  return `${host}/${login}`;
 }

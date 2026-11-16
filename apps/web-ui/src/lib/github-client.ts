@@ -3,6 +3,7 @@
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "./octokit-retry-policy";
 import { createAppAuth } from "@octokit/auth-app";
+import { githubHost, githubUrls } from "./github-host";
 
 export function split(repo: string): [string, string] {
   const [owner, name] = repo.split("/");
@@ -19,6 +20,7 @@ export async function octokit(): Promise<Octokit> {
 
   return withoutBlindRetryOnCreates(
     new Octokit({
+      baseUrl: githubUrls(githubHost()).api,
       authStrategy: createAppAuth,
       auth: creds,
     }),

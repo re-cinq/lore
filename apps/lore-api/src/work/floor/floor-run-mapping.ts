@@ -17,6 +17,7 @@ import type {
   RunGraphNode,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { resolveRoute } from "./route-template.js";
+import { withoutHostPrefix } from "./floor-repo-name.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-port.js";
 
 /** A station's kind as the floor names it, with the human station that produces something told apart: there a person writes what the line runs on, where a plain human station waits on something outside it. */
@@ -33,7 +34,6 @@ const HUMAN_NODE_TYPES: ReadonlySet<string> = new Set([
   "feature_review",
 ]);
 const MARKER_NODE_TYPE = "retrospective";
-const GITHUB_PREFIX = /^github\.com\//;
 const PULL_REQUEST_URL = /\/pull\/(\d+)$/;
 const MILLIS_PER_MINUTE = 60_000;
 const EVENT_ID_ROW_SPAN = 100;
@@ -204,7 +204,7 @@ function runIdentityOf(run: RunView): RunIdentity {
     blueprintName: run.lineId,
     // A line that keeps a `pipeline.tasks` row is started with it as `task_id`.
     taskId: startValue(run, "task_id") ?? null,
-    repo: (run.repo ?? "").replace(GITHUB_PREFIX, ""),
+    repo: withoutHostPrefix(run.repo ?? ""),
     branch: branchOf(run.startItems),
     subjectKey: run.subjectKey,
     args: runArgsOf(run.startItems),

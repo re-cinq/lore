@@ -1,9 +1,11 @@
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import { parseReferences, type RefContext } from "@/lib/references";
 
 type LinkifiedProps = { text: string } & RefContext;
 
 export default function Linkified({ text, repo, branch }: LinkifiedProps) {
-  const segments = parseReferences(text, { repo, branch });
+  const host = useGithubHost();
+  const segments = parseReferences(text, { repo, branch, host });
 
   return (
     <>

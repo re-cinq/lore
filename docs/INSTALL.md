@@ -134,6 +134,8 @@ In-cluster paths that NetworkPolicies must allow:
 | lore-ui, lore-stations, lore-mcp-gateway | lore-api (`http://lore-api.lore-api.svc.cluster.local:3000`) | 3000 |
 | lore-api, lore-ui, lore-stations | Postgres; lore-api also Dgraph (`:8080`) | 5432, 8080 |
 
+On a self-hosted GitHub Enterprise Server the second row's `github.com` is the server's host (see [1.6.1](#161-github-enterprise-server)); a server on a private address needs its own rule in `floor.agentNetworkPolicy.extraEgress`, because the policy excludes the private ranges.
+
 The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress`, which `deploy/install/values.yaml` sets. Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
 
 ### 1.5 Secrets
@@ -190,6 +192,16 @@ The install in section 3 creates every Secret below from the values file (`secre
 | **Embeddings** | see below | |
 
 **Embeddings are Vertex AI only, today.** `LORE_EMBEDDING_PROVIDER` knows one vendor: Vertex `text-embedding-005`, 768 dimensions, reached through Google application-default credentials and a GCP project (`libs/shared/src/outbound/embeddings/select-embedding-provider.ts`). Without it Lore starts and runs, but every vector column stays empty and search falls back to keywords, which the evals put far below hybrid search. A client not on GCP has two options: a GCP project used for nothing but Vertex, with a service-account key mounted in lore-api (against this repo's no-long-lived-credentials rule, so a conscious exception), or a second `EmbeddingProvider` for the client's vendor at 768 dimensions (Azure OpenAI `text-embedding-3-small` fits), which is a code change tracked under [Known rough edges](#known-rough-edges).
+
+### 1.6.1 GitHub Enterprise Server
+
+One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `deploy/install/values.azure.example.yaml`). Lore then calls `https://<host>/api/v3`, sends sign-in to `https://<host>/login/oauth/authorize`, names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Enterprise Cloud with data residency (`*.ghe.com`) and two hosts in one install are not supported, and stored data is not moved between hosts: a Server install is a fresh install.
+
+- Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
+- The Server must be GitHub Enterprise Server 3.11 or newer: Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
+- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in `deploy/install/values.yaml`). The agent image's credential broker only asks for a repository on github.com until the subsystem release that fixes it is pinned in the floor chart.
+- The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
+- The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
 
 ### 1.7 Who does what, by cloud
 

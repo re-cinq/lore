@@ -1,6 +1,7 @@
 // What the hover tooltip says about one statement: whether it is narrative, an untested gap, or validated — and by which tests.
 
 import { resolveHref } from "@/lib/github-links";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import type { StatementInfo } from "@/lib/trace-types";
 import styles from "./SpecDetails.module.css";
 
@@ -106,10 +107,12 @@ interface TestLinkRowProps {
 }
 
 function TestLinkRow({ link, repo, branch }: TestLinkRowProps) {
+  const host = useGithubHost();
+
   return (
     <li>
       <a
-        href={testLinkHref(link, repo, branch)}
+        href={testLinkHref(link, repo, branch, host)}
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -128,8 +131,9 @@ function testLinkHref(
   link: StatementInfo["testLinks"][number],
   repo: string,
   branch: string,
+  host: string,
 ): string {
   const path = `${link.path}${link.line ? `#L${link.line}` : ""}`;
 
-  return resolveHref(path, repo, branch).href;
+  return resolveHref(path, repo, branch, host).href;
 }

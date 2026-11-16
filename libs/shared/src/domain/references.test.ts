@@ -120,3 +120,25 @@ describe("linkifyMarkdown around parenthesized link targets", () => {
     );
   });
 });
+
+describe("linkifyMarkdown on host ghe.example.com", () => {
+  it("links a file path to https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts", () => {
+    expect(
+      linkifyMarkdown("edit src/a.ts", {
+        repo: "re-cinq/lore",
+        host: "ghe.example.com",
+      }),
+    ).toBe(
+      "edit [src/a.ts](https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts)",
+    );
+  });
+
+  it("links #424 to https://ghe.example.com/re-cinq/lore/issues/424", () => {
+    expect(
+      linkifyMarkdown("fixes #424.", {
+        repo: "re-cinq/lore",
+        host: "ghe.example.com",
+      }),
+    ).toBe("fixes [#424](https://ghe.example.com/re-cinq/lore/issues/424).");
+  });
+});

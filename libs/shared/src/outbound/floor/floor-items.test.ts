@@ -95,3 +95,45 @@ describe("floor items", () => {
     });
   });
 });
+
+describe("floor names on host ghe.example.com", () => {
+  it("names the repository ghe.example.com/re-cinq/lore", () => {
+    expect(floorRepoOf("re-cinq/Lore", "ghe.example.com")).toBe(
+      "ghe.example.com/re-cinq/lore",
+    );
+  });
+
+  it("reads re-cinq/lore back from ghe.example.com/re-cinq/lore", () => {
+    expect(loreRepoOf("ghe.example.com/re-cinq/lore", "ghe.example.com")).toBe(
+      "re-cinq/lore",
+    );
+  });
+
+  it("builds the pull request url https://ghe.example.com/re-cinq/lore/pull/7", () => {
+    expect(pullRequestUrl("re-cinq/lore", 7, "ghe.example.com")).toBe(
+      "https://ghe.example.com/re-cinq/lore/pull/7",
+    );
+  });
+
+  it("parses https://ghe.example.com/re-cinq/lore/pull/7 to re-cinq/lore #7", () => {
+    expect(
+      parsePullRequestUrl(
+        "https://ghe.example.com/re-cinq/lore/pull/7",
+        "ghe.example.com",
+      ),
+    ).toEqual({ repo: "re-cinq/lore", prNumber: 7 });
+  });
+
+  it("refuses a github.com pull request url when the host is ghe.example.com", () => {
+    expect(() =>
+      parsePullRequestUrl(
+        "https://github.com/re-cinq/lore/pull/7",
+        "ghe.example.com",
+      ),
+    ).toThrow(
+      new Error(
+        "not a GitHub pull request url: https://github.com/re-cinq/lore/pull/7",
+      ),
+    );
+  });
+});

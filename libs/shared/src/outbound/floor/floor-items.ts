@@ -1,26 +1,33 @@
-// How Lore's names are spelled on the floor: a repository as `github.com/owner/name`, lowered as the floor keeps it, and a run's start items by kind.
+// How Lore's names are spelled on the floor: a repository as `<github host>/owner/name`, lowered as the floor keeps it, and a run's start items by kind.
 import type { Item } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../lib/enforce.js";
+import { githubHost, githubHostPattern } from "../../domain/github-host.js";
 
-const GITHUB_HOST = "github.com";
 const STARTED_BY = "lore";
 
-export function floorRepoOf(repo: string): string {
-  return `${GITHUB_HOST}/${repo.toLowerCase()}`;
+export function floorRepoOf(repo: string, host: string = githubHost()): string {
+  return `${host}/${repo.toLowerCase()}`;
 }
 
-export function loreRepoOf(floorRepo: string | null): string {
+export function loreRepoOf(
+  floorRepo: string | null,
+  host: string = githubHost(),
+): string {
   enforceTrue(
     floorRepo,
     Error,
     "a floor run with no repository has no Lore repository",
   );
 
-  return floorRepo.replace(/^https:\/\//, "").replace(`${GITHUB_HOST}/`, "");
+  return floorRepo.replace(/^https:\/\//, "").replace(`${host}/`, "");
 }
 
-export function pullRequestUrl(repo: string, prNumber: number): string {
-  return `https://${GITHUB_HOST}/${repo}/pull/${prNumber}`;
+export function pullRequestUrl(
+  repo: string,
+  prNumber: number,
+  host: string = githubHost(),
+): string {
+  return `https://${host}/${repo}/pull/${prNumber}`;
 }
 
 /** The `auto-merge` line's subject argument: one that no other line shares, since the floor holds one open run per repository and subject whichever line it is on. */
@@ -44,12 +51,14 @@ export interface PullRequestLocation {
   prNumber: number;
 }
 
-const PULL_REQUEST_URL =
-  /^https:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)\/?$/;
-
 /** The inverse of `pullRequestUrl`, for a station handed the address as a need. */
-export function parsePullRequestUrl(url: string): PullRequestLocation {
-  const match = PULL_REQUEST_URL.exec(url.trim());
+export function parsePullRequestUrl(
+  url: string,
+  host: string = githubHost(),
+): PullRequestLocation {
+  const match = new RegExp(
+    `^https://${githubHostPattern(host)}/([^/\\s]+/[^/\\s]+)/pull/(\\d+)/?$`,
+  ).exec(url.trim());
 
   enforceTrue(match, Error, `not a GitHub pull request url: ${url}`);
 

@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { SpecGraphNode } from "@/lib/spec-graph";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import TestPreview from "./TestPreview";
 import { colorOf } from "./spec-graph-visual";
 import { nodeLinks } from "./spec-graph-node-links";
@@ -219,9 +220,11 @@ function SelectedNodeTestPreview({ selected, repo }: SelectedNodeProps) {
 
 /** Where this node can be opened: its source, and anything the graph knows it relates to. External links open in a new tab so the graph keeps its layout — which is dragged by hand and worth not losing. */
 function NodeLinks({ selected, repo }: SelectedNodeProps) {
+  const host = useGithubHost();
+
   return (
     <div style={{ display: "flex", gap: 12 }}>
-      {nodeLinks(selected, repo).map((l) => (
+      {nodeLinks(selected, repo, host).map((l) => (
         <a
           key={l.href}
           href={l.href}

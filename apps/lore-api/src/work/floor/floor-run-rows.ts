@@ -1,5 +1,6 @@
 // The floor's runs as the list page reads them: wire rows with their pull request, cost and mini pipeline, and the floor's own cursor.
 import { z } from "zod";
+import { githubIssueUrl } from "@re-cinq/lore-shared/github-host.js";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   RunRowSchema,
@@ -65,7 +66,7 @@ function storyIssueOf(
   }
 
   return {
-    issue_url: `https://github.com/${run.repo}/issues/${storyIssue}`,
+    issue_url: githubIssueUrl(run.repo, storyIssue),
     issue_number: Number(storyIssue),
   };
 }

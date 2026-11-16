@@ -248,3 +248,17 @@ describe("storyCoverageOf", () => {
     ]);
   });
 });
+
+describe("statementLink on host ghe.example.com", () => {
+  it("links the line at https://ghe.example.com/o/r/blob/abc123/specs/f/spec.md#L42", () => {
+    expect(
+      statementLink({
+        repo: "o/r",
+        file: "specs/f/spec.md",
+        ref: "abc123",
+        line: 42,
+        host: "ghe.example.com",
+      }),
+    ).toBe("https://ghe.example.com/o/r/blob/abc123/specs/f/spec.md#L42");
+  });
+});

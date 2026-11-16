@@ -68,3 +68,17 @@ describe("parseReferences", () => {
     ]);
   });
 });
+
+describe("parseReferences on host ghe.example.com", () => {
+  it("links a file path to https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts", () => {
+    expect(
+      parseReferences("see src/a.ts", { ...ctx, host: "ghe.example.com" }),
+    ).toEqual([
+      { text: "see " },
+      {
+        text: "src/a.ts",
+        href: "https://ghe.example.com/re-cinq/lore/blob/main/src/a.ts",
+      },
+    ]);
+  });
+});

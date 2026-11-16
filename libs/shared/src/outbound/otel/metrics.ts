@@ -121,7 +121,7 @@ export function recordFloorStart(
   instruments().floorStarts.add(1, { line, joined: String(started.joined) });
 }
 
-/** How the implementation loop left a ticket: merged, closed because the work was already done, parked for a person, or deferred to the next tick after an infrastructure failure. The repository is named as the floor names it (`github.com/<owner>/<name>`, lowercase), so one board filter matches this and the floor's own series. */
+/** How the implementation loop left a ticket: merged, closed because the work was already done, parked for a person, or deferred to the next tick after an infrastructure failure. The repository is named as the floor names it (`<github host>/<owner>/<name>`, lowercase), so one board filter matches this and the floor's own series. */
 export type LoopTicketResult =
   "merged" | "closed_done" | "parked" | "deferred" | "requeued";
 

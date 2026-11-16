@@ -3,6 +3,7 @@ import type { GithubInstallationPayload } from "../../../domain/github-installat
 import type { GithubApp } from "./github-app-port.js";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { withoutBlindRetryOnCreates } from "../lib/octokit-retry-policy.js";
+import { octokitOptions } from "../lib/platform-github-auth.js";
 
 /** The App's own identity: its id and private key, with no installation pinned — which is what lets it ask about any installation of this App. */
 export interface GithubAppCredentials {
@@ -54,7 +55,11 @@ async function appOctokit(credentials: GithubAppCredentials): Promise<Octokit> {
   const { createAppAuth } = await import("@octokit/auth-app");
 
   return withoutBlindRetryOnCreates(
-    new Octokit({ authStrategy: createAppAuth, auth: credentials }),
+    new Octokit({
+      ...octokitOptions(process.env),
+      authStrategy: createAppAuth,
+      auth: credentials,
+    }),
   );
 }
 

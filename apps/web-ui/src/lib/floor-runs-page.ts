@@ -1,4 +1,5 @@
 import { floorRunOf, type AssemblyRun } from "./assembly-run-rows";
+import { DEFAULT_GITHUB_HOST } from "./github-host";
 import { liveFetch } from "./live-fetch";
 import type { components } from "./api/schema";
 
@@ -32,19 +33,25 @@ export function floorRunsPath(query: FloorRunsQuery): string {
 
 export function floorRunsPageOf(
   page: components["schemas"]["FloorRunPage"],
+  host: string = DEFAULT_GITHUB_HOST,
 ): FloorRunsPage {
-  return { runs: page.runs.map(floorRunOf), nextCursor: page.next_cursor };
+  return {
+    runs: page.runs.map((row) => floorRunOf(row, host)),
+    nextCursor: page.next_cursor,
+  };
 }
 
 /** One page of the floor's runs; a refusal answers an empty page rather than taking the list down. */
 export async function loadFloorRunsPage(
   query: FloorRunsQuery,
+  host: string = DEFAULT_GITHUB_HOST,
 ): Promise<FloorRunsPage> {
   const response = await liveFetch(floorRunsPath(query));
 
   return response.ok
     ? floorRunsPageOf(
         (await response.json()) as components["schemas"]["FloorRunPage"],
+        host,
       )
     : { runs: [], nextCursor: null };
 }

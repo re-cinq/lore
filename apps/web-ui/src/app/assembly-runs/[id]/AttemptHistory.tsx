@@ -1,5 +1,7 @@
 // The looped node's attempts inside its detail card (run-viz FR4.1f): one row per visit, each a button that puts that attempt in the center column. Pure render.
 import { formatDuration } from "@/lib/assembly-run-presenter";
+import { useGithubHost } from "@/lib/GithubHostProvider";
+import { githubUrls } from "@/lib/github-host";
 import type { StepView } from "@/lib/step-presenter";
 import { StatusPill } from "@/components/StatusPill";
 import styles from "./RunNodeDetail.module.css";
@@ -92,6 +94,8 @@ function AttemptRefs({ step, repo }: Pick<AttemptRowProps, "step" | "repo">) {
 
 /** The stage commit this attempt made, linked to GitHub. Shown short, as a sha is read: the full forty characters carry no more meaning to a human and crowd out the row. */
 function CommitLink({ sha, repo }: { sha: string | null; repo: string }) {
+  const host = useGithubHost();
+
   if (!sha) {
     return null;
   }
@@ -99,7 +103,7 @@ function CommitLink({ sha, repo }: { sha: string | null; repo: string }) {
   return (
     <a
       className={styles.mono}
-      href={`https://github.com/${repo}/commit/${sha}`}
+      href={`${githubUrls(host).web}/${repo}/commit/${sha}`}
       target="_blank"
       rel="noreferrer"
     >

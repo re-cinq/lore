@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { markdownFilename, slug } from "./names.js";
+import {
+  blobUrl,
+  githubPage,
+  markdownFilename,
+  personName,
+  slug,
+} from "./names.js";
 
 describe("slug", () => {
   it("lower-cases Fix: the Build (#12)! as fix-the-build-12 and cuts a 80-letter title to 60 characters", () => {
@@ -20,5 +26,25 @@ describe("markdownFilename", () => {
       markdownFilename("pr-7", "Add a thing"),
       markdownFilename("pr-7", "!!!"),
     ]).toEqual(["pr-7-add-a-thing.md", "pr-7.md"]);
+  });
+});
+
+describe("names on host ghe.example.com", () => {
+  it("names the default branch tree https://ghe.example.com/o/r/blob/HEAD", () => {
+    expect(blobUrl("o/r", "ghe.example.com")).toBe(
+      "https://ghe.example.com/o/r/blob/HEAD",
+    );
+  });
+
+  it("names a page https://ghe.example.com/o/r/pull/7", () => {
+    expect(githubPage("o/r/pull/7", "ghe.example.com")).toBe(
+      "https://ghe.example.com/o/r/pull/7",
+    );
+  });
+
+  it("names the person ghe.example.com/octocat", () => {
+    expect(personName("octocat", "ghe.example.com")).toBe(
+      "ghe.example.com/octocat",
+    );
   });
 });

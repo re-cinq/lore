@@ -1,4 +1,5 @@
 // The run page's row shapes and the pure mappers from lore-api's wire rows — no server imports, so the client-side reducers can use them (the reads live in assembly-runs.ts).
+import { DEFAULT_GITHUB_HOST, githubUrls } from "./github-host";
 import type { RunGraph } from "./run-graph";
 import type { components } from "./api/schema";
 
@@ -105,7 +106,10 @@ export function durationSeconds(
   );
 }
 
-export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
+export function toAssemblyRun(
+  row: AssemblyRunRow,
+  host: string = DEFAULT_GITHUB_HOST,
+): AssemblyRun {
   return {
     id: row.id,
     engine: row.engine,
@@ -114,28 +118,37 @@ export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
     taskId: row.task_id,
     repo: row.repo,
     branch: row.branch,
-    status: row.status,
-    outcome: row.outcome,
-    reason: row.reason,
+    ...stateOf(row),
+    ...timingOf(row),
+    createdBy: row.created_by,
+    costUsd: row.cost_usd,
+    ...linkedWork(row, host),
+  };
+}
+
+function stateOf(row: AssemblyRunRow) {
+  return { status: row.status, outcome: row.outcome, reason: row.reason };
+}
+
+function timingOf(row: AssemblyRunRow) {
+  return {
     createdAt: row.created_at,
     startedAt: row.started_at,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
-    createdBy: row.created_by,
-    costUsd: row.cost_usd,
-    ...linkedWork(row),
   };
 }
 
 // What the run points at beyond itself: its Issue, its PR, and the spec analysis's summary.
 function linkedWork(
   row: AssemblyRunRow,
+  host: string,
 ): Pick<
   AssemblyRun,
   "issueUrl" | "issueNumber" | "prUrl" | "prNumber" | "specPlanSummary"
 > {
   return {
     ...issueRef(row),
-    ...pullRequestRef(row),
+    ...pullRequestRef(row, host),
     specPlanSummary: row.spec_plan_summary ?? null,
   };
 }
@@ -150,11 +163,12 @@ function issueRef(
 /** PR link precedence: the backing task's PR, else a code-review run's args.pr_number reconstructed against the repo. */
 function pullRequestRef(
   row: AssemblyRunRow,
+  host: string,
 ): Pick<AssemblyRun, "prUrl" | "prNumber"> {
   const prUrl =
     row.pr_url ??
     (row.args_pr_number !== null
-      ? `https://github.com/${row.repo}/pull/${row.args_pr_number}`
+      ? `${githubUrls(host).web}/${row.repo}/pull/${row.args_pr_number}`
       : null);
 
   return { prUrl, prNumber: row.task_pr_number ?? row.args_pr_number ?? null };
@@ -192,6 +206,12 @@ function visitFactsOf(row: AssemblyRunNodeRow) {
 export type FloorRunRow = components["schemas"]["FloorRunPage"]["runs"][number];
 
 /** A floor run row — from a page or from a live `run_row` frame — as the list draws it, stages included. */
-export function floorRunOf(row: FloorRunRow): AssemblyRun {
-  return { ...toAssemblyRun({ ...row, graph: null }), pipeline: row.pipeline };
+export function floorRunOf(
+  row: FloorRunRow,
+  host: string = DEFAULT_GITHUB_HOST,
+): AssemblyRun {
+  return {
+    ...toAssemblyRun({ ...row, graph: null }, host),
+    pipeline: row.pipeline,
+  };
 }

@@ -1,4 +1,5 @@
 // What a bag item's, need's or product's ref is, for the page to show it the way a person reads it (run-viz FR4.4l): a blob shown in place, JSON as a tree with the JSON nested inside it decoded, a link where it leads, text otherwise.
+import { DEFAULT_GITHUB_HOST } from "./github-host";
 import { needLink } from "./need-link";
 
 export type ItemValue =
@@ -12,7 +13,11 @@ const JSON_CONTAINER = /^\s*[[{]/;
 // A line encodes a value as JSON more than once; past this many layers what is left stays a string.
 const MAX_DEPTH = 5;
 
-export function itemValueOf(ref: string, runId: string): ItemValue {
+export function itemValueOf(
+  ref: string,
+  runId: string,
+  host: string = DEFAULT_GITHUB_HOST,
+): ItemValue {
   if (BLOB_HASH.test(ref)) {
     return { kind: "blob", hash: ref };
   }
@@ -21,7 +26,7 @@ export function itemValueOf(ref: string, runId: string): ItemValue {
   if (parsed !== undefined) {
     return { kind: "json", value: decodedNested(parsed, 1) };
   }
-  const link = needLink(ref, runId);
+  const link = needLink(ref, runId, host);
 
   return link ? { kind: "link", ...link } : { kind: "text", text: ref };
 }

@@ -36,7 +36,7 @@ git rev-parse --git-dir > /dev/null 2>&1 && BRANCH=" │ 🌿 $(git branch --sho
 echo -e "${CYAN}[$MODEL]${RESET} 📁 ${DIR##*/}${BRANCH} │ ${BAR_COLOR}${BAR}${RESET} ${PCT}% │ ⏱️ ${MINS}m ${SECS}s"
 
 # --- Line 2: Lore status (conditional on cache from SessionStart hook) ---
-REPO=$(cd "$DIR" 2>/dev/null && git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\.git$||')
+REPO=$(cd "$DIR" 2>/dev/null && git remote get-url origin 2>/dev/null | sed -E 's|.*[:/]([^/]+/[^/]+)$|\1|; s|\.git$||')
 [ -z "$REPO" ] && exit 0
 
 # Use md5 hash of repo name for cache file (macOS: md5, Linux: md5sum)
