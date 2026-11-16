@@ -26,7 +26,7 @@ describe("GET /api/repos/:owner/:repo/trace/callers", () => {
     );
 
     expect(res.statusCode).toBe(400);
-    const body = res.json();
+    const body = res.result as { message?: string };
 
     expect(body.message).toContain("one hop is supported");
   });

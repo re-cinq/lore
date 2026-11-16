@@ -82,11 +82,24 @@ async function callGraphQuery(
     return formatProxyFailure(result);
   }
 
-  const { callers } = JSON.parse(result.body) as {
-    callers: Array<{ filePath: string; symbol: string; startLine: number }>;
+  return parseCallersBody(result.body, symbolName);
+}
+
+/** Returns the raw body when it is not a recognisable callers payload. */
+function parseCallersBody(body: string, symbolName: string): string {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return body;
+  }
+
+  const { callers } = parsed as {
+    callers?: Array<{ filePath: string; symbol: string; startLine: number }>;
   };
 
-  return formatCallers(callers, symbolName);
+  return Array.isArray(callers) ? formatCallers(callers, symbolName) : body;
 }
 
 function formatCallers(
