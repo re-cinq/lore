@@ -17,10 +17,10 @@
 
 ## Facets
 
-- [ ] Check for `doc.statements.length === 0` in `formatTraceQuery` before selector evaluation.
-- [ ] Read and refuse `depth > 1` in `callersResult` API handler.
-- [ ] Format `callGraphQuery` response as a list of lines with file and symbol.
-- [ ] Update `query-trace.ts` tool schema description to indicate only depth 1 is supported.
+- [x] Check for `doc.statements.length === 0` in `formatTraceQuery` before selector evaluation.
+- [x] Read and refuse `depth > 1` in `callersResult` API handler.
+- [x] Format `callGraphQuery` response as a list of lines with file and symbol.
+- [x] Update `query-trace.ts` tool schema description to indicate only depth 1 is supported.
 
 ## Out of scope
 

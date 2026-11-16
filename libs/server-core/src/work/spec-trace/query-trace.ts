@@ -16,6 +16,9 @@ export function formatTraceQuery(
   if (!selector?.trim()) {
     return summary(doc);
   }
+  if (doc.statements.length === 0) {
+    return `No graph data for ${doc.filePath} (not ingested, or the graph is empty on main).`;
+  }
   const matches = selectStatements(doc, selector);
 
   if (matches.length === 0) {
@@ -217,15 +220,36 @@ async function callGraphQuery(
   args: QueryTraceArgs,
   deps: QueryTraceDeps,
 ): Promise<string> {
-  const symbol = encodeURIComponent(
-    (args.callers_of ?? args.callees_of) as string,
-  );
+  const symbolName = (args.callers_of ?? args.callees_of) as string;
+  const symbol = encodeURIComponent(symbolName);
   const direction = args.callers_of ? "callers" : "callees";
   const result = await deps.proxyGet(
     `/api/repos/${repo}/trace/callers?symbol=${symbol}&direction=${direction}&depth=${args.depth ?? 1}`,
   );
 
-  return result.ok ? result.body : formatProxyFailure(result);
+  if (!result.ok) {
+    return formatProxyFailure(result);
+  }
+
+  const { callers } = JSON.parse(result.body) as {
+    callers: Array<{ filePath: string; symbol: string; startLine: number }>;
+  };
+
+  return formatCallers(callers, symbolName);
+}
+
+function formatCallers(
+  callers: Array<{ filePath: string; symbol: string; startLine: number }>,
+  symbolName: string,
+): string {
+  if (callers.length === 0) {
+    return `No callers found for ${symbolName}.`;
+  }
+
+  return [
+    `Callers of ${symbolName} (${callers.length}):`,
+    ...callers.map((c) => `- ${c.filePath}:${c.startLine} — ${c.symbol}`),
+  ].join("\n");
 }
 
 /** Reads one spec's traceability document. */

@@ -20,6 +20,7 @@ const TraceQuery = z.object({
   branch: z.string().max(255).optional(),
   symbol: z.string().max(255).optional(),
   direction: z.enum(["callers", "callees"]).optional(),
+  depth: z.coerce.number().int().optional(),
 });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
@@ -152,6 +153,11 @@ async function callersResult(trace: Trace, query: TraceQuery): Promise<object> {
   const symbol = query.symbol ?? "";
 
   enforceTrue(symbol, apiError(400), "symbol query param required");
+  enforceTrue(
+    (query.depth ?? 1) <= 1,
+    apiError(400, { message: "only one hop is supported; depth > 1 is not yet walked" }),
+    "only one hop is supported; depth > 1 is not yet walked",
+  );
 
   return { callers: await trace.callers(symbol, query.direction) };
 }
