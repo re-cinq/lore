@@ -3335,6 +3335,37 @@ export interface components {
     };
     AssemblyRunRead: {
       line: {
+        graph?: {
+          name: string;
+          entry: string;
+          exit: string;
+          fail?: string;
+          nodes: {
+            id: string;
+            type: string;
+            station: string | null;
+            station_inherited: boolean;
+            route?: string;
+            prompt_ref?: string;
+            model?: string;
+            timeout_minutes?: number;
+            required_tags?: string[];
+            condition_ref?: string;
+            job_ref?: string;
+            continues?: {
+              node: string;
+              key: string;
+            };
+            description?: string;
+          }[];
+          edges: {
+            from: string;
+            to: string;
+            on: string;
+            iteration_max?: number;
+          }[];
+        } | null;
+      } & {
         [key: string]: unknown;
       };
       definitionKnown: boolean;
@@ -6228,7 +6259,37 @@ export interface components {
           expires_at: string | null;
         };
     TraceRead: {
-      [key: string]: unknown;
+      filePath: string;
+      sections: {
+        uid: string;
+        heading: string;
+        ordinal: number;
+        level?: number;
+      }[];
+      statements: {
+        uid: string;
+        ordinal: number;
+        text: string;
+        /** @enum {string} */
+        state: "tested" | "untested" | "narrative";
+        sectionUid?: string;
+        links: {
+          /** @enum {string} */
+          kind: "test" | "code" | "adr";
+          label: string;
+          path?: string;
+          line?: number;
+          detail?: string;
+        }[];
+        drifted?: boolean;
+        violated?: boolean;
+      }[];
+      coverage: {
+        testable: number;
+        covered: number;
+        untestable: number;
+        ratio: number;
+      };
     };
     UtopiaBackfillSummary: {
       commit: string;

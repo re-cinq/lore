@@ -14472,8 +14472,122 @@
         "properties": {
           "line": {
             "type": "object",
-            "propertyNames": {
-              "type": "string"
+            "properties": {
+              "graph": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "entry": {
+                        "type": "string"
+                      },
+                      "exit": {
+                        "type": "string"
+                      },
+                      "fail": {
+                        "type": "string"
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "station": {
+                              "type": ["string", "null"]
+                            },
+                            "station_inherited": {
+                              "type": "boolean"
+                            },
+                            "route": {
+                              "type": "string"
+                            },
+                            "prompt_ref": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "timeout_minutes": {
+                              "type": "number"
+                            },
+                            "required_tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "condition_ref": {
+                              "type": "string"
+                            },
+                            "job_ref": {
+                              "type": "string"
+                            },
+                            "continues": {
+                              "type": "object",
+                              "properties": {
+                                "node": {
+                                  "type": "string"
+                                },
+                                "key": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["node", "key"],
+                              "additionalProperties": false
+                            },
+                            "description": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "station",
+                            "station_inherited"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "edges": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string"
+                            },
+                            "to": {
+                              "type": "string"
+                            },
+                            "on": {
+                              "type": "string"
+                            },
+                            "iteration_max": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["from", "to", "on"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["name", "entry", "exit", "nodes", "edges"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
             "additionalProperties": {}
           },
@@ -25208,10 +25322,112 @@
       },
       "TraceRead": {
         "type": "object",
-        "propertyNames": {
-          "type": "string"
+        "properties": {
+          "filePath": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string"
+                },
+                "heading": {
+                  "type": "string"
+                },
+                "ordinal": {
+                  "type": "number"
+                },
+                "level": {
+                  "type": "number"
+                }
+              },
+              "required": ["uid", "heading", "ordinal"],
+              "additionalProperties": false
+            }
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string"
+                },
+                "ordinal": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["tested", "untested", "narrative"]
+                },
+                "sectionUid": {
+                  "type": "string"
+                },
+                "links": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["test", "code", "adr"]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "number"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "label"],
+                    "additionalProperties": false
+                  }
+                },
+                "drifted": {
+                  "type": "boolean"
+                },
+                "violated": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["uid", "ordinal", "text", "state", "links"],
+              "additionalProperties": false
+            }
+          },
+          "coverage": {
+            "type": "object",
+            "properties": {
+              "testable": {
+                "type": "number"
+              },
+              "covered": {
+                "type": "number"
+              },
+              "untestable": {
+                "type": "number"
+              },
+              "ratio": {
+                "type": "number"
+              }
+            },
+            "required": ["testable", "covered", "untestable", "ratio"],
+            "additionalProperties": false
+          }
         },
-        "additionalProperties": {}
+        "required": ["filePath", "sections", "statements", "coverage"],
+        "additionalProperties": false
       },
       "UtopiaBackfillSummary": {
         "type": "object",

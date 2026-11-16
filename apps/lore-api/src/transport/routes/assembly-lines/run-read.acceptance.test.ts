@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { runReadRoute } from "./run-read.js";
 import { getResponseMeta } from "../../http/zod-response.js";
+import { optionsOf } from "../../openapi/operation-responses.js";
 
 describe("run-read", () => {
   it("declares a strict response schema for the run graph", () => {
     const route = runReadRoute(() => null);
-    const meta = getResponseMeta(route.options?.plugins);
+    const meta = getResponseMeta(optionsOf(route).plugins);
 
     expect(meta).toBeDefined();
 
