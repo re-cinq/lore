@@ -134,7 +134,7 @@ lore-platform:
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "be2849d"
+      tag: "b4e4484"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -151,11 +151,11 @@ lore-platform:
   lore-ui:
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "be2849d"
+      tag: "b4e4484"
   lore-stations:
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "be2849d"
+      tag: "b4e4484"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -163,7 +163,7 @@ lore-platform:
   lore-mcp-gateway:
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "be2849d"
+      tag: "b4e4484"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:
