@@ -38,11 +38,11 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "Database PVC {{ $labels.persistentvolumeclaim }} is above 80% full"
+            summary: "Database PVC {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }} is above 80% full"
             description: >-
-              PVC {{ $labels.persistentvolumeclaim }} in namespace
-              {{ $labels.namespace }} is at
-              {{ $value | humanizePercentage }} capacity.
+              PVC {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }} in namespace
+              {{ "{{" }} $labels.namespace {{ "}}" }} is at
+              {{ "{{" }} $value | humanizePercentage {{ "}}" }} capacity.
 {{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
 ---
 apiVersion: v1
