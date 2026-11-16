@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import PendingActionButton from "./PendingActionButton";
+import { useModal } from "./use-modal";
 import styles from "./ConfirmDialog.module.scss";
 
 /** What a confirmation asks, and how loudly its confirm button says it. */
@@ -104,14 +105,4 @@ function useTypedName(typeToConfirm: string | undefined) {
   const confirmable = [undefined, typed].includes(typeToConfirm);
 
   return { typed, onType, confirmable };
-}
-
-function useModal() {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
-
-  return dialogRef;
 }

@@ -3376,6 +3376,8 @@ export interface components {
       name: string;
       avatar_url: string | null;
       scopes: string[];
+      started_at: string;
+      expires_at: string | null;
     };
     AutoMerge: {
       current: {

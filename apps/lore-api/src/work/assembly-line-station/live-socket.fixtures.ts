@@ -68,8 +68,21 @@ export function allowing(
   };
 }
 
-const ANA = { login: "ana", name: "Ana", avatarUrl: null, repos: ["o/r"] };
-const BEN = { login: "ben", name: "Ben", avatarUrl: null, repos: ["x/y"] };
+const SIGNED_IN = { startedAt: "2026-10-28T10:00:00.000Z", expiresAt: null };
+const ANA = {
+  login: "ana",
+  name: "Ana",
+  avatarUrl: null,
+  repos: ["o/r"],
+  ...SIGNED_IN,
+};
+const BEN = {
+  login: "ben",
+  name: "Ben",
+  avatarUrl: null,
+  repos: ["x/y"],
+  ...SIGNED_IN,
+};
 
 /** Two people: "ana-session" belongs to Ana (who reads o/r), "ben-session" to Ben (who reads x/y); any other token is no person's. */
 export const personBySession: LiveSocketDeps["person"] = async (token) =>

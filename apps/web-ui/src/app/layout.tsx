@@ -4,6 +4,7 @@ import AppShell from "./AppShell";
 import BrandLockup from "@/components/BrandLockup";
 import SidebarNav from "./SidebarNav";
 import UserMenu from "./UserMenu";
+import SessionWatch from "./SessionWatch";
 import { RailToggle, SidebarSearch } from "@/components/shell/SidebarTools";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import { LiveSocketProvider } from "@/lib/live-socket/LiveSocketProvider";
@@ -97,14 +98,22 @@ async function readOpenInboxCount(): Promise<number> {
   return inbox.status === "ok" ? openInboxCount(inbox.data.counts) : 0;
 }
 
-/** The signed-in person beside the deployed build; read here so the rest of the sidebar renders without waiting for lore-api to name them. */
+/** The signed-in person beside the deployed build, and the watch on their session; read here so the rest of the sidebar renders without waiting for lore-api to name them. */
 async function SidebarFoot() {
   const session = await getSession();
 
   return (
-    <UserMenu
-      user={session?.user ?? null}
-      version={process.env.LORE_UI_VERSION ?? "dev"}
-    />
+    <>
+      <UserMenu
+        user={session?.user ?? null}
+        version={process.env.LORE_UI_VERSION ?? "dev"}
+      />
+      {session && (
+        <SessionWatch
+          startedAt={session.startedAt}
+          expiresAt={session.expiresAt}
+        />
+      )}
+    </>
   );
 }

@@ -29,6 +29,8 @@ export const MeSchema = z.object({
   name: z.string(),
   avatar_url: z.string().nullable(),
   scopes: z.array(z.string()),
+  started_at: z.string(),
+  expires_at: z.string().nullable(),
 });
 
 export const AccessQuery = z.object({ repo: z.string().min(1) });

@@ -53,7 +53,14 @@ function lore() {
 function personRow(hash: string) {
   const repos = hash === ANA_HASH ? ["re-cinq/lore"] : ["x/y"];
 
-  return { scopes: ["read"], kind: "user", login: "person", repos };
+  return {
+    scopes: ["read"],
+    kind: "user",
+    login: "person",
+    repos,
+    startedAt: new Date("2026-10-28T10:00:00Z"),
+    expiresAt: null,
+  };
 }
 
 const ANA_HASH = createHash("sha256").update("ana-session").digest("hex");

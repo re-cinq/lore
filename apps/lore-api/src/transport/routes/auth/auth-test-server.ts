@@ -96,6 +96,13 @@ export const userPrincipal = (
 ): string =>
   JSON.stringify({
     scopes,
-    user: { login: "gedaiu", name: "Bogdan", avatarUrl: "https://a/1", repos },
+    user: {
+      login: "gedaiu",
+      name: "Bogdan",
+      avatarUrl: "https://a/1",
+      repos,
+      startedAt: "2026-10-28T10:00:00.000Z",
+      expiresAt: "2026-10-28T18:00:00.000Z",
+    },
     tokenHash: "hash-1",
   } satisfies Principal);

@@ -33,7 +33,16 @@ function poolGranting(scopes: string[]): Pool {
 function poolOfSession(login: string): Pool {
   return {
     query: vi.fn().mockResolvedValue({
-      rows: [{ scopes: ["admin"], kind: "user", login, repos: [] }],
+      rows: [
+        {
+          scopes: ["admin"],
+          kind: "user",
+          login,
+          repos: [],
+          startedAt: new Date("2026-10-28T10:00:00Z"),
+          expiresAt: null,
+        },
+      ],
     }),
   } as unknown as Pool;
 }

@@ -35,6 +35,8 @@ describe("resolvePrincipal", () => {
           displayName: "Bogdan",
           avatarUrl: "https://a/1",
           repos: ["re-cinq/lore"],
+          startedAt: new Date("2026-10-28T10:00:00Z"),
+          expiresAt: new Date("2026-10-28T18:00:00Z"),
         },
       ],
     });
@@ -46,6 +48,8 @@ describe("resolvePrincipal", () => {
         name: "Bogdan",
         avatarUrl: "https://a/1",
         repos: ["re-cinq/lore"],
+        startedAt: "2026-10-28T10:00:00.000Z",
+        expiresAt: "2026-10-28T18:00:00.000Z",
       },
       tokenHash: sha256("user-token"),
     });

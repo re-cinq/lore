@@ -100,7 +100,16 @@ describe("POST /api/assembly-runs/{id}/nodes/{node}/run", () => {
     );
     const pool = {
       query: vi.fn().mockResolvedValue({
-        rows: [{ scopes: ["admin"], kind: "user", login: "ana", repos: [] }],
+        rows: [
+          {
+            scopes: ["admin"],
+            kind: "user",
+            login: "ana",
+            repos: [],
+            startedAt: new Date("2026-10-28T10:00:00Z"),
+            expiresAt: null,
+          },
+        ],
       }),
     };
     const server = Hapi.server();

@@ -14607,9 +14607,22 @@
             "items": {
               "type": "string"
             }
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": ["string", "null"]
           }
         },
-        "required": ["login", "name", "avatar_url", "scopes"],
+        "required": [
+          "login",
+          "name",
+          "avatar_url",
+          "scopes",
+          "started_at",
+          "expires_at"
+        ],
         "additionalProperties": false
       },
       "AutoMerge": {
