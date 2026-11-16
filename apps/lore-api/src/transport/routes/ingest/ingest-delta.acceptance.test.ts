@@ -74,9 +74,13 @@ describe("POST /api/repos/{owner}/{repo}/ingest acceptance", () => {
 
     deps.projectSpec = vi
       .fn()
-      .mockImplementation(async (repo, path, content, projection) => {
+      .mockImplementation(async (repo, path, content, _projection) => {
         deps.calls.push(["projectSpec", repo, path, content]);
-        enforceTrue(path !== "specs/bad/spec.md", Error, "projection failed for bad file");
+        enforceTrue(
+          path !== "specs/bad/spec.md",
+          Error,
+          "projection failed for bad file",
+        );
 
         return { projected: true };
       });
