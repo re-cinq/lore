@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runReadRoute } from "./run-read.js";
+import { RunRowSchema } from "./run-row.js";
 import { getResponseMeta } from "../../http/zod-response.js";
 import { optionsOf } from "../../openapi/operation-responses.js";
 
@@ -28,5 +29,8 @@ describe("run-read", () => {
     const result = meta!.schema.safeParse(invalidPayload);
 
     expect(result.success).toBe(false);
+    expect(RunRowSchema.shape.graph.safeParse({ name: 123 }).success).toBe(
+      false,
+    );
   });
 });
