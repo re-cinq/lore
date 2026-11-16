@@ -1,0 +1,14 @@
+{{- include "lore-install.checks" . -}}
+{{- range .Values.namespaces }}
+{{- if not (lookup "v1" "Namespace" "" .) }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-30"
+    helm.sh/resource-policy: keep
+{{- end }}
+{{- end }}

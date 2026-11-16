@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lore-install
+description: >-
+  Installs Lore, the floor, the agent subsystem and Utopia on one cluster from
+  one values file. For a cluster we do not run ourselves; our own cluster deploys
+  deploy/chart with Argo CD.
+type: application
+version: 0.1.0
+
+# The agent subsystem is not a dependency of its own: the floor chart bundles
+# it (floor.subsystem.enabled). Its standalone chart rejects the `global` key
+# Helm hands every subchart, and both charts ship the same five CRDs.
+dependencies:
+  - name: lore-platform
+    version: 0.1.0
+    repository: file://../chart
+  - name: floor
+    version: 0.5.3
+    repository: oci://ghcr.io/re-cinq/charts
+  # Utopia's chart is not published to a registry: it is read from a checkout
+  # of re-cinq/utopia beside this repository (docs/INSTALL.md 3.2).
+  - name: utopia
+    version: 0.1.0
+    repository: file://../../../utopia/deploy/chart
+    condition: utopia.enabled

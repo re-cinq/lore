@@ -1,0 +1,166 @@
+# Defaults of the lore-install chart. A client copies values.azure.example.yaml
+# and fills it in; this file holds what is the same on every install.
+#
+# Install, always with this release name and namespace (the chart refuses
+# others, because in-cluster addresses below are derived from them):
+#
+#   helm dependency update deploy/install
+#   helm upgrade --install lore deploy/install -n lore-floor --create-namespace -f my-values.yaml
+
+# Created before anything else. lore-floor is the release namespace and comes
+# from --create-namespace. A namespace that already exists is left alone.
+namespaces: [lore-api, lore-ui, lore-stations]
+
+# Every Secret the three apps read, rendered into each namespace that needs it.
+# Set create to false when the client's vault provides Secrets with the names
+# in docs/INSTALL.md section 1.5.
+secrets:
+  create: true
+  # A GitHub user and token with read:packages, for the ghcr.io/re-cinq/lore-* images.
+  ghcr:
+    username: ""
+    token: ""
+  # Password of the `lore` Postgres role.
+  loreDbPassword: ""
+  # postgres://user:password@host:5432/floor
+  floorDbConnectionString: ""
+  # openssl rand -hex 32, each. They only have to be the same everywhere, which
+  # this chart takes care of.
+  ingestToken: ""
+  internalToken: ""
+  webhookSecret: ""
+  floor:
+    serviceToken: ""
+    visitTokenSecret: ""
+    gitCredentialToken: ""
+  # The GitHub App Lore acts as.
+  githubApp:
+    appId: ""
+    privateKey: ""
+    installationId: ""
+  # The GitHub OAuth App people sign in to the UI with.
+  githubOAuth:
+    clientId: ""
+    clientSecret: ""
+  # Utopia (only read when utopia.enabled). Passwords of its two database
+  # roles, its encryption key, and the OAuth client people sign in with.
+  # cookieSecret is exactly 16, 24 or 32 characters: openssl rand -hex 16.
+  utopia:
+    dbPassword: ""
+    appDbPassword: ""
+    secretKey: ""
+    oauthClientId: ""
+    oauthClientSecret: ""
+    cookieSecret: ""
+  # Optional: the model key Lore's own jobs use (not the agents' key).
+  anthropicApiKey: ""
+  # Optional: the Slack app.
+  slack:
+    signingSecret: ""
+    botToken: ""
+
+# ---- The floor, with the agent subsystem it bundles ---------------------------
+# Any value of the floor chart can be set here:
+#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.3
+floor:
+  version: "0.5.3"
+  # The agent subsystem: controller and CRDs. Agents run in the release namespace.
+  subsystem:
+    enabled: true
+  api:
+    # The floor's own address. Its Service is named <release>-floor-api.
+    baseUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
+    existingSecret: floor-api
+    gitCredentialUrl: http://lore-api.lore-api.svc.cluster.local:3000/api/floor/git-credential
+  postgres:
+    existingSecret: floor-postgres
+    secretKey: connectionString
+  agentNetworkPolicy:
+    # The one in-cluster door agent pods need beyond the floor: Lore's MCP
+    # gateway and skills registry.
+    extraEgress:
+      - to:
+          - namespaceSelector:
+              matchLabels: { kubernetes.io/metadata.name: lore-api }
+            podSelector:
+              matchLabels: { app: lore-mcp-gateway }
+        ports:
+          - { protocol: TCP, port: 8080 }
+
+# ---- Utopia -------------------------------------------------------------------
+# The knowledge graph Lore mirrors each repository's specs and ADRs into. It
+# runs in the release namespace with its own Postgres, which needs the
+# CloudNativePG operator on the cluster. Any value of the Utopia chart can be
+# set here (re-cinq/utopia, deploy/chart/values.yaml).
+#
+# To leave Utopia out, set BOTH utopia.enabled and
+# lore-platform.lore-api.utopia.enabled to false.
+utopia:
+  enabled: true
+  # Not public: pulled with ghcr-pull-secret, like the Lore images.
+  image:
+    repository: ghcr.io/re-cinq/utopia
+    tag: 0.1.0-re.32
+    digest: sha256:93f6418d5be78b22b5ef27d3d148683aab001f1945390056635072bd6c385186
+  # This chart renders Utopia's Secrets from secrets.utopia above.
+  secrets:
+    external: false
+  network:
+    # lore-api is the one in-cluster caller.
+    allowFrom:
+      - namespace: lore-api
+        podLabels: { app: lore-api }
+
+# ---- Lore ---------------------------------------------------------------------
+# Any value of deploy/chart and its subcharts can be set here, under the
+# subchart's name: lore-api, lore-ui, lore-stations, lore-mcp-gateway,
+# lore-db-helm, and platform for ingresses, Dgraph and monitoring.
+#
+# Images. Every image comes from ghcr.io/re-cinq at a pinned tag, so an install
+# does not depend on what `latest` is that day. lore-api, lore-mcp and lore-ui
+# are not public: they are pulled with ghcr-pull-secret, which this chart
+# renders from secrets.ghcr. To move to a newer build, change the four tags
+# below to the short SHA of a commit on main that all four images were built
+# from.
+lore-platform:
+  lore-api:
+    image:
+      repository: ghcr.io/re-cinq/lore-api
+      tag: "be2849d"
+    githubOAuthSecret:
+      name: lore-github-oauth
+    utopia:
+      enabled: true
+      # Utopia's Service is named utopia, in the release namespace.
+      apiUrl: http://utopia.lore-floor.svc.cluster.local
+    floor:
+      enabled: true
+      # Must equal floor.api.baseUrl.
+      apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
+      skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+      # The image agent pods work in. Public.
+      agentImage: ghcr.io/re-cinq/lore-agent:2d01cfa
+  lore-ui:
+    image:
+      repository: ghcr.io/re-cinq/lore-ui
+      tag: "be2849d"
+  lore-stations:
+    image:
+      repository: ghcr.io/re-cinq/lore-stations
+      tag: "be2849d"
+    floor:
+      enabled: true
+      # Must equal floor.api.baseUrl.
+      apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
+  lore-mcp-gateway:
+    image:
+      repository: ghcr.io/re-cinq/lore-mcp
+      tag: "be2849d"
+    # Where agent pods run: the release namespace, since the floor's bundled
+    # subsystem runs them there.
+    agentPods:
+      namespace: lore-floor
+  lore-db-helm:
+    # Only for an in-cluster CloudNativePG database named lore-db.
+    ownershipReconciler:
+      enabled: false

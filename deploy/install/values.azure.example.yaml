@@ -1,0 +1,139 @@
+# An install on a client's cluster (written for Azure AKS). Copy, fill in, and:
+#
+#   helm dependency update deploy/install
+#   helm upgrade --install lore deploy/install -n lore-floor --create-namespace -f my-values.yaml
+#
+# docs/INSTALL.md section 3 walks through every step, including the two that
+# this chart does not do: the baseline database schema, and the model key the
+# agents run with.
+#
+# Every CHANGE-ME must be replaced. This file then holds secrets: keep it out
+# of git.
+
+secrets:
+  ghcr:
+    username: CHANGE-ME
+    token: CHANGE-ME
+  loreDbPassword: CHANGE-ME
+  floorDbConnectionString: postgres://floor:CHANGE-ME@CHANGE-ME.postgres.database.azure.com:5432/floor
+  # openssl rand -hex 32, a different one for each
+  ingestToken: CHANGE-ME
+  internalToken: CHANGE-ME
+  webhookSecret: CHANGE-ME
+  floor:
+    serviceToken: CHANGE-ME
+    visitTokenSecret: CHANGE-ME
+    gitCredentialToken: CHANGE-ME
+  githubApp:
+    appId: "000000"
+    privateKey: |
+      -----BEGIN RSA PRIVATE KEY-----
+      CHANGE-ME
+      -----END RSA PRIVATE KEY-----
+    installationId: "00000000"
+  githubOAuth:
+    clientId: CHANGE-ME
+    clientSecret: CHANGE-ME
+  anthropicApiKey: CHANGE-ME
+  utopia:
+    dbPassword: CHANGE-ME
+    appDbPassword: CHANGE-ME
+    secretKey: CHANGE-ME
+    oauthClientId: CHANGE-ME
+    oauthClientSecret: CHANGE-ME
+    # openssl rand -hex 16
+    cookieSecret: CHANGE-ME
+
+utopia:
+  hostname: utopia.example.com
+  # Who may sign in: an OpenID Connect issuer and the email domains it accepts.
+  oidc:
+    issuer: https://accounts.google.com
+    allowedDomains: CHANGE-ME
+  ingress:
+    className: nginx
+    clusterIssuer: letsencrypt-prod
+  data:
+    storageClass: managed-csi
+
+lore-platform:
+  platform:
+    clusterIssuer: letsencrypt-prod
+    ingressClassName: nginx
+    namespaces: [lore-dgraph]
+    dgraph:
+      image: dgraph/standalone:v24.0.0
+      storageClass: managed-csi
+      storageSize: 50Gi
+      resources:
+        requests: { cpu: "1", memory: 4Gi }
+        limits: { cpu: "4", memory: 16Gi }
+    ingresses:
+      - name: lore-api
+        namespace: lore-api
+        host: lore-api.example.com
+        service: lore-api
+        port: 3000
+        annotations:
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-body-size: 16m
+      - name: lore-mcp
+        namespace: lore-api
+        host: lore-mcp.example.com
+        service: lore-mcp-gateway
+        port: 8080
+      - name: lore-ui
+        namespace: lore-ui
+        host: lore.example.com
+        service: lore-ui
+        port: 3000
+      # The live socket on the UI's own host, so the session cookie rides the
+      # upgrade. Same host as lore-ui above.
+      - name: lore-ui-live
+        namespace: lore-api
+        host: lore.example.com
+        path: /api/ws
+        pathType: Exact
+        service: lore-api
+        port: 3000
+        annotations:
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      - name: lore-webhook
+        namespace: lore-api
+        host: lore-events.example.com
+        service: lore-api
+        port: 3000
+        path: /api/events
+        pathType: Exact
+        certificate: lore-webhook
+        annotations:
+          nginx.ingress.kubernetes.io/proxy-body-size: 25m
+          nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github
+
+  lore-api:
+    env:
+      LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+      LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
+      LORE_WEBHOOK_URL: https://lore-events.example.com/api/events
+      LORE_API_URL: https://lore-api.example.com
+      LORE_UI_URL: https://lore.example.com
+      GITHUB_ORG: CHANGE-ME
+      # Vertex needs Google Cloud; off it, Lore's own model calls use Anthropic.
+      LORE_EVAL_LLM_PROVIDER: anthropic
+      LORE_EVAL_LLM_MODEL: claude-haiku-4-5
+      LORE_CONTEXT_LLM_PROVIDER: anthropic
+  lore-ui:
+    env:
+      LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      GITHUB_APP_SLUG: CHANGE-ME
+      UTOPIA_URL: https://utopia.example.com
+      LORE_API_PUBLIC_URL: https://lore-api.example.com
+      # On the UI's host, not the API's: see the lore-ui-live ingress.
+      LORE_WS_URL: wss://lore.example.com/api/ws
+  lore-stations:
+    env:
+      LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      LORE_UI_URL: https://lore.example.com

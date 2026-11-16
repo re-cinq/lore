@@ -1,33 +1,69 @@
 # Installing Lore
 
-Lore is three installs on one Kubernetes cluster, in this order:
+Lore runs on one Kubernetes cluster as four parts: **Lore** itself (API, web UI, stations, MCP gateway), the **floor** (the engine that runs agent pods), the **agent subsystem** (the controller that turns a run into a pod) and **Utopia** (the knowledge graph Lore mirrors specs and ADRs into).
 
-| Order | What | Where it comes from | Namespace | Who does it on a client cluster |
-| ----- | ---- | ------------------- | --------- | ------------------------------- |
-| A | Cluster add-ons: ingress controller, cert-manager, DNS, Postgres (operator or managed), secret store | the client's own tooling | theirs | the infra team |
-| B | The **floor**, the engine that runs agent pods. Its Helm chart carries the **ai-agent-subsystem** (CRDs + controller) that turns a run into a pod | [re-cinq/floor](https://github.com/re-cinq/floor), chart `oci://ghcr.io/re-cinq/charts/floor` | `floor` | the Lore team, with Helm |
-| C | **Lore** itself: API, web UI, stations, MCP gateway, database hooks. One umbrella Helm chart | this repo, `deploy/chart` | `lore-api`, `lore-ui`, `lore-stations`, `lore-db` (+ `lore-floor` for the webhook alias) | the Lore team, with Helm (on our own GKE: Argo CD, see [deploy/README.md](../deploy/README.md)) |
+| You are | Go to |
+| ------- | ----- |
+| Installing on a client's cluster | [Section 3](#3-install-on-a-client-cluster): one Helm command, after the infra team has provided section 1 |
+| The infra team preparing that cluster | [Section 1](#1-prerequisites), the checklist, and [section 2](#2-cluster-add-ons) |
+| The GitHub organization owner | [GitHub setup](github-setup.md): the App, the OAuth App and the registry token |
+| Working on re:cinq's own cluster | [Section 4](#4-our-own-gke-with-argo-cd): Argo CD deploys it, nobody runs Helm |
+| A developer who wants Lore in Claude Code | [Section 6](#6-install-on-a-developer-laptop) |
 
-Section 1 is the checklist for the team that provisions the cluster. Sections 2 to 4 are the installs. The developer-laptop install, onboarding and verification follow. The ai-agent-subsystem is not installed on its own: the floor chart vendors it (`subsystem.enabled=true`). Install it separately, from [its own docs](https://re-cinq.github.io/ai-agent-subsystem/), only when another floor on the same cluster already runs it; the floor is then installed with `--skip-crds`.
+Where the parts land:
+
+| Part | Chart | Namespace on a client cluster | Namespace on our GKE |
+| ---- | ----- | ----------------------------- | -------------------- |
+| Lore | `deploy/chart` in this repo | `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph` | the same, plus `lore-db` |
+| The floor | `oci://ghcr.io/re-cinq/charts/floor` ([re-cinq/floor](https://github.com/re-cinq/floor)) | `lore-floor` | `floor` |
+| The agent subsystem, and the agent pods | bundled in the floor chart on a client cluster | `lore-floor` | `ai-agents` |
+| Utopia, with its own Postgres | `deploy/chart` in [re-cinq/utopia](https://github.com/re-cinq/utopia) | `lore-floor` | `utopia` |
+
+On a client cluster the four are one release of the `deploy/install` chart.
 
 ## 1. Prerequisites
 
-Everything below must exist before the Lore team runs a single `helm install`. Each item says who provides it: the **infra team** (cluster, cloud, networking, databases) or the **Lore team** (everything applied with Helm or kubectl inside the Lore and floor namespaces). The right-hand notes say how our own GKE reference install provides it; on another cloud the infra team substitutes.
+Everything below must exist before the Lore team runs the install in section 3. Each item says who provides it: the **infra team** (cluster, cloud, networking, databases) or the **Lore team** (everything applied with Helm or kubectl inside the Lore and floor namespaces). The right-hand notes say how our own GKE reference install provides it; on another cloud the infra team substitutes.
 
 ### 1.1 Cluster
 
 | Need | Value | Why |
 | ---- | ----- | --- |
 | Kubernetes | 1.27 or newer | the ai-agent-subsystem chart's minimum |
-| Helm | 3.8 or newer | the floor and subsystem charts are OCI charts |
+| Helm | 3.8 or newer | the floor chart is an OCI chart |
 | Node architecture | amd64 or arm64 | every image is multi-arch (see [Running on ARM64](#running-on-arm64)) |
 | Network plugin | one that **enforces NetworkPolicy** (GKE Dataplane V2, Azure CNI with Azure NPM, Calico, Cilium) | agent pods run code a model wrote a minute ago; their egress policy is the only wall. On a plugin that does not enforce, the policy is accepted and binds nothing |
-| Pod Security | `baseline` is enough on the `floor` namespace | the run pod's init container runs as root to set up the workspace; floor's own pods run as uid 1000, read-only root filesystem |
+| Pod Security | `baseline` is enough on the namespace agent pods run in (`lore-floor`) | the run pod's init container runs as root to set up the workspace; floor's own pods run as uid 1000, read-only root filesystem |
 | Cluster-admin, once | to install the CRDs: ai-agent-subsystem (`agents`, `agentdefinitions`, `stations`.agents.re-cinq.com), CloudNativePG, External Secrets, cert-manager, prometheus-operator | CRDs are cluster-scoped |
-| Namespace admin for the Lore team | `floor`, `lore-api`, `lore-ui`, `lore-stations`, `lore-db`, `lore-floor` (+ `lore-dgraph`) | all of our Helm releases and kubectl applies stay inside these |
+| Namespace admin for the Lore team | `lore-floor`, `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph` (+ `lore-db` for an in-cluster Postgres) | the Helm release and every kubectl apply stay inside these |
 | NodeLocal DNSCache | tell us its address if the cluster runs one (GKE: `169.254.20.10`) | it answers on a link-local address the agent-pod egress policy must open explicitly, or pods resolve nothing |
 
-**Capacity.** Requests and limits as shipped. Add agent pods on top: one pod per running agent, sized by its agent definition (Lore's own run at 2 Gi to 4 Gi memory each); N concurrent runs is N times that.
+### 1.1.1 Resources to reserve
+
+**Recommended for a first install with up to 5 agents running at once:**
+
+| What | Reserve | Why this size |
+| ---- | ------- | ------------- |
+| Platform node pool | 3 nodes of 8 vCPU / 32 GiB (Azure: `Standard_D8s_v5`) | everything except agent pods, at its limits, is 12.75 vCPU and 29.5 GiB: two nodes hold it and the third covers losing one. Dgraph alone may use 16 GiB, Utopia's database 8 GiB |
+| Agent node pool | 2 nodes of 8 vCPU / 32 GiB, autoscaling up, OS disk 128 GiB or more | 5 agents at their memory limit are 40 GiB, and each uses up to 6 GiB of node disk for its checkout |
+| Postgres (managed) | 2 vCores, 8 GiB memory, 50 GiB storage, one server for both databases | what our own in-cluster database is limited to (2 CPU, 4 GiB, 50 GiB), with room for the second database |
+| Persistent volumes | ReadWriteOnce: 50 GiB for Dgraph, 80 GiB for Utopia's database, 20 GiB for Utopia's files (+ 10 GiB for Prometheus, if used) | |
+| Public IPs | 1, on the ingress controller | five hostnames share it |
+
+These are sizing recommendations worked out from the requests and limits below, not measurements from a client cluster. One pool of the same total size works too; two pools keep an agent that fills its memory away from the database of record.
+
+**For another number of agents.** Each running agent is one pod. Lore's shipped agents come in two sizes:
+
+| Agent size | CPU request | Memory request / limit | Node disk |
+| ---------- | ----------- | ---------------------- | --------- |
+| Large (implementation, code review and similar) | 500m | 2Gi / 8Gi | 6Gi |
+| Small (planning checks and similar) | 500m | 512Mi / 2Gi | 2Gi to 4Gi |
+
+For N agents at once, the agent pool needs at least N × 0.5 vCPU and N × 2 GiB to schedule them, and N × 8 GiB to be safe when they all run large jobs.
+
+**The smallest cluster that starts.** The platform requests 3.65 vCPU and 13.6 GiB in total (1.4 vCPU and 5.1 GiB without Utopia), plus 0.5 vCPU and 2 GiB per running agent. A cluster this small schedules everything and then runs out of memory under load: use it for a trial, not for work.
+
+**What each workload asks for**, as shipped:
 
 | Workload | Replicas | CPU request / limit | Memory request / limit | Disk |
 | -------- | -------- | ------------------- | ---------------------- | ---- |
@@ -35,14 +71,17 @@ Everything below must exist before the Lore team runs a single `helm install`. E
 | lore-mcp-gateway | 1 | 100m / 500m | 256Mi / 512Mi | |
 | lore-ui (+ a migrate Job per deploy) | 1 | 100m / 500m | 256Mi / 512Mi | |
 | lore-stations (+ 5 small CronJobs) | 1 | 50m / 500m | 256Mi / 512Mi | |
-| lore-db, Postgres 16 + pgvector (if run in-cluster with CloudNativePG) | 1 | 500m / 2 | 1Gi / 4Gi | 50Gi |
 | Dgraph standalone v24 | 1 | 1 / 4 | 4Gi / 16Gi | 50Gi |
-| floor api | 2 | small | small | |
-| floor cluster agent + subsystem controller | 1 + 1 | 50m / 250m each | 128Mi / 1Gi | |
-| agent pods | N | per agent definition | 2Gi to 4Gi each | ephemeral storage per definition |
+| subsystem controller | 1 | 50m / 250m | 128Mi / 1Gi | |
+| floor api | 2 | none set | none set | |
+| floor cluster agent | 1 | none set | none set | |
+| utopia | 1 | 250m / 1 | 512Mi / 2Gi | 20Gi |
+| utopia-db, Postgres 16 with CloudNativePG | 1 | 2 / 4 | 8Gi / 8Gi | 80Gi |
+| lore-db, Postgres 16 + pgvector (only when run in-cluster with CloudNativePG) | 1 | 500m / 2 | 1Gi / 4Gi | 50Gi |
+| agent pods | N | 500m / none | 512Mi to 2Gi / 2Gi to 8Gi | 2Gi to 6Gi of node disk each |
 | optional: Prometheus + Grafana | | 250m+100m / 2Gi+1Gi | | 10Gi |
 
-Where this comes from: `deploy/chart/charts/*/values.yaml`, `deploy/chart/templates/lore-db.yaml`, `deploy/chart/templates/lore-dgraph.yaml`, `deploy/clusters/internal-cluster.values.yaml`, the floor chart's `values.yaml`.
+Where this comes from: `helm template lore deploy/install` for the Lore, floor and Utopia rows, `deploy/chart/templates/lore-db.yaml` for the in-cluster database, and `pod_resources` in `libs/shared/src/agent-defaults/*.md` for the agents (26 of the 32 shipped agents set it; the rest take the floor's default).
 
 ### 1.2 Cluster add-ons (infra team)
 
@@ -53,7 +92,7 @@ These are **assumed, not installed**, by Lore's chart; on our GKE they come from
 | Ingress controller | ingress-nginx. The Lore ingresses use nginx annotations (`rewrite-target`, `proxy-body-size`, WebSocket read/send timeouts of 3600 s). The IngressClass name is a value we set | class `nginx-ingress` |
 | cert-manager | a `ClusterIssuer` that issues public certificates for the hostnames in 1.4 | `letsencrypt-prod` |
 | DNS | A records for the hostnames in 1.4, pointing at the ingress controller's public IP. external-dns reading the `external-dns.alpha.kubernetes.io/hostname` annotation, or records made by hand | external-dns |
-| Postgres | see 1.3. In-cluster: the **CloudNativePG operator** (`clusters.postgresql.cnpg.io`), and for backups to object storage its barman-cloud plugin | CNPG operator in a shared namespace (`cnpg_operator_namespace`), plugin v0.11.0 (re-cinq/infrastructure) |
+| CloudNativePG operator | **required**: Utopia runs its own database with it (`clusters.postgresql.cnpg.io`). Lore's own database can use it too (1.3); backups to object storage need its barman-cloud plugin | CNPG operator in a shared namespace (`cnpg_operator_namespace`), plugin v0.11.0 (re-cinq/infrastructure) |
 | Secret store | optional. External Secrets Operator with a `ClusterSecretStore` on the client's vault, or the infra team hands the Lore team the values and we create plain Secrets (1.5) | ESO + GCP Secret Manager, `ClusterSecretStore/gcp-secret-manager` (re-cinq/infrastructure) |
 | Metrics | optional. kube-prometheus-stack; every Lore service and the floor serve Prometheus text on a `metrics` port (:9464) | `enable_monitoring` ([ADR-050](../adrs/ADR-050-prometheus-grafana-metrics.md)) |
 
@@ -63,7 +102,7 @@ These are **assumed, not installed**, by Lore's chart; on our GKE they come from
 | ---- | ---- | ----- |
 | **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`deploy/chart/charts/ui-helm/migrations/`) |
 | **floor Postgres** | a **second database and role**, never shared with Lore: floor owns its schema (tables `events`, `blobs`, `definitions`) and migrates it on every install. Any Postgres; the role may create tables | the same server is fine. The floor chart never deploys one ([floor install doc](https://github.com/re-cinq/floor/blob/main/docs/install.md)) |
-| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. The chart renders it when `platform.dgraph` is set: see 4.1 |
+| **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. The chart renders it from `platform.dgraph` |
 | Backups | in-cluster Postgres: an object-storage bucket for barman (GCS, S3 or Azure Blob) with write access from the `lore-db` namespace; managed Postgres: its own backups | ours: GCS bucket, 30-day lifecycle, daily `ScheduledBackup` at 02:00 |
 | StorageClass | any ReadWriteOnce class for the two 50Gi volumes (and 10Gi for Prometheus) | ours: `standard-rwo` (pd-balanced) |
 
@@ -78,6 +117,7 @@ Public hostnames, one certificate each:
 | `lore_api_url` | the Lore REST API and the browser's live WebSocket at `/api/ws` | developer laptops (the local MCP server proxies everything here), CI (`lore-code-trace`, spec ingest), Slack, browsers |
 | `lore_ui_hostname` | the web UI | browsers |
 | `lore_event_router_hostname` | the **canonical GitHub webhook URL**, `https://<host>/api/events`, rewritten by the ingress onto lore-api's `POST /api/webhook/github` ([ADR-044](../adrs/ADR-044-event-router-owns-the-event-bus.md)) | GitHub |
+| the Utopia hostname | Utopia's UI and API, and its sign-in callback | browsers |
 | `lore_mcp_url` | the MCP gateway for agents outside the cluster | optional. Agent pods in the cluster use the in-cluster Service instead (below) |
 | `lore_webhook_hostname` | legacy alias of the webhook URL | only for repositories onboarded before ADR-044; a new install leaves it empty |
 | floor | none by default; the floor API is a ClusterIP Service | only if a second cluster joins the floor |
@@ -86,19 +126,19 @@ In-cluster paths that NetworkPolicies must allow:
 
 | From | To | Port |
 | ---- | -- | ---- |
-| agent pods (label `agents.re-cinq.com/component: job`, namespace `floor`) | cluster DNS, and NodeLocal DNSCache if present | 53 |
+| agent pods (label `agents.re-cinq.com/component: job`, namespace `lore-floor`) | cluster DNS, and NodeLocal DNSCache if present | 53 |
 | agent pods | the public internet (github.com, api.anthropic.com, generativelanguage.googleapis.com, npm, ghcr.io), private ranges and the cloud metadata address excluded | 443 |
 | agent pods | floor api pods, same namespace | 8080 |
 | agent pods | `lore-mcp-gateway` in `lore-api` (the MCP server and the skills registry the pod fetches at start) | 8080 |
-| lore-api, lore-stations | floor api (`http://floor-api.floor.svc.cluster.local:8080`) | 8080 |
+| lore-api, lore-stations | floor api (`http://lore-floor-api.lore-floor.svc.cluster.local:8080`) | 8080 |
 | lore-ui, lore-stations, lore-mcp-gateway | lore-api (`http://lore-api.lore-api.svc.cluster.local:3000`) | 3000 |
 | lore-api, lore-ui, lore-stations | Postgres; lore-api also Dgraph (`:8080`) | 5432, 8080 |
 
-The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress` (section 3). Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion,, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
+The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress`, which `deploy/install/values.yaml` sets. Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
 
 ### 1.5 Secrets
 
-Who generates what: the infra team or the client's security team holds the vault; the Lore team needs the values in Kubernetes Secrets with exactly these names and keys, in these namespaces. Either ESO mirrors them from the vault (our GKE: `platform.externalSecrets` in `deploy/clusters/internal-cluster.values.yaml`, rendered by `deploy/chart/templates/externalsecrets.yaml`) or we create them with `kubectl create secret`. Generation hints and the rotation procedure: [managing-secrets.md](managing-secrets.md).
+The install in section 3 creates every Secret below from the values file (`secrets:`), so on a client cluster this is a reference, not a to-do list. It becomes a to-do list with `secrets.create: false`, when a vault provides them: the Secrets must then exist with exactly these names and keys, in these namespaces. On our GKE, ESO mirrors them from the vault (`platform.externalSecrets` in `deploy/clusters/internal-cluster.values.yaml`, rendered by `deploy/chart/templates/externalsecrets.yaml`). Generation hints and the rotation procedure: [managing-secrets.md](managing-secrets.md).
 
 **Lore, required.** The source column is the name in our GCP Secret Manager, which `scripts/infra/seed-secrets.sh` prompts for.
 
@@ -117,7 +157,7 @@ Who generates what: the infra team or the client's security team holds the vault
 | `lore-api` | `lore-slack-credentials` | `signing-secret`, `bot-token` | `lore-slack-*` | the Slack app (1.6). Optional: the charts tolerate its absence |
 | `lore-stations` | `lore-stations-slack` | `bot-token` | `lore-slack-bot-token` | |
 | `lore-api` | `lore-github-oauth` | `client-id`, `client-secret` | `lore-github-oauth-*` | the GitHub OAuth App for UI sign-in, which lore-api runs (ADR-053) |
-| `lore-api`, `lore-ui`, `lore-stations` | `ghcr-pull-secret` | `.dockerconfigjson` | `lore-ghcr-pull-secret` | a GitHub token with `read:packages` for the private `ghcr.io/re-cinq/lore-*` images |
+| `lore-api`, `lore-ui`, `lore-stations` | `ghcr-pull-secret` | `.dockerconfigjson` | `lore-ghcr-pull-secret` | a GitHub token with `read:packages` for the non-public images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui}` |
 
 **Lore with the floor** (always, on a client install):
 
@@ -126,7 +166,7 @@ Who generates what: the infra team or the client's security team holds the vault
 | `lore-api`, `lore-stations` | `floor-service-token` | `token` | `lore-floor-service-token` | the floor's `serviceToken`; must equal the value in `floor-api` below |
 | `lore-api` | `floor-git-credential-token` | `token` | `lore-floor-git-credential-token` | the token the floor presents when it asks lore-api for a git credential; must equal `gitCredentialToken` below |
 
-**Floor** (namespace `floor`, read by the floor chart; it creates none of them except an empty `agent-secrets`):
+**Floor** (namespace `lore-floor` on a client cluster, `floor` on our GKE; read by the floor chart, which creates none of them except an empty `agent-secrets`):
 
 | Secret | Keys | What it is |
 | ------ | ---- | ---------- |
@@ -140,11 +180,12 @@ Who generates what: the infra team or the client's security team holds the vault
 
 | Account | Who creates it | What Lore needs |
 | ------- | -------------- | --------------- |
-| **GitHub App**, installed on the organization | the client's GitHub org owner | permissions: Contents read/write, Issues read/write, Pull requests read/write, Checks read, Metadata read, Webhooks (repository hooks) read/write. Subscribe to no events on the App itself: lore-api installs a hook per repository (`POST /api/repos/:o/:r/webhook/ensure`) for `pull_request`, `pull_request_review`, `pull_request_review_comment`, `issue_comment`, `issues`, `repository`, `push`, `release`, `create`, `check_suite` (`apps/lore-api/src/work/webhook/webhook-status.ts`). Values: App ID, installation ID, private key PEM, the App's slug |
-| **GitHub OAuth App** for UI sign-in | same | callback `https://<lore_api host>/api/auth/callback` (lore-api's, not the UI's); sign-in is restricted to members of `GITHUB_ORG` |
+| **GitHub App**, installed on the organization ([step by step](github-setup.md#1-the-github-app)) | the client's GitHub org owner | permissions: Contents read/write, Issues read/write, Pull requests read/write, Checks read, Metadata read, Webhooks (repository hooks) read/write. Subscribe to no events on the App itself: lore-api installs a hook per repository (`POST /api/repos/:o/:r/webhook/ensure`) for `pull_request`, `pull_request_review`, `pull_request_review_comment`, `issue_comment`, `issues`, `repository`, `push`, `release`, `create`, `check_suite` (`apps/lore-api/src/work/webhook/webhook-status.ts`). Values: App ID, installation ID, private key PEM, the App's slug |
+| **GitHub OAuth App** for UI sign-in ([step by step](github-setup.md#2-the-oauth-app-for-sign-in)) | same | callback `https://<lore_api host>/api/auth/callback` (lore-api's, not the UI's); sign-in is restricted to members of `GITHUB_ORG` |
 | lore-reviewer GitHub App (optional) | same | Pull requests read/write, Contents read, Checks read, Metadata read; no webhook. Lets the auto-merge loop approve the pull requests Lore's main App opened |
 | **Slack app** (optional) | a Slack admin | from `scripts/slack-app-manifest.yaml`: bot scopes `chat:write`, `commands`, `users:read`, `users:read.email`, `reactions:read`; slash command `/lore` and events at `https://<lore_api_url>/api/webhook/slack` and `/slack-events` |
-| **ghcr.io read token** | the Lore team (re-cinq) | a `read:packages` token for the private images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui,lore-stations}`. The floor and subsystem images (`ghcr.io/re-cinq/{floor,ai-agent-controller,ai-agent}`) and the third-party ones (`ghcr.io/cloudnative-pg/postgresql`, `dgraph/standalone`, `curlimages/curl`, `alpine`) are public |
+| **ghcr.io read token** ([step by step](github-setup.md#3-the-registry-token)) | the Lore team (re-cinq) | a `read:packages` token of a member of the re-cinq organization, for the non-public images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui,utopia}`. `lore-stations`, `lore-agent`, the floor and subsystem images (`ghcr.io/re-cinq/{floor,ai-agent-controller,ai-agent}`) and the third-party ones (`ghcr.io/cloudnative-pg/postgresql`, `dgraph/standalone`, `curlimages/curl`, `alpine`) are public |
+| **Sign-in for Utopia** | the client | an OpenID Connect client (the chart's default issuer is Google, `https://accounts.google.com`) with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`; the email domains allowed to sign in. Values: client ID, client secret |
 | **Model access** | the client | agent pods: an Anthropic API key, or a Claude Code OAuth token (`claude setup-token`, bills a subscription), optionally a Gemini API key; which key an agent reads is per model family (`clusterAgent.modelSecretKeys`). lore-api and stations: an Anthropic key (or Gemini, or an Ollama endpoint; one use can run on its own vendor through `LORE_<USE>_LLM_PROVIDER` and `LORE_<USE>_LLM_MODEL`) |
 | **Embeddings** | see below | |
 
@@ -156,21 +197,21 @@ Who generates what: the infra team or the client's security team holds the vault
 | ---- | --------------------------- | ----------------------------------------- |
 | cluster | infra team: AKS 1.27+, Azure CNI with network policy, node pools per 1.1, a ReadWriteOnce StorageClass (`managed-csi`), Workload Identity if ESO is used | GKE Autopilot, looked up by name; Dataplane V2 |
 | ingress, TLS, DNS | infra team: ingress-nginx, cert-manager + ClusterIssuer, DNS records, public IP | `nginx-ingress`, `letsencrypt-prod`, external-dns |
-| secrets | infra team: Azure Key Vault + ESO `ClusterSecretStore`, or values handed over; Lore team: Secrets per 1.5 | GCP Secret Manager + ESO + Workload Identity |
+| secrets | infra team: values handed over for the values file (3.3), or Azure Key Vault + ESO `ClusterSecretStore` | GCP Secret Manager + ESO + Workload Identity |
 | Lore Postgres | infra team: Flexible Server with `vector`, or CNPG operator; Lore team: schema | CNPG `Cluster` in `lore-db`, backups to GCS |
 | floor Postgres | infra team: a second database + role | same |
-| Dgraph | infra team: a 50Gi volume class; Lore team: the manifest (4.1) | `deploy/chart/templates/lore-dgraph.yaml` |
+| Dgraph | infra team: a 50Gi volume class; Lore team: `platform.dgraph` in the values file (3.3) | `deploy/chart/templates/lore-dgraph.yaml` |
 | model credentials | client: keys into the vault | GCP Secret Manager |
 | embeddings | decision needed (1.6) | Vertex via `roles/aiplatform.user` on the lore-api service account |
 | traces | nothing; lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
 | cost pages | `/spend` shows the pod-hour estimate only | BigQuery `billing_export` (re-cinq/infrastructure) |
-| deploys | the Lore team's laptops with namespace-scoped kubeconfigs, `helm upgrade --install` | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
+| deploys | the Lore team's laptops with namespace-scoped kubeconfigs, one `helm upgrade --install` (3.5) | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
 
 ### 1.8 Operator's machine (Lore team)
 
-kubectl, Helm 3.8+, `gh`, `psql`, and a kubeconfig scoped to the namespaces in 1.1. For the laptop install in section 6: git, Node.js 18+, Claude Code. `gcloud` only for our own GKE path (4.2).
+kubectl, Helm 3.8+, `gh`, `psql`, and a kubeconfig scoped to the namespaces in 1.1. For the laptop install in section 6: git, Node.js 18+, Claude Code. `gcloud` only for our own GKE (section 4).
 
-## 2. Install A: cluster add-ons
+## 2. Cluster add-ons
 
 Installed by the infra team with their tooling, or by the Lore team where allowed. Each is upstream's standard install:
 
@@ -195,127 +236,242 @@ helm upgrade --install external-secrets external-secrets \
   --repo https://charts.external-secrets.io -n external-secrets --create-namespace
 ```
 
-Then the `ClusterSecretStore` for the client's vault (ours is in re-cinq/infrastructure), and the namespaces:
+Then, only when secrets are mirrored from a vault, the `ClusterSecretStore` for it (ours is in re-cinq/infrastructure). The install in section 3 creates the namespaces itself.
+
+## 3. Install on a client cluster
+
+One Helm release installs Lore, the floor, the agent subsystem and Utopia. When you finish, the web UI answers on your hostname, and an issue opened on an onboarded repository starts an agent run.
+
+The chart is `deploy/install` in this repo. It was rendered and linted with Helm 4.2.2 on 2026-11-16; see [Known rough edges](#known-rough-edges) for what it does not do.
+
+| Step | What you do |
+| ---- | ----------- |
+| 3.1 | Check the cluster is ready |
+| 3.2 | Get the chart |
+| 3.3 | Fill in the values file |
+| 3.4 | Apply the database schema |
+| 3.5 | Install |
+| 3.6 | Give the agents their model key |
+| 3.7 | Verify |
+
+### 3.1 Check the cluster is ready
+
+The infra team provides everything in section 1. The cluster should have this much reserved for Lore ([1.1.1](#111-resources-to-reserve) explains the numbers and how to size for more agents):
+
+| What | Recommended, for up to 5 agents at once |
+| ---- | --------------------------------------- |
+| Platform nodes | 3 × 8 vCPU / 32 GiB |
+| Agent nodes | 2 × 8 vCPU / 32 GiB, autoscaling, 128 GiB OS disk |
+| Postgres | 2 vCores, 8 GiB, 50 GiB storage |
+| Volumes | ReadWriteOnce: 50 GiB (Dgraph), 80 GiB and 20 GiB (Utopia) |
+
+Check what the cluster has:
 
 ```bash
-kubectl create namespace floor
-for ns in lore-api lore-ui lore-stations lore-db lore-floor lore-dgraph; do kubectl create namespace "$ns"; done
+kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.allocatable.cpu,MEMORY:.status.allocatable.memory
+kubectl get storageclass
 ```
 
-## 3. Install B: the floor
-
-Follow [floor/docs/install.md](https://github.com/re-cinq/floor/blob/main/docs/install.md) (the chart's every value: [its README](https://github.com/re-cinq/floor/blob/main/deploy/chart/README.md)). What Lore needs set on top of that guide:
+Then confirm the parts the install depends on:
 
 ```bash
-kubectl -n floor create secret generic floor-api \
-  --from-literal=serviceToken="$(openssl rand -hex 32)" \
-  --from-literal=visitTokenSecret="$(openssl rand -hex 32)" \
-  --from-literal=gitCredentialToken="$(openssl rand -hex 32)"
-kubectl -n floor create secret generic floor-postgres \
-  --from-literal=connectionString='postgres://floor:<password>@<host>:5432/floor'
-
-helm install floor oci://ghcr.io/re-cinq/charts/floor --version <release> --namespace floor \
-  --set api.baseUrl=http://floor-api.floor.svc.cluster.local:8080 \
-  --set api.existingSecret=floor-api \
-  --set postgres.existingSecret=floor-postgres --set postgres.secretKey=connectionString \
-  --set api.gitCredentialUrl=http://lore-api.lore-api.svc.cluster.local:3000/api/floor/git-credential \
-  --set subsystem.enabled=true \
-  --set agentNetworkPolicy.nodeLocalDnsAddress=<address from 1.1, or ""> \
-  -f floor-extra-egress.yaml
+kubectl get ingressclass          # the class name goes into the values file
+kubectl get clusterissuer         # so does the issuer name
+kubectl get crd clusters.postgresql.cnpg.io           # the CloudNativePG operator, for Utopia's database
+kubectl auth can-i create customresourcedefinitions   # must answer: yes
 ```
 
-`floor-extra-egress.yaml` opens the one in-cluster door the agent pods need beyond the floor itself, the Lore MCP gateway and skills registry:
-
-```yaml
-agentNetworkPolicy:
-  extraEgress:
-    - to:
-        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: lore-api } }
-          podSelector: { matchLabels: { app: lore-mcp-gateway } }
-      ports:
-        - { protocol: TCP, port: 8080 }
-```
-
-Then the model credential and the Lore header into `agent-secrets`, which the chart created empty and keeps across upgrades:
+Postgres needs two databases on a PostgreSQL 16 server, `lore` and `floor`, each with its own role, and the `vector` extension available in `lore`:
 
 ```bash
-kubectl -n floor patch secret agent-secrets --type merge -p '{"stringData":{
+psql "host=<postgres host> dbname=lore user=lore sslmode=require" \
+  -c "select name from pg_available_extensions where name = 'vector'"
+```
+
+It prints one row, `vector`. No row means the extension is not allow-listed on the server (Azure: the `azure.extensions` server parameter).
+
+DNS: the five hostnames of 1.4 (API, UI, MCP, webhook, Utopia) point at the ingress controller's public IP.
+
+You also need these in hand. **[GitHub setup](github-setup.md) walks through the first three**; section 1.6 covers the rest:
+
+| What | Used for |
+| ---- | -------- |
+| GitHub App: App ID, installation ID, private key, slug | Lore acting on repositories |
+| GitHub OAuth App: client ID and secret | signing in to the UI |
+| A GitHub user and token with `read:packages`, from re:cinq | pulling the non-public images |
+| An OpenID Connect client for Utopia: client ID and secret | signing in to Utopia |
+| An Anthropic API key | Lore's own jobs, and the agents |
+
+### 3.2 Get the chart
+
+```bash
+git clone https://github.com/re-cinq/lore.git
+git clone https://github.com/re-cinq/utopia.git
+cd lore
+helm dependency update deploy/install
+```
+
+The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.3`; the floor chart is public and needs no login.
+
+### 3.3 Fill in the values file
+
+```bash
+cp deploy/install/values.azure.example.yaml my-values.yaml
+```
+
+`my-values.yaml` will hold secrets. Keep it out of git.
+
+Replace every `CHANGE-ME` and every `example.com`:
+
+| In the file | Put |
+| ----------- | --- |
+| `secrets.ghcr.username`, `.token` | the GitHub user and `read:packages` token from re:cinq |
+| `secrets.loreDbPassword` | the password of the `lore` Postgres role |
+| `secrets.floorDbConnectionString` | `postgres://floor:<password>@<postgres host>:5432/floor` |
+| `secrets.ingestToken`, `.internalToken`, `.webhookSecret`, `secrets.floor.*` | six random values, generated below |
+| `secrets.githubApp.*` | the GitHub App's ID, private key (the whole PEM) and installation ID |
+| `secrets.githubOAuth.*` | the OAuth App's client ID and secret |
+| `secrets.anthropicApiKey` | the Anthropic key for Lore's own jobs |
+| `secrets.utopia.dbPassword`, `.appDbPassword`, `.secretKey`, `.cookieSecret` | four more random values, generated below |
+| `secrets.utopia.oauthClientId`, `.oauthClientSecret` | Utopia's OpenID Connect client |
+| `utopia.hostname`, `UTOPIA_URL` | the Utopia hostname |
+| `utopia.oidc.allowedDomains` | the email domain allowed to sign in to Utopia, for example `acme.com` |
+| `utopia.ingress.className`, `.clusterIssuer`, `utopia.data.storageClass` | the same names as for Lore |
+| `lore-platform.platform.ingressClassName`, `.clusterIssuer` | the names from 3.1 |
+| `lore-platform.platform.dgraph.storageClass` | a ReadWriteOnce storage class (`managed-csi` on AKS) |
+| every `host:` under `lore-platform.platform.ingresses` | your four hostnames. `lore-ui` and `lore-ui-live` take the same one, the UI's |
+| `LORE_DB_HOST`, in three places | the Postgres host |
+| `LORE_API_URL`, `LORE_UI_URL`, `LORE_WEBHOOK_URL`, `LORE_API_PUBLIC_URL` | the same hostnames as the ingresses |
+| `LORE_WS_URL` | `wss://<ui host>/api/ws`. The UI's host, not the API's: the browser's live socket carries the sign-in cookie, and the `lore-ui-live` ingress sends that one path to lore-api |
+| `GITHUB_ORG` | the GitHub organization; its members may sign in |
+| `GITHUB_APP_SLUG` | the GitHub App's slug |
+
+Generate the random values:
+
+```bash
+for name in ingestToken internalToken webhookSecret serviceToken visitTokenSecret gitCredentialToken \
+            utopia.dbPassword utopia.appDbPassword utopia.secretKey; do
+  echo "$name: $(openssl rand -hex 32)"
+done
+echo "utopia.cookieSecret: $(openssl rand -hex 16)"   # exactly 32 characters
+```
+
+You write each value once. The chart puts it into every Secret that needs it, in every namespace.
+
+Keep `secrets.ingestToken` at hand: step 3.6 and every developer laptop use it.
+
+Check the file before touching the cluster:
+
+```bash
+grep -c -e CHANGE-ME -e example.com my-values.yaml      # must print 0
+helm template lore deploy/install -n lore-floor -f my-values.yaml > /dev/null && echo ok
+```
+
+A missing value stops the second command and names it, for example `secrets.ghcr.username is required`.
+
+Settings you may need:
+
+| Situation | Add to `my-values.yaml` |
+| --------- | ----------------------- |
+| The cluster runs no NodeLocal DNSCache (the default on AKS) | `floor.agentNetworkPolicy.nodeLocalDnsAddress: ""` |
+| Agents run on a Claude Code OAuth token, not an API key | `floor.clusterAgent.modelSecretKeys: claude=CLAUDE_CODE_OAUTH_TOKEN` |
+| Secrets come from a vault through External Secrets | `secrets.create: false`, and provide every Secret of 1.5 yourself |
+| A Slack app | `secrets.slack.signingSecret` and `secrets.slack.botToken` |
+| No Utopia | `utopia.enabled: false` and `lore-platform.lore-api.utopia.enabled: false`, both |
+
+Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. `deploy/install/values.yaml` lists what the chart already sets and why.
+
+### 3.4 Apply the database schema
+
+The install runs Lore's incremental migrations, and they expect the baseline schema to exist. Apply it once, before installing.
+
+**An in-cluster CloudNativePG database:**
+
+```bash
+scripts/infra/setup-db.sh
+scripts/infra/setup-pipeline-schema.sh
+```
+
+**A managed server (Azure Database for PostgreSQL):** there is no supported command for this. The `scripts/infra/setup-*.sh` scripts run their SQL through `kubectl exec` into a CloudNativePG pod ([#3904](https://github.com/re-cinq/lore/issues/3904)). `scripts/infra/setup-local-schema.sh` can reach a server over the network (`LORE_SCHEMA_TRANSPORT=tcp`), but it is built for throwaway databases: it creates a `postgres` superuser and roles with the password `lore`. Do not run it against a client's server as it is. Until #3904 is fixed, a re:cinq engineer applies the SQL from those scripts by hand.
+
+### 3.5 Install
+
+The release name and namespace are fixed. The chart refuses any other.
+
+```bash
+helm upgrade --install lore deploy/install \
+  -n lore-floor --create-namespace -f my-values.yaml
+```
+
+Helm creates the namespaces and Secrets, runs the floor's and Lore's database migrations, then starts everything. When it returns:
+
+```bash
+for ns in lore-floor lore-api lore-ui lore-stations lore-dgraph; do
+  echo "== $ns"; kubectl get deployments,statefulsets -n "$ns"
+done
+```
+
+| Namespace | Ready when you see |
+| --------- | ------------------ |
+| `lore-floor` | `lore-floor-api` 2/2, `lore-floor-cluster-agent` 1/1, `agent-controller` 1/1, `utopia` 1/1, and the pod `utopia-db-1` Running |
+| `lore-api` | `lore-api` 1/1, `lore-mcp-gateway` 1/1 |
+| `lore-ui` | `lore-ui` 1/1 |
+| `lore-stations` | `lore-stations` 1/1 |
+| `lore-dgraph` | `lore-dgraph-alpha` 1/1 |
+
+If a pod stays in `ImagePullBackOff`, the pull token is wrong or lacks `read:packages`: `kubectl -n lore-api describe pod -l app=lore-api` shows the registry's answer. Fix `secrets.ghcr` and run the install command again.
+
+### 3.6 Give the agents their model key
+
+Agent pods read their credentials from the `agent-secrets` Secret, which the floor created empty. Fill it once; the floor keeps it across upgrades.
+
+```bash
+kubectl -n lore-floor patch secret agent-secrets --type merge -p '{"stringData":{
   "ANTHROPIC_API_KEY":"sk-ant-...",
-  "lore-mcp-auth":"Bearer <the lore-ingest-token value>"}}'
+  "lore-mcp-auth":"Bearer <the secrets.ingestToken value>"}}'
 ```
 
-A Claude OAuth token instead of an API key goes under `CLAUDE_CODE_OAUTH_TOKEN` with `--set clusterAgent.modelSecretKeys=claude=CLAUDE_CODE_OAUTH_TOKEN`. Add `--skip-crds` when the ai-agent-subsystem CRDs are already on the cluster, and `--set subsystem.enabled=false` when its controller already runs there. Lore puts its pipeline files to the floor itself at every lore-api boot (`apps/lore-api/src/work/floor/seed-floor-pipelines.ts`), so `pipelines.existingConfigMap` stays empty. Check: `kubectl -n floor get pods` shows two api pods, the cluster agent, the subsystem controller and a completed migration Job.
+With a Claude Code OAuth token, the key is `CLAUDE_CODE_OAUTH_TOKEN` (and the setting from the table in 3.3). A Gemini key goes under `GEMINI_API_KEY`.
 
-## 4. Install C: Lore
+### 3.7 Verify
 
-### 4.1 Any Kubernetes, with Helm (a client cluster)
+```bash
+curl -s https://<api host>/healthz
 
-1. **Secrets.** Create every row of 1.5 in its namespace, as plain Secrets or `ExternalSecret` objects. The chart renders `ExternalSecret` objects from `platform.externalSecrets` (`deploy/chart/templates/externalsecrets.yaml`); `deploy/clusters/internal-cluster.values.yaml` is the list of names and keys.
-2. **Postgres.** Point at the database from 1.3 and apply the baseline schema once. The `setup-*.sh` scripts reach Postgres through `kubectl exec` into the CNPG primary (`lore-db-1` in `lore-db`); against a managed server, run them through the same shim `scripts/infra/setup-local-schema.sh` uses for Docker, pointed at `psql` instead:
+kubectl get crd agents.agents.re-cinq.com stations.agents.re-cinq.com agentdefinitions.agents.re-cinq.com
+kubectl -n lore-floor exec deploy/lore-floor-api -- wget -qO- http://localhost:8080/healthz
 
-   ```bash
-   scripts/infra/setup-db.sh            # in-cluster CNPG only: creates the Cluster CR and the roles
-   scripts/infra/setup-pipeline-schema.sh
-   ```
+# Lore sees the floor: the run list reads from it
+curl -s -H "Authorization: Bearer <secrets.ingestToken>" https://<api host>/api/floor-runs | head -c 300
+```
 
-   The incremental migrations run on their own, as a Helm hook of every deploy.
+Then end to end: sign in at `https://<ui host>`, onboard a repository (section 7), and open an issue on it with the label `priority:medium`. The implementation loop picks it up and a run appears at `/assembly-runs`.
 
-3. **Dgraph.** Set `platform.dgraph` and the chart renders it (`deploy/chart/templates/lore-dgraph.yaml`: namespace `lore-dgraph`, headless Service `lore-dgraph-alpha` on 8080 and 9080, 50Gi volume, memory limit 16Gi, and the schema job, which runs `scripts/infra/setup-memory-dgraph-schema.sh` and `setup-spec-trace-schema.sh` with `DGRAPH_HTTP=http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080`).
-4. **Ingresses.** List one entry per hostname of 1.4 under `platform.ingresses`; `deploy/chart/templates/ingresses.yaml` renders them (ours are in `deploy/clusters/internal-cluster.values.yaml`): `lore-api:3000` at `/`, `lore-ui:3000` at `/`, `lore-mcp-gateway:8080` at `/`, and on the webhook host the exact path `/api/events` to `lore-api:3000` with `nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github` and a 25m body size. The API ingress needs `proxy-read-timeout` and `proxy-send-timeout` of 3600 for the WebSocket.
-5. **Values.** Write `lore-values.yaml` starting from `deploy/clusters/internal-cluster.values.yaml`, which is the authoritative list. The ones that change per install:
+### 3.8 Upgrade
 
-   ```yaml
-   lore-api:
-     env:
-       LORE_DB_HOST: <postgres host>          # lore-db-rw.lore-db.svc.cluster.local in-cluster
-       LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
-       LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
-       LORE_WEBHOOK_URL: https://<lore_event_router_hostname>/api/events
-       LORE_API_URL: https://<lore_api host>
-       LORE_UI_URL: https://<lore_ui_hostname>
-       GITHUB_ORG: <org>                       # also the org whose members may sign in
-       LORE_EVAL_LLM_PROVIDER: anthropic       # vertex only on GCP
-       LORE_EVAL_LLM_MODEL: <model>
-     githubOAuthSecret:
-       name: lore-github-oauth
-     floor:
-       enabled: true
-       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
-   lore-ui:
-     env:
-       LORE_DB_HOST: <postgres host>
-       GITHUB_APP_SLUG: <app slug>
-       LORE_API_PUBLIC_URL: https://<lore_api host>   # where the browser reaches lore-api: the sign-in redirects there
-       LORE_WS_URL: wss://<lore_ui_hostname>/api/ws
-   lore-stations:
-     env:
-       LORE_DB_HOST: <postgres host>
-       LORE_UI_URL: https://<lore_ui_hostname>
-     floor:
-       enabled: true
-   lore-db-helm:
-     ownershipReconciler:
-       enabled: false                          # true only with an in-cluster CNPG cluster named lore-db
-   ```
+```bash
+git pull
+git -C ../utopia pull
+helm dependency update deploy/install
+helm upgrade --install lore deploy/install -n lore-floor -f my-values.yaml
+```
 
-   `GCP_PROJECT` and `LORE_LOG_BUCKET` stay unset off GCP.
+The image tags are pinned in `deploy/install/values.yaml`, so an upgrade moves to the builds that file names. All images come from `ghcr.io/re-cinq`:
 
-   `LORE_WS_URL` is the UI's own host: the browser reads the run pages over the live socket as the signed-in person, so the session cookie must ride the upgrade. The ingress must send `/api/ws` on the UI's host to lore-api (`deploy/README.md`, the `lore-ui-live` ingress); every other path of that host stays with the UI.
+| Image | Public | Tag set in |
+| ----- | ------ | ---------- |
+| `lore-api`, `lore-mcp`, `lore-ui` | no, pulled with `ghcr-pull-secret` | `lore-platform.<app>.image.tag` |
+| `lore-stations` | yes | `lore-platform.lore-stations.image.tag` |
+| `lore-agent` (what agent pods work in) | yes | `lore-platform.lore-api.floor.agentImage` |
+| `floor` | yes | `floor.version` |
+| `ai-agent-controller`, `ai-agent` | yes | `floor.subsystem.version` |
+| `utopia` | no, pulled with `ghcr-pull-secret` | `utopia.image.tag` and `.digest` |
 
-6. **Install.**
+## 4. Our own GKE, with Argo CD
 
-   ```bash
-   helm upgrade --install lore-platform deploy/chart \
-     -n lore-floor -f lore-values.yaml \
-     --set-string lore-api.image.tag=<tag> --set-string lore-ui.image.tag=<tag> \
-     --set-string lore-stations.image.tag=<tag> --set-string lore-mcp-gateway.image.tag=<tag>
-   ```
+Our reference install, described in [deploy/README.md](../deploy/README.md). Argo CD on `internal-cluster` (project `re-cinq-internal`) deploys `deploy/chart` with `deploy/clusters/internal-cluster.values.yaml` on every merge to `main` (re-cinq/infrastructure, `docs/deploying.md`); nobody runs `helm` against that cluster. The chart renders the namespaces, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph and the five services. Google Cloud resources (service accounts, buckets, Secret Manager containers, the BigQuery billing export) and the cluster add-ons (ESO and `ClusterSecretStore/gcp-secret-manager`, CNPG operator, cert-manager, ingress) are in re-cinq/infrastructure.
 
-   Image tags are the short SHA of a `main` commit or a release; `latest` is a never-used default. Upgrades are the same command with new tags; the migrations hook runs first.
-
-### 4.2 Our own GKE, with Argo CD
-
-Our reference install, described in [deploy/README.md](../deploy/README.md). Argo CD on `internal-cluster` (project `re-cinq-internal`) deploys `deploy/chart` with `deploy/clusters/internal-cluster.values.yaml` on every merge to `main` (re-cinq/infrastructure, `docs/deploying.md`); nobody runs `helm` against that cluster. The chart renders the namespaces, the ExternalSecrets, the ingresses, the CloudNativePG cluster, Dgraph and the five services. Google Cloud resources (service accounts, buckets, Secret Manager containers, the BigQuery billing export) and the cluster add-ons (ESO and `ClusterSecretStore/gcp-secret-manager`, CNPG operator, cert-manager, ingress) are in re-cinq/infrastructure. The floor is installed separately (section 3).
+There the floor and the agent subsystem are separate Argo CD applications, in the namespaces `floor` and `ai-agents`, installed as [floor/docs/install.md](https://github.com/re-cinq/floor/blob/main/docs/install.md) describes. The `deploy/install` chart is not used.
 
 Secret values are added by a person with `gcloud secrets versions add <name> --project re-cinq-internal` ([managing-secrets.md](managing-secrets.md)). Non-secret config is an edit to the values file. On a fresh cluster, then the baseline schema:
 
@@ -399,28 +555,24 @@ If you run the **whole stack locally** instead, these are set for you (`http://l
 
 ## Verify
 
+A client cluster: section 3.7. Our GKE, where the floor is in `floor`:
+
 ```bash
-# Lore's deployments, one namespace at a time
 for ns in lore-api lore-ui lore-db lore-stations lore-dgraph; do
   echo "== $ns"; kubectl get deployments,statefulsets -n "$ns"
 done
 curl -s https://<lore_api host>/healthz
 
-# The floor and the ai-agent-subsystem it carries
 kubectl -n floor get pods
 kubectl get crd agents.agents.re-cinq.com stations.agents.re-cinq.com agentdefinitions.agents.re-cinq.com
 kubectl -n floor exec deploy/floor-api -- wget -qO- http://localhost:8080/healthz
 
-# Lore sees the floor: the run list reads from it
 curl -s -H "Authorization: Bearer <lore-ingest-token>" https://<lore_api host>/api/floor-runs | head -c 300
-
-# End to end: on an onboarded repo, open an issue with a `priority:medium` label;
-# the implementation loop picks it up and a run appears at /assembly-runs
 ```
 
 ## Upgrading
 
-Any Kubernetes: section 4.1 step 6 with new image tags; the floor with `helm upgrade floor oci://ghcr.io/re-cinq/charts/floor --version <release> -n floor --reuse-values`. Our GKE: merge to `main`; the build workflows bump the image tags in `deploy/clusters/internal-cluster.values.yaml` and Argo CD syncs ([deploy/README.md](../deploy/README.md)).
+A client cluster: section 3.8. Our GKE: merge to `main`; the build workflows bump the image tags in `deploy/clusters/internal-cluster.values.yaml` and Argo CD syncs ([deploy/README.md](../deploy/README.md)).
 
 ## Disaster recovery
 
@@ -428,13 +580,17 @@ Our GKE: the cluster's add-ons and cloud resources come back from re-cinq/infras
 
 ## Known rough edges
 
-What a non-re-cinq install hits today. Each is an open issue; the doc keeps the list until the fix lands.
+What an install on a client cluster hits. The list stays until each fix lands.
 
-1. **Helm-only install needs two values overridden** ([#3902](https://github.com/re-cinq/lore/issues/3902)). The chart renders the ingresses, the `ExternalSecret` objects, Dgraph and the agent pods' egress policy to the MCP gateway (4.1). What is left: the subchart values default the Postgres host to the CNPG Service, and the reference values file carries `GCP_PROJECT`. Section 4.1 step 5 says what to set.
-2. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). A second `EmbeddingProvider` at 768 dimensions is the fix.
-3. The schema scripts `scripts/infra/setup-*.sh` reach Postgres through `kubectl exec` into a CNPG pod; a managed server needs the `psql` shim ([#3904](https://github.com/re-cinq/lore/issues/3904)).
-4. Two gaps ([#3905](https://github.com/re-cinq/lore/issues/3905)): `lore-stations` references `ghcr-pull-secret` but it is mirrored only into `lore-api`, `lore-ui` and `utopia`; lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant, so traces are silently off even on GCP.
-5. The ESO `ClusterSecretStore`, the allowed sign-in domain `re-cinq.com` (Grafana, Headlamp, Utopia), and the GCP project in the values file are hardcoded to our environment ([#3906](https://github.com/re-cinq/lore/issues/3906)).
+1. **The `deploy/install` chart has been rendered, not yet installed on a cluster** (2026-11-16). The order in which it creates namespaces and Secrets ahead of the migration jobs is by design and unproven.
+2. **The baseline schema has no command for a managed Postgres** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). The `scripts/infra/setup-*.sh` scripts reach Postgres through `kubectl exec` into a CNPG pod.
+3. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). Off Google Cloud, search is keyword-only. A second `EmbeddingProvider` at 768 dimensions is the fix.
+4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
+5. **Image tags in `deploy/install/values.yaml` are updated by hand.** The build workflows bump only our own cluster's values file.
+6. **Utopia's chart is not published.** The install reads it from a checkout of re-cinq/utopia beside this repo (3.2), at whatever commit that checkout is on.
+7. **Utopia after install.** Sign-in was only ever run against Google as the issuer. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
+8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
+9. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant on our GKE, so traces are silently off there ([#3905](https://github.com/re-cinq/lore/issues/3905)).
 
 ## Running on ARM64
 
