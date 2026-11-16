@@ -6,9 +6,9 @@
 
 ## Done when these pass
 
-- [ ] **resolves execution image through three layers: agent override then repo base then org default** — Verifies that 'resolve' uses the base image when no per-agent override exists, falling back to org default.
+- [x] **resolves execution image through three layers: agent override then repo base then org default** — Verifies that 'resolve' uses the base image when no per-agent override exists, falling back to org default.
   libs/shared/src/outbound/project/agents/agent-defs-floor.acceptance.test.ts
-- [ ] **applies base image for effective image display in list()** — Verifies that the effective image is properly resolved in 'list' for UI auditing.
+- [x] **applies base image for effective image display in list()** — Verifies that the effective image is properly resolved in 'list' for UI auditing.
   libs/shared/src/outbound/project/agents/agent-defs-floor.acceptance.test.ts
 
 ## Facets
