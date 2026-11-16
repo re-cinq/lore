@@ -6694,17 +6694,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
+          name?: string;
           model?: string | null;
           timeout_minutes?: number | null;
           prompt?: string | null;
           image?: string | null;
-          /**
-           * @default claude-code
-           * @enum {string}
-           */
-          execution_mode?: "claude-code" | "graph-ingest" | "station";
-          /** @default false */
+          /** @enum {string} */
+          execution_mode?: "standard" | "delegate" | "review" | "sandbox";
           review_required?: boolean;
           pod_resources?: {
             requests?: {
@@ -9125,17 +9121,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
+          name?: string;
           model?: string | null;
           timeout_minutes?: number | null;
           prompt?: string | null;
           image?: string | null;
-          /**
-           * @default claude-code
-           * @enum {string}
-           */
-          execution_mode?: "claude-code" | "graph-ingest" | "station";
-          /** @default false */
+          /** @enum {string} */
+          execution_mode?: "standard" | "delegate" | "review" | "sandbox";
           review_required?: boolean;
           pod_resources?: {
             requests?: {

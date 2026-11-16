@@ -1,7 +1,10 @@
 /** Domain-route OpenAPI sidecar (ADR-035 fork 3): schemas for hand-validated routes + wildcard verb table. */
 
 import type { ZodType } from "zod";
-import { AgentInputSchema } from "../../work/agents/agents-schema.js";
+import {
+  AgentInputSchema,
+  AgentPatchSchema,
+} from "../../work/agents/agents-schema.js";
 
 /** Concrete verbs for method:"*" routes (currently empty: split routes to per-verb + 405 fallback). */
 export const WILDCARD_METHODS: Record<string, string[]> = {};
@@ -21,10 +24,10 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
     schema: AgentInputSchema,
   },
   "PUT /api/repos/{owner}/{repo}/agent-definitions/{name}": {
-    schema: AgentInputSchema,
+    schema: AgentPatchSchema,
   },
   "PUT /api/agent-definitions/{name}": {
-    schema: AgentInputSchema,
+    schema: AgentPatchSchema,
   },
 
   // tokens — a plain TS interface + residual checks; no single zod schema.
