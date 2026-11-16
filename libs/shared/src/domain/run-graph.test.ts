@@ -3,6 +3,7 @@ import {
   resolveRoute,
   routePlaceholders,
   isRouteArgPlaceholder,
+  RunGraphSchema,
 } from "./run-graph.js";
 
 describe("route placeholder grammar", () => {
@@ -26,6 +27,19 @@ describe("route placeholder grammar", () => {
     expect(resolveRoute(route, { repo: "re-cinq/lore" })).toBe(
       "/repos/re-cinq/lore",
     );
+  });
+});
+
+describe("RunGraphSchema", () => {
+  it("rejects an object missing the required name field", () => {
+    const result = RunGraphSchema.safeParse({
+      entry: "start",
+      exit: "end",
+      nodes: [],
+      edges: [],
+    });
+
+    expect(result.success).toBe(false);
   });
 });
 

@@ -6,20 +6,20 @@
 
 ## Done when these pass
 
-- [ ] **declares a strict response schema for the run graph** — Run graph payload fields are strictly typed, failing on invalid structure.
+- [x] **declares a strict response schema for the run graph** — Run graph payload fields are strictly typed, failing on invalid structure.
   `apps/lore-api/src/transport/routes/assembly-lines/run-read.acceptance.test.ts`
-- [ ] **declares strict response schemas for trace shapes** — Trace read responses are strictly typed, rejecting loose or invalid trace structures.
+- [x] **declares strict response schemas for trace shapes** — Trace read responses are strictly typed, rejecting loose or invalid trace structures.
   `apps/lore-api/src/transport/routes/trace/trace.acceptance.test.ts`
-- [ ] **declares a strict schema for the graph field** — The graph field on AssemblyRun uses a detailed Zod schema rather than z.custom.
+- [x] **declares a strict schema for the graph field** — The graph field on AssemblyRun uses a detailed Zod schema rather than z.custom.
   `libs/shared/src/domain/models/assembly-run.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Define strict Zod schemas for trace-types in libs/shared/src/domain/models/
-- [ ] Define strict Zod schemas for run-graph in libs/shared/src/domain/models/
-- [ ] Replace z.custom() with the new RunGraph schema in AssemblyRunSchema
-- [ ] Update RunReadSchema to use the new RunGraph shapes
-- [ ] Update TraceReadSchema to use the new Trace shapes
+- [x] Define strict Zod schemas for trace-types in libs/shared/src/domain/models/
+- [x] Define strict Zod schemas for run-graph in libs/shared/src/domain/models/
+- [x] Replace z.custom() with the new RunGraph schema in AssemblyRunSchema
+- [x] Update RunReadSchema to use the new RunGraph shapes
+- [x] Update TraceReadSchema to use the new Trace shapes
 
 ## Out of scope
 

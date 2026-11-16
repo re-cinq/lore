@@ -39,8 +39,48 @@ const TRACE_KINDS = new Set([
   "callers",
 ]);
 
-// Union of all /trace/{kind} responses; one route, many contract shapes.
-const TraceReadSchema = z.record(z.string(), z.unknown());
+const TraceSectionSchema = z.object({
+  uid: z.string(),
+  heading: z.string(),
+  ordinal: z.number(),
+  level: z.number().optional(),
+});
+
+const TraceLinkRefSchema = z.object({
+  kind: z.enum(["test", "code", "adr"]),
+  label: z.string(),
+  path: z.string().optional(),
+  line: z.number().optional(),
+  detail: z.string().optional(),
+});
+
+const TraceStatementSchema = z.object({
+  uid: z.string(),
+  ordinal: z.number(),
+  text: z.string(),
+  state: z.enum(["tested", "untested", "narrative"]),
+  sectionUid: z.string().optional(),
+  links: z.array(TraceLinkRefSchema),
+  drifted: z.boolean().optional(),
+  violated: z.boolean().optional(),
+});
+
+const TraceCoverageSchema = z.object({
+  testable: z.number(),
+  covered: z.number(),
+  untestable: z.number(),
+  ratio: z.number(),
+});
+
+export const TraceDocumentSchema = z.object({
+  filePath: z.string(),
+  sections: z.array(TraceSectionSchema),
+  statements: z.array(TraceStatementSchema),
+  coverage: TraceCoverageSchema,
+});
+
+// The document kind is the primary typed shape for this route; it is the shape web-ui's hand mirror derives from.
+const TraceReadSchema = TraceDocumentSchema;
 
 type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
 type Trace = ProjectResult["trace"];
