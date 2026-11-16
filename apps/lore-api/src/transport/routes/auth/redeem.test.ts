@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { redeemRoute } from "./redeem.js";
 import { serve, testDeps } from "./auth-test-server.js";
-import { SESSION_TTL_MS } from "../../../work/auth/login-grant.js";
 
 const grant = {
   login: "gedaiu",
@@ -62,14 +61,17 @@ describe("POST /api/auth/redeem", () => {
     });
   });
 
-  it("stores a user token that expires in eight hours with the person's repos", async () => {
+  const HOUR_MS = 60 * 60 * 1000;
+
+  /** The parameters of the token row a sign-in stored, with `saved` as the org's session_length_hours row. */
+  async function mintedWith(saved: { value: string }[]) {
     vi.useFakeTimers({
       now: new Date("2026-10-28T10:00:00Z"),
       toFake: ["Date"],
     });
     const deps = testDeps();
 
-    deps.query.mockResolvedValue({
+    deps.query.mockResolvedValueOnce({ rows: saved }).mockResolvedValue({
       rows: [{ id: "t-1", name: "n", scopes: [], created_at: "now" }],
     });
     const code = await deps.handoffs.put("redeem", {
@@ -79,18 +81,33 @@ describe("POST /api/auth/redeem", () => {
 
     await redeemWith(code, serve([redeemRoute(deps)]));
 
-    expect(deps.query.mock.calls[0][1]).toEqual([
-      "web-ui session gedaiu",
-      expect.any(String),
-      ["read", "write", "task"],
-      "gedaiu",
-      new Date(Date.now() + SESSION_TTL_MS),
-      "user",
-      "gedaiu",
-      "Bogdan",
-      "https://a/1",
-      ["re-cinq/lore"],
-    ]);
+    return deps.query.mock.calls;
+  }
+
+  it("stores a user token that expires in 8 hours with the person's repos when no length is saved", async () => {
+    const calls = await mintedWith([]);
+
+    expect({ asked: calls[0][1], minted: calls[1][1] }).toEqual({
+      asked: ["session_length_hours"],
+      minted: [
+        "web-ui session gedaiu",
+        expect.any(String),
+        ["read", "write", "task"],
+        "gedaiu",
+        new Date(Date.now() + 8 * HOUR_MS),
+        "user",
+        "gedaiu",
+        "Bogdan",
+        "https://a/1",
+        ["re-cinq/lore"],
+      ],
+    });
+  });
+
+  it("stores a user token that expires in 168 hours when session_length_hours is 168", async () => {
+    const calls = await mintedWith([{ value: "168" }]);
+
+    expect(calls[1][1][4]).toEqual(new Date(Date.now() + 168 * HOUR_MS));
   });
 
   it("answers 401 for a state code used as a redeem code", async () => {

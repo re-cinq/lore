@@ -20,6 +20,10 @@ import {
   CONTEXT_PROVIDER_KEY,
   contextSettingError,
 } from "@re-cinq/lore-shared/context-model.js";
+import {
+  SESSION_LENGTH_KEY,
+  sessionLengthError,
+} from "@re-cinq/lore-shared/session-length.js";
 
 // Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
@@ -30,6 +34,7 @@ const WRITABLE_KEYS = new Set([
   "slack_users",
   CONTEXT_PROVIDER_KEY,
   CONTEXT_MODEL_KEY,
+  SESSION_LENGTH_KEY,
 ]);
 
 const SettingsBody = z.object({
@@ -134,7 +139,7 @@ async function serveOrgSettingsWrite(
   return h.response({ ok: true });
 }
 
-/** Why a write of these entries is refused, or null: a slack_users map the digest cannot use, or a context provider the builder does not know. */
+/** Why a write of these entries is refused, or null: a slack_users map the digest cannot use, a context provider the builder does not know, or a session length the settings page does not offer. */
 function refusalOf(entries: SettingsBody["entries"]): string | null {
   if (entries.some(isInvalidSlackUsers)) {
     return "slack_users must map GitHub logins to Slack user ids (U…)";
@@ -142,9 +147,13 @@ function refusalOf(entries: SettingsBody["entries"]): string | null {
 
   return (
     entries
-      .map(({ key, value }) => contextSettingError(key, value.trim()))
+      .map(({ key, value }) => settingError(key, value.trim()))
       .find((error) => error !== null) ?? null
   );
+}
+
+function settingError(key: string, value: string): string | null {
+  return contextSettingError(key, value) ?? sessionLengthError(key, value);
 }
 
 /** The daily digest reads slack_users with no user in front of it, so a map it could not use is refused here (specs/daily-digest FR12). */

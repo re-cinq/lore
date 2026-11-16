@@ -37,6 +37,8 @@ function whoAmI(request: Request) {
     name: user.name,
     avatar_url: user.avatarUrl,
     scopes,
+    started_at: user.startedAt,
+    expires_at: user.expiresAt,
   };
 }
 

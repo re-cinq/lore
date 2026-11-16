@@ -46,6 +46,8 @@ describe("principalOf", () => {
           displayName: "Bogdan",
           avatarUrl: "https://a/1",
           repos: ["re-cinq/lore"],
+          startedAt: new Date("2026-10-28T10:00:00Z"),
+          expiresAt: new Date("2026-10-28T18:00:00Z"),
         },
       ],
     });

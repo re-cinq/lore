@@ -239,6 +239,10 @@
       "types": "./dist/domain/context-model.d.ts",
       "default": "./dist/domain/context-model.js"
     },
+    "./session-length.js": {
+      "types": "./dist/domain/session-length.d.ts",
+      "default": "./dist/domain/session-length.js"
+    },
     "./context-template.js": {
       "types": "./dist/domain/context-template.d.ts",
       "default": "./dist/domain/context-template.js"

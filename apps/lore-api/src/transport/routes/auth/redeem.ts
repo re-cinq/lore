@@ -1,4 +1,4 @@
-// POST /api/auth/redeem — the web UI swaps the one-time code from the sign-in redirect for the person's session token. A code works once; the token lasts eight hours and carries the person and the repos they can open.
+// POST /api/auth/redeem — the web UI swaps the one-time code from the sign-in redirect for the person's session token. A code works once; the token lasts as long as the org setting session_length_hours says (8 hours when nothing is saved) and carries the person and the repos they can open.
 
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
@@ -6,7 +6,10 @@ import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { UserGrant } from "@re-cinq/lore-shared/models/login-handoff.js";
-import { SESSION_TTL_MS } from "../../../work/auth/login-grant.js";
+import {
+  SESSION_LENGTH_KEY,
+  sessionLengthMs,
+} from "@re-cinq/lore-shared/session-length.js";
 import {
   mintApiToken,
   type MintInput,
@@ -48,7 +51,7 @@ async function startSession(
   const grant = (await deps.handoffs.take(code, "redeem"))?.grant;
 
   enforceTrue(grant, apiError(401), "invalid or used code");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + (await sessionLength(pool)));
   const { token } = await mintApiToken(pool, sessionToken(grant, expiresAt));
 
   return h.response({
@@ -56,6 +59,16 @@ async function startSession(
     expires_at: expiresAt,
     user: { login: grant.login, name: grant.name, avatar_url: grant.avatarUrl },
   });
+}
+
+/** How long a sign-in started now lasts, from the org settings. */
+async function sessionLength(pool: Pool): Promise<number> {
+  const { rows } = await pool.query<{ value: string }>(
+    `SELECT value FROM lore.settings WHERE key = $1`,
+    [SESSION_LENGTH_KEY],
+  );
+
+  return sessionLengthMs(rows[0]?.value);
 }
 
 function sessionToken(grant: UserGrant, expiresAt: Date): MintInput {

@@ -24,6 +24,8 @@ describe("GET /api/auth/me", () => {
       name: "Bogdan",
       avatar_url: "https://a/1",
       scopes: ["read", "write", "task"],
+      started_at: "2026-10-28T10:00:00.000Z",
+      expires_at: "2026-10-28T18:00:00.000Z",
     });
   });
 
