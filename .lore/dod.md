@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] Modify `cobLine` regex in `apps/lore-code-trace/coverage.go` to match attributes independent of their order.
+- [x] Modify `cobLine` regex in `apps/lore-code-trace/coverage.go` to match attributes independent of their order.
 
 ## Out of scope
 

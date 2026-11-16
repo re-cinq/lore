@@ -15,7 +15,9 @@ var (
 	lcovSF        = regexp.MustCompile(`(?m)^SF:(.+)$`)
 	lcovDA        = regexp.MustCompile(`(?m)^DA:(\d+),(\d+)$`)
 	cobClass      = regexp.MustCompile(`<class[^>]*\bfilename="([^"]+)"[^>]*>([\s\S]*?)</class>`)
-	cobLine       = regexp.MustCompile(`<line\s+number="(\d+)"\s+hits="(\d+)"`)
+	cobLine       = regexp.MustCompile(`<line\b[^>]*>`)
+	cobAttrNumber = regexp.MustCompile(`\bnumber="(\d+)"`)
+	cobAttrHits   = regexp.MustCompile(`\bhits="(\d+)"`)
 )
 
 // parseLcovCoverage aggregates every record's hit lines (DA with hits>0) into
@@ -44,9 +46,14 @@ func parseCoberturaCoverage(xml string) []CoveredChunk {
 	var chunks []CoveredChunk
 	for _, block := range cobClass.FindAllStringSubmatch(xml, -1) {
 		var lines []int
-		for _, ln := range cobLine.FindAllStringSubmatch(block[2], -1) {
-			if hits, _ := strconv.Atoi(ln[2]); hits > 0 {
-				n, _ := strconv.Atoi(ln[1])
+		for _, ln := range cobLine.FindAllString(block[2], -1) {
+			nMatch := cobAttrNumber.FindStringSubmatch(ln)
+			hMatch := cobAttrHits.FindStringSubmatch(ln)
+			if nMatch == nil || hMatch == nil {
+				continue
+			}
+			if hits, _ := strconv.Atoi(hMatch[1]); hits > 0 {
+				n, _ := strconv.Atoi(nMatch[1])
 				lines = append(lines, n)
 			}
 		}
