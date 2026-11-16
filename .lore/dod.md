@@ -6,18 +6,18 @@
 
 ## Done when these pass
 
-- [ ] **returns no issue and a reason when the loop is disabled** — The tool returns no issue when the loop is disabled.
+- [x] **returns no issue and a reason when the loop is disabled** — The tool returns no issue when the loop is disabled.
   `apps/mcp-server/src/transport/tools/repo/next-ready-issue.acceptance.test.ts`
-- [ ] **returns no issue and a reason when onboarding is unmerged** — The tool returns no issue when onboarding is unmerged.
+- [x] **returns no issue and a reason when onboarding is unmerged** — The tool returns no issue when onboarding is unmerged.
   `apps/mcp-server/src/transport/tools/repo/next-ready-issue.acceptance.test.ts`
-- [ ] **returns no issue and a reason when the repo is already busy** — The tool returns no issue when a run is already active.
+- [x] **returns no issue and a reason when the repo is already busy** — The tool returns no issue when a run is already active.
   `apps/mcp-server/src/transport/tools/repo/next-ready-issue.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Update `lore_next_ready_issue` tool to check `loopState.enabled` and return no issue when false.
-- [ ] Update `lore_next_ready_issue` tool to check `loopState.onboarding.merged` and return no issue when false.
-- [ ] Update `lore_next_ready_issue` tool to check `loopState.current` and return no issue when a run is active.
+- [x] Update `lore_next_ready_issue` tool to check `loopState.enabled` and return no issue when false.
+- [x] Update `lore_next_ready_issue` tool to check `loopState.onboarding.merged` and return no issue when false.
+- [x] Update `lore_next_ready_issue` tool to check `loopState.current` and return no issue when a run is active.
 
 ## Out of scope
 
