@@ -117,8 +117,19 @@ for name in "${REQUIRED[@]}" "${OPTIONAL[@]}"; do
   suffix=""
   [ "$optional" -eq 1 ] && suffix=" (optional — leave blank to skip)"
   # -r so a PEM's backslashes survive; -s so it never reaches the scrollback.
+  # Loop until a blank line so multi-line PEM values are captured whole without
+  # spilling subsequent lines into the next secret's prompt.
   printf '[lore] %s%s\n       value: ' "$name" "$suffix" >&2
-  IFS= read -rs value
+  value=""
+  while IFS= read -rs line; do
+    [ -z "$line" ] && break
+    if [ -z "$value" ]; then
+      value="$line"
+    else
+      value="${value}
+${line}"
+    fi
+  done
   echo >&2
 
   if [ -z "$value" ]; then

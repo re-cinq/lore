@@ -6,12 +6,12 @@
 
 ## Done when these pass
 
-- [ ] **A multi-line GitHub App PEM is stored whole and cannot become values for subsequent secrets** — The script reads full multiline input for a secret and does not let remaining lines pollute subsequent secrets.
+- [x] **A multi-line GitHub App PEM is stored whole and cannot become values for subsequent secrets** — The script reads full multiline input for a secret and does not let remaining lines pollute subsequent secrets.
   `scripts/infra/seed-secrets.acceptance.test.mjs`
 
 ## Facets
 
-- [ ] Fix `seed-secrets.sh` to read multiline inputs correctly instead of using `IFS= read -rs value`.
+- [x] Fix `seed-secrets.sh` to read multiline inputs correctly instead of using `IFS= read -rs value`.
 
 ## Out of scope
 
