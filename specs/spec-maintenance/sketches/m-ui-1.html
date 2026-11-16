@@ -1,0 +1,50 @@
+<div class="sketch">
+<style>
+.sketch{width:680px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d1d1f;background:#f5f5f7;padding:24px;box-sizing:border-box}
+.sketch *{box-sizing:border-box}
+.sketch .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.sketch .pill{display:inline-flex;align-items:center;gap:8px;padding:4px 12px;border:1px solid #d2d2d7;border-radius:9999px;font-size:14px;color:#6e6e73;background:transparent}
+.sketch .pill.cur{color:#1d1d1f;border-color:#1d1d1f;font-weight:500}
+.sketch .card{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:16px;border:1px solid #d2d2d7;border-radius:16px;background:#fff}
+.sketch .card-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;font-size:16px;font-weight:500}
+.sketch .sp{display:inline-block;padding:2px 12px;border-radius:9999px;font-size:12px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#fff}
+.sketch .shipped{background:#1a7f37}
+.sketch .inprog{background:#9a6700}
+.sketch .draft{background:#94a3b8}
+.sketch .card-note{margin:0;color:#6e6e73;font-size:14px}
+.sketch .card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sketch .chips{display:flex;gap:8px;flex-wrap:wrap}
+.sketch .chip{padding:2px 12px;border-radius:9999px;background:#ececee;color:#1d1d1f;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.sketch .btn-run{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border:1px solid #d2d2d7;border-radius:9999px;font-size:12px;font-weight:500;color:#1d1d1f;background:#fff;white-space:nowrap}
+</style>
+<div class="pill-row">
+  <span class="pill cur">All</span>
+  <span class="pill">Shipped</span>
+  <span class="pill">In Progress</span>
+  <span class="pill">Draft</span>
+</div>
+<div class="card">
+  <h3 class="card-title">spec-maintenance<span class="sp draft">Draft</span></h3>
+  <p class="card-note">Keep every spec file in this repository clean, current, and correctly structured.</p>
+  <div class="card-foot">
+    <div class="chips"><span class="chip">spec.md</span></div>
+    <button class="btn-run"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="1,1 9,5 1,9" fill="currentColor"/></svg>Run maintenance</button>
+  </div>
+</div>
+<div class="card">
+  <h3 class="card-title">collaborative-feature-planning<span class="sp shipped">Shipped</span></h3>
+  <p class="card-note">Plan features collaboratively with the planning agent through a live editor.</p>
+  <div class="card-foot">
+    <div class="chips"><span class="chip">spec.md</span><span class="chip">plan.md</span><span class="chip">tasks.md</span></div>
+    <button class="btn-run"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="1,1 9,5 1,9" fill="currentColor"/></svg>Run maintenance</button>
+  </div>
+</div>
+<div class="card">
+  <h3 class="card-title">loop-pause<span class="sp shipped">Shipped</span></h3>
+  <p class="card-note">Pause any loop without toggling its switch.</p>
+  <div class="card-foot">
+    <div class="chips"><span class="chip">spec.md</span></div>
+    <button class="btn-run"><svg width="10" height="10" viewBox="0 0 10 10"><polygon points="1,1 9,5 1,9" fill="currentColor"/></svg>Run maintenance</button>
+  </div>
+</div>
+</div>
