@@ -187,6 +187,7 @@ Pick the guide that matches what you're doing.
 - [Developer Guide](docs/using-lore/developer.md) — org context in Claude Code, the MCP tool catalog, and GitHub/Slack dispatch
 - [Product Manager Guide](docs/using-lore/product-manager.md) — turn a plain-language idea into a spec and a merged PR
 - [Platform Engineer Guide](docs/using-lore/platform-engineer.md) — onboard repos, tune settings, monitor the pipeline, analytics, and API security
+- [Pack layout reference](docs/using-lore/pack-layout-reference.md) — customise agents and add assembly lines from your own git repository, check it in CI, and write a custom stations service
 - [Installation & Deployment](docs/INSTALL.md) — deploy the Lore backend on a Kubernetes cluster
 
 ### Building Lore

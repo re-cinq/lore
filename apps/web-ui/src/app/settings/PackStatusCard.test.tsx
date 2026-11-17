@@ -98,4 +98,20 @@ describe("PackStatusCard", () => {
 
     expect(syncPack).toHaveBeenCalledTimes(1);
   });
+
+  it("shows Not synced yet with a Sync now button before the first sync of acme/lore-pack", () => {
+    renderCard({ commit: null, applied_at: null });
+
+    expect({
+      pill: screen.queryByText("Waiting")?.textContent,
+      applied: screen.queryByText("Applied"),
+      lastApplied: screen.getByText(/Not synced yet/).textContent,
+      sync: screen.getByRole("button", { name: "Sync now" }).textContent,
+    }).toEqual({
+      pill: "Waiting",
+      applied: null,
+      lastApplied: "Not synced yet",
+      sync: "Sync now",
+    });
+  });
 });

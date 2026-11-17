@@ -40,7 +40,7 @@ function PackHeader({ pack }: { pack: PackSync }) {
         <span className={styles.repoRef}>
           branch: {pack.ref ?? "default branch"}
         </span>
-        <StatusPill failed={pack.error !== null} />
+        <StatusPill pack={pack} />
       </div>
       {pack.error && <p className={styles.error}>{pack.error}</p>}
     </>
@@ -48,20 +48,34 @@ function PackHeader({ pack }: { pack: PackSync }) {
 }
 
 function LastApplied({ pack }: { pack: PackSync }) {
+  if (pack.commit === null) {
+    return <p className={styles.commitInfo}>Not synced yet</p>;
+  }
+
   return (
     <p className={styles.commitInfo}>
-      Last applied: {pack.commit?.slice(0, SHORT_COMMIT_LENGTH)} &middot;{" "}
+      Last applied: {pack.commit.slice(0, SHORT_COMMIT_LENGTH)} &middot;{" "}
       {utcMinute(pack.applied_at)}
     </p>
   );
 }
 
-function StatusPill({ failed }: { failed: boolean }) {
+function StatusPill({ pack }: { pack: PackSync }) {
+  const failed = pack.error !== null;
+
   return (
     <span className={`${styles.pill} ${failed ? styles.failed : ""}`}>
-      {failed ? "Failed" : "Applied"}
+      {pillLabel(pack)}
     </span>
   );
+}
+
+function pillLabel(pack: PackSync): string {
+  if (pack.error !== null) {
+    return "Failed";
+  }
+
+  return pack.commit === null ? "Waiting" : "Applied";
 }
 
 /** Files the last sync skipped; the rest of the pack was still applied. */

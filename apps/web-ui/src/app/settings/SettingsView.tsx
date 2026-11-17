@@ -49,7 +49,7 @@ export interface SettingsViewProps {
   sessionLengthHours: string;
   saveSessionLength: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
-  /** What the last sync of the client's pack repo did; null while none has run, which hides the Pack card. */
+  /** What the last sync of the client's pack repo did; null while no pack is configured, which hides the Pack card. */
   packSync: PackSync | null;
   syncPack: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
@@ -60,7 +60,7 @@ export interface SettingsViewProps {
 
 const PACK_NAV_ITEM: SettingsNavItem = { id: "set-pack", label: "Pack" };
 
-/** The sub-navigation, in the order the cards are shown; Pack only once a pack has synced. */
+/** The sub-navigation, in the order the cards are shown; Pack once a pack is configured. */
 const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-appearance", label: "Appearance" },
   { id: "set-github", label: "GitHub" },
@@ -104,7 +104,7 @@ function navFor(packSync: PackSync | null): SettingsNavItem[] {
     : SETTINGS_NAV;
 }
 
-/** The platform card, then the client's pack repo once a sync has run. */
+/** The platform card, then the client's pack repo when one is configured. */
 function PlatformSections(props: SettingsViewProps) {
   const { packSync, syncPack } = props;
 

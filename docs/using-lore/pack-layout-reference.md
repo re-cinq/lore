@@ -1,0 +1,203 @@
+# Pack layout reference
+
+A pack is a git repository you own. Lore reads it and applies it on top of what Lore ships, so you can add instructions to a shipped agent, replace one, add agents of your own, and define whole new assembly lines, without building a modified Lore image. This page describes the layout Lore expects, what it refuses, and how the pack reaches a running install.
+
+One install reads one pack.
+
+## Layout
+
+The pack holds one folder per pipeline. The folder name is the pipeline name.
+
+```
+acme-flow/
+  pipeline.yaml              a new pipeline (optional)
+  agents/acme-worker.md      a full agent definition
+  agents/reviewer.extra.md   text appended to a shipped agent's prompt
+code-review/
+  agents/reviewer.extra.md   an extension in the folder of a shipped pipeline
+```
+
+Anything else in the repository, a README or a CI workflow for instance, is ignored.
+
+### Three kinds of agent file
+
+| File | What it does | Later Lore improvements |
+| ---- | ------------ | ----------------------- |
+| `agents/<agent>.extra.md` | Plain text appended to the shipped prompt of `<agent>`, after a blank line. | Kept: the shipped prompt still updates under your text. |
+| `agents/<agent>.md` for a shipped agent | Replaces that agent's definition completely. | Lost: you own the prompt from now on. |
+| `agents/<agent>.md` for an agent nothing ships | A new agent. | Not applicable. |
+
+A full definition is a markdown file with the agent's settings as frontmatter and its prompt as the body, the same format as the shipped files in `libs/shared/src/agent-defaults/`:
+
+```markdown
+---
+image: ghcr.io/acme/agent:2
+timeout_minutes: 10
+model: claude-sonnet-4-6
+---
+Work the ticket. Follow the Acme naming rules.
+```
+
+`image`, `timeout_minutes` and the prompt body are required. A value in the settings may name an environment variable of the Lore install as `${NAME}`; it is filled in when the pack is applied. Variables are filled into settings only, never into the prompt.
+
+An extension may contradict the shipped prompt. That is allowed: you own the behaviour that results and you test it. Lore does not check the two for consistency.
+
+### Pipelines
+
+`<folder>/pipeline.yaml` defines a new assembly line in the same format as the shipped files in `libs/assembly-lines/src/floor-pipelines/`. The `line.id` must equal the folder name. Every agent a station names must be shipped by Lore or defined by the pack. A pipeline cannot replace a shipped pipeline: its shape is something Lore's own behaviour depends on. You can change what a shipped pipeline's agents are told, with extensions or replacements, but not the pipeline itself.
+
+A pipeline that needs your own code uses a `kind: service` station. Lore runs none of your code; see [A custom stations service](#a-custom-stations-service).
+
+## Refusals
+
+Each file is checked on its own. A refused file is recorded with its reason and the rest of the pack is still applied. Lore refuses:
+
+- a `pipeline.yaml` in a folder named like a shipped pipeline;
+- a pipeline whose `line.id` is not the folder name, or that two folders define;
+- a pipeline that is not valid, or that names an agent neither Lore nor the pack provides;
+- an `.extra.md` for an agent nothing ships;
+- an agent file that is not valid markdown with frontmatter, or that lacks `image`, `timeout_minutes` or a prompt;
+- an agent given both as `<agent>.md` and `<agent>.extra.md`, or defined in two folders;
+- an agent file naming an environment variable the install does not set.
+
+The refused files and their reasons show on the Pack card of the Settings page and are stored with the last sync in the `pack.sync` setting, which `GET /api/pack` returns.
+
+If the pack repository cannot be reached, Lore keeps what the floor already holds and records the error. An unreachable pack is never read as an empty one.
+
+## Removal
+
+Applying a pack is a comparison with the previous apply, so removing a file undoes it.
+
+- Remove an `.extra.md` or a replacement of a shipped agent, and the agent goes back to the shipped prompt.
+- Remove a new agent and the floor keeps its last definition; archive it on the floor if you want it gone.
+- Remove a pipeline folder and the pipeline is archived on the floor, not deleted. Runs in progress finish.
+
+Applying is idempotent: only a file whose content changed produces a new agent or pipeline version.
+
+## Agents the pack manages are read-only
+
+An agent the pack supplies cannot be edited as an organisation default in the web UI or through `PUT /api/agent-definitions/{name}`: the write answers `409 {"error":"pack_managed"}`, and the Edit link is hidden. Edit the file in the pack instead. A per-repository override of the same agent stays editable and is kept when the pack updates the organisation default.
+
+## When the pack is applied
+
+- When lore-api starts.
+- When a push reaches the configured branch of the pack repository.
+- Every 15 minutes, as a catch-up.
+- When an admin chooses Sync now on the Pack card, or posts to `POST /api/pack/sync`.
+
+Several Lore replicas may receive the same push. One takes a lease and applies; the others skip.
+
+## Configuration
+
+In the Helm values of the umbrella chart, set the pack on both lore-api and the stations service, since the stations service listens for the push:
+
+```yaml
+lore-api:
+  env:
+    LORE_PACK_REPO: acme/lore-pack   # owner/name; empty means no pack
+    LORE_PACK_REF: main              # branch or tag; empty means the default branch
+  commitAuthor:
+    name: Acme Agent
+    email: agent@acme.example
+lore-stations:
+  env:
+    LORE_PACK_REPO: acme/lore-pack
+    LORE_PACK_REF: main
+```
+
+`commitAuthor` is the name and email on the commits your agents make. It replaces the default identity without a prompt edit.
+
+The pack is read through the GitHub integration Lore already uses, on the host in `GITHUB_HOST`. The Lore GitHub App must be installed on the pack repository, with read access to its contents. A repository the App cannot see is reported as an unreachable pack.
+
+## Check the pack before merging it
+
+The linter applies exactly the checks above to a local directory. It needs no floor and no network.
+
+```
+npm run pack:lint -w apps/lore-api -- /path/to/pack
+```
+
+It prints each refused file with its reason, exits 1 when any file is refused and 0 otherwise. In your pack repository's CI, with a checkout of Lore beside it:
+
+```yaml
+name: pack-lint
+on: [pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pack
+      - uses: actions/checkout@v4
+        with:
+          repository: re-cinq/lore
+          ref: v1.0.2          # the Lore release your install runs
+          path: lore
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: lore
+      - run: npm run pack:lint -w apps/lore-api -- "$GITHUB_WORKSPACE/pack"
+        working-directory: lore
+```
+
+The linter fills any `${NAME}` an agent file names with a placeholder, because your install's environment is not available in CI.
+
+## A custom stations service
+
+Lore does not run your code. A pipeline station that needs your own logic is a `kind: service` station, served by a process you deploy yourself, anywhere that can reach the floor's HTTP API. It is built with `@re-cinq/floor-station`, the same package Lore's own stations use (see `apps/stations/src/code-review/read-review/station.ts`).
+
+Declare the station in the pipeline. Its name is the key under `stations:`:
+
+```yaml
+stations:
+  notify-owner:
+    description: Tells the ticket's owner in Acme's own chat system.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: ticket
+        kind: value
+    produces:
+      - name: notified_at
+        kind: value
+```
+
+Serve it:
+
+```ts
+import { defineStation } from "@re-cinq/floor-station";
+
+// The name must equal the station's key in pipeline.yaml.
+defineStation("notify-owner", async (brief, tools) => {
+  const ticket = brief.needs.ticket;
+
+  try {
+    await postToAcmeChat(ticket, { signal: tools.signal });
+  } catch (cause) {
+    return { outcome: "failed", error: String(cause) };
+  }
+
+  return {
+    outcome: "success",
+    produced: { notified_at: new Date().toISOString() },
+  };
+});
+
+async function postToAcmeChat(
+  ticket: string,
+  options: { signal: AbortSignal },
+): Promise<void> {
+  await fetch("https://chat.acme.example/api/notify", {
+    method: "POST",
+    body: JSON.stringify({ ticket }),
+    signal: options.signal,
+  });
+}
+```
+
+Run it with `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` set to the floor's address and a service token. The service needs a way out to the floor and nothing else: the floor never calls it. It claims the visits tagged `station:notify-owner` from the floor's queue. The brief carries each need by name (a value as its text, a file as an address for `tools.read`, a repository as `url@ref`). The function returns one of the outcomes the station declares and the values it produces; a file is produced with `tools.produce(name, bytes)`. A function that throws fails the visit with what it threw. If the floor cannot be reached, the visit goes back to the queue and is tried again.

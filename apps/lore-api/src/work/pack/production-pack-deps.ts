@@ -114,7 +114,7 @@ function githubPackReader(env: Env): PackReader {
   };
 }
 
-async function shippedCatalog() {
+export async function shippedCatalog() {
   const files = await readFloorPipelineFiles();
 
   return {

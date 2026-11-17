@@ -2,11 +2,11 @@
 import type { components } from "./api/schema";
 
 /** One resolved agent definition, as the API serves it. */
-export type AgentDefinition = Extract<
-  components["schemas"]["AgentDefinitionRead"],
-  { name: string }
+export type AgentDefinition = Omit<
+  Extract<components["schemas"]["AgentDefinitionRead"], { name: string }>,
+  "pack_managed"
 > & {
-  /** The client's pack owns this org default, so it is read-only here (specs/client-packs). */
+  /** The client's pack owns this org default, so it is read-only here (specs/client-packs); absent on a definition being written. */
   pack_managed?: boolean;
 };
 

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { formatSlackPeople, parseSlackPeople } from "@/lib/slack-people";
 import { getTaskStats } from "@/lib/api/tasks";
 import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
-import { syncPackNow } from "@/lib/api/pack";
+import { getPack, packCardState, syncPackNow } from "@/lib/api/pack";
 import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -98,10 +98,11 @@ function serviceChoicesFrom(settingsMap: Record<string, string>) {
 
 /** Everything the settings page renders from, read in one place so the page itself is the wiring. */
 async function loadSettingsPageData() {
-  const [org, stats, github] = await Promise.all([
+  const [org, stats, github, pack] = await Promise.all([
     getOrgSettings(),
     getTaskStats(),
     listGithubInstallations(),
+    getPack(),
   ]);
   const settingsMap = settingsMapFrom(org);
 
@@ -111,7 +112,7 @@ async function loadSettingsPageData() {
     taskStats: taskStatsFrom(stats),
     approvalConfig: resolveApprovalConfig(settingsMap),
     githubInstallations: github.status === "ok" ? github.data : [],
-    packSync: org.status === "ok" ? org.data.pack_sync : null,
+    packSync: pack.status === "ok" ? packCardState(pack.data) : null,
   };
 }
 

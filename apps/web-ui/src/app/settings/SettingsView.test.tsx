@@ -71,7 +71,7 @@ describe("SettingsView", () => {
     expect(screen.getByTestId("theme-switcher")).toBeInTheDocument();
   });
 
-  it("shows the Pack card between Platform and Approval gates when acme/lore-pack has synced", () => {
+  it("shows the Pack card between Platform and Approval gates when acme/lore-pack is configured", () => {
     renderView({
       packSync: {
         repo: "acme/lore-pack",
@@ -97,7 +97,7 @@ describe("SettingsView", () => {
     ).toEqual(["Platform", "Pack", "Approval gates"]);
   });
 
-  it("shows no Pack card while no pack has synced", () => {
+  it("shows no Pack card while no pack is configured", () => {
     renderView();
 
     expect(screen.queryByRole("heading", { name: "Pack" })).toBeNull();
