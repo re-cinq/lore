@@ -221,6 +221,7 @@ lore-api:
     repository: ghcr.io/re-cinq/lore-api
     tag: "5462801"
   env:
+    LORE_PACK_REPO: re-cinq/lore-assembly-lines
     PORT: "3000"
     CONTEXT_PATH: /context
     LORE_TEAM: platform
@@ -306,6 +307,7 @@ lore-stations:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
   env:
+    LORE_PACK_REPO: re-cinq/lore-assembly-lines
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
     LORE_DB_NAME: lore
