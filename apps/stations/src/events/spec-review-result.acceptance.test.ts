@@ -8,6 +8,10 @@ describe("spec.review.result event", () => {
     const handlers = buildStationHandlers();
     const handler = handlers.get(SPEC_REVIEW_RESULT_EVENT);
 
-    enforceTrue(handler, Error, "The Floor does not own the artifact: each question is written into the plan as an agent question with an id keyed on the review comment it answers for, but no handler exists for spec.review.result");
+    enforceTrue(
+      handler,
+      Error,
+      "The Floor does not own the artifact: each question is written into the plan as an agent question with an id keyed on the review comment it answers for, but no handler exists for spec.review.result",
+    );
   });
 });
