@@ -48,4 +48,11 @@ describe("buildMcpServer", () => {
 
     expect(tools.map((tool) => tool.name)).toContain("lore_versions");
   });
+
+  it("serves lore_search_tickets on the gateway, so agent pods search before filing", async () => {
+    const client = await connected("agent");
+    const { tools } = await client.listTools();
+
+    expect(tools.map((tool) => tool.name)).toContain("lore_search_tickets");
+  });
 });

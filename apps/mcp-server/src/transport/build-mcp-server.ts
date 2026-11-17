@@ -9,6 +9,7 @@ import { registerSpecTraceTools } from "./tools/spec-trace/index.js";
 import { registerSpecTraceLocalTools } from "./tools/spec-trace/index.local.js";
 import { registerUpdateTools } from "./tools/update/index.js";
 import { registerCiTools } from "./tools/ci/index.js";
+import { registerTicketTools } from "./tools/tickets/index.js";
 import { registerVersionsTools } from "./tools/versions/index.js";
 import type { ServerMode } from "./tools/shared/repo-scope.js";
 
@@ -63,6 +64,7 @@ function registerSharedTools(server: McpServer, mode: ServerMode): void {
   registerUsageTools(server);
   registerRepoTools(server, mode);
   registerCiTools(server, mode);
+  registerTicketTools(server, mode);
   registerVersionsTools(server);
 }
 

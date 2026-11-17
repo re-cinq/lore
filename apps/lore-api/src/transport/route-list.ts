@@ -15,6 +15,7 @@ import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
 import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
+import { ticketSearchRoute } from "./routes/tickets/ticket-search.js";
 import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
 import { triageRoute } from "./routes/triage/triage.js";
 import { contextRoutes } from "./routes/context/context.js";
@@ -194,6 +195,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
 function contextAndGraphRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
     ...contextRoutes(getPool),
+    ticketSearchRoute(getPool),
     contextEvalRoute(getPool),
     contextEvalTicketRoute(getPool),
     contextEvalDocumentsRoute(getPool),
