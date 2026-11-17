@@ -70,6 +70,10 @@ lore-platform:
     clusterIssuer: letsencrypt-prod
     ingressClassName: nginx
     namespaces: [lore-dgraph]
+    # Needs kube-prometheus-stack on the cluster. Turns on the ServiceMonitors and
+    # the six Lore Grafana dashboards (ConfigMaps labelled grafana_dashboard: "1",
+    # folder Lore, datasource uid "prometheus"). Leave false without it.
+    monitoring: { enabled: false }
     dgraph:
       image: dgraph/standalone:v24.0.0
       storageClass: managed-csi
