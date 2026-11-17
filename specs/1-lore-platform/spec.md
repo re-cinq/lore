@@ -940,7 +940,7 @@ is deleted. ([validated by links to no task page @3943c8fd](apps/web-ui/src/app/
   (written by the `azure-cost-sync` station), and the GCP block reads only
   provider `gcp`. The page shows an Azure billed card and Azure by-service and
   daily tables once that sync has run, and nothing before.
-  ([validated by reports Azure's rows beside GCP's, each read under its own provider](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L608), [validated by renders the Azure billed card, by-service and daily tables from Cost Management](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [validated by hides the Azure card and sections until the Azure sync has run](apps/web-ui/src/app/spend/SpendView.test.tsx#L626))
+  ([validated by reports Azure's rows beside GCP's, each read under its own provider @a06c493f](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L608), [validated by renders the Azure billed card, by-service and daily tables from Cost Management @2303eeb8](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [validated by hides the Azure card and sections until the Azure sync has run @b5fbc31a](apps/web-ui/src/app/spend/SpendView.test.tsx#L626))
 
 - **FR-19h — Reading the spend page at a glance** _(added 2026-09-09)_.
   The page groups its figures into three labelled bands — Lore-computed LLM
