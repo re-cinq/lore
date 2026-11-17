@@ -4,7 +4,7 @@
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
 #
-#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2 \
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.3 \
 #     -n lore-floor --create-namespace -f my-values.yaml
 
 # Created before anything else. lore-floor is the release namespace and comes
@@ -127,8 +127,8 @@ utopia:
 # lore-db-helm, and platform for ingresses, Dgraph and monitoring.
 #
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
-# the chart published for release v1.0.2 pins all five images (the four tags below and
-# agentImage) to v1.0.2, so an install does not depend on what `latest` is that
+# the chart published for release v1.0.3 pins all five images (the four tags below and
+# agentImage) to v1.0.3, so an install does not depend on what `latest` is that
 # day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
 # ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
 # newer release, upgrade with its chart version (--version 1.1.0); do not
@@ -137,9 +137,12 @@ lore-platform:
   lore-api:
     # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
+    # Your own agents and assembly lines (a pack, docs/using-lore/pack-layout-reference.md):
+    # set the same two keys here and under lore-stations.env, e.g.
+    #   env: { LORE_PACK_REPO: acme/lore-assembly-lines, LORE_PACK_REF: main }
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "v1.0.2"
+      tag: "v1.0.3"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -152,15 +155,15 @@ lore-platform:
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
       # The image agent pods work in. Public.
-      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.2
+      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.3
   lore-ui:
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "v1.0.2"
+      tag: "v1.0.3"
   lore-stations:
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "v1.0.2"
+      tag: "v1.0.3"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -168,7 +171,7 @@ lore-platform:
   lore-mcp-gateway:
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "v1.0.2"
+      tag: "v1.0.3"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:
