@@ -35,6 +35,16 @@ describe("lore_list_runs", () => {
     ]);
   });
 
+  it("lists every repository on a laptop when repo is 'all'", async () => {
+    const laptopList = toolHandlers(registerListRunsTool, "full")[
+      "lore_list_runs"
+    ];
+
+    await laptopList({ repo: "all", status: "running" });
+
+    expect(api.requested).toEqual(["/api/floor-runs?status=running"]);
+  });
+
   it("refuses repo '../x' without fetching", async () => {
     expect(await textOf({ repo: "../x" })).toContain("Invalid repo '../x'");
     expect(api.requested).toEqual([]);

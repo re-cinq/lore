@@ -398,8 +398,8 @@ One-line purpose: list the floor's runs, newest first, a page at a time.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
-| `repo` | no | git remote (laptop) / all (gateway) | `owner/repo` filter. |
-| `status` | no | — | e.g. `running`, `failed`, `succeeded`. |
+| `repo` | no | git remote (laptop) / all (gateway) | `owner/repo` filter, or `all`. |
+| `status` | no | — | `queued`, `running`, `finished` or `failed`. |
 | `line` | no | — | Assembly line name, e.g. `implementation-loop`. |
 | `cursor` | no | — | `next_cursor` of the previous page. |
 | `limit` | no | server default | 1 to 100. |
@@ -408,13 +408,13 @@ One-line purpose: list the floor's runs, newest first, a page at a time.
 
 #### `lore_get_run`
 
-One-line purpose: one run's whole state in one call.
+One-line purpose: one run's state and Definition of Done in one call.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `run_id` | yes | — | The run's id. |
 
-- **Returns:** `{run, nodes, dod, token_usage}`. `run` is required; a part the run lacks (an old Postgres run has no DoD) comes back as `{error}`.
+- **Returns:** `{run, dod}`: `run.line` is the run (status, graph), `run.nodes` its visits with `agentCrName`. A run without a DoD gets `dod: {error}`. No tokens: `/token-usage` answers zero for floor runs; the cost is on `lore_list_runs`.
 
 #### `lore_get_run_node_logs`
 
@@ -423,7 +423,7 @@ One-line purpose: one station visit's log.
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `run_id` | yes | — | The run's id. |
-| `node` | yes | — | Visit name from `lore_get_run`'s nodes (`floor-<visitId>` on the external floor). |
+| `node` | yes | — | A visit's `agentCrName` from `lore_get_run` (`floor-<visitId>` on the external floor). |
 | `tail` | no | whole log | Only the last N lines. |
 
 - **Returns:** `{available, logs, phase, archived}`.
@@ -691,7 +691,7 @@ Quick-reference for the confusable clusters.
 |---|---|
 | Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
 | Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `daily_digest` or `spec_upkeep`. | `lore_get_job_logs` |
-| Where an assembly-line RUN stands: its station visits, which failed and why, DoD, tokens. | `lore_get_run` |
+| Where an assembly-line RUN stands: its station visits, which failed and why, DoD. | `lore_get_run` |
 | One station visit's log in an assembly-line run (by `run_id` + node name). | `lore_get_run_node_logs` |
 | The agent's turns across a run, or one visit's events. | `lore_get_run_transcript` |
 | What a run produced (bag, blob previews, pull files), then one blob whole. | `lore_get_run_assets`, `lore_get_run_blob` |

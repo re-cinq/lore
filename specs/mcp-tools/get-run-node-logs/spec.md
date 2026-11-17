@@ -26,7 +26,7 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/trans
 - **description** (verbatim):
 
 ```text
-Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit name from lore_get_run's nodes (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.
+Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit's agentCrName from lore_get_run's nodes (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.
 ```
 
 ### Input schema (Zod)

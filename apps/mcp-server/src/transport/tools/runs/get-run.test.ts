@@ -9,17 +9,16 @@ const textOf = async (runId: string) =>
   (await getRun({ run_id: runId })).content[0].text;
 
 describe("lore_get_run", () => {
-  it("joins run r1 with its nodes, dod and token usage", async () => {
-    api.answer("/api/assembly-runs/r1", { id: "r1", status: "failed" });
-    api.answer("/api/assembly-runs/r1/nodes", { nodes: [{ name: "dod" }] });
+  it("joins run r1 with its dod", async () => {
+    api.answer("/api/assembly-runs/r1", {
+      line: { id: "r1", status: "failed" },
+      nodes: [],
+    });
     api.answer("/api/assembly-runs/r1/dod", { items: [] });
-    api.answer("/api/assembly-runs/r1/token-usage", { total: 12 });
 
     expect(JSON.parse(await textOf("r1"))).toEqual({
-      run: { id: "r1", status: "failed" },
-      nodes: { nodes: [{ name: "dod" }] },
+      run: { line: { id: "r1", status: "failed" }, nodes: [] },
       dod: { items: [] },
-      token_usage: { total: 12 },
     });
   });
 
