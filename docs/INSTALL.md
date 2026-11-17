@@ -492,6 +492,19 @@ kubectl -n lore-floor patch secret agent-secrets --type merge -p '{"stringData":
 
 The two `AZURE_OPENAI_*` entries are for Codex. Claude Code takes the `ANTHROPIC_FOUNDRY_BASE_URL` (ends in `.services.ai.azure.com/anthropic`) and `ANTHROPIC_FOUNDRY_API_KEY` pair. A cluster that runs one CLI adds only its pair. Changes reach new runs only. A 404 from the endpoint means there is no deployment named after the agent's model id. For limits and troubleshooting, see the [subsystem guide](https://re-cinq.github.io/ai-agent-subsystem/tasks/run-on-foundry/).
 
+### 3.6.1 Give Utopia its models
+
+Utopia takes its chat and embedding models from a setting of its workspace, stored in its own database and saved from its web UI. No chart value, environment variable or Lore setting carries them, and Lore's knowledge-base setup does not pass any. Until you save them, Utopia accepts documents and extracts nothing from them. Do this once, after the install, as an admin of the Utopia workspace.
+
+1. Sign in at `https://<utopia hostname>` and open **Administration**, tab **Models**.
+2. In the **Chat model** card, set **Base URL** to `https://<resource>.openai.azure.com/openai/v1`, **Model** to the name of your chat deployment (Foundry routes by deployment name, not by model id), and **API key** to the Foundry resource key. If the deployment is a reasoning model, set **Reasoning effort** to `minimal`, or `none` if the endpoint rejects `minimal`; every call uses this one setting, and most of a reasoning model's output is its thinking. Save.
+3. In the **Embedding model** card, set the same **Base URL** and **API key**, and **Model** to the name of your embedding deployment, for example `text-embedding-3-small`. Save. Utopia does not ask the endpoint for a width: it stores whatever the deployment returns (1536 for `text-embedding-3-small`, 3072 for `text-embedding-3-large`). The width does not have to be 768 here, unlike `LORE_EMBEDDING_MODEL` in Lore's own values.
+4. Press **Test connection** on each card. Chat reports three request shapes (plain, streamed, with a tool), embedding reports the width it got back.
+
+Choose the embedding deployment before the first document arrives. One workspace has one embedding model, and vectors of two widths cannot be compared, so changing it later means re-ingesting every document.
+
+Utopia sends the key as `Authorization: Bearer <key>` (never as an `api-key` header) to `<base url>/chat/completions` and `<base url>/embeddings`, which is the form Azure's `/openai/v1` endpoint accepts. Nothing here needs Google Cloud. The scanned-document and transcription cards under the same tab are optional and not needed for Lore's specs and ADRs.
+
 ### 3.7 Verify
 
 ```bash
