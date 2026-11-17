@@ -64,11 +64,11 @@ function harness(options: HarnessOptions = {}) {
       ...(options.prComments ?? []),
       ...(options.posted ?? []).map((body, idx) => ({
         id: idx + 1,
-        author: "lore-agent[bot]",
+        user: "lore-agent[bot]",
         path: "specs/x/spec.md",
         line: 1,
         body,
-        createdAt: "2026-09-24T19:00:00Z",
+        created_at: "2026-09-24T19:00:00Z",
       })),
     ],
     listIssueComments: async () => [],
@@ -163,29 +163,15 @@ function answerEvent(
 const THREAD_11: ReviewThread = {
   id: "PRRT_11",
   isResolved: false,
-  comments: [
-    {
-      databaseId: 11,
-      author: "alice",
-      body: "Name the files.",
-      path: "specs/x/spec.md",
-      line: 10,
-    },
-  ],
+  isOutdated: false,
+  comments: [{ databaseId: 11 }],
 };
 
 const THREAD_12: ReviewThread = {
   id: "PRRT_12",
   isResolved: false,
-  comments: [
-    {
-      databaseId: 12,
-      author: "bob",
-      body: "Model or direct?",
-      path: "specs/x/spec.md",
-      line: 24,
-    },
-  ],
+  isOutdated: false,
+  comments: [{ databaseId: 12 }],
 };
 
 describe("spec.review.result event", () => {
@@ -433,12 +419,12 @@ On review 90: Addressed in the latest push to this branch. Tightened.`,
       prComments: [
         {
           id: 19,
-          author: "dana",
+          user: "dana",
           path: "specs/otto/spec.md",
           line: 88,
           body: `**Tool cap**
 Should a skill ever hold more than five tools?`,
-          createdAt: "2026-09-25T07:00:00Z",
+          created_at: "2026-09-25T07:00:00Z",
         },
       ],
     });
