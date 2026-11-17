@@ -286,3 +286,42 @@ export async function dropOverlayOverHttp(
 
   await http.post("/trace/overlay-drop", { branch: target.branch });
 }
+
+export interface TicketSearchRequest {
+  repo: string;
+  query: string;
+  state: "open" | "closed" | "all";
+  limit: number;
+}
+
+export interface TicketSearchAnswer {
+  tickets: Array<{
+    number: number;
+    title: string;
+    state: "open" | "closed";
+    labels: string[];
+    url: string | null;
+    score: number;
+    excerpt: string;
+  }>;
+  notes?: string[];
+}
+
+/** Searches the repository's tickets through lore-api, which holds the Utopia client the stations do not (specs/ticket-search). */
+export async function searchTicketsOverHttp(
+  { repo, query, state, limit }: TicketSearchRequest,
+  env: StationProjectEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TicketSearchAnswer> {
+  const baseUrl = env.LORE_API_URL;
+
+  enforceTrue(baseUrl, Error, "searchTicketsOverHttp requires LORE_API_URL");
+  const token = env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN;
+  const http = makeHttp({ baseUrl, repo, token, fetchImpl });
+
+  return http.get<TicketSearchAnswer>("/tickets/search", {
+    query,
+    state,
+    limit: String(limit),
+  });
+}

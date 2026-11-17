@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { createStationProject, dropOverlayOverHttp } from "./station-http.js";
+import {
+  createStationProject,
+  dropOverlayOverHttp,
+  searchTicketsOverHttp,
+} from "./station-http.js";
 
 function fakeFetch(routes: Record<string, unknown>): {
   fetchImpl: typeof fetch;
@@ -267,5 +271,34 @@ describe("dropping a branch's graph overlay over HTTP", () => {
         body: { branch: "feat/x" },
       },
     ]);
+  });
+});
+
+describe("searching a repository's tickets over HTTP", () => {
+  it("answers closed #12 at score 0.9 for query add login across all states, limit 5", async () => {
+    const tickets = [
+      {
+        number: 12,
+        title: "Add login",
+        state: "closed",
+        labels: [],
+        url: null,
+        score: 0.9,
+        excerpt: "",
+      },
+    ];
+    const { fetchImpl } = fakeFetch({
+      "GET /api/repos/o/r/tickets/search?query=add+login&state=all&limit=5": {
+        tickets,
+      },
+    });
+
+    expect(
+      await searchTicketsOverHttp(
+        { repo: "o/r", query: "add login", state: "all", limit: 5 },
+        env,
+        fetchImpl,
+      ),
+    ).toEqual({ tickets });
   });
 });

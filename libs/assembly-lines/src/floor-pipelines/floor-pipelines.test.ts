@@ -126,7 +126,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("walks spec-tickets from load-tickets through decompose, verify-implementation and issues to issue-coverage and done, keyed on the run key", () => {
+  it("walks spec-tickets from load-tickets through decompose, verify-implementation, dedupe and issues to issue-coverage and done, keyed on the run key", () => {
     const { line } = pipelineOf("spec-tickets");
     const forward = line.edges
       .filter((edge) => edge.on === "success")
@@ -136,7 +136,8 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(forward).toEqual([
       "load-tickets>decompose",
       "decompose>verify-implementation",
-      "verify-implementation>issues",
+      "verify-implementation>dedupe",
+      "dedupe>issues",
       "issues>issue-coverage",
       "issue-coverage>done",
     ]);
@@ -2159,13 +2160,31 @@ describe("the agent stations of every floor pipeline and their result line", () 
   });
 });
 
+it("dedupes the verified decomposition against the filed tickets into a deduped decomposition and a report, never ending the run on a search", () => {
+  const { line, stations } = pipelineOf("spec-tickets");
+  const dedupe = stations["spec-tickets-dedupe"];
+
+  expect({
+    edges: line.edges.filter((edge) => edge.from === "dedupe"),
+    needs: dedupe.needs?.map((need) => need.name),
+    produces: dedupe.produces?.map((produced) => produced.name),
+  }).toEqual({
+    edges: [
+      { from: "dedupe", to: "issues", on: "success" },
+      { from: "dedupe", to: "failed", on: "failed" },
+    ],
+    needs: ["target", "verified_decomposition", "existing_tickets"],
+    produces: ["deduped_decomposition", "dedupe_report"],
+  });
+});
+
 function endsWithResultLine(pipeline: Pipeline, station: Station): boolean {
   const agent = pipeline.agent_definitions?.[station.agent_definition ?? ""];
 
   return /LORE_NODE_RESULT|REVIEW_RESULT/.test(agent?.settings.prompt ?? "");
 }
 
-it("routes rejected implementation evidence back three times and gives filing and coverage only the verified artifact", () => {
+it("routes rejected implementation evidence back three times, gives filing the deduped artifact and coverage the verified one", () => {
   const { line, stations } = pipelineOf("spec-tickets");
 
   expect({
@@ -2176,7 +2195,7 @@ it("routes rejected implementation evidence back three times and gives filing an
       stations["spec-tickets-decompose"],
       "implementation_report",
     ),
-    filing: needOf(stations["spec-tickets-issues"], "verified_decomposition"),
+    filing: needOf(stations["spec-tickets-issues"], "deduped_decomposition"),
     coverage: needOf(
       stations["spec-tickets-coverage"],
       "verified_decomposition",
@@ -2184,7 +2203,7 @@ it("routes rejected implementation evidence back three times and gives filing an
     summary: stations["spec-tickets-issues"].produces,
   }).toMatchObject({
     verification: [
-      { from: "verify-implementation", to: "issues", on: "success" },
+      { from: "verify-implementation", to: "dedupe", on: "success" },
       {
         from: "verify-implementation",
         to: "decompose",
@@ -2194,7 +2213,7 @@ it("routes rejected implementation evidence back three times and gives filing an
       { from: "verify-implementation", to: "failed", on: "failed" },
     ],
     correction: { name: "implementation_report", optional: true },
-    filing: { name: "verified_decomposition" },
+    filing: { name: "deduped_decomposition" },
     coverage: { name: "verified_decomposition" },
     summary: [{ name: "ticketing_result", kind: "file" }],
   });

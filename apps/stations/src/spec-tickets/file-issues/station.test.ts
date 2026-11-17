@@ -230,6 +230,33 @@ describe("specTicketsIssuesHandle on a spec that came from a plan", () => {
     expect(saved).toEqual([{ planId: "p1", issueNumber: 100 }]);
   });
 
+  it("files the deduped decomposition, not the verified one, when the dedupe step ran", async () => {
+    const repository = fakeRepository(LABELS);
+    const read: string[] = [];
+    const tools: Tools = {
+      ...TOOLS,
+      read: (name) => {
+        read.push(name);
+
+        return TOOLS.read(name);
+      },
+    };
+
+    await handleFor(repository.project)(
+      {
+        ...FROM_PLAN,
+        needs: {
+          ...FROM_PLAN.needs,
+          verified_decomposition: "verified",
+          deduped_decomposition: "deduped",
+        },
+      },
+      tools,
+    );
+
+    expect(read).toEqual(["deduped_decomposition"]);
+  });
+
   it("saves nothing for a spec with no source plan", async () => {
     const repository = fakeRepository(LABELS);
     const { saved, savePlanStory } = storySaves();

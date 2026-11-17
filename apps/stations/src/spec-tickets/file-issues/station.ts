@@ -48,8 +48,8 @@ const productionDeps: SpecTicketsIssuesDeps = {
 export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
   return async (brief, tools) => {
     try {
-      const verified = Boolean(brief.needs.verified_decomposition);
-      const artifact = verified ? "verified_decomposition" : "decomposition";
+      const artifact = filedArtifact(brief.needs);
+      const verified = artifact !== "decomposition";
       const decomposition = (await tools.read(artifact)).toString("utf8");
       const { input, project } = await filingOf(deps, brief, decomposition);
 
@@ -68,6 +68,15 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       return { outcome: "failed", error: message };
     }
   };
+}
+
+// Older line versions hand the issues step the verified decomposition, or the raw one, instead of the deduped one (specs/spec-tickets FR27).
+function filedArtifact(needs: Brief["needs"]): string {
+  const filed = ["deduped_decomposition", "verified_decomposition"].find(
+    (name) => Boolean(needs[name]),
+  );
+
+  return filed ?? "decomposition";
 }
 
 async function saveStoryOnSourcePlan(
