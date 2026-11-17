@@ -388,6 +388,80 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 - **Where it runs:** stdio mode → cached `GET /api/job-run-logs` over `LORE_API_URL`; GKE mode → direct GCS read of `__job_runs__/{job_name}/{run_id}/output.log`.
 - **Cache/mutation:** read-only. Proxy path cached (TTL 86400s) only when the run is complete.
 
+### Assembly-line runs
+
+Six read-only tools over lore-api's run routes (`/api/floor-runs`, `/api/assembly-runs/{id}/*`), registered on laptops AND on the agent gateway. Without `LORE_API_URL` and `LORE_INGEST_TOKEN` each returns `Assembly-line runs require LORE_API_URL.`; a 401 or 403 is reported as denied, any other failure status as unreachable. Only `lore_get_run_blob` is cached: a run changes while it lives, a blob never does.
+
+#### `lore_list_runs`
+
+One-line purpose: list the floor's runs, newest first, a page at a time.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `repo` | no | git remote (laptop) / all (gateway) | `owner/repo` filter. |
+| `status` | no | — | e.g. `running`, `failed`, `succeeded`. |
+| `line` | no | — | Assembly line name, e.g. `implementation-loop`. |
+| `cursor` | no | — | `next_cursor` of the previous page. |
+| `limit` | no | server default | 1 to 100. |
+
+- **Returns:** `{runs, next_cursor}`, each run with its id, line, status, repository and stages.
+
+#### `lore_get_run`
+
+One-line purpose: one run's whole state in one call.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run's id. |
+
+- **Returns:** `{run, nodes, dod, token_usage}`. `run` is required; a part the run lacks (an old Postgres run has no DoD) comes back as `{error}`.
+
+#### `lore_get_run_node_logs`
+
+One-line purpose: one station visit's log.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run's id. |
+| `node` | yes | — | Visit name from `lore_get_run`'s nodes (`floor-<visitId>` on the external floor). |
+| `tail` | no | whole log | Only the last N lines. |
+
+- **Returns:** `{available, logs, phase, archived}`.
+
+#### `lore_get_run_transcript`
+
+One-line purpose: the agent's turns of a run, or one visit's events.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run's id. |
+| `visit_id` | no | — | Read this visit's events instead. |
+| `after` | no | — | Id of the last turn already read. |
+| `limit` | no | server default | Turns per page, 1 to 500. |
+
+- **Returns:** `{turns, hasMore}` oldest first, or `{events}` with `visit_id`.
+
+#### `lore_get_run_assets`
+
+One-line purpose: what a run produced.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run's id. |
+
+- **Returns:** `{bag, previews, pull_files}`: each bag item with kind, ref and the station that put it there, the first 4 KiB of up to 50 blobs the bag refers to, and the pull request's files.
+
+#### `lore_get_run_blob`
+
+One-line purpose: one whole blob a run refers to.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run that refers to the blob. |
+| `hash` | yes | — | `sha256-<64 hex>`, from `lore_get_run_assets`. |
+
+- **Returns:** `{hash, contentType, size, text, truncated}`: text up to 1 MiB for a textual blob, metadata otherwise. Cached for a day.
+
 ### Update
 
 #### `lore_update`
@@ -603,6 +677,10 @@ Quick-reference for the confusable clusters.
 |---|---|
 | Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
 | Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `daily_digest` or `spec_upkeep`. | `lore_get_job_logs` |
+| Where an assembly-line RUN stands: its station visits, which failed and why, DoD, tokens. | `lore_get_run` |
+| One station visit's log in an assembly-line run (by `run_id` + node name). | `lore_get_run_node_logs` |
+| The agent's turns across a run, or one visit's events. | `lore_get_run_transcript` |
+| What a run produced (bag, blob previews, pull files), then one blob whole. | `lore_get_run_assets`, `lore_get_run_blob` |
 
 ### Spec-traceability
 

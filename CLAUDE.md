@@ -599,7 +599,7 @@ token usage (today/7-day/30-day). `lore_get_ci_failures` / `lore_get_ci_job_log`
 report what CI said about the checked-out branch — judged sha, verdict, each
 failed check's annotations/steps/log tail — and one job's log tail, via
 `GET /api/repos/:o/:r/ci-failures` and `/ci-jobs/:job_id/log`; a pod reads
-the verdict instead of reproducing the build (run 997026f5 died at 1Gi doing that).
+the verdict instead of reproducing the build (run 997026f5 died at 1Gi doing that). `lore_list_runs`, `lore_get_run`, `lore_get_run_node_logs`, `lore_get_run_transcript`, `lore_get_run_assets` and `lore_get_run_blob` (`apps/mcp-server/src/transport/tools/runs/`, on laptops and the agent gateway, #4717) read an assembly-line run through lore-api's run routes: its visits, a visit's log, the agent turns, the bag and its blobs.
 
 **Autonomous review** (opt-in per repo via `auto_review` setting): every
 open pull request is reviewed by the `code-review` line on the external
