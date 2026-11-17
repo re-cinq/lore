@@ -20,6 +20,10 @@ export const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     description: "Plans written together with the planning agent (ADR-047).",
   },
   { name: "Agents", description: "Per-repo agent definitions." },
+  {
+    name: "Packs",
+    description: "The client's pack repo and its sync (specs/client-packs).",
+  },
   { name: "Ingestion", description: "Content and graph ingestion." },
   {
     name: "Traceability",
@@ -69,6 +73,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(versions|service-versions)$/, "Analytics"],
   [/\/plans\b/, "Plans"],
   [/\/agent-definitions\b/, "Agents"],
+  [/^\/api\/pack\b/, "Packs"],
   [/\/skill-definitions\b/, "Agents"],
   // The floor asks for a git credential on a pod's behalf: the GitHub App's, so it sits with the repositories.
   [/^\/api\/floor\/git-credential$/, "Repositories"],

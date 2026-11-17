@@ -43,6 +43,8 @@ function renderView(
       regenerateToken={action}
       githubInstallations={[]}
       githubInstallUrl={null}
+      packSync={null}
+      syncPack={action}
       {...over}
     />,
   );
@@ -67,6 +69,38 @@ describe("SettingsView", () => {
       "Regenerate ingest token",
     ]);
     expect(screen.getByTestId("theme-switcher")).toBeInTheDocument();
+  });
+
+  it("shows the Pack card between Platform and Approval gates when acme/lore-pack has synced", () => {
+    renderView({
+      packSync: {
+        repo: "acme/lore-pack",
+        ref: null,
+        commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+        applied_at: "2026-11-17T10:30:00.000Z",
+        agent_count: 3,
+        line_count: 1,
+        extra_count: 2,
+        refused_files: [],
+        agents: [],
+        pipelines: [],
+        error: null,
+        error_at: null,
+      },
+    });
+
+    expect(
+      screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent)
+        .slice(2, 5),
+    ).toEqual(["Platform", "Pack", "Approval gates"]);
+  });
+
+  it("shows no Pack card while no pack has synced", () => {
+    renderView();
+
+    expect(screen.queryByRole("heading", { name: "Pack" })).toBeNull();
   });
 
   it("renders the three stat cards with their numeric values", () => {

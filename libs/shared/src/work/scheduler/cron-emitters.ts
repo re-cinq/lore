@@ -70,6 +70,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "every onboarded repo's GitHub webhook pointed at Lore with every required event again, Mondays, so a repo onboarded before an event was required (check_suite, 2026-10-23) still delivers it (specs/external-floor FR12.19c)",
   },
   {
+    name: "pack_sync",
+    schedule: "*/15 * * * *",
+    note: "the client's pack repo applied again every 15 minutes, so a push whose webhook never arrived still reaches the install (specs/client-packs FR-003)",
+  },
+  {
     name: "utopia_backfill",
     schedule: "30 2 * * 0",
     note: "every onboarded repo's specs and ADRs mirrored into Utopia again, one repo at a time, Sundays, so a missed ingest mirror heals within the week (specs/utopia-graph-mirror FR7.7)",

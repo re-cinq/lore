@@ -52,6 +52,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/utopia/memory",
   // The org base is the deployment's GITHUB_ORG; where to start is the cursor each of its memory sources holds.
   "POST /api/utopia/memory",
+  // The pack repo is the deployment's LORE_PACK_REPO; the commit to apply is its head.
+  "POST /api/pack/sync",
   // The session to end is the bearer token the request carries.
   "POST /api/auth/logout",
   // The plan and its current status are the path param; the route reopens it only when approved.

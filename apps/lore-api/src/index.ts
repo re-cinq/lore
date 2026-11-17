@@ -9,7 +9,7 @@ import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
-import { seedFloor, migrateFloor } from "./app/seed-floor.js";
+import { seedFloor, migrateFloor, syncPackAtBoot } from "./app/seed-floor.js";
 import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
@@ -65,6 +65,7 @@ async function main() {
 /** The floor's migrations, then lore-api's row in lore.service_versions: the build it runs. */
 async function migrateAndReport(pool: Pool): Promise<void> {
   await migrateFloor(pool);
+  await syncPackAtBoot(pool);
   await reportServiceStart(new PgServiceVersions(pool), LORE_API_REPORT);
 }
 

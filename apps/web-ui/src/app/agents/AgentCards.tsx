@@ -80,7 +80,7 @@ function AgentCard({
         headingLevel={3}
       >
         <AgentFacts agent={agent} catalog={catalog} />
-        <EditAction href={`/agents/edit/${encodeURIComponent(agent.name)}`} />
+        <CardAction agent={agent} />
       </SettingsCard>
     </div>
   );
@@ -120,6 +120,14 @@ function AgentFacts({ agent, catalog }: AgentCardProps) {
         </Fragment>
       ))}
     </dl>
+  );
+}
+
+function CardAction({ agent }: { agent: AgentDefinition }) {
+  return agent.pack_managed ? (
+    <p className={styles.packManaged}>Managed by pack</p>
+  ) : (
+    <EditAction href={`/agents/edit/${encodeURIComponent(agent.name)}`} />
   );
 }
 

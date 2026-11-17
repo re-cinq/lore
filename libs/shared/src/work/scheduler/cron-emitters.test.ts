@@ -42,6 +42,12 @@ describe("cronTickEventNames", () => {
     ).toMatchObject({ schedule: "0 3 * * 1" });
   });
 
+  it("schedules pack_sync every 15 minutes", () => {
+    expect(
+      CRON_EMITTERS.find((emitter) => emitter.name === "pack_sync"),
+    ).toMatchObject({ schedule: "*/15 * * * *" });
+  });
+
   it("schedules utopia_backfill weekly on Sunday at 02:30 UTC", () => {
     expect(
       CRON_EMITTERS.find((emitter) => emitter.name === "utopia_backfill"),

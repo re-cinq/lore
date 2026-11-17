@@ -10,6 +10,8 @@ import ApprovalGatesForm from "./ApprovalGatesForm";
 import SlackPeopleForm from "./SlackPeopleForm";
 import ContextModelForm from "./ContextModelForm";
 import SessionLengthForm from "./SessionLengthForm";
+import PackStatusCard from "./PackStatusCard";
+import type { PackSync } from "@/lib/api/pack";
 import GithubConnectSection, {
   type GithubInstallationRow,
 } from "./GithubConnectSection";
@@ -47,13 +49,18 @@ export interface SettingsViewProps {
   sessionLengthHours: string;
   saveSessionLength: (formData: FormData) => void | Promise<void>;
   regenerateToken: (formData: FormData) => void | Promise<void>;
+  /** What the last sync of the client's pack repo did; null while none has run, which hides the Pack card. */
+  packSync: PackSync | null;
+  syncPack: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
   /** Where an admin installs the GitHub App on another account; null while its slug is not configured. */
   githubInstallUrl: string | null;
 }
 
-/** The sub-navigation, in the order the cards are shown. */
+const PACK_NAV_ITEM: SettingsNavItem = { id: "set-pack", label: "Pack" };
+
+/** The sub-navigation, in the order the cards are shown; Pack only once a pack has synced. */
 const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-appearance", label: "Appearance" },
   { id: "set-github", label: "GitHub" },
@@ -71,13 +78,13 @@ export default function SettingsView(props: SettingsViewProps) {
   return (
     <div>
       <SettingsHeader eyebrow="{org}" title="Settings" />
-      <SettingsLayout nav={SETTINGS_NAV}>
+      <SettingsLayout nav={navFor(props.packSync)}>
         <AppearanceSection />
         <GithubConnectSection
           installations={props.githubInstallations}
           installUrl={props.githubInstallUrl}
         />
-        <PlatformConfigForm {...props} />
+        <PlatformSections {...props} />
         <ApprovalGatesForm {...props} />
         <SlackPeopleForm {...props} />
         <ServiceForms {...props} />
@@ -89,6 +96,26 @@ export default function SettingsView(props: SettingsViewProps) {
 }
 
 /** How lore-api itself behaves for everyone: how long a sign-in lasts, and the model the context builder writes with. */
+function navFor(packSync: PackSync | null): SettingsNavItem[] {
+  return packSync
+    ? SETTINGS_NAV.flatMap((navItem) =>
+        navItem.id === "set-platform" ? [navItem, PACK_NAV_ITEM] : [navItem],
+      )
+    : SETTINGS_NAV;
+}
+
+/** The platform card, then the client's pack repo once a sync has run. */
+function PlatformSections(props: SettingsViewProps) {
+  const { packSync, syncPack } = props;
+
+  return (
+    <>
+      <PlatformConfigForm {...props} />
+      {packSync && <PackStatusCard pack={packSync} syncPack={syncPack} />}
+    </>
+  );
+}
+
 function ServiceForms(props: SettingsViewProps) {
   return (
     <>

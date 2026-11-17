@@ -167,6 +167,7 @@ function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
         href={editHref}
         name={agent.name}
         isProject={isProject}
+        packManaged={agent.pack_managed}
         remove={remove}
       />
     </tr>

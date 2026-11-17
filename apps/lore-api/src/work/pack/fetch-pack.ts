@@ -1,5 +1,5 @@
 import { isPackFile } from "./pack-paths.js";
-import type { PackConfig } from "./pack-config.js";
+import type { PackConfig } from "@re-cinq/lore-shared/pack-config.js";
 
 /** What the pack repository answers, whichever git host holds it. */
 export interface PackReader {

@@ -1180,6 +1180,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/pack": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/pack */
+    get: operations["get_api_pack"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/pack/sync": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/pack/sync */
+    post: operations["post_api_pack_sync"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/platform/llm-status": {
     parameters: {
       query?: never;
@@ -3118,6 +3152,7 @@ export interface components {
                 [key: string]: unknown;
               })
             | null;
+          pack_managed: boolean;
         }
       | {
           agents: {
@@ -3164,6 +3199,7 @@ export interface components {
                   [key: string]: unknown;
                 })
               | null;
+            pack_managed: boolean;
           }[];
         };
     AgentDefinitionUsage: {
@@ -4900,6 +4936,7 @@ export interface components {
               [key: string]: unknown;
             })
           | null;
+        pack_managed: boolean;
       }[];
     };
     OrgSettings: {
@@ -4932,6 +4969,48 @@ export interface components {
     OverlayDrop: {
       dropped: boolean;
     };
+    Pack: {
+      configured: boolean;
+      repo: string | null;
+      ref: string | null;
+      sync: {
+        repo: string;
+        ref: string | null;
+        commit: string | null;
+        applied_at: string | null;
+        agent_count: number;
+        line_count: number;
+        extra_count: number;
+        refused_files: {
+          path: string;
+          reason: string;
+        }[];
+        agents: string[];
+        pipelines: string[];
+        error: string | null;
+        error_at: string | null;
+      } | null;
+    };
+    PackSync:
+      | {
+          /** @constant */
+          status: "unconfigured";
+        }
+      | {
+          /** @constant */
+          status: "applied";
+          commit: string;
+          changed: string[];
+        }
+      | {
+          /** @constant */
+          status: "failed";
+          error: string;
+        }
+      | {
+          /** @constant */
+          skipped: "lease held";
+        };
     PipelineAnalytics: {
       [key: string]: unknown;
     };
@@ -6642,7 +6721,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Every org-default agent definition — the floor's settings, no per-repo variant */
+      /** @description Every org-default agent definition — the floor's settings, no per-repo variant, each flagged when the client's pack manages it */
       200: {
         headers: {
           [name: string]: unknown;
@@ -6799,6 +6878,7 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
@@ -8786,6 +8866,56 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_pack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The client's pack repo this install reads and what its last sync did */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Pack"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_pack_sync: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Apply the pack repo's head now, under the lease one replica at a time holds */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PackSync"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

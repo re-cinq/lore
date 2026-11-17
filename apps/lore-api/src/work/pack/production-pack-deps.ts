@@ -15,7 +15,7 @@ import { readFloorPipelineFiles } from "../floor/seed-floor-pipelines.js";
 import type { PackDeps } from "./apply-pack.js";
 import { fetchPack, type PackReader } from "./fetch-pack.js";
 import { agentBodyOf, packSettingsOf } from "./floor-agent-settings.js";
-import { packConfig } from "./pack-config.js";
+import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
 import { syncPack, type PackSyncResult } from "./sync-pack.js";
 
 type Env = Record<string, string | undefined>;

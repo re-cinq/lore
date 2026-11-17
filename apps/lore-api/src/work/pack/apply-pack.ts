@@ -3,7 +3,7 @@ import type { Pipeline, Put } from "@re-cinq/floor-pipeline";
 import type { PackSyncState } from "@re-cinq/lore-shared";
 import type { FloorAgentSettings } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import type { FetchedPack } from "./fetch-pack.js";
-import type { PackConfig } from "./pack-config.js";
+import type { PackConfig } from "@re-cinq/lore-shared/pack-config.js";
 import { agentFileOf, pipelineFolderOf } from "./pack-paths.js";
 import { settingsWithEnvironment } from "../floor/seed-floor-pipelines.js";
 import {

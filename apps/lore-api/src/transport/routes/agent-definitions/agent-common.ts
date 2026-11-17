@@ -5,6 +5,8 @@ import type { Pool } from "pg";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 import { z } from "zod";
+import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
+import { readPackSync } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import {
   skillsSourceDefault,
   skillsSourceWrite,
@@ -223,4 +225,27 @@ export async function audit(
     .catch(() => {
       // Audit log is best-effort; never block the write.
     });
+}
+
+/** A resolved definition and whether the client's pack owns it: a pack-managed org default is read-only (specs/client-packs). */
+export const PackAwareAgentSchema = ResolvedAgentDefinitionSchema.extend({
+  pack_managed: z.boolean(),
+});
+
+/** The agents the last pack sync set; empty with no pool or no sync. */
+export async function packManagedNames(pool: Pool | null): Promise<string[]> {
+  return pool ? ((await readPackSync(pool))?.agents ?? []) : [];
+}
+
+/** Marks each ORG DEFAULT the pack manages; a project variant is the repo's own and stays editable. */
+export function withPackManaged<
+  Agent extends { name: string; project_id: string | null },
+>(
+  agents: Agent[],
+  packAgents: string[],
+): Array<Agent & { pack_managed: boolean }> {
+  return agents.map((agent) => ({
+    ...agent,
+    pack_managed: !agent.project_id && packAgents.includes(agent.name),
+  }));
 }

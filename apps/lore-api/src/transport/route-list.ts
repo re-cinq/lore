@@ -120,6 +120,7 @@ import { githubInstallationsRoute } from "./routes/github-installations/record-i
 import { githubInstallationsListRoute } from "./routes/github-installations/list-installations.js";
 import { skillDefinitionsRoutes } from "./routes/skill-definitions/skills.js";
 import { inboxRoutes } from "./routes/inbox/inbox-routes.js";
+import { packRoutes } from "./routes/pack/pack.js";
 
 type PoolGetter = () => Pool | null;
 
@@ -157,6 +158,7 @@ function integrationRoutes(getPool: PoolGetter): ServerRoute[] {
     ...runHistoryRoutes(getPool),
     githubInstallationsRoute(getPool),
     githubInstallationsListRoute(getPool),
+    ...packRoutes(getPool),
   ];
 }
 
@@ -291,7 +293,7 @@ function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
     agentsGetRoute(getPool),
     agentDefinitionUsageRoute(),
     agentDefinitionActivityRoute(),
-    orgAgentDefinitionsRoute(),
+    orgAgentDefinitionsRoute(getPool),
     agentPresenceRoute(),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),

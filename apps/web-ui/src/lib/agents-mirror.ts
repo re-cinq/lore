@@ -5,7 +5,10 @@ import type { components } from "./api/schema";
 export type AgentDefinition = Extract<
   components["schemas"]["AgentDefinitionRead"],
   { name: string }
->;
+> & {
+  /** The client's pack owns this org default, so it is read-only here (specs/client-packs). */
+  pack_managed?: boolean;
+};
 
 export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "claude-opus-4-8", label: "Opus 4.8" },

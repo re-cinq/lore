@@ -49,6 +49,9 @@ resources:
 env:
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
   GITHUB_HOST: ""
+  # The client's pack repository (specs/client-packs), "owner/name"; empty is no pack. LORE_PACK_REF is the branch or tag to read, empty is the repository's default branch.
+  LORE_PACK_REPO: ""
+  LORE_PACK_REF: ""
   PORT: "3000"
   LORE_METRICS_PORT: "9464"
   # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
