@@ -653,6 +653,7 @@ What an install on a client cluster hits. The list stays until each fix lands.
 11. **Foundry, GitHub Enterprise Server and GitHub Enterprise Cloud with data residency have not run on a client cluster.** No agent pod has cloned from a Server or a `ghe.com` tenant and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
 12. **Grafana and Prometheus are not in the chart** (1.2).
 13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.
+14. **On a GitHub Enterprise Server, an agent's `gh` commands run unauthenticated.** The agent subsystem this chart bundles (v0.21.0) hands the pod its repository token as `GH_TOKEN`, which `gh` reads for github.com and `ghe.com` only; clone and push work. The fix is merged in the subsystem ([ai-agent-subsystem#388](https://github.com/re-cinq/ai-agent-subsystem/pull/388)) and reaches an install with the first floor chart that bundles a release containing it. Data residency (`ghe.com`) is not affected.
 
 ## Running on ARM64
 
