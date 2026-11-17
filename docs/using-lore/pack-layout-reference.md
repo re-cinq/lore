@@ -141,7 +141,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: re-cinq/lore
-          ref: v1.0.3          # the Lore release your install runs
+          ref: v1.0.4          # the Lore release your install runs
           path: lore
       - uses: actions/setup-node@v4
         with:
