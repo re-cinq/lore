@@ -503,7 +503,7 @@ describe("verified spec ticket flow", () => {
     });
     const raw = decomposition("missing");
     const [rendering, colour] = raw.statements;
-    const reason = "The test renders an empty list only.";
+    const reason = "src/widget.test.ts renders an empty list only.";
 
     run.artifacts.decomposition = JSON.stringify({
       ...raw,
