@@ -43,7 +43,7 @@ describe("fetchPack", () => {
     });
   });
 
-  it("reads only pipeline.yaml and agents/*.md of a folder", async () => {
+  it("reads the markdown and YAML of line folders, leaving out the top level and other file types", async () => {
     const { reader } = readerOf({
       "README.md": "# my pack",
       "triage/pipeline.yaml": "a",
@@ -52,6 +52,8 @@ describe("fetchPack", () => {
       "triage/notes.txt": "d",
       "triage/agents/deep/x.md": "e",
       "pipeline.yaml": "f",
+      "docs/setup.md": "g",
+      ".github/workflows/lint.yml": "h",
     });
 
     const pack = await fetchPack(reader, { repo: "acme/pack", ref: undefined });
@@ -60,6 +62,7 @@ describe("fetchPack", () => {
       "triage/pipeline.yaml",
       "triage/agents/triager.md",
       "triage/agents/triager.extra.md",
+      "triage/agents/deep/x.md",
     ]);
   });
 });

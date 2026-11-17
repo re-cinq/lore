@@ -12,12 +12,16 @@ The pack holds one folder per pipeline. The folder name is the pipeline name.
 acme-flow/
   pipeline.yaml              a new pipeline (optional)
   agents/acme-worker.md      a full agent definition
-  agents/reviewer.extra.md   text appended to a shipped agent's prompt
 code-review/
-  agents/reviewer.extra.md   an extension in the folder of a shipped pipeline
+  pipeline.yaml              your version of a shipped pipeline (optional)
+  agents/code-review.md      your version of a shipped agent
+implementation-loop/
+  agents/loop-dod.extra.md   text appended to a shipped agent's prompt
 ```
 
-Anything else in the repository, a README or a CI workflow for instance, is ignored.
+The template [re-cinq/lore-assembly-lines](https://github.com/re-cinq/lore-assembly-lines) holds a copy of every shipped pipeline and agent in this layout.
+
+Files at the top of the repository, under `docs/` and under a folder whose name starts with a dot are ignored, so a README or a CI workflow is fine. Inside a line folder, a markdown or YAML file at any other path is refused, so a misspelt `pipeline.yml` or `agent/` folder shows up instead of quietly doing nothing.
 
 ### Three kinds of agent file
 
@@ -44,7 +48,11 @@ An extension may contradict the shipped prompt. That is allowed: you own the beh
 
 ### Pipelines
 
-`<folder>/pipeline.yaml` defines a new assembly line in the same format as the shipped files in `libs/assembly-lines/src/floor-pipelines/`. The `line.id` must equal the folder name. Every agent a station names must be shipped by Lore or defined by the pack. A pipeline cannot replace a shipped pipeline: its shape is something Lore's own behaviour depends on. You can change what a shipped pipeline's agents are told, with extensions or replacements, but not the pipeline itself.
+`<folder>/pipeline.yaml` is a pipeline in the same format as the shipped files in `libs/assembly-lines/src/floor-pipelines/`. The `line.id` must equal the folder name. Every agent a station names must be shipped by Lore or defined by the pack.
+
+A folder named like a shipped pipeline holds your version of that line, and it replaces Lore's on the floor. You own that line from then on. Lore's later changes to it do not reach the install until you copy them into the pack, and a broken version can stop the work the line does, such as code review or the implementation loop. Lore's boot puts its shipped pipelines on the floor, but it skips a line your pack replaced, so a restart never puts Lore's version back in front of yours.
+
+A station with the same name in two pipelines is one station on the floor. If your version of one line changes a station another shipped line also uses, copy that line too, or the next boot can put Lore's station back until the pack syncs again.
 
 A pipeline that needs your own code uses a `kind: service` station. Lore runs none of your code; see [A custom stations service](#a-custom-stations-service).
 
@@ -52,7 +60,7 @@ A pipeline that needs your own code uses a `kind: service` station. Lore runs no
 
 Each file is checked on its own. A refused file is recorded with its reason and the rest of the pack is still applied. Lore refuses:
 
-- a `pipeline.yaml` in a folder named like a shipped pipeline;
+- a markdown or YAML file in a line folder at a path Lore does not read, such as `pipeline.yml` or `agent/reviewer.md`;
 - a pipeline whose `line.id` is not the folder name, or that two folders define;
 - a pipeline that is not valid, or that names an agent neither Lore nor the pack provides;
 - an `.extra.md` for an agent nothing ships;
@@ -71,6 +79,7 @@ Applying a pack is a comparison with the previous apply, so removing a file undo
 - Remove an `.extra.md` or a replacement of a shipped agent, and the agent goes back to the shipped prompt.
 - Remove a new agent and the floor keeps its last definition; archive it on the floor if you want it gone.
 - Remove a pipeline folder and the pipeline is archived on the floor, not deleted. Runs in progress finish.
+- Remove your `pipeline.yaml` of a shipped line and Lore's own line goes back on the floor.
 
 Applying is idempotent: only a file whose content changed produces a new agent or pipeline version.
 

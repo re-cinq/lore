@@ -7,6 +7,7 @@ import {
   SHIPPED_REVIEWER,
   TRIAGE_AGENT_TEXT,
   TRIAGE_PIPELINE_TEXT,
+  CODE_REVIEW_PIPELINE_TEXT,
 } from "./pack-fakes.fixtures.js";
 
 describe("applyPack", () => {
@@ -159,6 +160,34 @@ describe("applyPack", () => {
       },
       archived: ["triage"],
       floor: [],
+      listed: [],
+    });
+  });
+
+  it("puts Lore's own code-review line back, not archiving it, when the pack drops its code-review/pipeline.yaml", async () => {
+    const pack = fakePack();
+
+    pack.files = [
+      { path: "code-review/pipeline.yaml", text: CODE_REVIEW_PIPELINE_TEXT },
+    ];
+    await applyPack(pack.deps());
+    pack.files = [];
+
+    const result = await applyPack(pack.deps());
+
+    expect({
+      result,
+      archived: pack.archived,
+      shippedPuts: pack.shippedPuts,
+      listed: pack.sync?.pipelines,
+    }).toEqual({
+      result: {
+        status: "applied",
+        commit: "c0ffee1",
+        changed: ["shipped/code-review"],
+      },
+      archived: [],
+      shippedPuts: ["code-review"],
       listed: [],
     });
   });

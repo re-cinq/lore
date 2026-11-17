@@ -39,9 +39,10 @@ function realFiles() {
     }));
 }
 
-function fakeFloor(held: string[]) {
+function fakeFloor(held: string[], packLines: string[] = []) {
   const imported: string[] = [];
   const deps: SeedDeps = {
+    packLines: async () => packLines,
     files: async () => [
       { name: "a.yaml", text: "line:\n  id: code-review\n" },
       { name: "b.yaml", text: "line:\n  id: lore-run-settled\n" },
@@ -91,6 +92,7 @@ describe("withEnvironment", () => {
 function codeReviewOnFloor(held: string[]) {
   const imported: string[][] = [];
   const deps: SeedDeps = {
+    packLines: async () => [],
     files: async () =>
       realFiles().filter((file) => file.name === "code-review.yaml"),
     env: FIXED_ENV,
@@ -142,6 +144,16 @@ describe("seedFloorPipelines", () => {
       ],
       failed: [],
     });
+  });
+
+  it("puts only lore-run-settled when the pack holds its own code-review line", async () => {
+    const { deps, imported } = fakeFloor([], ["code-review"]);
+
+    expect(await seedFloorPipelines(deps)).toEqual({
+      changed: ["assembly-lines/lore-run-settled"],
+      failed: [],
+    });
+    expect(imported).toEqual(["lore-run-settled"]);
   });
 
   it("reports nothing changed when the floor holds every pipeline as written", async () => {

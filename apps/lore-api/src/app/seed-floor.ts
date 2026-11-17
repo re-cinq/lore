@@ -17,19 +17,20 @@ import {
 
 export interface FloorSeeding {
   configured(): boolean;
-  deps(): SeedDeps;
+  deps(pool: Pool | null): SeedDeps;
   pack(pool: Pool): Promise<PackSyncResult>;
   log(message: string, cause?: unknown): void;
 }
 
 const production: FloorSeeding = {
   configured: () => floorConfigured(),
-  deps: () => productionSeedDeps(),
+  deps: (pool) => productionSeedDeps(process.env, pool),
   pack: (pool) => syncProductionPack(pool),
   log: (message, cause) => console.error(`[lore-api] ${message}`, cause ?? ""),
 };
 
 export async function seedFloor(
+  pool: Pool | null,
   seeding: FloorSeeding = production,
 ): Promise<void> {
   if (!seeding.configured()) {
@@ -37,7 +38,7 @@ export async function seedFloor(
   }
 
   try {
-    const { changed, failed } = await seedFloorPipelines(seeding.deps());
+    const { changed, failed } = await seedFloorPipelines(seeding.deps(pool));
 
     seeding.log(`floor pipelines put: ${changed.join(", ") || "none changed"}`);
     reportRefusals(seeding, failed);

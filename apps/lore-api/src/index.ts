@@ -53,7 +53,7 @@ async function main() {
   if (state.pool) {
     await seedShippedSkills(state.pool);
   }
-  await seedFloor();
+  await seedFloor(state.pool);
 
   if (state.pool) {
     await migrateAndReport(state.pool);

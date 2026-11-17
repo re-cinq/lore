@@ -25,6 +25,8 @@ export interface PackDeps {
   putAgent(name: string, settings: FloorAgentSettings): Promise<void>;
   importPipeline(pipeline: Pipeline): Promise<Put[]>;
   archivePipeline(name: string): Promise<void>;
+  /** Puts Lore's own file of a shipped line back on the floor. */
+  putShippedPipeline(name: string): Promise<void>;
   readSync(): Promise<PackSyncState | null>;
   writeSync(state: PackSyncState): Promise<void>;
 }
@@ -85,7 +87,7 @@ async function applyFetched(
   const changed = [
     ...(await putAgents(deps, overlay, dropped.agents, shipped)),
     ...(await importPipelines(deps, overlay.pipelines)),
-    ...(await archivePipelines(deps, dropped.pipelines)),
+    ...(await dropPipelines(deps, dropped.pipelines, shipped)),
   ];
 
   await deps.writeSync(syncStateOf(deps, { config, pack, overlay, dropped }));
@@ -145,13 +147,25 @@ async function importPipelines(
     .map((put) => `${put.kind}/${put.id}`);
 }
 
-async function archivePipelines(
+/** A line Lore ships goes back to Lore's own file; a line only the pack had is archived. */
+async function dropPipelines(
   deps: PackDeps,
   names: string[],
+  shipped: ShippedCatalog,
 ): Promise<string[]> {
-  await Promise.all(names.map((name) => deps.archivePipeline(name)));
+  const isShipped = (name: string) => shipped.pipelines.includes(name);
+  const restored = names.filter(isShipped);
+  const archived = names.filter((name) => !isShipped(name));
 
-  return names.map((name) => `archived/${name}`);
+  await Promise.all([
+    ...restored.map((name) => deps.putShippedPipeline(name)),
+    ...archived.map((name) => deps.archivePipeline(name)),
+  ]);
+
+  return [
+    ...restored.map((name) => `shipped/${name}`),
+    ...archived.map((name) => `archived/${name}`),
+  ];
 }
 
 interface Applied {

@@ -15,7 +15,7 @@ interface PipelineFile extends PackFile {
   folder: string;
 }
 
-/** The pipelines the pack adds. Each names its agents only: the agents are put on their own, so a pipeline is imported with no agent definitions of its own. */
+/** The pipelines the pack sets, its own and its versions of the lines Lore ships. Each names its agents only: the agents are put on their own, so a pipeline is imported with no agent definitions of its own. */
 export function pipelinesOverlay(
   input: PackOverlayInput,
   packAgents: ReadonlyMap<string, OverlayAgent>,
@@ -53,11 +53,6 @@ function pipelineOfFile(
   { shipped, env }: PackOverlayInput,
   packAgents: ReadonlyMap<string, OverlayAgent>,
 ): Pipeline {
-  enforceTrue(
-    !shipped.pipelines.includes(file.folder),
-    Error,
-    `${file.folder} is a pipeline Lore ships, and a pack cannot replace its shape`,
-  );
   const filled = withEnvironment(file.text, env);
 
   enforceNoProblems(filled, promptsOf(shipped.agents, packAgents));

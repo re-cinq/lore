@@ -27,6 +27,7 @@ function seeding(
     files: () => Promise.resolve([{ name: "walk.yaml", text: LINE }]),
     env: {},
     heldAgentDefinitions: () => Promise.resolve([]),
+    packLines: () => Promise.resolve([]),
     importPipeline: (pipeline) => {
       const id = pipeline.line?.id ?? "";
 
@@ -50,7 +51,7 @@ describe("seedFloor", () => {
   it("puts the line walk and logs it as changed on a floor that did not hold it", async () => {
     const { floorSeeding, logged, imported } = seeding({});
 
-    await seedFloor(floorSeeding);
+    await seedFloor(null, floorSeeding);
 
     expect({ logged, imported }).toEqual({
       logged: ["floor pipelines put: assembly-lines/walk"],
@@ -66,7 +67,7 @@ describe("seedFloor", () => {
         ]),
     });
 
-    await seedFloor(floorSeeding);
+    await seedFloor(null, floorSeeding);
 
     expect(logged).toEqual(["floor pipelines put: none changed"]);
   });
@@ -76,7 +77,7 @@ describe("seedFloor", () => {
       importPipeline: () => Promise.reject(new Error("invalid station body")),
     });
 
-    await seedFloor(floorSeeding);
+    await seedFloor(null, floorSeeding);
 
     expect(logged).toEqual([
       "floor pipelines put: none changed",
@@ -89,7 +90,7 @@ describe("seedFloor", () => {
       files: () => Promise.reject(new Error("connect ECONNREFUSED")),
     });
 
-    await seedFloor(floorSeeding);
+    await seedFloor(null, floorSeeding);
 
     expect(logged).toEqual([
       "floor pipeline put FAILED — the floor keeps what it holds:",
@@ -99,7 +100,7 @@ describe("seedFloor", () => {
   it("reads no file on a deployment with no floor configured", async () => {
     const { floorSeeding, logged, imported } = seeding({});
 
-    await seedFloor({ ...floorSeeding, configured: () => false });
+    await seedFloor(null, { ...floorSeeding, configured: () => false });
 
     expect({ logged, imported }).toEqual({ logged: [], imported: [] });
   });
