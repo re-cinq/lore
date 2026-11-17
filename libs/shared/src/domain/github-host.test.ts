@@ -52,6 +52,22 @@ describe("githubUrls", () => {
     });
   });
 
+  it("returns https://api.acme.ghe.com as the api for the data residency host acme.ghe.com", () => {
+    expect(githubUrls("acme.ghe.com")).toEqual({
+      web: "https://acme.ghe.com",
+      api: "https://api.acme.ghe.com",
+      oauthAuthorize: "https://acme.ghe.com/login/oauth/authorize",
+      oauthToken: "https://acme.ghe.com/login/oauth/access_token",
+    });
+  });
+
+  it.each(["ghe.com.example.org", "myghe.com", "ghe.com"])(
+    "returns the /api/v3 api for host %s that does not end in .ghe.com",
+    (host) => {
+      expect(githubUrls(host).api).toEqual(`https://${host}/api/v3`);
+    },
+  );
+
   it("returns the github.com urls when no host is given", () => {
     expect(githubUrls().web).toEqual("https://github.com");
   });

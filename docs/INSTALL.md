@@ -203,14 +203,14 @@ The install in section 3 creates every Secret below from the values file (`secre
 | ------------------- | ----- | ----------- |
 | Enterprise Cloud on github.com | yes | nothing; it is github.com |
 | Enterprise Server, self-hosted | yes | `GITHUB_HOST` (below) |
-| Enterprise Cloud with data residency (`<name>.ghe.com`) | no | not supported |
+| Enterprise Cloud with data residency (`<name>.ghe.com`) | yes | `GITHUB_HOST: <name>.ghe.com` (below) |
 
-Ask the client which one before the install: "GitHub Enterprise" names all three.
+Ask the client which one before the install: "GitHub Enterprise" names all three. Only the last two need `GITHUB_HOST`.
 
-One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `deploy/install/values.azure.example.yaml`). Lore then calls `https://<host>/api/v3`, sends sign-in to `https://<host>/login/oauth/authorize`, names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Enterprise Cloud with data residency (`*.ghe.com`) and two hosts in one install are not supported, and stored data is not moved between hosts: a Server install is a fresh install.
+One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server or an Enterprise Cloud tenant with data residency set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com` or `acme.ghe.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `deploy/install/values.azure.example.yaml`). Lore then calls the REST and GraphQL API at `https://<host>/api/v3` on a Server, or at `https://api.<host>` on a data residency host (any host ending in `.ghe.com`; the GraphQL address follows from the same base). Sign-in goes to `https://<host>/login/oauth/authorize` and git clones from `https://<host>/owner/name.git` for both kinds. Lore names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Two hosts in one install are not supported, and stored data is not moved between hosts: a Server or data residency install is a fresh install. Lore has not been run against a real `ghe.com` tenant.
 
 - Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
-- The Server must be GitHub Enterprise Server 3.11 or newer: Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
+- A Server must be GitHub Enterprise Server 3.11 or newer (this does not apply to data residency, which GitHub runs): Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
 - Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in `deploy/install/values.yaml`).
 - The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
 - The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
@@ -635,7 +635,7 @@ What an install on a client cluster hits. The list stays until each fix lands.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
 9. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant on our GKE, so traces are silently off there ([#3905](https://github.com/re-cinq/lore/issues/3905)).
 10. **Lore's own model calls cannot use Microsoft Foundry.** A provider for an OpenAI-compatible endpoint is the fix.
-11. **Foundry and GitHub Enterprise Server have not run on a client cluster.** No agent pod has cloned from a Server and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
+11. **Foundry, GitHub Enterprise Server and GitHub Enterprise Cloud with data residency have not run on a client cluster.** No agent pod has cloned from a Server or a `ghe.com` tenant and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
 12. **Grafana and Prometheus are not in the chart** (1.2).
 13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.
 

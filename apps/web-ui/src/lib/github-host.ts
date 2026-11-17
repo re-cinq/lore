@@ -12,6 +12,7 @@ export interface GithubUrls {
 type Env = Record<string, string | undefined>;
 
 const BARE_HOST = /^[^\s/:]+(:\d+)?$/;
+const DATA_RESIDENCY_SUFFIX = ".ghe.com";
 
 // eslint-disable-next-line re-lint/no-duplicate-code -- web-ui does not import lore-shared, so its host helpers are a copy of this module
 export function githubHost(env: Env = process.env): string {
@@ -33,11 +34,13 @@ export function githubHost(env: Env = process.env): string {
 
 export function githubUrls(host: string = githubHost()): GithubUrls {
   const web = `https://${host}`;
+  const api = host.endsWith(DATA_RESIDENCY_SUFFIX)
+    ? `https://api.${host}`
+    : `${web}/api/v3`;
 
   return {
     web,
-    api:
-      host === DEFAULT_GITHUB_HOST ? "https://api.github.com" : `${web}/api/v3`,
+    api: host === DEFAULT_GITHUB_HOST ? "https://api.github.com" : api,
     oauthAuthorize: `${web}/login/oauth/authorize`,
     oauthToken: `${web}/login/oauth/access_token`,
   };

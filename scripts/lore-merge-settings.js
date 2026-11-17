@@ -201,7 +201,7 @@ function mergeLoreSettings(settings) {
       hooks: [
         {
           type: "command",
-          command: `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
+          command: `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed -E 's|\\.git$||;s|.*[:/]([^/]+/[^/]+)$|\\1|' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
         },
       ],
     });
