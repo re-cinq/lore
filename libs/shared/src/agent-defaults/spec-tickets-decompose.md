@@ -81,7 +81,7 @@ at exactly `{decomposition_path}`; the file is the deliverable:
       "line": 57,
       "status": "missing",
       "evidence": [],
-      "reason": "<only when a test linked to this statement exists: why that test does not show the behaviour>"
+      "reason": "<only when a test linked to this statement exists: why that test file, named by its path, does not show the behaviour>"
     }
   ],
   "stories": [
@@ -135,14 +135,17 @@ A settled line needs no `statements` entry: its linked tests are its
 evidence, so leave it out rather than assess it again. Overrule it only
 when you know the code falls short of it: keep it `missing` with a
 `reason`, or claim it `partial` with evidence. A `present` claim, or a
-`missing` one without a reason, leaves it settled.
+`missing` one whose reason names none of its linked test files, leaves it
+settled.
 
 A statement off the settled lines whose validated_by test exists at
 `{merge_sha}` is not missing until you have read the code that test
 exercises. Claim it
 `present` or `partial` with evidence from that code, or keep it `missing`
-and set `reason` to why the test does not show the behaviour, such as a
-test that asserts something else. Verification hands back a statement with
+and set `reason` to why that test file, named by its path, does not show
+the behaviour, such as a test that asserts something else. A reason that
+names no linked test file is not a reason, and the same sentence on every
+statement is not one either. Verification hands back a statement with
 an existing linked test that is missing, or has no entry, and gives no
 reason.
 
