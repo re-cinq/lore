@@ -129,6 +129,7 @@ describe("routes — agents", () => {
     });
 
     it("flags the org default of general and triage pack_managed and the project variant of triage not, when the pack manages both", async () => {
+      process.env.LORE_PACK_REPO = "acme/lore-pack";
       fakeAgents.list.mockResolvedValue([
         { ...def, project_id: null },
         { ...def, name: "triage", project_id: "p1" },

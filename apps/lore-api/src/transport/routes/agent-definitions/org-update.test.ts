@@ -89,6 +89,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
   });
 
   it("answers 409 pack_managed and leaves the floor's fix-ci on claude-sonnet-4-6 when the pack manages fix-ci", async () => {
+    process.env.LORE_PACK_REPO = "acme/lore-pack";
     const floor = await floorWithFixCi();
 
     const res = await put(await server(floor, poolOfPack(["fix-ci"])), {
@@ -105,6 +106,15 @@ describe("PUT /api/agent-definitions/{name}", () => {
       body: { error: "pack_managed" },
       model: "claude-sonnet-4-6",
     });
+  });
+
+  it("answers 200 for fix-ci when the last sync managed fix-ci but LORE_PACK_REPO is no longer set", async () => {
+    const res = await put(
+      await server(await floorWithFixCi(), poolOfPack(["fix-ci"])),
+      { name: "fix-ci", timeout_minutes: 45 },
+    );
+
+    expect(res.statusCode).toBe(200);
   });
 
   it("answers 200 for fix-ci when the pack manages only acme-triage", async () => {
