@@ -13,8 +13,8 @@
 
 ## Facets
 
-- [ ] `planning-document` correctly rejects empty prototype sections
-- [ ] `planning-document` correctly rejects sketch-only prototypes for `ui-change` plans
+- [x] `planning-document` correctly rejects empty prototype sections
+- [x] `planning-document` correctly rejects sketch-only prototypes for `ui-change` plans
 
 ## Out of scope
 
