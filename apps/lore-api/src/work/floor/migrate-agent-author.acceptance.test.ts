@@ -14,6 +14,8 @@ describe("T002: Migrate existing prompts to use Helm author values", () => {
       settings: {
         model: "claude-opus",
         prompt: `CUSTOM PROMPT START\n${hardcodedBlock}CUSTOM PROMPT END`,
+        image: "ghcr.io/re-cinq/agent:1",
+        timeoutMinutes: 60,
       },
       variants: {},
     });

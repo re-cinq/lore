@@ -39,6 +39,7 @@ function deps(
       },
       updateTimeout: () => Promise.resolve(),
       updateSkills: () => Promise.resolve(),
+      stripFromPrompts: () => Promise.resolve(),
     },
     markApplied: (version) => {
       marked.push(version);
@@ -129,6 +130,7 @@ describe("readFloorMigrations", () => {
         "floor/0010_refine_acts_on_thread_outcome",
         "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
         "floor/0012_spec_tickets_decompose_scoped_tasks",
+        "floor/0013_migrate_agent_author",
       ],
       unshipped: [],
     });
@@ -374,6 +376,7 @@ async function everyWrite(only?: string) {
       updatePrompt: record("prompt"),
       updateTimeout: record("timeout_minutes"),
       updateSkills: record("skills"),
+      stripFromPrompts: () => Promise.resolve(),
     });
   }
 
