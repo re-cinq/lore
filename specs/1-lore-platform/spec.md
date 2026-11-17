@@ -421,7 +421,7 @@ LOCKED` — atomically prevents duplicate work without versioning
   status comments and is closed when the PR is created. ([validated by `issues.test.ts@c1c72db5`](libs/shared/src/outbound/project/issues/issues.test.ts#L112), [`issues.test.ts@ab836276`](libs/shared/src/outbound/project/issues/issues.test.ts#L125))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx@625dac26`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L163))
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx@625dac26`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L164))
 ### FR-5: Spec-Driven Feature Workflow
 
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
