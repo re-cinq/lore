@@ -267,7 +267,7 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "59e1d5b"
+    tag: "d619729"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   replicaCount: 1
