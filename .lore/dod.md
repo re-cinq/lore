@@ -11,7 +11,7 @@
 
 ## Facets
 
-- [ ] write a handler for `spec.review.result` and register it in `buildStationHandlers()`
+- [x] write a handler for `spec.review.result` and register it in `buildStationHandlers()`
 - [ ] write `to_plan` plan questions into plan with id keyed on review comment
 - [ ] replace existing questions with same comment id instead of duplicating
 - [ ] re-home questions to Open questions if target slot doesn't exist
