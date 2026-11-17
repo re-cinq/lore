@@ -59,7 +59,7 @@ describe("Plan prototype validation (spec 205)", () => {
     method: string,
     url: string,
     token?: string,
-    body?: unknown,
+    body?: string | object,
   ) => {
     const response = await server.inject({
       method,
