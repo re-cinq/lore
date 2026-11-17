@@ -2,9 +2,9 @@
 # merges a specs/<name>/spec.md into the default branch, Lore starts one run per
 # spec: it lists the tickets an earlier run filed for that spec, an agent splits
 # the spec into stories and tasks (keeping the ids of tasks that are still the
-# same work), one station files the story issue and a task issue per task or
-# rewrites the ones it filed before, and one counts the testable statements no
-# task names. The implementation loop picks the task issues up from there.
+# same work), one drops the new tasks an existing ticket already holds, one
+# files the story issue and a task issue per task or rewrites the ones it filed
+# before, and one counts the testable statements no task names. The implementation loop picks the task issues up from there.
 #
 # Started by the stations service's github.pull_request.closed handler, keyed on
 # the repository, the spec and the merge commit.
@@ -34,6 +34,8 @@ line:
       station: spec-tickets-decompose
     - id: verify-implementation
       station: spec-tickets-verify
+    - id: dedupe
+      station: spec-tickets-dedupe
     - id: issues
       station: spec-tickets-issues
     # The node id is the one the coverage station counts its handbacks by.
@@ -52,7 +54,7 @@ line:
       to: verify-implementation
       on: success
     - from: verify-implementation
-      to: issues
+      to: dedupe
       on: success
     - from: verify-implementation
       to: decompose
@@ -70,6 +72,12 @@ line:
       to: decompose
       on: failed
       iteration_max: 1
+    - from: dedupe
+      to: issues
+      on: success
+    - from: dedupe
+      to: failed
+      on: failed
     - from: issues
       to: issue-coverage
       on: success
@@ -190,6 +198,30 @@ stations:
         kind: file
       - name: implementation_report
         kind: file
+  spec-tickets-dedupe:
+    description: Searches the repository's tickets for each task that would be filed new, and drops one an open ticket already holds or a closed one finished, adding a Related link where a ticket comes close; a failed search keeps every task.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: verified_decomposition
+        kind: file
+      # A task whose id an earlier run filed is a rewrite, never dropped.
+      - name: existing_tickets
+        kind: file
+        path: existing-tickets.json
+    # Coverage still counts the verified decomposition: a dropped task's
+    # statements are held by the ticket it duplicates.
+    produces:
+      - name: deduped_decomposition
+        kind: file
+      - name: dedupe_report
+        kind: file
   spec-tickets-issues:
     description: Files the decomposition as GitHub issues, a story issue and one task issue per task with a priority label, or rewrites the ones an earlier run of this spec filed.
     kind: service
@@ -202,7 +234,7 @@ stations:
         kind: git
         path: target
         access: read
-      - name: verified_decomposition
+      - name: deduped_decomposition
         kind: file
       - name: spec_path
         kind: value
