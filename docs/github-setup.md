@@ -30,18 +30,34 @@ Open **GitHub → Organization settings → Developer settings → GitHub Apps �
 | Webhook → Active | **off**. Lore installs a webhook on each repository itself when the repository is onboarded |
 | Where can this GitHub App be installed? | Only on this account |
 
-Repository permissions:
+### Permissions
 
-| Permission | Access |
-| ---------- | ------ |
-| Contents | Read and write |
-| Issues | Read and write |
-| Pull requests | Read and write |
-| Checks | Read-only |
-| Metadata | Read-only |
-| Webhooks | Read and write |
+On the same form, under **Permissions**, open **Repository permissions** and set these ten. After the App exists they are under **Organization settings → Developer settings → GitHub Apps → Edit → Permissions & events**.
 
-Subscribe to no events on the App.
+| Permission | Access | What Lore does with it |
+| ---------- | ------ | ---------------------- |
+| Actions | Read-only | reads a failed CI job and its log, so an agent fixes what CI reported |
+| Checks | Read and write | reads CI results on a pull request, and posts its own review as the `lore/code-review` check |
+| Contents | Read and write | reads code, specs and ADRs; pushes branches and commits; merges pull requests |
+| Issues | Read and write | reads the backlog; files, labels, comments on and closes tickets |
+| Metadata | Read-only | GitHub selects it for every App |
+| Pull requests | Read and write | opens, reviews, comments on, updates and merges pull requests |
+| Secrets | Read and write | at onboarding, sets the repository secret `LORE_INGEST_TOKEN` that the repository's CI uses to post to Lore |
+| Variables | Read and write | at onboarding, sets the repository variable `LORE_INGEST_URL` |
+| Webhooks | Read and write | creates the repository's webhook at onboarding |
+| Workflows | Read and write | the onboarding pull request adds files under `.github/workflows/`. GitHub refuses any push that changes a workflow file without it |
+
+One more, only in one case:
+
+| Permission | Access | When |
+| ---------- | ------ | ---- |
+| Administration | Read-only | the auto-merge loop is switched on for a repository whose default branch has no ruleset that asks for an approval. Lore then has to read the classic branch protection before it merges, and refuses to merge when it cannot |
+
+Leave **Organization permissions** and **Account permissions** at "No access". Under **Subscribe to events**, tick nothing: the events reach Lore through the webhook it creates on each repository.
+
+Agents get no credential of their own. For each run Lore gives the agent a short-lived token of this App's installation, for the one repository it works in and narrowed to Contents, Issues, Pull requests and Workflows. An agent never holds the Secrets, Webhooks or Checks permission.
+
+To change a permission later, edit it on the App and save. GitHub then asks the organization to accept the change: an owner opens **Organization settings → GitHub Apps → Configure** on the App and approves the request. Until then the installation keeps the old permissions.
 
 Then:
 
@@ -83,9 +99,19 @@ Register it, then **Generate a new client secret**. It is shown once.
 
 Only members of the organization named in `GITHUB_ORG` can sign in.
 
+An OAuth App has no permissions to set. At a person's first sign-in GitHub shows what Lore asks for, and the person approves it:
+
+| Scope | What Lore reads with it |
+| ----- | ----------------------- |
+| `read:user` | the person's login, name and avatar |
+| `read:org` | whether the person is a member of `<org>` |
+| `repo` | which repositories the person can read, private ones included. The UI shows a person only those |
+
+If the organization restricts OAuth App access (**Organization settings → Third-party Access → OAuth app policy**), an OAuth App the organization owns is approved already. One created under a personal account has to be approved there by an owner.
+
 ## 3. The registry token
 
-Three images are not public: `ghcr.io/re-cinq/lore-api`, `lore-mcp` and `lore-ui` (and `utopia`, when it is installed). The cluster pulls them with a GitHub token that re:cinq provides.
+Four images are not public: `ghcr.io/re-cinq/lore-api`, `lore-mcp`, `lore-ui` and `utopia`. The cluster pulls them with a GitHub token that re:cinq provides.
 
 re:cinq creates it: a member of the re-cinq organization, or a machine user that belongs to it, opens **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**, and selects the one scope `read:packages`.
 
@@ -107,7 +133,16 @@ A token from an account outside the re-cinq organization logs in and then fails 
 
 Lore's own App cannot approve the pull requests it opened, because GitHub refuses an approval from the author. A second App, `lore-reviewer`, exists only to approve them, for the auto-merge loop. Without it, Lore still approves people's pull requests and leaves its own waiting.
 
-How to create it and which permissions it takes: [The lore-reviewer App](managing-secrets.md#the-lore-reviewer-app-lore-reviewer-app-) in the secrets guide. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
+Create it like the App in section 1, named `lore-reviewer`, with the webhook off, no events, and these repository permissions:
+
+| Permission | Access |
+| ---------- | ------ |
+| Checks | Read-only |
+| Contents | Read-only |
+| Metadata | Read-only |
+| Pull requests | Read and write |
+
+Install it on the same repositories. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
 
 ## GitHub Enterprise Server
 
