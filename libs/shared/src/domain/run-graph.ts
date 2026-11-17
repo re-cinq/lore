@@ -16,14 +16,14 @@ export const RunGraphNodeSchema = z.object({
   job_ref: z.string().optional(),
   continues: z.object({ node: z.string(), key: z.string() }).optional(),
   description: z.string().optional(),
-});
+}) satisfies z.ZodType<RunGraphNode>;
 
 export const RunGraphEdgeSchema = z.object({
   from: z.string(),
   to: z.string(),
   on: z.string(),
   iteration_max: z.number().optional(),
-});
+}) satisfies z.ZodType<RunGraphEdge>;
 
 export const RunGraphSchema = z.object({
   name: z.string(),
@@ -32,7 +32,7 @@ export const RunGraphSchema = z.object({
   fail: z.string().optional(),
   nodes: z.array(RunGraphNodeSchema),
   edges: z.array(RunGraphEdgeSchema),
-});
+}) satisfies z.ZodType<RunGraph>;
 
 /** One node of a cloned graph. */
 export interface RunGraphNode {
