@@ -9,6 +9,7 @@ import {
 } from "../../outbound/floor/floor-items.js";
 import { startLine } from "../review/floor-line-start.js";
 import { planIdOfSpecBranch } from "../feature-planning/spec-branch.js";
+import { UPKEEP_BRANCH_PREFIX } from "../spec-upkeep/floor-spec-upkeep.js";
 
 export const SPEC_TICKETS_LINE = "spec-tickets";
 
@@ -168,9 +169,14 @@ async function specsToTicket(
   merge: SpecMerge,
   deps: SpecTicketsDeps,
 ): Promise<string[]> {
-  const { repo, prNumber, merged, baseRef } = merge;
+  const { repo, prNumber, merged, baseRef, branch } = merge;
 
-  if (!merged || !(await deps.loopOn(repo))) {
+  // Spec upkeep only makes a spec follow the code it describes, so nothing it merges is work to ticket.
+  if (!merged || branch.startsWith(UPKEEP_BRANCH_PREFIX)) {
+    return [];
+  }
+
+  if (!(await deps.loopOn(repo))) {
     return [];
   }
 
