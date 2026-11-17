@@ -52,7 +52,7 @@ project the returned `TraceDocument` into agent-readable text. The orchestrator
 resolves the repo, issues one GET via the proxy, and formats the result
 ([`runQueryTrace@ebf22ef0`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L172));
 the projection itself is a pure function
-([`formatTraceQuery@1a734caa`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L10));
+([`formatTraceQuery@6825be7c`](../../libs/server-core/src/work/spec-trace/query-trace-document.ts#L9));
 the GET proxy reuses the shared retry/config machinery
 ([`proxyGetApi@a72efe6a`](../../apps/mcp-server/src/transport/tools/shared/deps.ts#L18)); the tool is
 registered read-only on the shared surface
@@ -180,7 +180,7 @@ target in `symbol` and walks the reverse `CodeChunk.references` edge, or the edg
 itself when `direction=callees`, read through the Project's trace view. It answers
 one hop; `depth` is not walked yet. ([validated by `refuses depth > 1 with a 400 that says one hop is supported` @e810927a](apps/lore-api/src/transport/routes/trace/trace-callers.acceptance.test.ts#L23), [validated by forwards o/r with src/a.ts, advance with callees, nextTransition with callers, and limit 3 to the port @949295ff](libs/shared/src/outbound/project/trace/trace.test.ts#L82))
 
-Each caller comes back with its file, its symbol name and the line it starts on. ([validated by `A callers query returns one line per caller with file and symbol` @0ab536ef](libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts#L43), [validated by `A callers query returns 'no callers found' when empty` @7a61357e](libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts#L28), [validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
+Each caller comes back with its file, its symbol name and the line it starts on. ([validated by `A callers query returns one line per caller with file and symbol` @0ab536ef](libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts#L61), [validated by `A callers query returns 'no callers found' when empty` @7a61357e](libs/server-core/src/work/spec-trace/query-trace.acceptance.test.ts#L35), [validated by answers advance in src/runner.ts as the caller of nextTransition @15bd3ee4](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L62))
 
 With no graph configured it answers an empty list rather than failing. ([validated by answers an empty callers list for nextTransition when no graph is configured @259a2ede](apps/lore-api/src/transport/routes/trace/trace-callers.test.ts#L37))
 

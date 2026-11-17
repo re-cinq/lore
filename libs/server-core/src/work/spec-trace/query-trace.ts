@@ -82,11 +82,15 @@ async function callGraphQuery(
     return formatProxyFailure(result);
   }
 
-  return parseCallersBody(result.body, symbolName);
+  return parseCallersBody(result.body, symbolName, direction);
 }
 
 /** Returns the raw body when it is not a recognisable callers payload. */
-function parseCallersBody(body: string, symbolName: string): string {
+function parseCallersBody(
+  body: string,
+  symbolName: string,
+  direction: "callers" | "callees",
+): string {
   let parsed: unknown;
 
   try {
@@ -99,19 +103,23 @@ function parseCallersBody(body: string, symbolName: string): string {
     callers?: Array<{ filePath: string; symbol: string; startLine: number }>;
   };
 
-  return Array.isArray(callers) ? formatCallers(callers, symbolName) : body;
+  return Array.isArray(callers)
+    ? formatCallers(callers, symbolName, direction)
+    : body;
 }
 
 function formatCallers(
   callers: Array<{ filePath: string; symbol: string; startLine: number }>,
   symbolName: string,
+  direction: "callers" | "callees",
 ): string {
   if (callers.length === 0) {
-    return `No callers found for ${symbolName}.`;
+    return `No ${direction} found for ${symbolName}.`;
   }
+  const heading = direction === "callees" ? "Callees" : "Callers";
 
   return [
-    `Callers of ${symbolName} (${callers.length}):`,
+    `${heading} of ${symbolName} (${callers.length}):`,
     ...callers.map((c) => `- ${c.filePath}:${c.startLine} — ${c.symbol}`),
   ].join("\n");
 }

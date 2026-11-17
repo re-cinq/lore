@@ -24,8 +24,12 @@ describe("GET /api/repos/:owner/:repo/trace/callers", () => {
     const res = await get(
       "/api/repos/foo/bar/trace/callers?symbol=foo&depth=2",
     );
+    const resZero = await get(
+      "/api/repos/foo/bar/trace/callers?symbol=foo&depth=0",
+    );
 
     expect(res.statusCode).toBe(400);
+    expect(resZero.statusCode).toBe(400);
     const body = res.result as { message?: string };
 
     expect(body.message).toContain("one hop is supported");

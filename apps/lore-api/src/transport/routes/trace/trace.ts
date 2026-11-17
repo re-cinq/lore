@@ -130,23 +130,26 @@ async function serveTrace(
 }
 
 /** Refuses depth > 1 for callers before the project is built, so the error is a 400, not a 500. */
-function refuseDeepDepth(kind: string, rawUrl: string | undefined): void {
+function refuseDeepDepth(kind: string, rawUrl = ""): void {
   if (kind !== "callers") {
     return;
   }
-  const qmark = (rawUrl ?? "").indexOf("?");
-  const params = new URLSearchParams(
-    qmark >= 0 ? (rawUrl ?? "").slice(qmark + 1) : "",
-  );
+  const params = new URLSearchParams(rawQuery(rawUrl));
   const depth = Number(params.get("depth") ?? "1");
 
   enforceTrue(
-    depth <= 1,
+    Number.isInteger(depth) && depth === 1,
     apiError(400, {
       message: "only one hop is supported; depth > 1 is not yet walked",
     }),
     "only one hop is supported; depth > 1 is not yet walked",
   );
+}
+
+function rawQuery(rawUrl: string): string {
+  const qmark = rawUrl.indexOf("?");
+
+  return qmark >= 0 ? rawUrl.slice(qmark + 1) : "";
 }
 
 /** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */

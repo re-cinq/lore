@@ -25,39 +25,53 @@ describe("formatTraceQuery acceptance", () => {
 
 describe("runQueryTrace acceptance", () => {
   it("A callers query returns 'no callers found' when empty", async () => {
+    const emptyProxy = {
+      proxyGet: async () => ({
+        ok: true as const,
+        body: JSON.stringify({ callers: [] }),
+      }),
+      detectRepo: () => "o/r",
+    };
     const outEmpty = await runQueryTrace(
       { callers_of: "someSymbol" },
-      {
-        proxyGet: async () => ({
-          ok: true,
-          body: JSON.stringify({ callers: [] }),
-        }),
-        detectRepo: () => "o/r",
-      },
+      emptyProxy,
+    );
+    const outEmptyCallees = await runQueryTrace(
+      { callees_of: "someSymbol" },
+      emptyProxy,
     );
 
     expect(outEmpty).toContain("No callers found for someSymbol.");
+    expect(outEmptyCallees).toContain("No callees found for someSymbol.");
   });
 
   it("A callers query returns one line per caller with file and symbol", async () => {
+    const populatedProxy = {
+      proxyGet: async () => ({
+        ok: true as const,
+        body: JSON.stringify({
+          callers: [
+            { filePath: "src/a.ts", symbol: "funcA", startLine: 10 },
+            { filePath: "src/b.ts", symbol: "funcB", startLine: 20 },
+          ],
+        }),
+      }),
+      detectRepo: () => "o/r",
+    };
     const outCallers = await runQueryTrace(
       { callers_of: "someSymbol" },
-      {
-        proxyGet: async () => ({
-          ok: true,
-          body: JSON.stringify({
-            callers: [
-              { filePath: "src/a.ts", symbol: "funcA", startLine: 10 },
-              { filePath: "src/b.ts", symbol: "funcB", startLine: 20 },
-            ],
-          }),
-        }),
-        detectRepo: () => "o/r",
-      },
+      populatedProxy,
+    );
+    const outCallees = await runQueryTrace(
+      { callees_of: "someSymbol" },
+      populatedProxy,
     );
 
     expect(outCallers).toContain(
       "Callers of someSymbol (2):\n- src/a.ts:10 — funcA\n- src/b.ts:20 — funcB",
+    );
+    expect(outCallees).toContain(
+      "Callees of someSymbol (2):\n- src/a.ts:10 — funcA\n- src/b.ts:20 — funcB",
     );
   });
 });
