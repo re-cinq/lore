@@ -414,7 +414,7 @@ One-line purpose: one run's state and Definition of Done in one call.
 |---|---|---|---|
 | `run_id` | yes | — | The run's id. |
 
-- **Returns:** `{run, dod}`: `run.line` is the run (status, graph), `run.nodes` its visits with `agentCrName`. A run without a DoD gets `dod: {error}`. No tokens: `/token-usage` answers zero for floor runs; the cost is on `lore_list_runs`.
+- **Returns:** `{run, visits, dod}`: `run.line` is the run (status, graph); `visits` each station visit with `node_id`, `status`, `outcome`, `failure_detail`, `agent_cr_name`, `needs`, `produced`. A part the run lacks comes back as `{error}`. No tokens: `/token-usage` answers zero for floor runs; the cost is on `lore_list_runs`.
 
 #### `lore_get_run_node_logs`
 
@@ -423,7 +423,7 @@ One-line purpose: one station visit's log.
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `run_id` | yes | — | The run's id. |
-| `node` | yes | — | A visit's `agentCrName` from `lore_get_run` (`floor-<visitId>` on the external floor). |
+| `node` | yes | — | A visit's `agent_cr_name` from `lore_get_run` (`floor-<visitId>` on the external floor). |
 | `tail` | no | whole log | Only the last N lines. |
 
 - **Returns:** `{available, logs, phase, archived}`.

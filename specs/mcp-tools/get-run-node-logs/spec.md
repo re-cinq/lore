@@ -26,7 +26,7 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/trans
 - **description** (verbatim):
 
 ```text
-Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit's agentCrName from lore_get_run's nodes (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.
+Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit's agent_cr_name from lore_get_run's visits (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.
 ```
 
 ### Input schema (Zod)
@@ -57,5 +57,5 @@ Every failure comes back as text: no `LORE_API_URL` answers `"Assembly-line runs
 
 ## Out of Scope
 
-- Changing a run (cancel, run a station): the web UI's run page.
+- Changing a run: `lore_retry_station` to run a station again; cancelling on the web UI's run page.
 - Live following: the `run` channel of the live socket (ADR-048).

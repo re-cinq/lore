@@ -63,5 +63,5 @@ Every failure comes back as text: no `LORE_API_URL` answers `"Assembly-line runs
 
 ## Out of Scope
 
-- Changing a run (cancel, run a station): the web UI's run page.
+- Changing a run: `lore_retry_station` to run a station again; cancelling on the web UI's run page.
 - Live following: the `run` channel of the live socket (ADR-048).

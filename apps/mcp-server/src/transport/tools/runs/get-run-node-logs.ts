@@ -4,7 +4,7 @@ import { readRun, runPath } from "./shared/run-read.js";
 import { RUN_ID } from "./shared/run-params.js";
 
 export const GET_RUN_NODE_LOGS_DESCRIPTION =
-  "Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit's agentCrName from lore_get_run's nodes (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.";
+  "Reads one station visit's log from an assembly-line run, returning {available, logs, phase, archived}. node is a visit's agent_cr_name from lore_get_run's visits (floor-<visitId> on the external floor). Pass tail to read only the last lines. Instead: lore_get_run_transcript for the agent's turns, lore_get_task_logs for a pipeline task.";
 
 const GET_RUN_NODE_LOGS_INPUT = {
   run_id: RUN_ID,

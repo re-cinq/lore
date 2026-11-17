@@ -80,7 +80,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 | Tool | Spec | Purpose | Scope |
 |------|------|---------|-------|
 | `lore_list_runs` | [spec](list-runs/spec.md) | List the floor's runs, a page at a time. | shared |
-| `lore_get_run` | [spec](get-run/spec.md) | One run with its visits, DoD and token usage. | shared |
+| `lore_get_run` | [spec](get-run/spec.md) | One run with its visits and DoD. | shared |
 | `lore_get_run_node_logs` | [spec](get-run-node-logs/spec.md) | One station visit's log. | shared |
 | `lore_get_run_transcript` | [spec](get-run-transcript/spec.md) | A run's agent turns, or one visit's events. | shared |
 | `lore_get_run_assets` | [spec](get-run-assets/spec.md) | A run's bag, blob previews and pull files. | shared |
