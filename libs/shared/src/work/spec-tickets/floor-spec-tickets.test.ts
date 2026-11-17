@@ -173,6 +173,10 @@ describe("startSpecTicketRuns", () => {
   it.each([
     ["a close without a merge", { merged: false }],
     ["a merge into a branch that is not the default", { baseRef: "next" }],
+    [
+      "a merge of the spec upkeep branch lore/spec-upkeep/2026-11-17",
+      { branch: "lore/spec-upkeep/2026-11-17" },
+    ],
   ])("starts nothing for %s", async (_name, change) => {
     const { deps, started } = scene({ "specs/a/spec.md": IN_PROGRESS });
 
