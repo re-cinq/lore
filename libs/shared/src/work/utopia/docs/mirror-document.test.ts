@@ -117,6 +117,44 @@ describe("mirrorDocument", () => {
     });
   });
 
+  it("pushes only doc:specs/mirror/spec.md when statements already mirrored are skipped and the ledger holds stmt:specs/mirror/spec.md#0000", async () => {
+    const text = textRecorder("unchanged");
+    const statements = statementRecorder(() => "created");
+    const mirrored = targetsOf(text.deps, statements.deps, {
+      "specs/mirror/spec.md": ["stmt:specs/mirror/spec.md#0000"],
+    });
+    const outcome = await mirrorDocument(mirrored.targets, input, {
+      skipMirroredStatements: true,
+    });
+
+    expect({
+      outcome,
+      text: text.pushed.map((document) => document.external_id),
+      statements: statements.pushed.length,
+      recorded: mirrored.recorded,
+    }).toEqual({
+      outcome: { items: 1, created: 0, updated: 0, unchanged: 1, failed: [] },
+      text: ["doc:specs/mirror/spec.md"],
+      statements: 0,
+      recorded: {},
+    });
+  });
+
+  it("pushes the stmt items of specs/mirror/spec.md when statements already mirrored are skipped and the ledger holds none", async () => {
+    const statements = statementRecorder(() => "created");
+
+    await mirrorDocument(
+      targetsOf(textRecorder().deps, statements.deps).targets,
+      input,
+      { skipMirroredStatements: true },
+    );
+
+    expect(statements.pushed.map((candidate) => candidate.externalId)).toEqual([
+      "stmt:specs/mirror/spec.md#0000",
+      "stmt:specs/mirror/spec.md#0001",
+    ]);
+  });
+
   it("names a statement item whose push threw under failed, still pushes the others and the text", async () => {
     const text = textRecorder();
     const statements = statementRecorder(() => "created");

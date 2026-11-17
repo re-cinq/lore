@@ -34,14 +34,14 @@ describe("lore ontology", () => {
     );
   });
 
-  it("reads the turtle file beside the module, which declares every kind word as a class at version 10", async () => {
+  it("reads the turtle file beside the module, which declares every kind word as a class at version 11", async () => {
     const turtle = await loreOntologyTurtle();
     const declared = LORE_KIND_WORDS.map(({ word }) =>
       turtle.includes(`lore:${word} a owl:Class`),
     );
 
     expect({ version: LORE_ONTOLOGY_VERSION, declared }).toEqual({
-      version: 10,
+      version: 11,
       declared: LORE_KIND_WORDS.map(() => true),
     });
   });
@@ -273,6 +273,21 @@ describe("lore ontology", () => {
       "lore:Person",
     ]);
   });
+  it("declares covers from Test to SourceFile and CodeDefinition, its comment naming no lines qualifier, so a test names the definitions it ran", async () => {
+    const turtle = await loreOntologyTurtle();
+    const covers = /lore:covers a owl:ObjectProperty ;[\s\S]*?\.\n/.exec(
+      turtle,
+    )?.[0];
+
+    expect({
+      range: /rdfs:range ([^.]*) \./.exec(covers ?? "")?.[1],
+      lines: covers?.includes("lines"),
+    }).toEqual({
+      range: "lore:SourceFile, lore:CodeDefinition",
+      lines: false,
+    });
+  });
+
   it("declares kind and exported on CodeDefinition, extends and implements between definitions, contains from a class to its methods and anchor_hash on CodeDefinition, so a file's structure is terms the base knows", async () => {
     const turtle = await loreOntologyTurtle();
     const lines = [

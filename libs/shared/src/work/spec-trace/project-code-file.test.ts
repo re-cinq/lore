@@ -8,6 +8,7 @@ import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { callersOf } from "../../outbound/spec-trace/code-callers.js";
 import { anchorHashOf } from "../../domain/anchor-hash.js";
+import { codeDefinitionsOf } from "./code-definitions.js";
 import {
   deleteCodeFile,
   listCodeFilePaths,
@@ -139,6 +140,25 @@ describe.skipIf(!reachable)("projectCodeFile (live Dgraph)", () => {
       "src/runner.ts",
       "src/transition.ts",
     ]);
+  });
+
+  it("returns Runner at 1-3 and Runner.step at 2-2 for src/runner.ts, and nothing for src/absent.ts", async () => {
+    repo = `test-code/${randomUUID()}`;
+    await project("src/runner.ts", CLASS_RUNNER);
+
+    expect(
+      await codeDefinitionsOf(client, repo, ["src/runner.ts", "src/absent.ts"]),
+    ).toEqual(
+      new Map([
+        [
+          "src/runner.ts",
+          [
+            { symbol: "Runner", start: 1, end: 3 },
+            { symbol: "Runner.step", start: 2, end: 2 },
+          ],
+        ],
+      ]),
+    );
   });
 
   it("writes anchor_hash on a chunk and a chunk src/runner.ts#Runner.step for the method", async () => {

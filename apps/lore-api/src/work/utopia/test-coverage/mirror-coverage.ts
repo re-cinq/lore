@@ -10,6 +10,7 @@ import {
   tombstoneCodeFiles,
   type CodeDeltaInput,
 } from "@re-cinq/lore-shared/utopia/mirror-code.js";
+import { codeDefinitionsOf, createDgraphClient } from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { utopiaConfigured } from "@re-cinq/lore-shared/utopia/utopia-client.js";
 import { kindMirrorDeps, sweepKindSource } from "../kind-source.js";
@@ -35,8 +36,30 @@ export async function mirrorReportFor(
   const deps = run.tests.length > 0 ? await coverageDepsFor(repo) : null;
 
   if (deps) {
-    settled(await mirrorTestReport({ ...deps, ...ledgerUpkeep(repo) }, run));
+    const definitions = await coveredDefinitions(repo, run.results);
+
+    settled(
+      await mirrorTestReport(
+        { ...deps, ...ledgerUpkeep(repo) },
+        { ...run, definitions },
+      ),
+    );
   }
+}
+
+/** The graph's definitions of every file the report covers, which name its covered lines; none without a graph, and each test then covers its files. */
+async function coveredDefinitions(
+  repo: string,
+  results: TestReportInput["results"],
+): Promise<NonNullable<TestReportInput["definitions"]>> {
+  const dgraph = createDgraphClient();
+  const paths = results.flatMap((result) =>
+    (result.covered ?? []).map((chunk) => chunk.file),
+  );
+
+  return dgraph
+    ? codeDefinitionsOf(dgraph, repo, [...new Set(paths)])
+    : new Map();
 }
 
 /** The ids last pushed per test or source file, and the sweep that deletes what a tombstone only marked. */

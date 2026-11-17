@@ -185,7 +185,7 @@ function importedTarget(
 }
 
 /** A chunk xid names the module without its extension: `./transition.js` in an import and `transition.ts` on disk are the same module. */
-function codeChunkXid(
+export function codeChunkXid(
   repo: string,
   modulePath: string,
   symbol: string,
@@ -193,7 +193,7 @@ function codeChunkXid(
   return `${repo}|${CODE_SEGMENT}|${modulePath}#${symbol}`;
 }
 
-function modulePathOf(filePath: string): string {
+export function modulePathOf(filePath: string): string {
   return filePath.slice(0, filePath.length - extname(filePath).length);
 }
 
