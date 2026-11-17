@@ -1,5 +1,7 @@
 // The lines a coupling item cites, read from the repository (specs/utopia-graph-mirror FR13.8b): Utopia holds the link from a statement to its test and from a test to the lines it covers, never the code itself, so the item is finished with those lines from the repository's own files.
 
+import { resolveAnchorLine } from "../../../domain/spec-trace/resolve-anchor-line.js";
+import { testDeclarations } from "../../../domain/spec-trace/test-declarations.js";
 import type { Span } from "./context-assembly-utopia-coverage-text.js";
 
 /** A file of the repository at its default branch, or null when it has none by that path. */
@@ -22,17 +24,44 @@ export async function withBodies(
 }
 
 async function bodyOf(span: Span, files: RepoFiles): Promise<string | null> {
-  const lines = (await files(span.path))?.split("\n") ?? [];
-  const end = Math.min(span.end ?? span.start + MAX_LINES - 1, lines.length);
+  const source = await files(span.path);
+  const lines = source?.split("\n") ?? [];
+  const { start, end: knownEnd } = located(span, source);
+  const end = Math.min(knownEnd ?? (start ?? 0) + MAX_LINES - 1, lines.length);
 
-  if (end < span.start) {
+  if (start === null || end < start) {
     return null;
   }
 
   return [
-    `  --- ${span.path}:${span.start}-${end}`,
-    ...lines.slice(span.start - 1, end).map((line) => `  ${line}`),
+    `  --- ${span.path}:${start}-${end}`,
+    ...lines.slice(start - 1, end).map((line) => `  ${line}`),
   ].join("\n");
+}
+
+/** A span's lines as pushed, or for a test named by anchor hash alone, from the line carrying the hash to the line before the next test declared in the file, at most 40 lines. */
+function located(
+  span: Span,
+  source: string | null,
+): { start: number | null; end: number | null } {
+  if (span.anchorHash === undefined) {
+    return { start: span.start, end: span.end };
+  }
+  const start = resolveAnchorLine(
+    { line: null, hash: span.anchorHash },
+    source,
+  );
+  const next = testDeclarations(source ?? "").find(
+    (declaration) => start !== null && declaration.line > start,
+  );
+
+  return {
+    start,
+    end:
+      next && start !== null
+        ? Math.min(next.line - 1, start + MAX_LINES - 1)
+        : null,
+  };
 }
 
 /** Each file read once however many items cite it. */

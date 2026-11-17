@@ -162,8 +162,8 @@ function testAttributes(
       attribute(test, "title", title),
       knownAs(test, title),
       attribute(test, "path", descriptor.file),
-      ...lineAttributes(test, descriptor),
-      attribute(test, "permalink", permalinkOf(input, descriptor)),
+      ...anchorAttribute(test, descriptor),
+      attribute(test, "permalink", `${blobUrl(input.repo)}/${descriptor.file}`),
     ],
   };
 }
@@ -177,29 +177,14 @@ function titleOf(descriptor: TestDescriptor): string {
     : descriptor.name;
 }
 
-function lineAttributes(test: string, descriptor: TestDescriptor): Statement[] {
-  return [
-    ...(descriptor.anchorHash === undefined
-      ? []
-      : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
-    ...(descriptor.startLine === undefined
-      ? []
-      : [attribute(test, "line_start", String(descriptor.startLine))]),
-    ...(descriptor.endLine === undefined
-      ? []
-      : [attribute(test, "line_end", String(descriptor.endLine))]),
-  ];
-}
-
-function permalinkOf(
-  input: TestReportInput,
+/** The anchor hash names the test wherever it stands; its lines are left out, since a line added above it would change the item and Utopia would re-extract it. */
+function anchorAttribute(
+  test: string,
   descriptor: TestDescriptor,
-): string {
-  const { startLine, endLine } = descriptor;
-  const end = endLine === undefined ? "" : `-L${endLine}`;
-  const anchor = startLine === undefined ? "" : `#L${startLine}${end}`;
-
-  return `${blobUrl(input.repo)}/${descriptor.file}${anchor}`;
+): Statement[] {
+  return descriptor.anchorHash === undefined
+    ? []
+    : [attribute(test, "anchor_hash", descriptor.anchorHash)];
 }
 
 function outcomeFragment(

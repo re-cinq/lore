@@ -7,11 +7,12 @@ interface Tuple {
   s: Statement[];
 }
 
-/** Lines of one file a coupling item cites: a test from its first line to its last (null when the push knew no last line), or a range a test covers. */
+/** Lines of one file a coupling item cites: a test from its first line to its last (null when the push knew no last line), or a range a test covers. A test pushed without lines names its start by `anchorHash` alone, found in the file when it is read. */
 export interface Span {
   path: string;
-  start: number;
+  start: number | null;
   end: number | null;
+  anchorHash?: string;
 }
 
 /** The spans a `stmt:` or `test:` tuple cites, in the order the item names them: each test a statement is validated by, or the test itself then each range it covers; nothing for a `code:` item or a chunk that is no tuple. */
@@ -35,13 +36,18 @@ export function citedSpans(externalId: string, hitText: string): Span[] {
 }
 
 function testSpan(tuple: Tuple, test: string): Span {
+  const path = valueOf(tuple, test, "path");
+  const start = valueOf(tuple, test, "line_start");
   const end = valueOf(tuple, test, "line_end");
 
-  return {
-    path: valueOf(tuple, test, "path"),
-    start: Number(valueOf(tuple, test, "line_start")),
-    end: end ? Number(end) : null,
-  };
+  return start
+    ? { path, start: Number(start), end: end ? Number(end) : null }
+    : {
+        path,
+        start: null,
+        end: null,
+        anchorHash: valueOf(tuple, test, "anchor_hash"),
+      };
 }
 
 /** `7-7,9-14` of a `covers` row read as one span per range. */
@@ -198,7 +204,7 @@ function located(tuple: Tuple, test: string): string {
   const path = valueOf(tuple, test, "path");
   const line = valueOf(tuple, test, "line_start");
 
-  return `${valueOf(tuple, test, "title")} (${path}:${line})`;
+  return `${valueOf(tuple, test, "title")} (${path}${line ? `:${line}` : ""})`;
 }
 
 /** The file's `path` row, or its entity name with the leading `<repo>:` dropped when the item only names the file. */

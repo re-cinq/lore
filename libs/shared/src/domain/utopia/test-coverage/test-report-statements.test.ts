@@ -46,7 +46,7 @@ const relationsOf = (pushed: StatementItem[], phrase: string) =>
   pushed.flatMap((part) => part.s.filter((row) => row[2] === phrase));
 
 describe("testReportItems", () => {
-  it("returns one item test:src/a.test.ts#1e7912b3 per test with the file head, contains, title, known_as, path, line_start, line_end, anchor_hash, permalink and outcome", () => {
+  it("returns one item test:src/a.test.ts#1e7912b3 per test with the file head, contains, title, known_as, path, anchor_hash, a permalink with no line anchor and outcome", () => {
     const pushed = build(
       [
         { ...ROUNDS_TEST, spec: undefined, anchorHash: "1e7912b3" },
@@ -86,9 +86,7 @@ describe("testReportItems", () => {
           attribute(ROUNDS, "known_as", "counts rounds"),
           attribute(ROUNDS, "path", "src/a.test.ts"),
           attribute(ROUNDS, "anchor_hash", "1e7912b3"),
-          attribute(ROUNDS, "line_start", "4"),
-          attribute(ROUNDS, "line_end", "9"),
-          attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts#L4-L9`),
+          attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts`),
           attribute(ROUNDS, "outcome", "passed"),
         ],
       },
@@ -102,12 +100,18 @@ describe("testReportItems", () => {
           attribute(stops, "known_as", "stops twice"),
           attribute(stops, "path", "src/a.test.ts"),
           attribute(stops, "anchor_hash", "359f8b28"),
-          attribute(stops, "line_start", "12"),
-          attribute(stops, "permalink", `${BLOB}/src/a.test.ts#L12`),
+          attribute(stops, "permalink", `${BLOB}/src/a.test.ts`),
           attribute(stops, "outcome", "failed"),
         ],
       },
     ]);
+  });
+
+  it("returns equal items for counts rounds at lines 4-9 and at lines 30-35", () => {
+    const at = (startLine: number, endLine: number) =>
+      build([{ ...ROUNDS_TEST, anchorHash: "1e7912b3", startLine, endLine }]);
+
+    expect(at(30, 35)).toEqual(at(4, 9));
   });
 
   it("covers each file once as one relation qualified by its merged lines and adds no path or known_as rows for the covered file", () => {
@@ -281,7 +285,7 @@ describe("testReportItems", () => {
       ids: ["test:src/a.test.ts#483b3bb1"],
       titles: [attribute(ROUNDS, "title", "counts rounds")],
       permalinks: [
-        attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts#L4-L9`),
+        attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts`),
       ],
     });
   });

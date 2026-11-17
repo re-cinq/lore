@@ -146,6 +146,19 @@ const hashedTestTuple = JSON.stringify({
   ],
 });
 
+const anchoredTestTuple = JSON.stringify({
+  e: [
+    ["re-cinq/lore", "Repository", true],
+    ["re-cinq/lore:t1", "Test", true],
+  ],
+  s: [
+    row("re-cinq/lore:t1", "title", { value: "prints Lore-Task" }),
+    row("re-cinq/lore:t1", "path", { value: TEST_FILE }),
+    row("re-cinq/lore:t1", "anchor_hash", { value: "1e7912b3" }),
+    row("re-cinq/lore:t1", "outcome", { value: "passed" }),
+  ],
+});
+
 const classTuple = JSON.stringify({
   e: [
     [RUNNER, "SourceFile", true],
@@ -234,6 +247,20 @@ describe("coverageText in the one-item-per-test shape", () => {
       { path: "src/runner.ts", start: 7, end: 7 },
       { path: "src/runner.ts", start: 9, end: 14 },
     ]);
+  });
+});
+
+describe("a test: item that names its test by anchor hash alone", () => {
+  it("renders prints Lore-Task at its path with no line, @1e7912b3 and outcome=passed", () => {
+    expect(
+      coverageText(`test:${TEST_FILE}#1e7912b3`, anchoredTestTuple),
+    ).toEqual(`prints Lore-Task (${TEST_FILE}) @1e7912b3 outcome=passed`);
+  });
+
+  it("cites the test by anchor hash 1e7912b3 with no start or end", () => {
+    expect(citedSpans(`test:${TEST_FILE}#1e7912b3`, anchoredTestTuple)).toEqual(
+      [{ path: TEST_FILE, start: null, end: null, anchorHash: "1e7912b3" }],
+    );
   });
 });
 
