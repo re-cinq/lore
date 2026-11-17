@@ -11,6 +11,7 @@ describe("registerRunTools", () => {
       "lore_get_run_transcript",
       "lore_get_run_assets",
       "lore_get_run_blob",
+      "lore_retry_station",
     ]);
   });
 });

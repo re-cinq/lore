@@ -390,7 +390,7 @@ One-line purpose: fetch the FULL stdout/stderr of one scheduled batch/CronJob RU
 
 ### Assembly-line runs
 
-Six read-only tools over lore-api's run routes (`/api/floor-runs`, `/api/assembly-runs/{id}/*`), registered on laptops AND on the agent gateway. Without `LORE_API_URL` and `LORE_INGEST_TOKEN` each returns `Assembly-line runs require LORE_API_URL.`; a 401 or 403 is reported as denied, any other failure status as unreachable. Only `lore_get_run_blob` is cached: a run changes while it lives, a blob never does.
+Six read-only tools and one write tool over lore-api's run routes (`/api/floor-runs`, `/api/assembly-runs/{id}/*`), registered on laptops AND on the agent gateway. Without `LORE_API_URL` and `LORE_INGEST_TOKEN` each returns `Assembly-line runs require LORE_API_URL.`; a 401 or 403 is reported as denied, any other failure status as unreachable. Only `lore_get_run_blob` is cached: a run changes while it lives, a blob never does.
 
 #### `lore_list_runs`
 
@@ -461,6 +461,20 @@ One-line purpose: one whole blob a run refers to.
 | `hash` | yes | — | `sha256-<64 hex>`, from `lore_get_run_assets`. |
 
 - **Returns:** `{hash, contentType, size, text, truncated}`: text up to 1 MiB for a textual blob, metadata otherwise. Cached for a day.
+
+#### `lore_retry_station`
+
+One-line purpose: run one station of a run again (the run page's "Run this station").
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| `run_id` | yes | — | The run's id. |
+| `node` | yes | — | Node id of the station, from `lore_get_run`. |
+
+- **Returns:** `{run_id, pending}`; the floor reopens a finished or failed run. A 4xx (unknown node, run the floor refuses) is reported as `The Lore API refused lore_retry_station: …` with the floor's reason.
+- **Where it runs:** proxies `POST /api/assembly-runs/{id}/nodes/{node}/run` (scope `task`), `requested_by` `lore-mcp:<os user>` or `lore-mcp:agent`.
+- **Guard:** on the agent gateway a queued or running run is refused with `{refused}`: the gateway cannot tell a pod's run, and an agent's own run is always open.
+- **Cache/mutation:** mutation; spawns a station visit.
 
 ### Update
 
@@ -681,6 +695,7 @@ Quick-reference for the confusable clusters.
 | One station visit's log in an assembly-line run (by `run_id` + node name). | `lore_get_run_node_logs` |
 | The agent's turns across a run, or one visit's events. | `lore_get_run_transcript` |
 | What a run produced (bag, blob previews, pull files), then one blob whole. | `lore_get_run_assets`, `lore_get_run_blob` |
+| Run a failed station of a run again. | `lore_retry_station` |
 
 ### Spec-traceability
 

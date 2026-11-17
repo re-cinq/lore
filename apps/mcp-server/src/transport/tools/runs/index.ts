@@ -6,6 +6,7 @@ import { registerGetRunNodeLogsTool } from "./get-run-node-logs.js";
 import { registerGetRunTranscriptTool } from "./get-run-transcript.js";
 import { registerGetRunAssetsTool } from "./get-run-assets.js";
 import { registerGetRunBlobTool } from "./get-run-blob.js";
+import { registerRetryStationTool } from "./retry-station.js";
 
 export function registerRunTools(server: McpServer, mode: ServerMode) {
   registerListRunsTool(server, mode);
@@ -14,4 +15,5 @@ export function registerRunTools(server: McpServer, mode: ServerMode) {
   registerGetRunTranscriptTool(server);
   registerGetRunAssetsTool(server);
   registerGetRunBlobTool(server);
+  registerRetryStationTool(server, mode);
 }

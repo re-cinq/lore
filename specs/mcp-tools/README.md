@@ -85,6 +85,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 | `lore_get_run_transcript` | [spec](get-run-transcript/spec.md) | A run's agent turns, or one visit's events. | shared |
 | `lore_get_run_assets` | [spec](get-run-assets/spec.md) | A run's bag, blob previews and pull files. | shared |
 | `lore_get_run_blob` | [spec](get-run-blob/spec.md) | One blob a run refers to. | shared |
+| `lore_retry_station` | [spec](retry-station/spec.md) | Run one station of a run again; refused on the gateway for an open run. | shared |
 
 ## Repo (`repo/`)
 | Tool | Spec | Purpose | Scope |

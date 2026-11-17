@@ -14,10 +14,12 @@ export const RUNS_NEED_API = "Assembly-line runs require LORE_API_URL.";
 
 export type ApiGet = (path: string) => Promise<ProxyResult>;
 
+export type ApiPost = (path: string, body: unknown) => Promise<ProxyResult>;
+
 export interface RunRead {
   tool: string;
   op: string;
-  load: (get: ApiGet) => Promise<ProxyResult>;
+  load: (get: ApiGet, post: ApiPost) => Promise<ProxyResult>;
   /** Only for content that never changes once written, such as a blob. */
   cache?: { args: Record<string, unknown>; ttlSeconds: number };
 }
@@ -30,11 +32,13 @@ export async function readRun(read: RunRead): Promise<ToolText> {
   }
   const get: ApiGet = (path) =>
     fetchApiJson(`${creds.apiUrl}${path}`, creds.token);
+  const post: ApiPost = (path, body) =>
+    fetchApiJson(`${creds.apiUrl}${path}`, creds.token, body);
 
   try {
     const proxied = await withReadCache(
       read.cache && { tool: read.tool, ...read.cache },
-      () => read.load(get),
+      () => read.load(get, post),
       { label: false },
     );
 
