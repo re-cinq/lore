@@ -1,6 +1,10 @@
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { SPEC_REVIEW_RESULT_EVENT } from "@re-cinq/lore-shared/review/spec-review.js";
 
+export const SPEC_REVIEW_RESULT_EVENTS: readonly string[] = [
+  SPEC_REVIEW_RESULT_EVENT,
+];
+
 export function specReviewResultHandlers(): Map<string, EventHandler> {
   return new Map<string, EventHandler>([
     [SPEC_REVIEW_RESULT_EVENT, onSpecReviewResult()],
