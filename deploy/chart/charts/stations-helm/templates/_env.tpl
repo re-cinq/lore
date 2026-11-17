@@ -81,6 +81,14 @@ Usage:
       key: {{ .Values.anthropicKeySecret.key }}
       optional: true
 {{- end }}
+{{- if .Values.openaiKeySecret }}
+- name: OPENAI_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.openaiKeySecret.name }}
+      key: {{ .Values.openaiKeySecret.key }}
+      optional: true
+{{- end }}
 {{- if .Values.slackBotTokenSecret }}
 # For the stations that post to Slack (escalation notify, the daily digest).
 # Optional: without it those stations report the missing token instead of posting.

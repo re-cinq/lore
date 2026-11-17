@@ -9,17 +9,19 @@ type ContextModelFormProps = Pick<
 >;
 
 /** lore-api's `CONTEXT_PROVIDERS` and `DEFAULT_CONTEXT_MODELS` (libs/shared/src/domain/context-model.ts), which refuses any other provider on save; web-ui is not a workspace member and cannot import them. */
-const CONTEXT_PROVIDERS = ["off", "vertex", "anthropic"];
+const CONTEXT_PROVIDERS = ["off", "vertex", "anthropic", "openai"];
 
 export const DEFAULT_CONTEXT_MODELS: Record<string, string> = {
   vertex: "gemini-3-flash-preview",
   anthropic: "claude-haiku-4-5",
+  openai: "",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
   off: "Off",
   vertex: "Vertex (Gemini)",
   anthropic: "Anthropic (Claude)",
+  openai: "OpenAI-compatible",
 };
 
 const SUGGESTED_MODELS = [
@@ -98,11 +100,19 @@ function ModelField({ model }: { model: string }) {
         className={styles.monoInput}
       />
       <SuggestedModels />
-      <p className={styles.fieldNote}>
-        Left blank, Vertex writes with {DEFAULT_CONTEXT_MODELS.vertex} and
-        Anthropic with {DEFAULT_CONTEXT_MODELS.anthropic}.
-      </p>
+      <ModelNote />
     </>
+  );
+}
+
+function ModelNote() {
+  return (
+    <p className={styles.fieldNote}>
+      Left blank, Vertex writes with {DEFAULT_CONTEXT_MODELS.vertex} and
+      Anthropic with {DEFAULT_CONTEXT_MODELS.anthropic}. OpenAI-compatible has
+      no default: left blank it uses the deployment the install names in
+      LORE_FACT_MODEL.
+    </p>
   );
 }
 

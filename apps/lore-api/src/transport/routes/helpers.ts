@@ -1,13 +1,13 @@
 /** Route helpers: the graph-extraction LLM caller. */
 
 import type { Pool } from "pg";
-import { Llm } from "@re-cinq/lore-shared";
+import { Llm, llmConfigured } from "@re-cinq/lore-shared";
 
-/** Graph LLM caller via shared Llm singleton; undefined when Anthropic key is missing. */
+/** Graph LLM caller via shared Llm singleton; undefined when the selected vendor has no key. */
 export function makeGraphLlmCall(
   _pool: Pool | null,
 ): ((prompt: string) => Promise<string>) | undefined {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!llmConfigured(process.env)) {
     return undefined;
   }
 

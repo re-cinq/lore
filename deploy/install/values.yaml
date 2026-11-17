@@ -54,6 +54,10 @@ secrets:
     cookieSecret: ""
   # Optional: the model key Lore's own jobs use (not the agents' key).
   anthropicApiKey: ""
+  # Optional: the key of an OpenAI-compatible API (OpenAI, Microsoft Foundry) for
+  # Lore's own model calls and embeddings. See values.azure.example.yaml for the
+  # env entries that select it.
+  openaiApiKey: ""
   # Optional: the Slack app.
   slack:
     signingSecret: ""

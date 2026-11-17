@@ -23,6 +23,7 @@ vi.mock("@re-cinq/lore-shared", () => ({
   extractSummary: vi.fn(),
   reassembleSpec: vi.fn(),
   Llm: { instance: { complete: vi.fn().mockResolvedValue({ text: "ok" }) } },
+  llmConfigured: (env: NodeJS.ProcessEnv) => Boolean(env.ANTHROPIC_API_KEY),
 }));
 
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";

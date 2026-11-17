@@ -104,6 +104,16 @@ anthropicKeySecret:
   name: lore-stations-anthropic-key
   key: anthropic-api-key
 
+# Optional key for Lore's own model calls and embeddings against any
+# OpenAI-compatible API (OpenAI, Microsoft Foundry). Selected with the env
+# entries OPENAI_BASE_URL, LORE_LLM_PROVIDER=openai, LORE_FACT_MODEL,
+# LORE_EMBEDDING_PROVIDER=openai and LORE_EMBEDDING_MODEL; leave those unset
+# (they are not listed in env above on purpose, an empty value would still be
+# exported) and the secret is unused.
+openaiKeySecret:
+  name: lore-stations-openai-key
+  key: api-key
+
 # Optional org Admin API key (sk-ant-admin…) for the anthropic-cost-sync station
 # (moved here from lore-api in #1522). Absent → the sync skips and /spend degrades
 # to Lore-computed costs. Same secret as above, second key.

@@ -1,11 +1,24 @@
-/** Resolves the active {@link EmbeddingProvider} from env: `LORE_EMBEDDING_PROVIDER`, defaulting to Vertex. */
+/** Resolves the active {@link EmbeddingProvider} from env: `LORE_EMBEDDING_PROVIDER`, defaulting to Vertex; `openai` reads `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `LORE_EMBEDDING_MODEL`. */
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";
+import { OpenAiEmbeddingProvider } from "./openai-embedding-provider.js";
 import { VertexEmbeddingProvider } from "./vertex-embedding-provider.js";
 
-const PROVIDER_FACTORIES = new Map<string, () => EmbeddingProvider>([
+const PROVIDER_FACTORIES = new Map<
+  string,
+  (env: NodeJS.ProcessEnv) => EmbeddingProvider
+>([
   ["vertex", () => new VertexEmbeddingProvider()],
+  [
+    "openai",
+    (env) =>
+      new OpenAiEmbeddingProvider({
+        baseUrl: env.OPENAI_BASE_URL,
+        apiKey: env.OPENAI_API_KEY,
+        model: env.LORE_EMBEDDING_MODEL,
+      }),
+  ],
 ]);
 
 export function selectEmbeddingProvider(
@@ -20,5 +33,5 @@ export function selectEmbeddingProvider(
     `no embedding provider named "${name}"; known: ${[...PROVIDER_FACTORIES.keys()].join(", ")}`,
   );
 
-  return factory();
+  return factory(env);
 }

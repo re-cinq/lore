@@ -34,10 +34,13 @@ secrets:
   githubOAuth:
     clientId: CHANGE-ME
     clientSecret: CHANGE-ME
-  # The model key of Lore's own jobs, not the agents'. Lore's own jobs cannot
-  # call Microsoft Foundry yet, so with no Anthropic key delete this line.
-  # The agents' Foundry endpoints and keys go into agent-secrets (INSTALL.md 3.6).
-  anthropicApiKey: CHANGE-ME
+  # The key of the model endpoint Lore's own jobs and embeddings use, not the
+  # agents': the Foundry resource key (INSTALL.md 1.6). The agents' Foundry
+  # endpoints and keys go into agent-secrets (INSTALL.md 3.6).
+  openaiApiKey: CHANGE-ME
+  # With an Anthropic key instead, set anthropicApiKey and drop the OPENAI_* and
+  # LORE_*_PROVIDER entries below.
+  # anthropicApiKey: CHANGE-ME
   utopia:
     dbPassword: CHANGE-ME
     appDbPassword: CHANGE-ME
@@ -128,10 +131,19 @@ lore-platform:
       GITHUB_ORG: CHANGE-ME
       # A self-hosted GitHub Enterprise Server: its bare host name. Leave unset for github.com.
       # GITHUB_HOST: ghe.example.com
-      # Vertex needs Google Cloud; off it, Lore's own model calls use Anthropic.
-      LORE_EVAL_LLM_PROVIDER: anthropic
-      LORE_EVAL_LLM_MODEL: claude-haiku-4-5
-      LORE_CONTEXT_LLM_PROVIDER: anthropic
+      # Lore's own model calls and embeddings, on a Microsoft Foundry resource.
+      # Vertex needs Google Cloud, so every use is moved off it.
+      OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      LORE_LLM_PROVIDER: openai
+      # The name of the chat model deployment.
+      LORE_FACT_MODEL: CHANGE-ME
+      LORE_EVAL_LLM_PROVIDER: openai
+      # The chart's default eval model is a Gemini one: name the chat deployment here too.
+      LORE_EVAL_LLM_MODEL: CHANGE-ME
+      LORE_CONTEXT_LLM_PROVIDER: openai
+      LORE_EMBEDDING_PROVIDER: openai
+      # The name of the embedding deployment; it must serve 768 dimensions.
+      LORE_EMBEDDING_MODEL: text-embedding-3-small
   lore-ui:
     env:
       LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
@@ -144,5 +156,8 @@ lore-platform:
   lore-stations:
     env:
       LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      LORE_LLM_PROVIDER: openai
+      LORE_FACT_MODEL: CHANGE-ME
       # GITHUB_HOST: ghe.example.com
       LORE_UI_URL: https://lore.example.com

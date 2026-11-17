@@ -4,7 +4,12 @@ export const CONTEXT_PROVIDER_KEY = "context_llm_provider";
 export const CONTEXT_MODEL_KEY = "context_llm_model";
 
 /** What the settings page offers; "off" is stored rather than blank, because a blank org setting means "leave it alone". */
-export const CONTEXT_PROVIDERS = ["off", "vertex", "anthropic"] as const;
+export const CONTEXT_PROVIDERS = [
+  "off",
+  "vertex",
+  "anthropic",
+  "openai",
+] as const;
 
 /** The model a provider gets when the settings name none. */
 export const DEFAULT_CONTEXT_PROVIDER = "vertex";
@@ -12,6 +17,8 @@ export const DEFAULT_CONTEXT_PROVIDER = "vertex";
 export const DEFAULT_CONTEXT_MODELS: Record<string, string> = {
   vertex: "gemini-3-flash-preview",
   anthropic: "claude-haiku-4-5",
+  /** Blank: the OpenAI-compatible provider then writes with `LORE_FACT_MODEL`, the deployment name the install configured. */
+  openai: "",
 };
 
 export interface ContextModel {
