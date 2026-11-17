@@ -86,6 +86,18 @@ describe("DECOMPOSITION_EXAMPLE", () => {
     }).toEqual({ leftOut: true, noPlaceholder: true });
   });
 
+  it("forbids a catch-all task and caps a task at 8 spec_lines taken from its own missing or partial statements", () => {
+    expect({
+      noCatchAll: DECOMPOSITION_INSTRUCTIONS.includes(
+        "Never write a catch-all task or story",
+      ),
+      cap: DECOMPOSITION_INSTRUCTIONS.includes("no more than 8 `spec_lines`"),
+      ownStatements: DECOMPOSITION_INSTRUCTIONS.includes(
+        "Take every `spec_lines` entry from your own `statements` list",
+      ),
+    }).toEqual({ noCatchAll: true, cap: true, ownStatements: true });
+  });
+
   it("tells the agent each task becomes its own issue a developer implements from alone", () => {
     expect({
       ownIssue: DECOMPOSITION_INSTRUCTIONS.includes(
