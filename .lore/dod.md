@@ -13,9 +13,9 @@ The red bar is CI's to show: the `migrations.yml` CI workflow runs `compare-base
 
 ## Facets
 
-- [ ] Extract the role creation and `lore` schema creation SQL block from `scripts/infra/setup-local-schema.sh` into a new file, e.g., `scripts/infra/setup-local-roles.sql`.
-- [ ] Extract the ownership reconcile SQL block into a new file, e.g., `scripts/infra/setup-local-ownership.sql`.
-- [ ] Replace inline SQL blocks in `scripts/infra/setup-local-schema.sh` with commands piping those new files.
+- [x] Extract the role creation and `lore` schema creation SQL block from `scripts/infra/setup-local-schema.sh` into a new file, e.g., `scripts/infra/setup-local-roles.sql`.
+- [x] Extract the ownership reconcile SQL block into a new file, e.g., `scripts/infra/setup-local-ownership.sql`.
+- [x] Replace inline SQL blocks in `scripts/infra/setup-local-schema.sh` with commands piping those new files.
 
 ## Out of scope
 
