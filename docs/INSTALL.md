@@ -276,7 +276,7 @@ The chart is `lore-install`, published at `oci://ghcr.io/re-cinq/charts/lore-ins
 | Step | What you do |
 | ---- | ----------- |
 | 3.1 | Check the cluster is ready |
-| 3.2 | Get the chart |
+| 3.2 | Get the example values |
 | 3.3 | Fill in the values file |
 | 3.4 | Apply the database schema |
 | 3.5 | Install |
