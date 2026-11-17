@@ -10,6 +10,7 @@ on:
       - 'infra/**'
       - 'deploy/**'
       - 'scripts/check-lore-platform-render.sh'
+      - 'scripts/ci/package-install-chart.sh'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'
       - '.github/workflows/helm-render.yml'
@@ -31,3 +32,15 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: Lint + render umbrella chart
         run: ./scripts/check-lore-platform-render.sh
+
+  # The release publishes deploy/install with its three charts inside; this
+  # keeps that packaging from breaking between releases. It needs the floor
+  # chart version named in deploy/install/Chart.yaml to be published.
+  install-chart-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Package the install chart
+        run: bash scripts/ci/package-install-chart.sh v0.0.0 "$RUNNER_TEMP/install-chart"

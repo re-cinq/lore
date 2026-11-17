@@ -45,3 +45,45 @@ test("every umbrella deploy job records its image tag with bump-image-tag.sh and
     );
   }
 });
+
+function stepRuns(job, text) {
+  return job.steps.some((step) => String(step.run ?? "").includes(text));
+}
+
+const releaseJobs = parse(
+  readFileSync(".github/workflows/release.yml", "utf-8"),
+).jobs;
+
+test("the release workflow packages and pushes the lore-install chart with the script, with write access to packages", () => {
+  const job = releaseJobs.chart;
+
+  assert.deepEqual(
+    {
+      packages: job.permissions.packages,
+      packagesScript: stepRuns(job, "scripts/ci/package-install-chart.sh"),
+      pushes: stepRuns(job, "helm push"),
+    },
+    { packages: "write", packagesScript: true, pushes: true },
+  );
+});
+
+test("the GitHub release waits for the lore-install chart push", () => {
+  assert.deepEqual(releaseJobs.release.needs, ["images", "chart"]);
+});
+
+test("pull requests that change the install chart package it with the release script", () => {
+  const workflow = parse(
+    readFileSync(".github/workflows/helm-render.yml", "utf-8"),
+  );
+  const job = workflow.jobs["install-chart-package"];
+
+  assert.deepEqual(
+    {
+      watchesScript: workflow.on.pull_request.paths.includes(
+        "scripts/ci/package-install-chart.sh",
+      ),
+      runsScript: stepRuns(job, "scripts/ci/package-install-chart.sh v0.0.0"),
+    },
+    { watchesScript: true, runsScript: true },
+  );
+});
