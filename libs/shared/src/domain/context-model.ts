@@ -1,4 +1,4 @@
-// The model the context builder (backend lore-v2) writes with: the org settings page names it, the LORE_CONTEXT_LLM_* env is the fallback, Vertex gemini-3-flash-preview the default, and "off" leaves lore-v2 on the template assembly.
+// The model the context builder (backend lore-v2) writes with: the org settings page names it, the LORE_CONTEXT_LLM_* env is the fallback, then the install's LORE_LLM_PROVIDER when the builder can write with it, Vertex gemini-3-flash-preview the default, and "off" leaves lore-v2 on the template assembly.
 
 export const CONTEXT_PROVIDER_KEY = "context_llm_provider";
 export const CONTEXT_MODEL_KEY = "context_llm_model";
@@ -44,7 +44,15 @@ export function contextModelOf(
 
   return named
     ? modelFor(named, env.LORE_CONTEXT_LLM_MODEL)
-    : modelFor(DEFAULT_CONTEXT_PROVIDER, undefined);
+    : modelFor(processProviderOf(env), undefined);
+}
+
+/** The install's own model vendor when the builder can write with it, so an install with no Google Cloud never reaches for Vertex by default. */
+function processProviderOf(env: Named): string {
+  const vendor = env.LORE_LLM_PROVIDER?.toLowerCase() ?? "";
+  const writable = (CONTEXT_PROVIDERS as readonly string[]).includes(vendor);
+
+  return writable && vendor !== "off" ? vendor : DEFAULT_CONTEXT_PROVIDER;
 }
 
 function modelFor(provider: string, model: string | undefined): ContextModel {
