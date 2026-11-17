@@ -141,18 +141,20 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: re-cinq/lore
-          ref: v1.0.2          # the Lore release your install runs
+          ref: v1.0.3          # the Lore release your install runs
           path: lore
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
         working-directory: lore
+      - run: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
+        working-directory: lore
       - run: npm run pack:lint -w apps/lore-api -- "$GITHUB_WORKSPACE/pack"
         working-directory: lore
 ```
 
-The linter fills any `${NAME}` an agent file names with a placeholder, because your install's environment is not available in CI.
+`npm ci` does not build the workspace libraries, and the linter imports two of them, so the workflow builds them first. The linter fills any `${NAME}` an agent file names with a placeholder, because your install's environment is not available in CI.
 
 ## A custom stations service
 
