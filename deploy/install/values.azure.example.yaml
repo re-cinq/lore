@@ -135,6 +135,8 @@ lore-platform:
       LORE_WEBHOOK_URL: https://lore-events.example.com/api/events
       LORE_API_URL: https://lore-api.example.com
       LORE_UI_URL: https://lore.example.com
+      # Traces over OTLP/HTTP to a collector or the Azure Monitor OpenTelemetry endpoint. Unset, lore-api tries Cloud Trace, which is not there on Azure.
+      # OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4318
       GITHUB_ORG: CHANGE-ME
       # A self-hosted GitHub Enterprise Server: its bare host name. Leave unset for github.com.
       # GITHUB_HOST: ghe.example.com
