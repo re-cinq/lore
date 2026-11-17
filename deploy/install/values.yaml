@@ -61,9 +61,9 @@ secrets:
 
 # ---- The floor, with the agent subsystem it bundles ---------------------------
 # Any value of the floor chart can be set here:
-#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.3
+#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.4
 floor:
-  version: "0.5.3"
+  version: "0.5.4"
   # The agent subsystem: controller and CRDs. Agents run in the release namespace.
   subsystem:
     enabled: true

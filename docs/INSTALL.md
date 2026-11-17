@@ -339,7 +339,7 @@ cd lore
 helm dependency update deploy/install
 ```
 
-The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.3`; the floor chart is public and needs no login.
+The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.4`; the floor chart is public and needs no login.
 
 ### 3.3 Fill in the values file
 
