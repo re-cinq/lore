@@ -52,7 +52,6 @@ describe("statementItems", () => {
 
     expect(fr1).toEqual({
       externalId: "stmt:specs/mirror/spec.md#0000",
-      doc_time: "2026-10-15T10:00:00Z",
       e: [
         [`${DOC}#chain`, "Section", true],
         [stmt, "Statement", true],

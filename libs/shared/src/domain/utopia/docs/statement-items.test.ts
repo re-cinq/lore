@@ -14,7 +14,7 @@ const SPEC = [
 ].join("\n");
 
 describe("statementItems", () => {
-  it("returns one stmt item per statement, dated at the commit time, and no doc item", () => {
+  it("returns one stmt item per statement with no doc_time though the commit is dated 2026-10-15T10:00:00Z, and no doc item", () => {
     const pushed = statementItems({
       repo: "re-cinq/lore",
       path: "specs/mirror/spec.md",
@@ -27,9 +27,9 @@ describe("statementItems", () => {
     expect(
       pushed.map(({ externalId, doc_time }) => [externalId, doc_time]),
     ).toEqual([
-      ["stmt:specs/mirror/spec.md#0000", "2026-10-15T10:00:00Z"],
-      ["stmt:specs/mirror/spec.md#0001", "2026-10-15T10:00:00Z"],
-      ["stmt:specs/mirror/spec.md#0002", "2026-10-15T10:00:00Z"],
+      ["stmt:specs/mirror/spec.md#0000", undefined],
+      ["stmt:specs/mirror/spec.md#0001", undefined],
+      ["stmt:specs/mirror/spec.md#0002", undefined],
     ]);
   });
 });
