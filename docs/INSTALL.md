@@ -530,7 +530,7 @@ Agents that are already on the floor keep the image they were seeded with: Lore 
 
 ### 3.9 Your own agents and assembly lines
 
-A pack is a git repository of your own that Lore applies on top of the agents and assembly lines it ships: text added to a shipped agent's prompt, a whole agent replaced, new agents and new assembly lines. Start from the template [re-cinq/lore-assembly-lines](https://github.com/re-cinq/lore-assembly-lines) and follow its [setup guide](https://github.com/re-cinq/lore-assembly-lines/blob/main/docs/setup.md). In short, install the Lore GitHub App on your copy and set the copy in `my-values.yaml`, on both lore-api and the stations service:
+A pack is a git repository of your own holding the assembly lines and agent prompts your install runs. Whatever is in it runs: edit a prompt or a line's steps, add agents and lines of your own, and delete a file to hand that part back to Lore. Start from the template [re-cinq/lore-assembly-lines](https://github.com/re-cinq/lore-assembly-lines) and follow its [setup guide](https://github.com/re-cinq/lore-assembly-lines/blob/main/docs/setup.md). In short, install the Lore GitHub App on your copy and set the copy in `my-values.yaml`, on both lore-api and the stations service:
 
 ```yaml
 lore-platform:
