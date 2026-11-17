@@ -11,7 +11,10 @@ import {
   readPackSync,
   writePackSync,
 } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
-import { readFloorPipelineFiles } from "../floor/seed-floor-pipelines.js";
+import {
+  pipelineOfText,
+  readFloorPipelineFiles,
+} from "../floor/seed-floor-pipelines.js";
 import type { PackDeps } from "./apply-pack.js";
 import { fetchPack, type PackReader } from "./fetch-pack.js";
 import { agentBodyOf, packSettingsOf } from "./floor-agent-settings.js";
@@ -56,22 +59,33 @@ function packConfigOf(env: Env) {
   return config;
 }
 
-function floorPorts(
-  env: Env,
-): Pick<
+type FloorPorts = Pick<
   PackDeps,
-  "floorAgent" | "putAgent" | "importPipeline" | "archivePipeline"
-> {
+  | "floorAgent"
+  | "putAgent"
+  | "importPipeline"
+  | "archivePipeline"
+  | "putShippedPipeline"
+>;
+
+function floorPorts(env: Env): FloorPorts {
   const floor = floorClientFrom(env);
-  const access = {
-    url: env.FLOOR_API_URL ?? "",
-    token: env.FLOOR_SERVICE_TOKEN ?? "",
-  };
+  const access = floorAccessOf(env);
 
   return {
     ...agentPorts(floor.agentDefinitions),
     importPipeline: (pipeline) => importPipeline(access, pipeline),
     archivePipeline: (name) => floor.lines.archive(name),
+    putShippedPipeline: async (name) => {
+      await importPipeline(access, await shippedPipeline(name, env));
+    },
+  };
+}
+
+function floorAccessOf(env: Env) {
+  return {
+    url: env.FLOOR_API_URL ?? "",
+    token: env.FLOOR_SERVICE_TOKEN ?? "",
   };
 }
 
@@ -121,4 +135,16 @@ export async function shippedCatalog() {
     pipelines: files.map((file) => readPipelineFile(file.text).line?.id ?? ""),
     agents: shippedFloorAgents(),
   };
+}
+
+/** Lore's own file of a shipped line, its agents left out: an agent the pack dropped is put back on its own. */
+async function shippedPipeline(name: string, env: Env) {
+  const pipelines = (await readFloorPipelineFiles()).map((file) =>
+    pipelineOfText(file.text, env),
+  );
+  const pipeline = pipelines.find((shipped) => shipped.line?.id === name);
+
+  enforceTrue(pipeline, Error, `Lore ships no line ${name}`);
+
+  return { ...pipeline, agentDefinitions: [] };
 }

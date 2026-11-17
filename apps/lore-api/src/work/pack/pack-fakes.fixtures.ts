@@ -56,6 +56,12 @@ stations:
     produces: []
 `;
 
+/** The pack's own version of the shipped line code-review, worked by the shipped agent reviewer. */
+export const CODE_REVIEW_PIPELINE_TEXT = TRIAGE_PIPELINE_TEXT.replace(
+  "id: triage",
+  "id: code-review",
+).replace("agent_definition: triager", "agent_definition: reviewer");
+
 export const EXTENSION: PackFile = {
   path: "code-review/agents/reviewer.extra.md",
   text: "Check our naming rules.",
@@ -74,6 +80,8 @@ export interface FakePack {
   floorAgents: Map<string, FloorAgentSettings>;
   floorPipelines: Set<string>;
   archived: string[];
+  /** The shipped lines put back, by name. */
+  shippedPuts: string[];
   agentPuts: string[];
   sync: PackSyncState | null;
   deps(): PackDeps;
@@ -89,6 +97,7 @@ export function fakePack(): FakePack {
     floorAgents: new Map(),
     floorPipelines: new Set(),
     archived: [],
+    shippedPuts: [],
     agentPuts: [],
     sync: null,
     deps: () => depsOf(pack),
@@ -145,7 +154,7 @@ function agentPortsOf(
 
 function pipelinePortsOf(
   pack: FakePack,
-): Pick<PackDeps, "importPipeline" | "archivePipeline"> {
+): Pick<PackDeps, "importPipeline" | "archivePipeline" | "putShippedPipeline"> {
   return {
     importPipeline: async (pipeline: Pipeline): Promise<Put[]> => {
       const id = pipeline.line?.id ?? "";
@@ -158,6 +167,9 @@ function pipelinePortsOf(
     archivePipeline: async (name) => {
       pack.floorPipelines.delete(name);
       pack.archived.push(name);
+    },
+    putShippedPipeline: async (name) => {
+      pack.shippedPuts.push(name);
     },
   };
 }

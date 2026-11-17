@@ -1,4 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
+import type { Pool } from "pg";
+import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
+import { readPackSync } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { isFloorProblem } from "@re-cinq/floor-client";
@@ -24,6 +27,8 @@ export interface PipelineText {
 
 export interface SeedDeps {
   files(): Promise<PipelineText[]>;
+  /** The lines the client's pack holds its own version of: the pack puts those, and a boot must not put Lore's back in front of them. */
+  packLines(): Promise<string[]>;
   env: Record<string, string | undefined>;
   /** The agent definitions the floor already holds: those are saved there and never re-seeded from a file. */
   heldAgentDefinitions(): Promise<string[]>;
@@ -125,23 +130,33 @@ export interface Seeded {
 export async function seedFloorPipelines(deps: SeedDeps): Promise<Seeded> {
   const files = await deps.files();
   const held = new Set(await deps.heldAgentDefinitions());
+  const packLines = new Set(await deps.packLines());
   const tally: Seeded = { changed: [], failed: [] };
 
   for (const file of files) {
-    await putOne(deps, held, file, tally);
+    await putOne(deps, { held, packLines }, file, tally);
   }
 
   return { changed: [...new Set(tally.changed)], failed: tally.failed };
 }
 
+interface Skips {
+  held: ReadonlySet<string>;
+  packLines: ReadonlySet<string>;
+}
+
 async function putOne(
   deps: SeedDeps,
-  held: ReadonlySet<string>,
+  { held, packLines }: Skips,
   file: PipelineText,
   tally: Seeded,
 ): Promise<void> {
   try {
     const pipeline = unseededOnly(pipelineOfText(file.text, deps.env), held);
+
+    if (packLines.has(pipeline.line?.id ?? "")) {
+      return;
+    }
     const puts = await deps.importPipeline(pipeline);
 
     tally.changed.push(...puts.filter((put) => put.changed).map(putName));
@@ -174,16 +189,30 @@ function putName(put: Put): string {
 
 export function productionSeedDeps(
   env: Record<string, string | undefined> = process.env,
+  pool: Pool | null = null,
 ): SeedDeps {
   const floor = floorAccessOf(env);
 
   return {
     env,
     files: readFloorPipelineFiles,
+    packLines: () => packLinesOf(env, pool),
     heldAgentDefinitions: async () =>
       (await floorClientFrom(env).agentDefinitions.list()).map((row) => row.id),
     importPipeline: (pipeline) => importPipeline(floor, pipeline),
   };
+}
+
+/** The lines the last sync of the configured pack set; none when no pack is configured, whatever an old sync recorded. */
+async function packLinesOf(
+  env: Record<string, string | undefined>,
+  pool: Pool | null,
+): Promise<string[]> {
+  if (!pool || !packConfig(env)) {
+    return [];
+  }
+
+  return (await readPackSync(pool))?.pipelines ?? [];
 }
 
 function floorAccessOf(env: Record<string, string | undefined>) {

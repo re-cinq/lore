@@ -17,7 +17,15 @@ export function agentFileOf(
     : undefined;
 }
 
+/** A markdown or YAML file inside a line folder: Lore reads it, or refuses it as a path it does not read. A file at the top, under `docs/` or under a dot folder is not the pack's. */
+const LINE_FOLDER_FILE = /^(?!docs\/)[^./][^/]*\/.+\.(md|ya?ml)$/;
+
 export function isPackFile(path: string): boolean {
+  return LINE_FOLDER_FILE.test(path);
+}
+
+/** A path Lore applies: a pipeline or an agent file. */
+export function isReadPath(path: string): boolean {
   return (
     pipelineFolderOf(path) !== undefined || agentFileOf(path) !== undefined
   );

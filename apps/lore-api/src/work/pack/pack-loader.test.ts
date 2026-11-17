@@ -253,22 +253,35 @@ describe("packOverlay", () => {
     }).toEqual({ lines: ["triage"], stations: ["work"], refused: [] });
   });
 
-  it("refuses a pipeline folder named like a shipped pipeline", () => {
+  it("imports code-review/pipeline.yaml as the pack's version of the shipped line code-review", () => {
     const overlay = overlayOf({
       "code-review/pipeline.yaml": pipelineYaml("code-review", "reviewer"),
     });
 
     expect({
+      lines: overlay.pipelines.map((pipeline) => pipeline.line?.id),
+      refused: overlay.refused,
+    }).toEqual({ lines: ["code-review"], refused: [] });
+  });
+
+  it("refuses code-review/pipeline.yml and code-review/agent/reviewer.md, naming the paths Lore reads", () => {
+    const overlay = overlayOf({
+      "code-review/pipeline.yml": pipelineYaml("code-review", "reviewer"),
+      "code-review/agent/reviewer.md": TRIAGE_AGENT,
+    });
+    const reason =
+      "Lore does not read this path: a line folder holds pipeline.yaml, agents/<agent>.md and agents/<agent>.extra.md";
+
+    expect({
       lines: overlay.pipelines.length,
+      agents: overlay.agents.size,
       refused: overlay.refused,
     }).toEqual({
       lines: 0,
+      agents: 0,
       refused: [
-        {
-          path: "code-review/pipeline.yaml",
-          reason:
-            "code-review is a pipeline Lore ships, and a pack cannot replace its shape",
-        },
+        { path: "code-review/agent/reviewer.md", reason },
+        { path: "code-review/pipeline.yml", reason },
       ],
     });
   });
