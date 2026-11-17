@@ -159,6 +159,25 @@ const anchoredTestTuple = JSON.stringify({
   ],
 });
 
+const coveringDefinitionTuple = JSON.stringify({
+  e: [
+    ["re-cinq/lore", "Repository", true],
+    ["re-cinq/lore:t1", "Test", true],
+    [RUNNER, "SourceFile", true],
+    [`${RUNNER}#Runner.step`, "CodeDefinition", true],
+    ["re-cinq/lore:src/setup.ts", "SourceFile", true],
+  ],
+  s: [
+    row("re-cinq/lore:t1", "title", { value: "prints Lore-Task" }),
+    row("re-cinq/lore:t1", "path", { value: TEST_FILE }),
+    row("re-cinq/lore:t1", "anchor_hash", { value: "1e7912b3" }),
+    row("re-cinq/lore:t1", "outcome", { value: "passed" }),
+    row(RUNNER, "defines", { object: `${RUNNER}#Runner.step` }),
+    row("re-cinq/lore:t1", "covers", { object: `${RUNNER}#Runner.step` }),
+    row("re-cinq/lore:t1", "covers", { object: "re-cinq/lore:src/setup.ts" }),
+  ],
+});
+
 const classTuple = JSON.stringify({
   e: [
     [RUNNER, "SourceFile", true],
@@ -261,6 +280,28 @@ describe("a test: item that names its test by anchor hash alone", () => {
     expect(citedSpans(`test:${TEST_FILE}#1e7912b3`, anchoredTestTuple)).toEqual(
       [{ path: TEST_FILE, start: null, end: null, anchorHash: "1e7912b3" }],
     );
+  });
+});
+
+describe("a test: item that covers definitions", () => {
+  it("renders covers Runner.step in src/runner.ts and covers the file src/setup.ts", () => {
+    expect(
+      coverageText(`test:${TEST_FILE}#1e7912b3`, coveringDefinitionTuple),
+    ).toEqual(
+      [
+        `prints Lore-Task (${TEST_FILE}) @1e7912b3 outcome=passed`,
+        "  covers Runner.step (src/runner.ts)",
+        "  covers src/setup.ts",
+      ].join("\n"),
+    );
+  });
+
+  it("cites the test alone, since no covered range names lines", () => {
+    expect(
+      citedSpans(`test:${TEST_FILE}#1e7912b3`, coveringDefinitionTuple),
+    ).toEqual([
+      { path: TEST_FILE, start: null, end: null, anchorHash: "1e7912b3" },
+    ]);
   });
 });
 

@@ -7,7 +7,10 @@ import {
   relation,
   type StatementItem,
 } from "../statements.js";
-import { testReportItems } from "./test-report-statements.js";
+import {
+  testReportItems,
+  type TestReportInput,
+} from "./test-report-statements.js";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const BLOB = "https://github.com/re-cinq/lore/blob/HEAD";
@@ -24,8 +27,27 @@ const ROUNDS_TEST: TestDescriptor = {
   spec: "specs/a/spec.md#2",
 };
 
-const build = (tests: TestDescriptor[], results: TaggedRunResult[] = []) =>
-  testReportItems({ repo: "re-cinq/lore", tests, results });
+const RUNNER = "re-cinq/lore:src/runner.ts";
+
+const build = (
+  tests: TestDescriptor[],
+  results: TaggedRunResult[] = [],
+  definitions: TestReportInput["definitions"] = new Map(),
+) => testReportItems({ repo: "re-cinq/lore", tests, results, definitions });
+
+const coveringRunner = (shift: number) =>
+  build(
+    [ROUNDS_TEST],
+    passing([
+      { file: "src/runner.ts", startLine: 40 + shift, endLine: 55 + shift },
+    ]),
+    new Map([
+      [
+        "src/runner.ts",
+        [{ symbol: "step", start: 38 + shift, end: 60 + shift }],
+      ],
+    ]),
+  );
 
 const passing = (
   covered: TaggedRunResult["covered"] = [],
@@ -114,7 +136,7 @@ describe("testReportItems", () => {
     expect(at(30, 35)).toEqual(at(4, 9));
   });
 
-  it("covers each file once as one relation qualified by its merged lines and adds no path or known_as rows for the covered file", () => {
+  it("covers src/a.ts once, with no lines qualifier, when it has no known definitions, and adds no path or known_as rows for it", () => {
     const pushed = build(
       [ROUNDS_TEST],
       passing([
@@ -129,10 +151,67 @@ describe("testReportItems", () => {
       rows: pushed[0].s.filter((row) => row[1] === source),
       entity: pushed[0].e.filter(([name]) => name === source),
     }).toEqual({
-      covers: [relation(ROUNDS, "covers", source, { lines: "3-9" })],
+      covers: [relation(ROUNDS, "covers", source)],
       rows: [],
       entity: [[source, "SourceFile", true]],
     });
+  });
+
+  it("covers runner.ts#step, which src/runner.ts defines, for lines 40-55 inside step at 38-60", () => {
+    const pushed = coveringRunner(0);
+
+    expect({
+      covers: relationsOf(pushed, "covers"),
+      defines: relationsOf(pushed, "defines"),
+      entities: pushed[0].e.filter(([name]) => name.startsWith(RUNNER)),
+    }).toEqual({
+      covers: [relation(ROUNDS, "covers", `${RUNNER}#step`)],
+      defines: [relation(RUNNER, "defines", `${RUNNER}#step`)],
+      entities: [
+        [RUNNER, "SourceFile", true],
+        [`${RUNNER}#step`, "CodeDefinition", true],
+      ],
+    });
+  });
+
+  it("returns equal items when step and its covered lines move down 5 lines", () => {
+    expect(coveringRunner(5)).toEqual(coveringRunner(0));
+  });
+
+  it("covers Runner.advance, not the class Runner around it, for lines 12-14 inside advance at 10-20", () => {
+    const pushed = build(
+      [ROUNDS_TEST],
+      passing([{ file: "src/runner.ts", startLine: 12, endLine: 14 }]),
+      new Map([
+        [
+          "src/runner.ts",
+          [
+            { symbol: "Runner", start: 1, end: 30 },
+            { symbol: "Runner.advance", start: 10, end: 20 },
+          ],
+        ],
+      ]),
+    );
+
+    expect(relationsOf(pushed, "covers")).toEqual([
+      relation(ROUNDS, "covers", `${RUNNER}#Runner.advance`),
+    ]);
+  });
+
+  it("covers the file src/runner.ts for lines 1-3 outside every definition, beside step for lines 40-55", () => {
+    const pushed = build(
+      [ROUNDS_TEST],
+      passing([
+        { file: "src/runner.ts", startLine: 1, endLine: 3 },
+        { file: "src/runner.ts", startLine: 40, endLine: 55 },
+      ]),
+      new Map([["src/runner.ts", [{ symbol: "step", start: 38, end: 60 }]]]),
+    );
+
+    expect(relationsOf(pushed, "covers")).toEqual([
+      relation(ROUNDS, "covers", RUNNER),
+      relation(ROUNDS, "covers", `${RUNNER}#step`),
+    ]);
   });
 
   it("splits a test covering 400 files into #hash, #hash.2 and #hash.3, each repeating the test and its outcome and each within the push limits", () => {
@@ -284,9 +363,7 @@ describe("testReportItems", () => {
     }).toEqual({
       ids: ["test:src/a.test.ts#483b3bb1"],
       titles: [attribute(ROUNDS, "title", "counts rounds")],
-      permalinks: [
-        attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts`),
-      ],
+      permalinks: [attribute(ROUNDS, "permalink", `${BLOB}/src/a.test.ts`)],
     });
   });
 

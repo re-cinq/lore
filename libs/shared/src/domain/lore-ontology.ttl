@@ -151,10 +151,10 @@ lore:decided_by a owl:ObjectProperty ;
 lore:covers a owl:ObjectProperty ;
   rdfs:label "covers" ;
   utopia:chain_next "in:changes" ;
-  rdfs:comment "A test executes lines of a source file. The relation's lines qualifier says which, as 'a-b,c-d'." ;
+  rdfs:comment "A test runs a definition of a source file, or the file itself where it ran code outside every definition." ;
   utopia:temporal "eternal" ;
   rdfs:domain lore:Test ;
-  rdfs:range lore:SourceFile .
+  rdfs:range lore:SourceFile, lore:CodeDefinition .
 
 lore:extends a owl:ObjectProperty ;
   rdfs:label "extends" ;

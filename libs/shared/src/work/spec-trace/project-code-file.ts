@@ -1,5 +1,7 @@
 /** Code projection (issue #1992): one CodeChunk per definition of a TypeScript/JavaScript file, a method as `Class.method`, with a `CodeChunk.references` edge to every in-repo definition it calls and the content hash of its declaration line as `anchor_hash`. Content-hash gated per chunk, so re-projecting an unchanged file writes nothing. `code-callers.ts` matches `symbol_name` exactly, so `step` is not `Runner.step`. */
 
+import { mapWithLimit } from "../../lib/concurrency/map-with-limit.js";
+import type { CodeSpan } from "../../domain/utopia/test-coverage/test-report-statements.js";
 import { createHash } from "node:crypto";
 import { extname, posix } from "node:path";
 import type {
@@ -100,6 +102,48 @@ export async function listCodeFilePaths(
 
   return [...new Set(definitions.map((chunk) => chunk["CodeChunk.file_path"]))];
 }
+
+/** The definitions the graph holds for each of the files, by path, sorted by first line; a file it holds none for is left out. What a test report's covered lines are named by in Utopia (utopia-graph-mirror FR9.4). */
+export async function codeDefinitionsOf(
+  dgraph: DgraphClientPort,
+  repo: string,
+  filePaths: readonly string[],
+): Promise<Map<string, CodeSpan[]>> {
+  const perFile = await mapWithLimit(
+    [...filePaths],
+    FILE_READS,
+    async (path) => {
+      const prefix = codeChunkXid(repo, modulePathOf(path), "");
+      const chunks = await queryChunks(
+        dgraph,
+        `query q($repo: string, $fp: string) {
+        chunks(func: eq(CodeChunk.file_path, $fp)) @filter(eq(CodeChunk.repo, $repo)) {
+          CodeChunk.xid
+          CodeChunk.symbol_name
+          CodeChunk.start_line
+          CodeChunk.end_line
+        }
+      }`,
+        { $repo: repo, $fp: path },
+      );
+      const spans = chunks
+        .filter((chunk) => chunk["CodeChunk.xid"].startsWith(prefix))
+        .map((chunk) => ({
+          symbol: chunk["CodeChunk.symbol_name"] ?? "",
+          start: chunk["CodeChunk.start_line"] ?? 0,
+          end: chunk["CodeChunk.end_line"] ?? 0,
+        }))
+        .filter((span) => span.symbol !== "")
+        .sort((a, b) => a.start - b.start || b.end - a.end);
+
+      return [path, spans] as const;
+    },
+  );
+
+  return new Map(perFile.filter(([, spans]) => spans.length > 0));
+}
+
+const FILE_READS = 8;
 
 /** Every chunk the file should hold, each with the in-repo definitions it calls; calls to a package or an unknown name are dropped, since the graph is intra-repo. */
 async function planChunks(doc: SourceDocument): Promise<PlannedChunk[]> {
@@ -290,7 +334,12 @@ async function readFileChunks(
   return chunks.filter((chunk) => chunk["CodeChunk.xid"].startsWith(prefix));
 }
 
-type QueriedChunk = StoredChunk & { "CodeChunk.file_path": string };
+type QueriedChunk = StoredChunk & {
+  "CodeChunk.file_path": string;
+  "CodeChunk.symbol_name"?: string;
+  "CodeChunk.start_line"?: number;
+  "CodeChunk.end_line"?: number;
+};
 
 async function queryChunks(
   dgraph: DgraphClientPort,
