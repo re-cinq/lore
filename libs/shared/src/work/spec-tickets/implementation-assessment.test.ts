@@ -204,13 +204,26 @@ describe("assessImplementation", () => {
 
   it("keeps the missing colour prop and its reason when the claim says why its linked test does not show it", async () => {
     const result = decomposition();
-    const reason = "The test only renders the default colour.";
+    const reason = "src/widget.test.ts only renders the default colour.";
 
     result.statements![1] = { ...result.statements![1], reason };
     expect(await assessTested(result)).toMatchObject({
       objections: [],
       decomposition: { statements: [{ line: 5 }, { line: 6, reason }] },
     });
+  });
+
+  it("hands back the missing colour prop when its reason names no linked test, as the boilerplate of run 3a2045ab did", async () => {
+    const result = decomposition();
+    const reason =
+      "Behavior not implemented yet; linked test does not cover this requirement.";
+
+    result.statements![1] = { ...result.statements![1], reason };
+    expect((await assessTested(result)).objections).toEqual([
+      expect.stringContaining(
+        "line 6: missing or unassessed, but its linked test src/widget.test.ts#L1 exists",
+      ),
+    ]);
   });
 
   it("raises nothing for the missing colour prop when its linked test is not at the commit", async () => {
@@ -275,7 +288,7 @@ describe("assessImplementation", () => {
 
   it("keeps the settled colour prop missing with its reason when the agent says why its test does not show it", async () => {
     const result = decomposition();
-    const reason = "The test only renders the default colour.";
+    const reason = "src/widget.test.ts only renders the default colour.";
 
     result.statements![1] = { ...result.statements![1], reason };
     expect(await assessSettled(result)).toMatchObject({
@@ -283,6 +296,18 @@ describe("assessImplementation", () => {
       decomposition: {
         statements: [{ line: 5 }, { line: 6, status: "missing", reason }],
       },
+    });
+  });
+
+  it("takes the settled colour prop as present when the missing claim's reason names no linked test", async () => {
+    const result = decomposition();
+    const reason =
+      "Behavior not implemented yet; linked test does not cover this requirement.";
+
+    result.statements![1] = { ...result.statements![1], reason };
+    expect(await assessSettled(result)).toMatchObject({
+      objections: [],
+      decomposition: { statements: [{ line: 5 }, SETTLED] },
     });
   });
 

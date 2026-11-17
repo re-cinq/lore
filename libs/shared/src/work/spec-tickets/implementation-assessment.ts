@@ -208,7 +208,7 @@ function unclaimed(
   settled: StatementAssessment | undefined,
   tests?: string[],
 ): CheckedStatement {
-  return settled && claim?.reason === undefined
+  return settled && !explainsTests(claim?.reason, tests)
     ? { statement: settled, objections: [] }
     : missingClaim(statement, claim, tests);
 }
@@ -254,7 +254,7 @@ function missingClaim(
 ): CheckedStatement {
   const reason = claim?.reason;
 
-  if (reason !== undefined) {
+  if (reason !== undefined && explainsTests(reason, tests)) {
     return { statement: { ...statement, reason }, objections: [] };
   }
   const objections =
@@ -263,11 +263,23 @@ function missingClaim(
   return { statement, objections };
 }
 
+// A reason that names none of the line's linked tests is boilerplate: run 3a2045ab marked all 196 statements of a shipped spec missing with one such sentence (specs/spec-tickets FR23).
+function explainsTests(
+  reason: string | undefined,
+  tests: string[] = [],
+): boolean {
+  return (
+    reason !== undefined &&
+    (tests.length === 0 ||
+      tests.some((test) => reason.includes(test.split("#")[0])))
+  );
+}
+
 function testedObjection(
   { file, line }: StatementAssessment,
   tests: string[],
 ): string {
-  return `${file} line ${line}: missing or unassessed, but its linked test ${tests.join(", ")} exists at this commit; read the code that test exercises, then claim present or partial with evidence, or keep missing and set reason to why the test does not show the behaviour.`;
+  return `${file} line ${line}: missing or unassessed, but its linked test ${tests.join(", ")} exists at this commit; read the code that test exercises, then claim present or partial with evidence, or keep missing and set reason to why that test file, named by its path, does not show the behaviour.`;
 }
 
 function rejectedStatement(statement: StatementAssessment): CheckedStatement {
