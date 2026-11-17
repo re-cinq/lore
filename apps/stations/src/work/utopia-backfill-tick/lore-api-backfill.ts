@@ -72,6 +72,11 @@ export function postWebhookEnsure(
   return postLoreApi(target, `/api/repos/${repo}/webhook/ensure`);
 }
 
+/** The apply of the client's pack repo, under the lease lore-api holds: what a push to it and the catch-up tick both ask for. */
+export function postPackSync(target: LoreApiTarget): Promise<BackfillAnswer> {
+  return postLoreApi(target, "/api/pack/sync");
+}
+
 /** The memory walk of the org base, `<org>/memory`, which holds the memories and episodes no onboarded repo owns. */
 export function postOrgMemory(target: LoreApiTarget): Promise<BackfillAnswer> {
   return postLoreApi(target, "/api/utopia/memory");

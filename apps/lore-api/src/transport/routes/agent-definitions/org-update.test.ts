@@ -25,6 +25,27 @@ const auditPool = {
   query: async () => ({ rows: [] }),
 } as unknown as Pool;
 
+const packSyncOf = (agents: string[]) =>
+  JSON.stringify({
+    repo: "acme/lore-pack",
+    ref: null,
+    commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+    applied_at: "2026-11-17T10:00:00.000Z",
+    agent_count: agents.length,
+    line_count: 0,
+    extra_count: 0,
+    refused_files: [],
+    agents,
+    pipelines: [],
+    error: null,
+    error_at: null,
+  });
+
+const poolOfPack = (agents: string[]) =>
+  ({
+    query: async () => ({ rows: [{ value: packSyncOf(agents) }] }),
+  }) as unknown as Pool;
+
 async function floorWithFixCi(): Promise<InMemoryAgentDefinitions> {
   const floor = new InMemoryAgentDefinitions();
 
@@ -35,13 +56,14 @@ async function floorWithFixCi(): Promise<InMemoryAgentDefinitions> {
 
 async function server(
   floor: InMemoryAgentDefinitions | null,
+  pool: Pool = auditPool,
 ): Promise<Hapi.Server> {
   const s = Hapi.server();
 
-  registerBearerScope(s, () => auditPool);
+  registerBearerScope(s, () => pool);
   s.route(
     orgAgentDefinitionUpdateRoute(
-      () => auditPool,
+      () => pool,
       () => floor,
     ),
   );
@@ -64,6 +86,34 @@ describe("PUT /api/agent-definitions/{name}", () => {
   });
   afterEach(() => {
     process.env = { ...originalEnv };
+  });
+
+  it("answers 409 pack_managed and leaves the floor's fix-ci on claude-sonnet-4-6 when the pack manages fix-ci", async () => {
+    const floor = await floorWithFixCi();
+
+    const res = await put(await server(floor, poolOfPack(["fix-ci"])), {
+      name: "fix-ci",
+      model: "claude-opus-4-8",
+    });
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      model: (await floor.get("fix-ci"))?.body.settings.model,
+    }).toEqual({
+      status: 409,
+      body: { error: "pack_managed" },
+      model: "claude-sonnet-4-6",
+    });
+  });
+
+  it("answers 200 for fix-ci when the pack manages only acme-triage", async () => {
+    const res = await put(
+      await server(await floorWithFixCi(), poolOfPack(["acme-triage"])),
+      { name: "fix-ci", timeout_minutes: 45 },
+    );
+
+    expect(res.statusCode).toBe(200);
   });
 
   it("puts fix-ci's settings on the floor with model claude-opus-4-8 and timeout 45, answering the written definition", async () => {

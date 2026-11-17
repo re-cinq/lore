@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import {
   loreApiTarget,
   postBackfill,
+  postPackSync,
   postUtopiaCommits,
   postUtopiaReleases,
   postUtopiaTracker,
@@ -135,6 +136,22 @@ describe("postBackfill", () => {
     expect(seen).toEqual({
       method: "POST",
       url: "/api/repos/re-cinq/lore/utopia/releases",
+      authorization: "Bearer tok-1",
+      body: "",
+    });
+  });
+
+  it("posts the pack sync with the station token and no body", async () => {
+    const { baseUrl, seen } = await loreApi((res) =>
+      res.writeHead(200).end('{"status":"unconfigured"}'),
+    );
+
+    expect(
+      await postPackSync({ baseUrl, token: "tok-1", timeoutMs: 5_000 }),
+    ).toEqual({ status: 200, body: '{"status":"unconfigured"}' });
+    expect(seen).toEqual({
+      method: "POST",
+      url: "/api/pack/sync",
       authorization: "Bearer tok-1",
       body: "",
     });

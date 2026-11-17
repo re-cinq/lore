@@ -39,6 +39,7 @@ function deps(
       },
       updateTimeout: () => Promise.resolve(),
       updateSkills: () => Promise.resolve(),
+      updateEnv: () => Promise.resolve(),
     },
     markApplied: (version) => {
       marked.push(version);
@@ -106,7 +107,7 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001 to floor/0007, whose every prompt, timeout and skills list comes from a shipped agent file", async () => {
+  it("names floor/0001 to floor/0013, whose every prompt, timeout, skills list and env comes from a shipped agent file", async () => {
     const shipped = shippedFloorAgents();
     const written = await everyWrite();
 
@@ -130,6 +131,7 @@ describe("readFloorMigrations", () => {
         "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
         "floor/0012_spec_tickets_decompose_scoped_tasks",
         "floor/0013_ticket_agents_search_first",
+        "floor/0014_commit_author_from_settings",
       ],
       unshipped: [],
     });
@@ -274,6 +276,25 @@ describe("floor/0013_ticket_agents_search_first", () => {
   });
 });
 
+describe("floor/0014_commit_author_from_settings", () => {
+  it("writes the shipped prompt and env of the six agents that commit, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0014_commit_author_from_settings",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
+      [
+        "gap-fill",
+        "loop-dod",
+        "loop-fix-ci",
+        "loop-tdd-round",
+        "spec-draft",
+        "spec-rework",
+      ].flatMap((agent) => [`prompt ${agent}`, `env ${agent}`]),
+    );
+  });
+});
+
 describe("updateSkills", () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -356,8 +377,75 @@ describe("updateSkills", () => {
   });
 });
 
+describe("updateEnv", () => {
+  const author = {
+    LORE_COMMIT_AUTHOR_NAME: "Acme Bot",
+    LORE_COMMIT_AUTHOR_EMAIL: "bot@acme.example",
+  };
+  const saved = {
+    settings: {
+      model: "claude-opus-4-7",
+      prompt: "Round the tests.",
+      image: "ghcr.io/re-cinq/agent:1",
+      timeoutMinutes: 15,
+      config: {
+        skills: ["lore-context"],
+        env: { LORE_BRANCH_TESTS: "/workspace/target", GIT_AUTHOR_NAME: "Old" },
+      },
+    },
+  };
+
+  it("adds the shipped env with the environment filled in to the org default's env and keeps the env it already has", async () => {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("loop-tdd-round", saved);
+    await floorApiFor(new FloorAgentDefs(floor), author).updateEnv(
+      "loop-tdd-round",
+      "loop-tdd-round.md",
+    );
+
+    expect((await floor.get("loop-tdd-round"))?.body).toEqual({
+      ...saved,
+      settings: {
+        ...saved.settings,
+        config: {
+          ...saved.settings.config,
+          env: {
+            LORE_BRANCH_TESTS: "/workspace/target",
+            GIT_AUTHOR_NAME: "Acme Bot",
+            GIT_AUTHOR_EMAIL: "bot@acme.example",
+            GIT_COMMITTER_NAME: "Acme Bot",
+            GIT_COMMITTER_EMAIL: "bot@acme.example",
+          },
+        },
+      },
+    });
+  });
+
+  it("throws naming the variable when the environment lacks one the shipped env names", async () => {
+    const api = floorApiFor(
+      new FloorAgentDefs(new InMemoryAgentDefinitions()),
+      {},
+    );
+
+    await expect(
+      api.updateEnv("loop-tdd-round", "loop-tdd-round.md"),
+    ).rejects.toThrow(
+      new Error("LORE_COMMIT_AUTHOR_NAME is not set, and a pipeline names it"),
+    );
+  });
+
+  it("throws for a shipped file with no env", async () => {
+    const api = floorApiFor(new FloorAgentDefs(new InMemoryAgentDefinitions()));
+
+    await expect(api.updateEnv("loop-sync", "loop-sync.md")).rejects.toThrow(
+      new Error("no shipped agent file loop-sync.md has an env"),
+    );
+  });
+});
+
 interface Write {
-  field: "prompt" | "timeout_minutes" | "skills";
+  field: "prompt" | "timeout_minutes" | "skills" | "env";
   agent: string;
   file: string;
 }
@@ -369,7 +457,9 @@ function shippedValue(
 ): unknown {
   const agent = shipped.get(file.replace(/\.md$/, ""));
 
-  return field === "skills" ? agent?.config?.skills : agent?.[field];
+  return field === "skills" || field === "env"
+    ? agent?.config?.[field]
+    : agent?.[field];
 }
 
 async function everyWrite(only?: string) {
@@ -388,6 +478,7 @@ async function everyWrite(only?: string) {
       updatePrompt: record("prompt"),
       updateTimeout: record("timeout_minutes"),
       updateSkills: record("skills"),
+      updateEnv: record("env"),
     });
   }
 

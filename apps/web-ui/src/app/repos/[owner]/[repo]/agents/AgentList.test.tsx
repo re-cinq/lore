@@ -63,6 +63,41 @@ describe("AgentList", () => {
     expect(hrefs).toContain(`${base}/agents/general/edit`);
   });
 
+  it("links Edit for the project variant of triage and not for the pack-managed org default of general, keeping the row's cell count", () => {
+    const packManaged = { ...org, pack_managed: true };
+    const variant = { ...org, name: "triage", project_id: "p1" };
+    const { container } = render(
+      <AgentList base={base} agents={[packManaged, variant]} />,
+    );
+    const rows = Array.from(container.querySelectorAll("tbody tr"));
+
+    expect({
+      hrefs: rows.map((row) =>
+        Array.from(row.querySelectorAll("a")).map((a) =>
+          a.getAttribute("href"),
+        ),
+      ),
+      cells: rows.map((row) => row.querySelectorAll("td").length),
+      note: rows[0].lastElementChild?.textContent,
+    }).toEqual({
+      hrefs: [[], [`${base}/agents/triage/edit`]],
+      cells: [7, 7],
+      note: "Managed by pack",
+    });
+  });
+
+  it("hides Edit for a pack-managed row in the editable org catalog too", () => {
+    const { container } = render(
+      <AgentList
+        base={null}
+        orgEditable
+        agents={[{ ...org, pack_managed: true }]}
+      />,
+    );
+
+    expect(container.querySelectorAll("a")).toHaveLength(0);
+  });
+
   it("offers Remove on the project-scoped row only — an org default has no override to drop", () => {
     const { container } = render(
       <AgentList base={base} agents={[org, project]} remove={vi.fn()} />,

@@ -2,6 +2,7 @@ import "server-only";
 import { apiFetch, type FetchOptions } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
+import type { PackSync } from "./pack";
 
 // `lore.repos` reads, typed once — replaces nine call sites' own SELECTs. RepoRecord aliases the libs/shared model via openapi.json/schema.d.ts; timestamps arrive as ISO strings (server types them as Date).
 export type RepoRecord = components["schemas"]["Repo"];
@@ -109,6 +110,7 @@ export function getOrgSettings(): Promise<
   ApiResult<{
     settings: { key: string; value: string; updated_at: string }[];
     repo_count: number;
+    pack_sync: PackSync | null;
   }>
 > {
   return apiFetch("lore-api", "/api/settings");

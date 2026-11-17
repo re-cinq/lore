@@ -239,6 +239,14 @@
       "types": "./dist/domain/context-model.d.ts",
       "default": "./dist/domain/context-model.js"
     },
+    "./pack-config.js": {
+      "types": "./dist/domain/pack-config.d.ts",
+      "default": "./dist/domain/pack-config.js"
+    },
+    "./pack-sync-result-line.js": {
+      "types": "./dist/domain/pack-sync-result-line.d.ts",
+      "default": "./dist/domain/pack-sync-result-line.js"
+    },
     "./session-length.js": {
       "types": "./dist/domain/session-length.d.ts",
       "default": "./dist/domain/session-length.js"

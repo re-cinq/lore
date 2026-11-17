@@ -60,6 +60,22 @@ const def = {
   project_id: "p1",
 };
 
+const packSyncOf = (agents: string[]) =>
+  JSON.stringify({
+    repo: "acme/lore-pack",
+    ref: null,
+    commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+    applied_at: "2026-11-17T10:00:00.000Z",
+    agent_count: agents.length,
+    line_count: 0,
+    extra_count: 0,
+    refused_files: [],
+    agents,
+    pipelines: [],
+    error: null,
+    error_at: null,
+  });
+
 describe("routes — agents", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -77,12 +93,14 @@ describe("routes — agents", () => {
     {
       headers = {},
       pool = makePool(),
+      rows = [],
     }: {
       headers?: Record<string, string>;
       pool?: ReturnType<typeof makePool>;
+      rows?: unknown[];
     } = {},
   ) {
-    pool.query.mockResolvedValue({});
+    pool.query.mockResolvedValue({ rows });
     const payload = body === undefined ? undefined : JSON.stringify(body);
 
     return buildServer(() => pool as any)
@@ -105,14 +123,41 @@ describe("routes — agents", () => {
       fakeAgents.list.mockResolvedValue([def]);
       const { res } = await call(BASE, "GET");
 
-      expect(res.result).toEqual({ agents: [def] });
+      expect(res.result).toEqual({
+        agents: [{ ...def, pack_managed: false }],
+      });
+    });
+
+    it("flags the org default of general and triage pack_managed and the project variant of triage not, when the pack manages both", async () => {
+      fakeAgents.list.mockResolvedValue([
+        { ...def, project_id: null },
+        { ...def, name: "triage", project_id: "p1" },
+        { ...def, name: "triage", project_id: null },
+      ]);
+      const { res } = await call(BASE, "GET", undefined, {
+        rows: [{ value: packSyncOf(["general", "triage"]) }],
+      });
+
+      expect(
+        (res.result as { agents: Array<Record<string, unknown>> }).agents.map(
+          ({ name, project_id, pack_managed }) => ({
+            name,
+            project_id,
+            pack_managed,
+          }),
+        ),
+      ).toEqual([
+        { name: "general", project_id: null, pack_managed: true },
+        { name: "triage", project_id: "p1", pack_managed: false },
+        { name: "triage", project_id: null, pack_managed: true },
+      ]);
     });
 
     it("resolves one agent by name", async () => {
       fakeAgents.resolve.mockResolvedValue(def);
       const { res } = await call(`${BASE}/general`, "GET");
 
-      expect(res.result).toEqual(def);
+      expect(res.result).toEqual({ ...def, pack_managed: false });
       expect(fakeAgents.resolve).toHaveBeenCalledWith("general");
     });
 

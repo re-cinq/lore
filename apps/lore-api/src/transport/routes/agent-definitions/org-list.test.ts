@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Pool } from "pg";
 import Hapi from "@hapi/hapi";
 import { registerBearerScope } from "../../http/bearer-scope.js";
 import { orgAgentDefinitionsRoute } from "./org-list.js";
@@ -10,13 +11,45 @@ import {
 
 const originalEnv = { ...process.env };
 
+const NO_SYNC = { query: async () => ({ rows: [] }) } as unknown as Pool;
+
+const poolOfPack = (agents: string[]) =>
+  ({
+    query: async () => ({
+      rows: [
+        {
+          value: JSON.stringify({
+            repo: "acme/lore-pack",
+            ref: null,
+            commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+            applied_at: "2026-11-17T10:00:00.000Z",
+            agent_count: agents.length,
+            line_count: 0,
+            extra_count: 0,
+            refused_files: [],
+            agents,
+            pipelines: [],
+            error: null,
+            error_at: null,
+          }),
+        },
+      ],
+    }),
+  }) as unknown as Pool;
+
 async function server(
   floor: InMemoryAgentDefinitions | null,
+  pool: Pool = NO_SYNC,
 ): Promise<Hapi.Server> {
   const s = Hapi.server();
 
-  registerBearerScope(s, () => null);
-  s.route(orgAgentDefinitionsRoute(() => floor));
+  registerBearerScope(s, () => pool);
+  s.route(
+    orgAgentDefinitionsRoute(
+      () => pool,
+      () => floor,
+    ),
+  );
 
   return s;
 }
@@ -57,6 +90,26 @@ describe("GET /api/agent-definitions", () => {
 
     expect(await listedAgents(await server(floor))).toMatchObject([
       { name: "loop-tdd", model: "claude-opus-4-7", project_id: null },
+    ]);
+  });
+
+  it("flags acme-triage pack_managed and loop-tdd not when the pack manages acme-triage", async () => {
+    const floor = new InMemoryAgentDefinitions();
+    const settings = {
+      model: "claude-opus-4-7",
+      prompt: "Go.",
+      image: "ghcr.io/re-cinq/agent:1",
+      timeoutMinutes: 60,
+    };
+
+    await floor.put("acme-triage", { settings });
+    await floor.put("loop-tdd", { settings });
+
+    expect(
+      await listedAgents(await server(floor, poolOfPack(["acme-triage"]))),
+    ).toMatchObject([
+      { name: "acme-triage", pack_managed: true },
+      { name: "loop-tdd", pack_managed: false },
     ]);
   });
 

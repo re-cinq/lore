@@ -8,7 +8,7 @@ import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { skillsSourceWrite } from "../agents/skills-source.js";
-import type { SeedFailure } from "./seed-floor-pipelines.js";
+import { withEnvironment, type SeedFailure } from "./seed-floor-pipelines.js";
 
 export interface FloorMigrationApi {
   /** Writes the prompt of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor. */
@@ -17,6 +17,8 @@ export interface FloorMigrationApi {
   updateTimeout(agent: string, file: string): Promise<void>;
   /** Writes the `config.skills` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor, with the skills source when it has none. */
   updateSkills(agent: string, file: string): Promise<void>;
+  /** Merges the `config.env` of libs/shared/src/agent-defaults/<file>, its ${NAME} placeholders filled from the environment, into the agent's org default on the floor. */
+  updateEnv(agent: string, file: string): Promise<void>;
 }
 
 export type FloorMigration = (floor: FloorMigrationApi) => Promise<void>;
@@ -117,11 +119,17 @@ function ledgerOf(
 function floorApiOf(
   env: Record<string, string | undefined>,
 ): FloorMigrationApi {
-  return floorApiFor(new FloorAgentDefs(floorClientFrom(env).agentDefinitions));
+  return floorApiFor(
+    new FloorAgentDefs(floorClientFrom(env).agentDefinitions),
+    env,
+  );
 }
 
 /** What a migration may do to the floor's agents, each value read from the agent's shipped md file. */
-export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
+export function floorApiFor(
+  agentDefs: FloorAgentDefs,
+  env: Record<string, string | undefined> = process.env,
+): FloorMigrationApi {
   const shipped = shippedFloorAgents();
 
   return {
@@ -135,6 +143,8 @@ export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
     },
     updateSkills: async (agent, file) =>
       await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
+    updateEnv: async (agent, file) =>
+      await updateOrgEnv(agentDefs, agent, filledEnvOf(shipped, file, env)),
   };
 }
 
@@ -172,6 +182,14 @@ async function updateOrgSkills(
   );
 }
 
+async function updateOrgEnv(
+  agentDefs: FloorAgentDefs,
+  agent: string,
+  env: Record<string, string>,
+): Promise<void> {
+  await agentDefs.updateOrg(agent, {}, { env, inheritedConfig: null });
+}
+
 function skillsOf(shipped: ShippedAgents, file: string): string[] {
   const settings = shipped.get(path.basename(file, ".md"));
   const skills = settings?.config?.skills;
@@ -183,4 +201,26 @@ function skillsOf(shipped: ShippedAgents, file: string): string[] {
   );
 
   return skills;
+}
+
+function filledEnvOf(
+  shipped: ShippedAgents,
+  file: string,
+  env: Record<string, string | undefined>,
+): Record<string, string> {
+  const config = shipped.get(path.basename(file, ".md"))?.config;
+  const written = config?.env;
+
+  enforceTrue(
+    written && Object.keys(written).length > 0,
+    Error,
+    `no shipped agent file ${file} has an env`,
+  );
+
+  return Object.fromEntries(
+    Object.entries(written).map(([name, value]) => [
+      name,
+      withEnvironment(value, env),
+    ]),
+  );
 }

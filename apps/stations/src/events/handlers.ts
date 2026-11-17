@@ -41,6 +41,9 @@ import {
   loopProgressHandlers,
   loopProgressProductionDeps,
 } from "./loop-progress-handlers.js";
+import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
+import { packPushHandlers, type PackPushDeps } from "./pack-push-handlers.js";
+import { packSyncAnswerLine } from "../work/pack-sync-tick/pack-sync-answer.js";
 import { addHandlers } from "./compose-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { renameAgentVariants } from "../outbound/agent-variants.js";
@@ -48,6 +51,7 @@ import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
 import { eventProxy } from "../outbound/queues.js";
 import {
   loreApiTarget,
+  postPackSync,
   postUtopiaCommits,
   postUtopiaReleases,
   postUtopiaTracker,
@@ -58,6 +62,7 @@ import {
   trackerAnswerLine,
 } from "../work/utopia-backfill-tick/commits-answer.js";
 import { NO_LORE_API } from "../work/utopia-backfill-tick/run.js";
+import { NO_LORE_API as NO_PACK_LORE_API } from "../work/pack-sync-tick/run.js";
 import { floorRepoOf } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { triageStart } from "../work/issue-triage-tick/issue-triage-tick.js";
 import type { PullFileChange } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
@@ -306,6 +311,7 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   }
 
   addHandlers(handlers, repoEventHandlers(repoEventDeps));
+  addHandlers(handlers, packPushHandlers(packPushDeps()));
 
   if (floorConfigured()) {
     addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
@@ -318,4 +324,18 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   addHandlers(handlers, loopProgressHandlers(loopProgressProductionDeps));
 
   return handlers;
+}
+
+/** The pack repo this service watches; the sync itself is lore-api's, under its lease. */
+function packPushDeps(env: NodeJS.ProcessEnv = process.env): PackPushDeps {
+  return {
+    config: packConfig(env),
+    sync: async () => {
+      const target = loreApiTarget();
+
+      return target
+        ? packSyncAnswerLine(await postPackSync(target))
+        : NO_PACK_LORE_API;
+    },
+  };
 }

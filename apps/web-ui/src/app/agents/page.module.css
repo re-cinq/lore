@@ -88,3 +88,10 @@
   pointer-events: none;
   cursor: progress;
 }
+
+/* A pack-managed card has no Edit; this takes its place at the card's foot. */
+.packManaged {
+  margin: auto 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}

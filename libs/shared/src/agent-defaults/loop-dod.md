@@ -11,6 +11,11 @@ prices:
     output_per_million: 12
     cache_read_per_million: 0.2
 config:
+  env:
+    GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_AUTHOR_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
+    GIT_COMMITTER_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_COMMITTER_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
   max_turns: 200
   # Autopilot holds an ephemeral-storage limit to its request, so the limit
   # is what evicts: runs aa9c26e4's dod pods were evicted at 2Gi by npm ci.
@@ -241,7 +246,6 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   SOURCE, so nothing needs building for a test to see your change, and
   the build is the 950 MB step that OOM-killed run abac6ee9 while it
   rebuilt libs/shared for a test that never needed it.
-- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it with a
   short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token
