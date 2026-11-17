@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { PlanMeta } from "@re-cinq/planning-document";
 import ActionMenu from "@/components/ActionMenu";
 import ConfirmedActionButton from "@/components/ConfirmedActionButton";
+import Skeleton from "@/components/Skeleton";
 import type { PlanStory } from "@/lib/api/plans";
 import type { PlanPageState } from "@/lib/plan-page-state";
 import { canRegenerate } from "@/lib/plan-run-phase";
@@ -19,6 +20,8 @@ interface PlanToolbarProps {
   meta: PlanMeta;
   run: PlanRun | null;
   state: PlanPageState;
+  /** Set until the run's channel has said what the run is: `run` and `state` say nothing yet, so the bar neither summarizes a run nor offers to regenerate one. */
+  runPending?: "loading" | "failed";
   /** Attached to the bar so the page can keep the editor's outline below it. */
   barRef?: RefObject<HTMLDivElement | null>;
   /** The plan's user story; the actions menu's popup changes it. */
@@ -72,17 +75,28 @@ function useMeasuredBar(barRef?: RefObject<HTMLDivElement | null>) {
 }
 
 function ToolbarActions(props: PlanToolbarProps) {
-  const { run, state, draftAgain } = props;
-
   return (
     <div className={styles.actions}>
+      <RunActions {...props} />
+      <PlanActionMenu {...props} />
+    </div>
+  );
+}
+
+// A run still loading holds its place with the summary's shape; one that failed to load is the error's to say, below the bar.
+function RunActions({ run, state, runPending, draftAgain }: PlanToolbarProps) {
+  if (runPending) {
+    return runPending === "loading" ? <Skeleton width={240} /> : null;
+  }
+
+  return (
+    <>
       <RunSummary run={run} state={state} />
       {run && <RunLink run={run} />}
       {offersRegenerate(run, state) && (
         <RegeneratePlan draftAgain={draftAgain} />
       )}
-      <PlanActionMenu {...props} />
-    </div>
+    </>
   );
 }
 
