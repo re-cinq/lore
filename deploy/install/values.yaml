@@ -4,7 +4,7 @@
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
 #
-#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 \
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2 \
 #     -n lore-floor --create-namespace -f my-values.yaml
 
 # Created before anything else. lore-floor is the release namespace and comes
@@ -110,8 +110,8 @@ utopia:
   # Not public: pulled with ghcr-pull-secret, like the Lore images.
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.32
-    digest: sha256:93f6418d5be78b22b5ef27d3d148683aab001f1945390056635072bd6c385186
+    tag: 0.1.0-re.33
+    digest: sha256:ba51a0959504475dff15d300460ca2b6b10b0768ec35988890ffba6409e04f47
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
@@ -127,8 +127,8 @@ utopia:
 # lore-db-helm, and platform for ingresses, Dgraph and monitoring.
 #
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
-# the chart published for release v1.0.1 pins all five images (the four tags below and
-# agentImage) to v1.0.1, so an install does not depend on what `latest` is that
+# the chart published for release v1.0.2 pins all five images (the four tags below and
+# agentImage) to v1.0.2, so an install does not depend on what `latest` is that
 # day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
 # ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
 # newer release, upgrade with its chart version (--version 1.1.0); do not
@@ -139,7 +139,7 @@ lore-platform:
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "v1.0.1"
+      tag: "v1.0.2"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -152,15 +152,15 @@ lore-platform:
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
       # The image agent pods work in. Public.
-      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.1
+      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.2
   lore-ui:
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "v1.0.1"
+      tag: "v1.0.2"
   lore-stations:
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "v1.0.1"
+      tag: "v1.0.2"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -168,7 +168,7 @@ lore-platform:
   lore-mcp-gateway:
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "v1.0.1"
+      tag: "v1.0.2"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:

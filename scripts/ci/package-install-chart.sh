@@ -65,7 +65,10 @@ platform_tgz="$(grep -E '^lore-install/charts/lore-platform-[0-9][^/]*\.tgz$' <<
 grep -Eq -- '(^|/)lore-platform/charts/lore-api/Chart.yaml$' <<<"$platform_listing" \
   || fail "the lore-platform chart inside ${ARCHIVE} holds no lore-api subchart"
 
-helm template lore "$ARCHIVE" -n lore-floor -f "$REPO/$VALUES_EXAMPLE" >/dev/null \
+rendered="$(helm template lore "$ARCHIVE" -n lore-floor -f "$REPO/$VALUES_EXAMPLE")" \
   || fail "helm template of ${ARCHIVE} with ${VALUES_EXAMPLE} failed"
+# A client cluster has no secret store: the chart renders every Secret itself.
+! grep -q '^kind: ExternalSecret$' <<<"$rendered" \
+  || fail "${ARCHIVE} renders an ExternalSecret with ${VALUES_EXAMPLE}"
 
 echo "[lore] ${ARCHIVE} holds the three dependencies and renders with ${VALUES_EXAMPLE}"
