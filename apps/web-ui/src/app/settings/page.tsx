@@ -6,7 +6,7 @@ import { getPack, packCardState, syncPackNow } from "@/lib/api/pack";
 import { listGithubInstallations } from "@/lib/api/github-installations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { githubHost } from "@/lib/github-host";
+import { githubHost, githubUrls } from "@/lib/github-host";
 import { githubAppInstallUrl } from "./github-app-install-url";
 import { DEFAULT_CONTEXT_MODELS } from "./ContextModelForm";
 import SettingsView, {
@@ -81,6 +81,7 @@ function integrationsFrom(
     githubInstallations: loaded.githubInstallations,
     githubInstallUrl: installUrlFromEnv(),
     packSync: loaded.packSync,
+    githubWebUrl: githubUrls(githubHost()).web,
   };
 }
 
