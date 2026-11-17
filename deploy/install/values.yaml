@@ -110,8 +110,8 @@ utopia:
   # Not public: pulled with ghcr-pull-secret, like the Lore images.
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.34
-    digest: sha256:964c2d24b3bac8d3f14291d7bb041642d22686c321462cbe5038f9b3f43b13da
+    tag: 0.1.0-re.35
+    digest: sha256:737e04c76ca0cfdf061cf68acb9626d59c098502e0962590312127bd8f76fa6c
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
