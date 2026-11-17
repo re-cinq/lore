@@ -94,7 +94,7 @@ These are **assumed, not installed**, by Lore's chart; on our GKE they come from
 | DNS | A records for the hostnames in 1.4, pointing at the ingress controller's public IP. external-dns reading the `external-dns.alpha.kubernetes.io/hostname` annotation, or records made by hand | external-dns |
 | CloudNativePG operator | **required**: Utopia runs its own database with it (`clusters.postgresql.cnpg.io`). Lore's own database can use it too (1.3); backups to object storage need its barman-cloud plugin | CNPG operator in a shared namespace (`cnpg_operator_namespace`), plugin v0.11.0 (re-cinq/infrastructure) |
 | Secret store | optional. External Secrets Operator with a `ClusterSecretStore` on the client's vault, or the infra team hands the Lore team the values and we create plain Secrets (1.5) | ESO + GCP Secret Manager, `ClusterSecretStore/gcp-secret-manager` (re-cinq/infrastructure) |
-| Metrics | optional. kube-prometheus-stack; every Lore service and the floor serve Prometheus text on a `metrics` port (:9464) | `enable_monitoring` ([ADR-050](../adrs/ADR-050-prometheus-grafana-metrics.md)) |
+| Metrics | optional. kube-prometheus-stack; every Lore service and the floor serve Prometheus text on a `metrics` port (:9464). The install in section 3 installs neither Prometheus nor Grafana; `lore-platform.platform.monitoring.enabled: true` turns on the ServiceMonitors when kube-prometheus-stack is on the cluster | `enable_monitoring` ([ADR-050](../adrs/ADR-050-prometheus-grafana-metrics.md)) |
 
 ### 1.3 Databases and disks (infra team)
 
@@ -127,14 +127,14 @@ In-cluster paths that NetworkPolicies must allow:
 | From | To | Port |
 | ---- | -- | ---- |
 | agent pods (label `agents.re-cinq.com/component: job`, namespace `lore-floor`) | cluster DNS, and NodeLocal DNSCache if present | 53 |
-| agent pods | the public internet (github.com, api.anthropic.com, generativelanguage.googleapis.com, npm, ghcr.io), private ranges and the cloud metadata address excluded | 443 |
+| agent pods | the public internet (github.com, api.anthropic.com, generativelanguage.googleapis.com, npm, ghcr.io; with Microsoft Foundry, `*.openai.azure.com` and `*.services.ai.azure.com`), private ranges and the cloud metadata address excluded | 443 |
 | agent pods | floor api pods, same namespace | 8080 |
 | agent pods | `lore-mcp-gateway` in `lore-api` (the MCP server and the skills registry the pod fetches at start) | 8080 |
 | lore-api, lore-stations | floor api (`http://lore-floor-api.lore-floor.svc.cluster.local:8080`) | 8080 |
 | lore-ui, lore-stations, lore-mcp-gateway | lore-api (`http://lore-api.lore-api.svc.cluster.local:3000`) | 3000 |
 | lore-api, lore-ui, lore-stations | Postgres; lore-api also Dgraph (`:8080`) | 5432, 8080 |
 
-On a self-hosted GitHub Enterprise Server the second row's `github.com` is the server's host (see [1.6.1](#161-github-enterprise-server)); a server on a private address needs its own rule in `floor.agentNetworkPolicy.extraEgress`, because the policy excludes the private ranges.
+On a self-hosted GitHub Enterprise Server the second row's `github.com` is the server's host (see [1.6.1](#161-github-enterprise)); a server on a private address needs its own rule in `floor.agentNetworkPolicy.extraEgress`, because the policy excludes the private ranges. The same holds for a Foundry resource reached through a private endpoint.
 
 The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress`, which `deploy/install/values.yaml` sets. Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
 
@@ -174,7 +174,7 @@ The install in section 3 creates every Secret below from the values file (`secre
 | ------ | ---- | ---------- |
 | `floor-api` | `serviceToken`, `visitTokenSecret`, `gitCredentialToken` | `openssl rand -hex 32` each. `serviceToken` is what every client (Lore, the CLI) authenticates with |
 | `floor-postgres` | `connectionString` | `postgres://user:password@host:5432/floor` |
-| `agent-secrets` | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, optionally `GEMINI_API_KEY`; plus `lore-mcp-auth` = `Bearer <lore-ingest-token>` | the model credential every agent pod runs with, and the header the pod's Lore MCP server is called with. The cluster agent also writes per-visit tokens here |
+| `agent-secrets` | `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, optionally `GEMINI_API_KEY`; or, on Microsoft Foundry, `AGENT_PROVIDER` with an endpoint and a key per CLI (3.6); plus `lore-mcp-auth` = `Bearer <lore-ingest-token>` | the model credential every agent pod runs with, and the header the pod's Lore MCP server is called with. The cluster agent also writes per-visit tokens here |
 
 **Optional:** `lore-stations/lore-reviewer-app` (a second GitHub App that approves pull requests for auto-merge), `lore-gemini-api-key`, and the OAuth + cookie secrets of Grafana, Headlamp and Utopia (cookie secrets are exactly 16, 24 or 32 bytes).
 
@@ -188,20 +188,33 @@ The install in section 3 creates every Secret below from the values file (`secre
 | **Slack app** (optional) | a Slack admin | from `scripts/slack-app-manifest.yaml`: bot scopes `chat:write`, `commands`, `users:read`, `users:read.email`, `reactions:read`; slash command `/lore` and events at `https://<lore_api_url>/api/webhook/slack` and `/slack-events` |
 | **ghcr.io read token** ([step by step](github-setup.md#3-the-registry-token)) | the Lore team (re-cinq) | a `read:packages` token of a member of the re-cinq organization, for the non-public images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui,utopia}`. `lore-stations`, `lore-agent`, the floor and subsystem images (`ghcr.io/re-cinq/{floor,ai-agent-controller,ai-agent}`) and the third-party ones (`ghcr.io/cloudnative-pg/postgresql`, `dgraph/standalone`, `curlimages/curl`, `alpine`) are public |
 | **Sign-in for Utopia** | the client | an OpenID Connect client (the chart's default issuer is Google, `https://accounts.google.com`) with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`; the email domains allowed to sign in. Values: client ID, client secret |
-| **Model access** | the client | agent pods: an Anthropic API key, or a Claude Code OAuth token (`claude setup-token`, bills a subscription), optionally a Gemini API key; which key an agent reads is per model family (`clusterAgent.modelSecretKeys`). lore-api and stations: an Anthropic key (or Gemini, or an Ollama endpoint; one use can run on its own vendor through `LORE_<USE>_LLM_PROVIDER` and `LORE_<USE>_LLM_MODEL`) |
+| **Model access** | the client | agent pods: an Anthropic API key, or a Claude Code OAuth token (`claude setup-token`, bills a subscription), optionally a Gemini API key; which key an agent reads is per model family (`clusterAgent.modelSecretKeys`). Or **Microsoft Foundry** for Claude Code and Codex agents, see below. lore-api and stations: an Anthropic key (or Gemini, or an Ollama endpoint; one use can run on its own vendor through `LORE_<USE>_LLM_PROVIDER` and `LORE_<USE>_LLM_MODEL`) |
 | **Embeddings** | see below | |
 
 **Embeddings are Vertex AI only, today.** `LORE_EMBEDDING_PROVIDER` knows one vendor: Vertex `text-embedding-005`, 768 dimensions, reached through Google application-default credentials and a GCP project (`libs/shared/src/outbound/embeddings/select-embedding-provider.ts`). Without it Lore starts and runs, but every vector column stays empty and search falls back to keywords, which the evals put far below hybrid search. A client not on GCP has two options: a GCP project used for nothing but Vertex, with a service-account key mounted in lore-api (against this repo's no-long-lived-credentials rule, so a conscious exception), or a second `EmbeddingProvider` for the client's vendor at 768 dimensions (Azure OpenAI `text-embedding-3-small` fits), which is a code change tracked under [Known rough edges](#known-rough-edges).
 
-### 1.6.1 GitHub Enterprise Server
+**Agents on Microsoft Foundry.** Claude Code and Codex agents can run on Foundry. The client provides a Foundry deployment named exactly after each model id in the agent definitions, the two endpoints (`https://<resource>.openai.azure.com/openai/v1` for Codex, `https://<resource>.services.ai.azure.com/anthropic` for Claude Code), and an API key for each endpoint. Entra ID is not supported. The switch is a set of entries in the `agent-secrets` Secret (3.6), not a Helm value, and a cluster uses one provider. Lore's shipped agents name Claude and Gemini models, so on a Codex-only cluster each agent's model is changed on the `/agents` page after the install. Gemini agents do not go through Foundry.
+
+**Lore's own model calls cannot use Foundry yet.** lore-api and stations make their own model calls (fact extraction, triage, context assembly, evals) through Anthropic, Gemini, Vertex or Ollama. There is no provider for an Azure or OpenAI-compatible endpoint. See [Known rough edges](#known-rough-edges).
+
+### 1.6.1 GitHub Enterprise
+
+| The client's GitHub | Works | What to set |
+| ------------------- | ----- | ----------- |
+| Enterprise Cloud on github.com | yes | nothing; it is github.com |
+| Enterprise Server, self-hosted | yes | `GITHUB_HOST` (below) |
+| Enterprise Cloud with data residency (`<name>.ghe.com`) | no | not supported |
+
+Ask the client which one before the install: "GitHub Enterprise" names all three.
 
 One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `deploy/install/values.azure.example.yaml`). Lore then calls `https://<host>/api/v3`, sends sign-in to `https://<host>/login/oauth/authorize`, names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Enterprise Cloud with data residency (`*.ghe.com`) and two hosts in one install are not supported, and stored data is not moved between hosts: a Server install is a fresh install.
 
 - Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
 - The Server must be GitHub Enterprise Server 3.11 or newer: Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
-- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in `deploy/install/values.yaml`). The agent image's credential broker only asks for a repository on github.com until the subsystem release that fixes it is pinned in the floor chart.
+- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in `deploy/install/values.yaml`).
 - The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
 - The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
+- The Server must reach the webhook hostname of 1.4 to deliver its events.
 
 ### 1.7 Who does what, by cloud
 
@@ -218,6 +231,8 @@ One install talks to one GitHub host. By default that is `github.com`; for a sel
 | traces | nothing; lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
 | cost pages | `/spend` shows the pod-hour estimate only | BigQuery `billing_export` (re-cinq/infrastructure) |
 | deploys | the Lore team's laptops with namespace-scoped kubeconfigs, one `helm upgrade --install` (3.5) | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
+
+Where the Lore team creates the cluster too, every "infra team" row is ours. This guide has no commands for creating the AKS cluster, the Postgres server or the DNS zone. Section 2 covers the add-ons.
 
 ### 1.8 Operator's machine (Lore team)
 
@@ -313,6 +328,7 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 | A GitHub user and token with `read:packages`, from re:cinq | pulling the non-public images |
 | An OpenID Connect client for Utopia: client ID and secret | signing in to Utopia |
 | An Anthropic API key | Lore's own jobs, and the agents |
+| On Microsoft Foundry, in its place: the endpoints and keys of 1.6 | the agents |
 
 ### 3.2 Get the chart
 
@@ -323,7 +339,7 @@ cd lore
 helm dependency update deploy/install
 ```
 
-The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.3`; the floor chart is public and needs no login.
+The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.4`; the floor chart is public and needs no login.
 
 ### 3.3 Fill in the values file
 
@@ -343,7 +359,7 @@ Replace every `CHANGE-ME` and every `example.com`:
 | `secrets.ingestToken`, `.internalToken`, `.webhookSecret`, `secrets.floor.*` | six random values, generated below |
 | `secrets.githubApp.*` | the GitHub App's ID, private key (the whole PEM) and installation ID |
 | `secrets.githubOAuth.*` | the OAuth App's client ID and secret |
-| `secrets.anthropicApiKey` | the Anthropic key for Lore's own jobs |
+| `secrets.anthropicApiKey` | the Anthropic key for Lore's own jobs. With no Anthropic key (a Foundry-only client), delete the line |
 | `secrets.utopia.dbPassword`, `.appDbPassword`, `.secretKey`, `.cookieSecret` | four more random values, generated below |
 | `secrets.utopia.oauthClientId`, `.oauthClientSecret` | Utopia's OpenID Connect client |
 | `utopia.hostname`, `UTOPIA_URL` | the Utopia hostname |
@@ -386,6 +402,9 @@ Settings you may need:
 | Situation | Add to `my-values.yaml` |
 | --------- | ----------------------- |
 | The cluster runs no NodeLocal DNSCache (the default on AKS) | `floor.agentNetworkPolicy.nodeLocalDnsAddress: ""` |
+| GitHub Enterprise Server | uncomment `GITHUB_HOST` in the three `env:` blocks and set the Server's bare host name (see [1.6.1](#161-github-enterprise)) |
+| Utopia sign-in through Microsoft Entra ID | `utopia.oidc.issuer: https://login.microsoftonline.com/<tenant id>/v2.0` |
+| Agents run on Microsoft Foundry | nothing here; the entries go into `agent-secrets` (3.6) |
 | Agents run on a Claude Code OAuth token, not an API key | `floor.clusterAgent.modelSecretKeys: claude=CLAUDE_CODE_OAUTH_TOKEN` |
 | Secrets come from a vault through External Secrets | `secrets.create: false`, and provide every Secret of 1.5 yourself |
 | A Slack app | `secrets.slack.signingSecret` and `secrets.slack.botToken` |
@@ -444,6 +463,18 @@ kubectl -n lore-floor patch secret agent-secrets --type merge -p '{"stringData":
 ```
 
 With a Claude Code OAuth token, the key is `CLAUDE_CODE_OAUTH_TOKEN` (and the setting from the table in 3.3). A Gemini key goes under `GEMINI_API_KEY`.
+
+**On Microsoft Foundry**, set the provider and the endpoint and key instead of the Anthropic key:
+
+```bash
+kubectl -n lore-floor patch secret agent-secrets --type merge -p '{"stringData":{
+  "AGENT_PROVIDER":"foundry",
+  "AZURE_OPENAI_BASE_URL":"https://<resource>.openai.azure.com/openai/v1",
+  "AZURE_OPENAI_API_KEY":"<key>",
+  "lore-mcp-auth":"Bearer <the secrets.ingestToken value>"}}'
+```
+
+The two `AZURE_OPENAI_*` entries are for Codex. Claude Code takes the `ANTHROPIC_FOUNDRY_BASE_URL` (ends in `.services.ai.azure.com/anthropic`) and `ANTHROPIC_FOUNDRY_API_KEY` pair. A cluster that runs one CLI adds only its pair. Changes reach new runs only. A 404 from the endpoint means there is no deployment named after the agent's model id. For limits and troubleshooting, see the [subsystem guide](https://re-cinq.github.io/ai-agent-subsystem/tasks/run-on-foundry/).
 
 ### 3.7 Verify
 
@@ -600,9 +631,13 @@ What an install on a client cluster hits. The list stays until each fix lands.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
 5. **Image tags in `deploy/install/values.yaml` are updated by hand.** The build workflows bump only our own cluster's values file.
 6. **Utopia's chart is not published.** The install reads it from a checkout of re-cinq/utopia beside this repo (3.2), at whatever commit that checkout is on.
-7. **Utopia after install.** Sign-in was only ever run against Google as the issuer. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
+7. **Utopia after install.** Sign-in was only ever run against Google as the issuer; Microsoft Entra ID as the issuer (3.3) is untested. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
 9. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant on our GKE, so traces are silently off there ([#3905](https://github.com/re-cinq/lore/issues/3905)).
+10. **Lore's own model calls cannot use Microsoft Foundry.** A provider for an OpenAI-compatible endpoint is the fix.
+11. **Foundry and GitHub Enterprise Server have not run on a client cluster.** No agent pod has cloned from a Server and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
+12. **Grafana and Prometheus are not in the chart** (1.2).
+13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.
 
 ## Running on ARM64
 

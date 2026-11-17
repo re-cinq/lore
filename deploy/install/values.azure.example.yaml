@@ -34,6 +34,9 @@ secrets:
   githubOAuth:
     clientId: CHANGE-ME
     clientSecret: CHANGE-ME
+  # The model key of Lore's own jobs, not the agents'. Lore's own jobs cannot
+  # call Microsoft Foundry yet, so with no Anthropic key delete this line.
+  # The agents' Foundry endpoints and keys go into agent-secrets (INSTALL.md 3.6).
   anthropicApiKey: CHANGE-ME
   utopia:
     dbPassword: CHANGE-ME
@@ -49,6 +52,8 @@ utopia:
   # Who may sign in: an OpenID Connect issuer and the email domains it accepts.
   oidc:
     issuer: https://accounts.google.com
+    # Microsoft Entra ID instead (untested):
+    # issuer: https://login.microsoftonline.com/<tenant id>/v2.0
     allowedDomains: CHANGE-ME
   ingress:
     className: nginx
