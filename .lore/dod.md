@@ -18,8 +18,8 @@ The red bar is CI's to show, as the local pod cannot run tests that require a Po
 
 ## Facets
 
-- [ ] register the `validate` route in `plan-lifecycle.ts` and ensure it maps to `validateFloorPlan` in `floor-plan-verbs.ts`
-- [ ] implement `assertValidatable` in `plan-validate.ts` to reject approved plans, missing lines, and working agents
+- [x] register the `validate` route in `plan-lifecycle.ts` and ensure it maps to `validateFloorPlan` in `floor-plan-verbs.ts`
+- [x] implement `assertValidatable` in `plan-validate.ts` to reject approved plans, missing lines, and working agents
 
 ## Out of scope
 
