@@ -148,6 +148,10 @@ spec:
                   key: {{ .Values.slackBotTokenSecret.key }}
                   optional: true
             {{- end }}
+            - name: LORE_COMMIT_AUTHOR_NAME
+              value: {{ .Values.commitAuthor.name | quote }}
+            - name: LORE_COMMIT_AUTHOR_EMAIL
+              value: {{ .Values.commitAuthor.email | quote }}
             {{- if .Values.floor.enabled }}
             - name: FLOOR_API_URL
               value: {{ .Values.floor.apiUrl | quote }}

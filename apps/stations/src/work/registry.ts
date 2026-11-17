@@ -21,6 +21,7 @@ import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { issueTriageTickStation } from "./issue-triage-tick/manifest.js";
 import { autoMergeTickStation } from "./auto-merge-tick/manifest.js";
 import { utopiaBackfillTickStation } from "./utopia-backfill-tick/manifest.js";
+import { packSyncTickStation } from "./pack-sync-tick/manifest.js";
 import { webhookEnsureTickStation } from "./webhook-ensure-tick/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
@@ -40,6 +41,7 @@ export const STATION_NAMES = [
   "loop-tick",
   "memory-ttl",
   "merge-check",
+  "pack-sync-tick",
   "pr-blocked-reasons-prune",
   "pr-ready-check",
   "spec-upkeep-tick",
@@ -66,6 +68,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
+  "pack-sync-tick": packSyncTickStation,
   "pr-blocked-reasons-prune": prBlockedReasonsPrune,
   "pr-ready-check": prReadyCheck,
   "spec-upkeep-tick": specUpkeepTickStation,

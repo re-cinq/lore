@@ -21,6 +21,8 @@ const FIXED_ENV = {
   LORE_AGENT_IMAGE: "ghcr.io/re-cinq/agent:1",
   LORE_SKILLS_URL: "https://skills.example",
   LORE_MCP_URL: "https://mcp.example/mcp",
+  LORE_COMMIT_AUTHOR_NAME: "Acme Bot",
+  LORE_COMMIT_AUTHOR_EMAIL: "bot@acme.example",
 };
 
 const PIPELINES_DIR = path.resolve(
@@ -301,6 +303,30 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       decomposed: "file-issues",
       filed: "done",
       reworked: "decompose",
+    });
+  });
+
+  it("gives agent loop-dod the commit author through config.env and no git identity line in its prompt", () => {
+    const loopDod = pipelines
+      .flatMap((one) => one.agentDefinitions)
+      .find((named) => named.id === "loop-dod");
+    const settings = (
+      loopDod?.body as unknown as {
+        settings: { prompt: string; config: { env: Record<string, string> } };
+      }
+    ).settings;
+
+    expect({
+      env: settings.config.env,
+      promptSetsIdentity: settings.prompt.includes("git config --global"),
+    }).toEqual({
+      env: {
+        GIT_AUTHOR_NAME: "Acme Bot",
+        GIT_AUTHOR_EMAIL: "bot@acme.example",
+        GIT_COMMITTER_NAME: "Acme Bot",
+        GIT_COMMITTER_EMAIL: "bot@acme.example",
+      },
+      promptSetsIdentity: false,
     });
   });
 

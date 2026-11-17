@@ -1,4 +1,11 @@
-import { audit, repoOf, CeremonySchema } from "./agent-common.js";
+import {
+  audit,
+  repoOf,
+  CeremonySchema,
+  PackAwareAgentSchema,
+  packManagedNames,
+  withPackManaged,
+} from "./agent-common.js";
 import {
   createAgentDefinition,
   updateAgentDefinition,
@@ -22,8 +29,8 @@ const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 
 /** GET answers with ONE definition when a name is given, the list when it is not. */
 const AgentReadSchema = z.union([
-  ResolvedAgentDefinitionSchema,
-  z.object({ agents: z.array(ResolvedAgentDefinitionSchema) }),
+  PackAwareAgentSchema,
+  z.object({ agents: z.array(PackAwareAgentSchema) }),
 ]);
 
 const AgentWrittenSchema = z.object({
@@ -108,10 +115,12 @@ async function serveAgentsGet(
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  enforceTrue(getPool(), apiError(503), "database unavailable");
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), "database unavailable");
 
   try {
-    return await readAgentDefinitions(request, h);
+    return await readAgentDefinitions(pool, request, h);
   } catch (err) {
     // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
     rethrowBoom(err);
@@ -124,21 +133,25 @@ async function serveAgentsGet(
 
 /** One resolved definition when a name is given, the repo's whole list when it is not. */
 async function readAgentDefinitions(
+  pool: Pool,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const project = await projectFor(repoOf(request.params));
   const name = request.params.name as string | undefined;
+  const packAgents = await packManagedNames(pool);
 
   if (!name) {
-    return h.response({ agents: await project.agentDefs.list() });
+    return h.response({
+      agents: withPackManaged(await project.agentDefs.list(), packAgents),
+    });
   }
 
   const def = await project.agentDefs.resolve(name);
 
   enforceTrue(def, apiError(404, { name }), "agent definition not found");
 
-  return h.response(def);
+  return h.response(withPackManaged([def], packAgents)[0]);
 }
 
 /** The shared write shell: the database guard, the status the writer chose, and the one place an unexpected failure becomes a 500. */

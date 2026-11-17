@@ -297,6 +297,7 @@ layers:
       - outbound
       - "@re-cinq/floor-client"
       - "@re-cinq/floor-pipeline"
+      - "@re-cinq/lore-assembly-lines"
       - "@re-cinq/lore-server-core"
       - "@re-cinq/lore-shared"
       - "@re-cinq/planning-document"

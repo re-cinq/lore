@@ -27,6 +27,7 @@ export * from "./login-handoff.js";
 export * from "./memory-audit-entry.js";
 export * from "./memory-entry.js";
 export * from "./memory-version.js";
+export * from "./pack-sync-state.js";
 export * from "./pipeline-task.js";
 export * from "./plan-collab-token.js";
 export * from "./plan-refine-ask.js";

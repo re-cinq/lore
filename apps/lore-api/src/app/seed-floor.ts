@@ -1,5 +1,8 @@
 // Before the server listens: the floor must hold the pipelines this release ships, so a prompt or setting changed here is what the next run uses. A floor out of reach must not stop the deploy — what it already holds is still what runs.
 import type { Pool } from "pg";
+import { packSyncResultLine } from "@re-cinq/lore-shared/pack-sync-result-line.js";
+import type { PackSyncResult } from "../work/pack/sync-pack.js";
+import { syncProductionPack } from "../work/pack/production-pack-deps.js";
 import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   productionSeedDeps,
@@ -15,12 +18,14 @@ import {
 export interface FloorSeeding {
   configured(): boolean;
   deps(): SeedDeps;
+  pack(pool: Pool): Promise<PackSyncResult>;
   log(message: string, cause?: unknown): void;
 }
 
 const production: FloorSeeding = {
   configured: () => floorConfigured(),
   deps: () => productionSeedDeps(),
+  pack: (pool) => syncProductionPack(pool),
   log: (message, cause) => console.error(`[lore-api] ${message}`, cause ?? ""),
 };
 
@@ -62,6 +67,26 @@ export async function migrateFloor(
     reportRefusals(seeding, failed ? [failed] : []);
   } catch (err) {
     seeding.log("floor migrations FAILED — they run again next boot:", err);
+  }
+}
+
+/** After the migrations, so a pack's extension is appended to the prompt this release ships. A pack that cannot be applied leaves the floor as it is; the push and the tick try again. */
+export async function syncPackAtBoot(
+  pool: Pool,
+  seeding: FloorSeeding = production,
+): Promise<void> {
+  if (!seeding.configured()) {
+    return;
+  }
+
+  try {
+    const result = await seeding.pack(pool);
+
+    if ("skipped" in result || result.status !== "unconfigured") {
+      seeding.log(packSyncResultLine(result));
+    }
+  } catch (err) {
+    seeding.log("pack sync crashed — the floor keeps what it holds:", err);
   }
 }
 

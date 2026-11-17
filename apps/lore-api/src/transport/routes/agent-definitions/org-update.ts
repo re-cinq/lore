@@ -18,6 +18,7 @@ import {
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
 import { skillsSourceWrite } from "../../../work/agents/skills-source.js";
+import { packManagedNames } from "./agent-common.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
 // Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
@@ -44,7 +45,7 @@ export function orgAgentDefinitionUpdateRoute(
     options: zodResponse(bearerScope("admin"), OrgAgentWrittenSchema, {
       name: "OrgAgentDefinitionWritten",
       description: "The updated org-default definition",
-      errors: [400],
+      errors: [400, 409],
     }),
     handler: withPool(getPool, (pool, request, h) =>
       serveOrgUpdate({ pool, definitions }, request, h),
@@ -66,6 +67,8 @@ async function serveOrgUpdate(
   const name = request.params.name as string;
 
   try {
+    await enforceNotPackManaged(deps.pool, name);
+
     return await orgUpdateOutcome(deps, name, request, h);
   } catch (err) {
     // A guard's refusal (no floor) already carries its status; only an unexpected failure is this block's to shape.
@@ -99,6 +102,15 @@ async function orgUpdateOutcome(
     ok: true,
     agent: await applyOrgPatch(deps, name, patch),
   });
+}
+
+/** A pack-managed org default is the pack repo's to change (specs/client-packs). */
+async function enforceNotPackManaged(pool: Pool, name: string): Promise<void> {
+  enforceTrue(
+    !(await packManagedNames(pool)).includes(name),
+    apiError(409),
+    "pack_managed",
+  );
 }
 
 function issuesOf(err: unknown): unknown {

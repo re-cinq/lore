@@ -29,6 +29,8 @@ export function resolveFloor(env: Env, root: string): FloorSetup | null {
     FLOOR_API_URL: `http://localhost:${port}`,
     FLOOR_SERVICE_TOKEN: "floor-dev-token",
     LORE_AGENT_IMAGE: "ghcr.io/re-cinq/lore-agent:latest",
+    LORE_COMMIT_AUTHOR_NAME: "Lore Agent",
+    LORE_COMMIT_AUTHOR_EMAIL: "lore-agent@re-cinq.com",
     LORE_SKILLS_URL: "http://host.minikube.internal:3002/skills",
     LORE_MCP_URL: "http://host.minikube.internal:3002/mcp",
   });

@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { DELIVERING_PROMPT_REFS } from "../../../domain/task-types/delivering-recipes.js";
-import { loadAgentDefaults } from "./agent-defaults-files.js";
+import {
+  loadAgentDefaultFiles,
+  loadAgentDefaults,
+} from "./agent-defaults-files.js";
 
 const SHIPPED = new Map(loadAgentDefaults().map((def) => [def.name, def]));
 const LINTING_RECIPES: readonly string[] = [
@@ -39,17 +42,29 @@ describe("the delivering recipes", () => {
     }
   });
 
-  it("tells every delivering recipe to configure the pod's git identity to match the Floor", () => {
-    for (const name of DELIVERING_PROMPT_REFS) {
-      const prompt = promptOf(name);
+  it("gives every delivering recipe the commit author through config.env and no git identity line in its prompt", () => {
+    const authorOf = (name: string) =>
+      loadAgentDefaultFiles().find((file) => file.name === name)?.frontmatter
+        .config?.env;
 
-      expect(prompt, name).toContain(
-        "git config --global user.name 'Lore Agent'",
-      );
-      expect(prompt, name).toContain(
-        "git config --global user.email 'lore-agent@re-cinq.com'",
-      );
-    }
+    expect(
+      DELIVERING_PROMPT_REFS.map((name) => ({
+        name,
+        env: authorOf(name),
+        setsIdentityInPrompt: promptOf(name).includes("git config --global"),
+      })),
+    ).toEqual(
+      DELIVERING_PROMPT_REFS.map((name) => ({
+        name,
+        env: expect.objectContaining({
+          GIT_AUTHOR_NAME: "${LORE_COMMIT_AUTHOR_NAME}",
+          GIT_AUTHOR_EMAIL: "${LORE_COMMIT_AUTHOR_EMAIL}",
+          GIT_COMMITTER_NAME: "${LORE_COMMIT_AUTHOR_NAME}",
+          GIT_COMMITTER_EMAIL: "${LORE_COMMIT_AUTHOR_EMAIL}",
+        }),
+        setsIdentityInPrompt: false,
+      })),
+    );
   });
 
   it("tells every delivering recipe to format the files it changed, and the ones that do not write code never to run the linter", () => {

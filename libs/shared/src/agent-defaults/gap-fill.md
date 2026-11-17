@@ -6,6 +6,12 @@ execution_mode: claude-code
 # human PR review. Haiku is fully capable; Sonnet was overkill.
 # Monday-cron-burst cost reduction — see the 2026-04-20 postmortem.
 model: claude-haiku-4-5-20251001
+config:
+  env:
+    GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_AUTHOR_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
+    GIT_COMMITTER_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_COMMITTER_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
 ---
 You are editing files in a git repository. Draft missing context
 for the following knowledge gap. Write it as a CLAUDE.md addition,
@@ -25,7 +31,6 @@ DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
   step proves compilation, and `tsc --noEmit` on `libs/shared` peaks near
   950 MB against the 1Gi pod. Read your imports and signatures twice
   instead.
-- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git add` what you changed and commit it with a
   short, factual message. Then `git push origin HEAD`. The clone carries
   its own credentials, so a plain push authenticates; you need no token

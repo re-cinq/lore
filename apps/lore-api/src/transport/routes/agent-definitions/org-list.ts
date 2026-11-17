@@ -5,14 +5,19 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { NO_FLOOR_DETAIL } from "@re-cinq/lore-shared/project/agents/agent-defs-no-floor.js";
 import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
+import type { Pool } from "pg";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
+import {
+  PackAwareAgentSchema,
+  packManagedNames,
+  withPackManaged,
+} from "./agent-common.js";
 
 // The org-default catalog (no project layer): listed for no repo, so no variant applies.
 
 const OrgAgentsResponse = z.object({
-  agents: z.array(ResolvedAgentDefinitionSchema),
+  agents: z.array(PackAwareAgentSchema),
 });
 
 type FloorDefinitionApi = ConstructorParameters<typeof FloorAgentDefs>[0];
@@ -24,6 +29,7 @@ export const floorDefinitions: FloorDefinitions = () =>
   floorIfConfigured()?.agentDefinitions ?? null;
 
 export function orgAgentDefinitionsRoute(
+  getPool: () => Pool | null,
   definitions: FloorDefinitions = floorDefinitions,
 ): ServerRoute {
   return {
@@ -32,18 +38,21 @@ export function orgAgentDefinitionsRoute(
     options: zodResponse(bearerScope("read"), OrgAgentsResponse, {
       name: "OrgAgentDefinitions",
       description:
-        "Every org-default agent definition — the floor's settings, no per-repo variant",
+        "Every org-default agent definition — the floor's settings, no per-repo variant, each flagged when the client's pack manages it",
     }),
     handler: async (_request, h) =>
-      h.response({ agents: await listOrgAgents(definitions) }),
+      h.response({ agents: await listOrgAgents(getPool(), definitions) }),
   };
 }
 
 // The floor is the only store of agent definitions (#3995): with no floor there is nothing to list.
-async function listOrgAgents(definitions: FloorDefinitions) {
+async function listOrgAgents(pool: Pool | null, definitions: FloorDefinitions) {
   const floor = definitions();
 
   enforceTrue(floor, apiError(503, { detail: NO_FLOOR_DETAIL }), "no_floor");
 
-  return new FloorAgentDefs(floor).list("");
+  return withPackManaged(
+    await new FloorAgentDefs(floor).list(""),
+    await packManagedNames(pool),
+  );
 }

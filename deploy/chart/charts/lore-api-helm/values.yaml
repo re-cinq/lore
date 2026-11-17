@@ -49,6 +49,9 @@ resources:
 env:
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
   GITHUB_HOST: ""
+  # The client's pack repository (specs/client-packs), "owner/name"; empty is no pack. LORE_PACK_REF is the branch or tag to read, empty is the repository's default branch.
+  LORE_PACK_REPO: ""
+  LORE_PACK_REF: ""
   PORT: "3000"
   LORE_METRICS_PORT: "9464"
   # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
@@ -111,6 +114,13 @@ slackSigningSecret:
 slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
+
+# Who the agents' commits are authored and committed by: lore-api puts these into the
+# GIT_AUTHOR_* / GIT_COMMITTER_* env of every agent that commits (config.env of its
+# agent-defaults md), so a client's own identity replaces the default without a prompt edit.
+commitAuthor:
+  name: Lore Agent
+  email: lore-agent@re-cinq.com
 
 # The external floor engine (its own namespace and Helm release). Off by default:
 # nothing below renders until terraform sets enabled from var.enable_external_floor.

@@ -22,6 +22,10 @@ config:
       url: ${LORE_MCP_URL}
       headers_secret: lore-mcp-auth
   env:
+    GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_AUTHOR_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
+    GIT_COMMITTER_NAME: ${LORE_COMMIT_AUTHOR_NAME}
+    GIT_COMMITTER_EMAIL: ${LORE_COMMIT_AUTHOR_EMAIL}
     LORE_TEST_POLICY: none
 ---
 Turn an approved plan into committable specifications. The plan was
@@ -340,7 +344,6 @@ container:
   this pod (`npm run build`, `tsc -b`, a `tsc` without `--noEmit`):
   CI's build step proves compilation, and the build is the 950 MB
   step that OOM-kills a 1Gi pod.
-- Configure your git identity before committing: `git config --global user.name 'Lore Agent'` and `git config --global user.email 'lore-agent@re-cinq.com'`.
 - When the work is done, `git -C /workspace/target add` what you changed and commit it
   with a short, factual message. Then push it:
   `git -C /workspace/target push origin HEAD`. The clone carries its
