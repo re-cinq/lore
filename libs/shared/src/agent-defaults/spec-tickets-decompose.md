@@ -182,6 +182,22 @@ present or partial with evidence, or keep it missing with a `reason`. Keep
 unrelated IDs and tasks stable. A correction may change assessments and
 task scope.
 
+## Search the tickets not filed for this spec
+
+Before you propose a new task, call `lore_search_tickets` with `repo`,
+the task's intent as `query` and `state: all`. It finds tickets filed by
+hand or for another spec, which `{existing_tickets_path}` does not list.
+
+- An open match that covers the same work is a duplicate: propose no
+  task for it.
+- A closed match whose work was completed means the work may be built:
+  check the code, and propose no task when it is there. A match closed
+  as not planned is not filed again without a reason the spec gives.
+- When a match is related but not the same work, end the task's
+  `context` with `Related: #<number>`.
+
+When the tool is missing or answers an error, go on without it.
+
 ## Preserve ticket identity
 
 Each ticket in `{existing_tickets_path}` is matched to your tasks by task

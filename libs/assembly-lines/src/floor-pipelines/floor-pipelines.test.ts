@@ -241,6 +241,22 @@ describe("the floor pipelines shipped in this folder", () => {
     ).toBe(true);
   });
 
+  it("tells the spec-tickets decompose agent to search open and closed tickets with lore_search_tickets before proposing one", () => {
+    expect(
+      promptOnOneLine("spec-tickets-decompose").includes(
+        "Before you propose a new task, call `lore_search_tickets` with `repo`, the task's intent as `query` and `state: all`",
+      ),
+    ).toBe(true);
+  });
+
+  it("tells the triage decompose agent to search open and closed tickets with lore_search_tickets before proposing one", () => {
+    expect(
+      promptOnOneLine("triage-decompose").includes(
+        "Before you propose a task, call `lore_search_tickets` with `repo`, the task's intent as `query` and `state: all`",
+      ),
+    ).toBe(true);
+  });
+
   it("walks implementation-loop from sync-start through done-check, brief, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
