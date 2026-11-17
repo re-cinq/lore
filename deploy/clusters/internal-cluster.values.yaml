@@ -219,7 +219,7 @@ lore-api:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "f8e5985"
+    tag: "91e02fc"
   env:
     LORE_PACK_REPO: re-cinq/lore-assembly-lines
     PORT: "3000"
