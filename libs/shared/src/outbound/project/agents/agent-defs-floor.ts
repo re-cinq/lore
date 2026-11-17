@@ -209,7 +209,7 @@ function canonicalRepo(repo: string): string {
 }
 
 /** The body with the repo's variant replaced under the key it already had; an empty variant, and then an empty map, is left out. */
-function withVariant(
+export function withVariant(
   body: AgentDefinitionBody,
   repo: string,
   variant: Variant,
