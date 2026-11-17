@@ -45,6 +45,20 @@ describe("contextModelOf", () => {
     ).toEqual({ provider: "anthropic", model: "claude-haiku-4-5" });
   });
 
+  it("writes with openai and a blank model when nothing is saved and LORE_LLM_PROVIDER is openai", () => {
+    expect(contextModelOf({}, { LORE_LLM_PROVIDER: "openai" })).toEqual({
+      provider: "openai",
+      model: "",
+    });
+  });
+
+  it("writes with vertex gemini-3-flash-preview when LORE_LLM_PROVIDER is ollama, which the builder cannot write with", () => {
+    expect(contextModelOf({}, { LORE_LLM_PROVIDER: "ollama" })).toEqual({
+      provider: "vertex",
+      model: "gemini-3-flash-preview",
+    });
+  });
+
   it("writes with vertex gemini-3-flash-preview when neither the settings nor the env name a provider", () => {
     expect(contextModelOf({}, {})).toEqual({
       provider: "vertex",

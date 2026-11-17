@@ -65,13 +65,10 @@ env:
   # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → /impact + graph
   # reads fail soft. Overridden by terraform set to the in-cluster service DNS.
   LORE_DGRAPH_HTTP: ""
-  # The model the context evals run on (specs/context-evals): Gemini on Vertex,
-  # under the pod's own Google identity (gcpProject above). These two name the
-  # vendor for evals only; every other model call keeps the process-wide one.
-  LORE_EVAL_LLM_PROVIDER: vertex
-  LORE_EVAL_LLM_MODEL: gemini-3-flash-preview
-  # LORE_EVAL_JUDGE_MODEL names a stronger model for the verdict alone. Unset:
-  # gemini-2.5-pro judged a full run on 2026-10-03 and changed no verdict.
+  # The context evals (specs/context-evals) run on the process-wide model
+  # (LORE_LLM_PROVIDER) unless LORE_EVAL_LLM_PROVIDER and LORE_EVAL_LLM_MODEL
+  # name another; our own cluster sets Vertex Gemini in its values file.
+  # LORE_EVAL_JUDGE_MODEL names a stronger model for the verdict alone.
 
 dbPasswordSecret:
   name: lore-api-db-password
