@@ -1,11 +1,12 @@
-# An install on a client's cluster (written for Azure AKS). Copy, fill in, and:
+# An install on a client's cluster (written for Azure AKS). Get it with
+# `helm pull oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z --untar`,
+# copy it, fill it in, and:
 #
-#   helm dependency update deploy/install
-#   helm upgrade --install lore deploy/install -n lore-floor --create-namespace -f my-values.yaml
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
+#     -n lore-floor --create-namespace -f my-values.yaml
 #
-# docs/INSTALL.md section 3 walks through every step, including the two that
-# this chart does not do: the baseline database schema, and the model key the
-# agents run with.
+# docs/INSTALL.md section 3 walks through every step, including the one this
+# chart does not do: the model key the agents run with.
 #
 # Every CHANGE-ME must be replaced. This file then holds secrets: keep it out
 # of git.

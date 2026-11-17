@@ -14,12 +14,12 @@ Where the parts land:
 
 | Part | Chart | Namespace on a client cluster | Namespace on our GKE |
 | ---- | ----- | ----------------------------- | -------------------- |
-| Lore | `deploy/chart` in this repo | `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph` | the same, plus `lore-db` |
+| Lore | `deploy/chart` in the [Lore repository](https://github.com/re-cinq/lore) | `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph` | the same, plus `lore-db` |
 | The floor | `oci://ghcr.io/re-cinq/charts/floor` ([re-cinq/floor](https://github.com/re-cinq/floor)) | `lore-floor` | `floor` |
 | The agent subsystem, and the agent pods | bundled in the floor chart on a client cluster | `lore-floor` | `ai-agents` |
 | Utopia, with its own Postgres | `deploy/chart` in [re-cinq/utopia](https://github.com/re-cinq/utopia) | `lore-floor` | `utopia` |
 
-On a client cluster the four are one release of the `deploy/install` chart.
+On a client cluster the four are one release of the `lore-install` chart, which holds the other charts.
 
 ## 1. Prerequisites
 
@@ -136,7 +136,7 @@ In-cluster paths that NetworkPolicies must allow:
 
 On a self-hosted GitHub Enterprise Server the second row's `github.com` is the server's host (see [1.6.1](#161-github-enterprise)); a server on a private address needs its own rule in `floor.agentNetworkPolicy.extraEgress`, because the policy excludes the private ranges. The same holds for a Foundry resource reached through a private endpoint.
 
-The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress`, which `deploy/install/values.yaml` sets. Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
+The floor chart renders the first three rows; the fourth is its `agentNetworkPolicy.extraEgress`, which the chart's `values.yaml` sets. Nothing may reach an agent pod. Agent pods do not use the public MCP hostname: on a plugin that short-circuits a public VIP back into the cluster, the post-NAT private address is dropped by the policy's private-range exclusion, so the pod hangs. Whatever stands between lore-api and the floor API must pass WebSocket upgrades and not close a connection idle for under 30 s (the floor pings every 25).
 
 ### 1.5 Secrets
 
@@ -197,7 +197,7 @@ The install in section 3 creates every Secret below from the values file (`secre
 
 **Agents on Microsoft Foundry.** Claude Code and Codex agents can run on Foundry. The client provides a Foundry deployment named exactly after each model id in the agent definitions, the two endpoints (`https://<resource>.openai.azure.com/openai/v1` for Codex, `https://<resource>.services.ai.azure.com/anthropic` for Claude Code), and an API key for each endpoint. Entra ID is not supported. The switch is a set of entries in the `agent-secrets` Secret (3.6), not a Helm value, and a cluster uses one provider. Lore's shipped agents name Claude and Gemini models, so on a Codex-only cluster each agent's model is changed on the `/agents` page after the install. Gemini agents do not go through Foundry.
 
-**Lore's own model calls on Foundry, or any OpenAI-compatible API.** lore-api and stations make their own model calls (fact extraction, triage, context assembly, evals) through the provider named in `LORE_LLM_PROVIDER`: `anthropic`, `gemini`, `vertex`, `ollama`, `cli` or `openai`. With `openai`, set `OPENAI_BASE_URL` (default `https://api.openai.com/v1`; on Foundry `https://<resource>.openai.azure.com/openai/v1`), `OPENAI_API_KEY` and `LORE_FACT_MODEL`, the name of the chat model deployment. One endpoint and key serve the embeddings too. Each use that has its own setting must be moved off its default as well: `LORE_EVAL_LLM_PROVIDER` and `LORE_CONTEXT_LLM_PROVIDER` (the context builder's default is Vertex; its model can also be chosen on the Settings page). A `LORE_LLM_PROVIDER` that names no known provider stops the process at its first model call. Lore has no price list for a deployment, so the cost of these calls shows as 0 on the cost pages while the token counts are real. `deploy/install/values.azure.example.yaml` has all of these entries. See [Known rough edges](#known-rough-edges).
+**Lore's own model calls on Foundry, or any OpenAI-compatible API.** lore-api and stations make their own model calls (fact extraction, triage, context assembly, evals) through the provider named in `LORE_LLM_PROVIDER`: `anthropic`, `gemini`, `vertex`, `ollama`, `cli` or `openai`. With `openai`, set `OPENAI_BASE_URL` (default `https://api.openai.com/v1`; on Foundry `https://<resource>.openai.azure.com/openai/v1`), `OPENAI_API_KEY` and `LORE_FACT_MODEL`, the name of the chat model deployment. One endpoint and key serve the embeddings too. Each use that has its own setting must be moved off its default as well: `LORE_EVAL_LLM_PROVIDER` and `LORE_CONTEXT_LLM_PROVIDER` (the context builder's default is Vertex; its model can also be chosen on the Settings page). A `LORE_LLM_PROVIDER` that names no known provider stops the process at its first model call. Lore has no price list for a deployment, so the cost of these calls shows as 0 on the cost pages while the token counts are real. `values.azure.example.yaml` in the chart (3.2) has all of these entries. See [Known rough edges](#known-rough-edges).
 
 ### 1.6.1 GitHub Enterprise
 
@@ -209,11 +209,11 @@ The install in section 3 creates every Secret below from the values file (`secre
 
 Ask the client which one before the install: "GitHub Enterprise" names all three. Only the last two need `GITHUB_HOST`.
 
-One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server or an Enterprise Cloud tenant with data residency set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com` or `acme.ghe.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `deploy/install/values.azure.example.yaml`). Lore then calls the REST and GraphQL API at `https://<host>/api/v3` on a Server, or at `https://api.<host>` on a data residency host (any host ending in `.ghe.com`; the GraphQL address follows from the same base). Sign-in goes to `https://<host>/login/oauth/authorize` and git clones from `https://<host>/owner/name.git` for both kinds. Lore names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Two hosts in one install are not supported, and stored data is not moved between hosts: a Server or data residency install is a fresh install. Lore has not been run against a real `ghe.com` tenant.
+One install talks to one GitHub host. By default that is `github.com`; for a self-hosted GitHub Enterprise Server or an Enterprise Cloud tenant with data residency set `GITHUB_HOST` to its bare host name (no scheme, no path), for example `ghe.example.com` or `acme.ghe.com`, in the `env:` of `lore-api`, `lore-ui` and `lore-stations` (the commented examples in `values.azure.example.yaml`, 3.2). Lore then calls the REST and GraphQL API at `https://<host>/api/v3` on a Server, or at `https://api.<host>` on a data residency host (any host ending in `.ghe.com`; the GraphQL address follows from the same base). Sign-in goes to `https://<host>/login/oauth/authorize` and git clones from `https://<host>/owner/name.git` for both kinds. Lore names a repository `<host>/owner/name` on the floor and links to `https://<host>`. Two hosts in one install are not supported, and stored data is not moved between hosts: a Server or data residency install is a fresh install. Lore has not been run against a real `ghe.com` tenant.
 
 - Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
 - A Server must be GitHub Enterprise Server 3.11 or newer (this does not apply to data residency, which GitHub runs): Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
-- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in `deploy/install/values.yaml`).
+- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in the chart's `values.yaml`, shown by `helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1`).
 - The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
 - The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
 - The Server must reach the webhook hostname of 1.4 to deliver its events.
@@ -271,7 +271,7 @@ Then, only when secrets are mirrored from a vault, the `ClusterSecretStore` for 
 
 One Helm release installs Lore, the floor, the agent subsystem and Utopia. When you finish, the web UI answers on your hostname, and an issue opened on an onboarded repository starts an agent run.
 
-The chart is `deploy/install` in this repo. It was rendered and linted with Helm 4.2.2 on 2026-11-16; see [Known rough edges](#known-rough-edges) for what it does not do.
+The chart is `lore-install`, published at `oci://ghcr.io/re-cinq/charts/lore-install` with the Lore release version. It holds the Lore, floor and Utopia charts, so nothing is cloned. It was rendered and linted with Helm 4.2.2 on 2026-11-16, and the published package was first built and rendered with the v1.0.1 release; it has not been installed on a client cluster. See [Known rough edges](#known-rough-edges).
 
 | Step | What you do |
 | ---- | ----------- |
@@ -336,21 +336,18 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 | An Anthropic API key | Lore's own jobs, and the agents |
 | On Microsoft Foundry, in its place: the endpoints and keys of 1.6, and the names of a chat and an embedding deployment | the agents, Lore's own jobs and the embeddings |
 
-### 3.2 Get the chart
+### 3.2 Get the example values
 
 ```bash
-git clone --branch v1.0.0 https://github.com/re-cinq/lore.git
-git clone https://github.com/re-cinq/utopia.git
-cd lore
-helm dependency update deploy/install
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 --untar
 ```
 
-The Lore checkout is at the release `v1.0.0`, and the chart at that tag pins every Lore image to that version. The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.4`; the floor chart is public and needs no login.
+This writes the directory `lore-install/`. The only file you need from it is `values.azure.example.yaml`. The chart is public and needs no login. Version 1.0.1 is the Lore release: the chart pins every Lore image to that version, and it holds the floor chart `0.5.5` and the Utopia chart that goes with the Utopia image it names. The chart is the published package, not a checkout, so nothing else is cloned.
 
 ### 3.3 Fill in the values file
 
 ```bash
-cp deploy/install/values.azure.example.yaml my-values.yaml
+cp lore-install/values.azure.example.yaml my-values.yaml
 ```
 
 `my-values.yaml` will hold secrets. Keep it out of git.
@@ -402,7 +399,7 @@ Check the file before touching the cluster:
 
 ```bash
 grep -c -e CHANGE-ME -e example.com my-values.yaml      # must print 0
-helm template lore deploy/install -n lore-floor -f my-values.yaml > /dev/null && echo ok
+helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 -n lore-floor -f my-values.yaml > /dev/null && echo ok
 ```
 
 A missing value stops the second command and names it, for example `secrets.ghcr.username is required`.
@@ -420,7 +417,7 @@ Settings you may need:
 | A Slack app | `secrets.slack.signingSecret` and `secrets.slack.botToken` |
 | No Utopia | `utopia.enabled: false` and `lore-platform.lore-api.utopia.enabled: false`, both |
 
-Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. `deploy/install/values.yaml` lists what the chart already sets and why.
+Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. The chart's own `values.yaml` (`helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1`) lists what it already sets and why.
 
 ### 3.4 The database schema
 
@@ -449,7 +446,7 @@ Our own CloudNativePG database is the exception: `scripts/infra/setup-db.sh` cre
 The release name and namespace are fixed. The chart refuses any other.
 
 ```bash
-helm upgrade --install lore deploy/install \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 \
   -n lore-floor --create-namespace -f my-values.yaml
 ```
 
@@ -512,14 +509,13 @@ Then end to end: sign in at `https://<ui host>`, onboard a repository (section 7
 ### 3.8 Upgrade
 
 ```bash
-git fetch --tags
-git checkout v1.1.0   # the release you are moving to
-git -C ../utopia pull
-helm dependency update deploy/install
-helm upgrade --install lore deploy/install -n lore-floor -f my-values.yaml
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 \
+  -n lore-floor -f my-values.yaml
 ```
 
-The chart at a release tag pins the five Lore images to that release in `deploy/install/values.yaml`, so checking out a newer tag is what moves the images. Do not edit those tags by hand. The releases are listed at <https://github.com/re-cinq/lore/releases>. All images come from `ghcr.io/re-cinq`:
+Use the version you are moving to. To see what changed in the example values, pull the new chart with `--untar` and compare `values.azure.example.yaml` with your file.
+
+The chart of a release pins the five Lore images to that release, so a newer `--version` is what moves the images. Do not set those tags by hand. The releases are listed at <https://github.com/re-cinq/lore/releases>. All images come from `ghcr.io/re-cinq`:
 
 | Image | Public | Tag set in |
 | ----- | ------ | ---------- |
@@ -642,12 +638,12 @@ Our GKE: the cluster's add-ons and cloud resources come back from re-cinq/infras
 
 What an install on a client cluster hits. The list stays until each fix lands.
 
-1. **The `deploy/install` chart has been rendered, not yet installed on a cluster** (2026-11-16). The order in which it creates namespaces and Secrets ahead of the migration jobs is by design and unproven.
+1. **The `lore-install` chart has been rendered, not yet installed on a cluster** (2026-11-16). The published package exists since v1.0.1; before that the chart was read from a checkout. It was built and rendered from the package, and no `helm install` of it has run against a cluster. The order in which it creates namespaces and Secrets ahead of the migration jobs is by design and unproven.
 2. **The baseline install has never run on a real Azure server** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). CI runs it against an empty pgvector database owned by a role without superuser, and the extension was the only step that needed more: a server admin creates it. Whether Azure Flexible Server lets `lore` create `vector` after allow-listing is not verified.
 3. **Embeddings on an OpenAI-compatible endpoint have never run against a real Foundry resource** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). The provider is tested against a local server only. Whether the deployment returns 768 dimensions is the client's to check; a reply of another width is refused and search falls back to keywords.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
-5. **A release is cut by hand.** Pushing a `vX.Y.Z` tag tags the images our own cluster runs and writes the GitHub release, but someone has to open the pull request that sets the version in `deploy/install/values.yaml` first (`deploy/README.md`, "Releasing Lore"). The first release is `v1.0.0`.
-6. **Utopia's chart is not published.** The install reads it from a checkout of re-cinq/utopia beside this repo (3.2), at whatever commit that checkout is on.
+5. **A release is cut by hand.** Pushing a `vX.Y.Z` tag tags the images our own cluster runs and writes the GitHub release, but someone has to open the pull request that sets the version in `deploy/install/values.yaml` first (`deploy/README.md`, "Releasing Lore"). The tag also publishes the `lore-install` chart. The first release is `v1.0.0`, and the chart is published from `v1.0.1`.
+6. **Utopia's chart is not published on its own.** The `lore-install` chart carries it, taken from the git tag of the Utopia image the chart pins (`utopia.image.tag`), so an install gets the chart that matches its image.
 7. **Utopia after install.** Sign-in was only ever run against Google as the issuer; Microsoft Entra ID as the issuer (3.3) is untested. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
 9. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant on our GKE, so traces are silently off there ([#3905](https://github.com/re-cinq/lore/issues/3905)).
@@ -655,7 +651,6 @@ What an install on a client cluster hits. The list stays until each fix lands.
 11. **Foundry, GitHub Enterprise Server and GitHub Enterprise Cloud with data residency have not run on a client cluster.** No agent pod has cloned from a Server or a `ghe.com` tenant and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
 12. **Grafana and Prometheus are not in the chart** (1.2).
 13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.
-14. **On a GitHub Enterprise Server, an agent's `gh` commands run unauthenticated.** The agent subsystem this chart bundles (v0.21.0) hands the pod its repository token as `GH_TOKEN`, which `gh` reads for github.com and `ghe.com` only; clone and push work. The fix is merged in the subsystem ([ai-agent-subsystem#388](https://github.com/re-cinq/ai-agent-subsystem/pull/388)) and reaches an install with the first floor chart that bundles a release containing it. Data residency (`ghe.com`) is not affected.
 
 ## Running on ARM64
 

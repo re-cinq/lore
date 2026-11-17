@@ -2,7 +2,9 @@ name: Release
 
 # Pushing a tag vX.Y.Z on a commit of main gives every Lore image that version
 # tag. Nothing is rebuilt: scripts/ci/release-images.sh adds the tag to the
-# images the cluster values file says our own cluster runs.
+# images the cluster values file says our own cluster runs. The install chart,
+# with the floor, Lore and Utopia charts inside it, is pushed to
+# oci://ghcr.io/re-cinq/charts/lore-install at the same version.
 on:
   push:
     tags: ["v*"]
@@ -81,8 +83,37 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: bash scripts/ci/release-images.sh "$TAG" --verify
 
-  release:
+  # After the images: a published chart never names an image that is missing.
+  chart:
     needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
+
+      - name: Package the install chart
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/package-install-chart.sh "$TAG" dist
+
+      - name: Push the install chart
+        env:
+          TAG: ${{ github.ref_name }}
+        run: helm push "dist/lore-install-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
+
+  release:
+    needs: [images, chart]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,7 +131,8 @@ jobs:
           TAG: ${{ github.ref_name }}
           TABLE: ${{ needs.images.outputs.table }}
         run: |
-          printf 'Images, all at `%s`:\n\n%s\n' "$TAG" "$TABLE" > notes.md
+          printf 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`, version `%s`.\n\n' "${TAG#v}" > notes.md
+          printf 'Images, all at `%s`:\n\n%s\n' "$TAG" "$TABLE" >> notes.md
           previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)
           if [ -n "$previous" ]; then
             gh release create "$TAG" --title "$TAG" --verify-tag --notes-file notes.md \

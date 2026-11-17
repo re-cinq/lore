@@ -65,22 +65,31 @@ helm lint deploy/chart
 
 A release is a git tag `vX.Y.Z` on a commit of `main`. The tag gives every Lore
 image that version, and the install chart (`deploy/install`) at the tag pins
-the images to it. No image is rebuilt: the tag is added to the images our own
+the images to it. The same tag publishes that chart, with the Lore, floor and
+Utopia charts inside, as `oci://ghcr.io/re-cinq/charts/lore-install` at the
+version without the `v`. No image is rebuilt: the tag is added to the images our own
 cluster runs, as recorded in `deploy/clusters/internal-cluster.values.yaml`.
 
 1. Wait until the `deploy(...)` pull requests of the build workflows for the
    commits you want have merged to `main`. Those values are what gets released.
 2. Open a pull request that sets the new version in `deploy/install/values.yaml`
-   (the four `tag:` values and `agentImage`) and in the clone command of
-   `docs/INSTALL.md` section 3.2. Check it with
+   (the four `tag:` values and `agentImage`) and in the `--version` of the
+   `helm pull` command of `docs/INSTALL.md` section 3.2 (and the other
+   commands of section 3 that name it). Check it with
    `bash scripts/ci/check-install-pins.sh vX.Y.Z`.
 3. After it merges, tag the merge commit and push the tag:
    `git tag vX.Y.Z <merge commit> && git push origin vX.Y.Z`.
 4. `.github/workflows/release.yml` checks the tag and the pins, runs
-   `scripts/ci/release-images.sh`, verifies the digests and creates the GitHub
-   release with the image table.
+   `scripts/ci/release-images.sh`, verifies the digests, packages and pushes
+   the install chart (`scripts/ci/package-install-chart.sh`) and creates the
+   GitHub release with the chart address and the image table. Utopia's chart
+   comes from the git tag `v<utopia.image.tag>` of re-cinq/utopia, so that tag
+   must exist, and the floor chart version in `deploy/install/Chart.yaml` must
+   be published.
 
-To see what a release would tag, run
+To check the packaging before tagging, run
+`bash scripts/ci/package-install-chart.sh v0.0.0 /tmp/chart`. To see what a
+release would tag, run
 `bash scripts/ci/release-images.sh vX.Y.Z --dry-run` from the commit.
 
 When it fails: a check that fails before any image is tagged (bad tag, commit

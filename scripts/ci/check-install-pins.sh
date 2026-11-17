@@ -22,7 +22,7 @@ check lore-mcp "$(yq "${PLATFORM}.\"lore-mcp-gateway\".image.tag" "$VALUES")"
 check lore-ui "$(yq "${PLATFORM}.\"lore-ui\".image.tag" "$VALUES")"
 check lore-stations "$(yq "${PLATFORM}.\"lore-stations\".image.tag" "$VALUES")"
 check lore-agent "$(yq "${PLATFORM}.\"lore-api\".floor.agentImage | sub(\"^.*:\"; \"\")" "$VALUES")"
-check "the clone command in docs/INSTALL.md" "$(sed -n 's|^git clone --branch \(v[^ ]*\) https://github.com/re-cinq/lore.git$|\1|p' docs/INSTALL.md)"
+check "the --version of the lore-install chart in docs/INSTALL.md" "v$(sed -n 's|^helm pull oci://ghcr.io/re-cinq/charts/lore-install --version \([0-9.]*\) .*$|\1|p' docs/INSTALL.md)"
 
 [[ "$failed" == 0 ]] && echo "[lore] ${VALUES} pins every image to ${VERSION}"
 exit "$failed"
