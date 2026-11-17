@@ -94,6 +94,7 @@ describe("GET /api/agent-definitions", () => {
   });
 
   it("flags acme-triage pack_managed and loop-tdd not when the pack manages acme-triage", async () => {
+    process.env.LORE_PACK_REPO = "acme/lore-pack";
     const floor = new InMemoryAgentDefinitions();
     const settings = {
       model: "claude-opus-4-7",

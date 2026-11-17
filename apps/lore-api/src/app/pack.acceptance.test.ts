@@ -118,6 +118,7 @@ describe("a scratch pack applied to an install", () => {
     const server = Hapi.server();
 
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    process.env.LORE_PACK_REPO = "acme/scratch-pack";
     await floor.put("reviewer", {
       settings: {
         model: "claude-sonnet-4-6",
