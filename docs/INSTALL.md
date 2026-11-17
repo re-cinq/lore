@@ -339,13 +339,13 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 ### 3.2 Get the chart
 
 ```bash
-git clone https://github.com/re-cinq/lore.git
+git clone --branch v1.0.0 https://github.com/re-cinq/lore.git
 git clone https://github.com/re-cinq/utopia.git
 cd lore
 helm dependency update deploy/install
 ```
 
-The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.4`; the floor chart is public and needs no login.
+The Lore checkout is at the release `v1.0.0`, and the chart at that tag pins every Lore image to that version. The two checkouts must sit side by side: Utopia's chart is read from `../utopia`. The last command prints `Pulled: ghcr.io/re-cinq/charts/floor:0.5.4`; the floor chart is public and needs no login.
 
 ### 3.3 Fill in the values file
 
@@ -512,21 +512,24 @@ Then end to end: sign in at `https://<ui host>`, onboard a repository (section 7
 ### 3.8 Upgrade
 
 ```bash
-git pull
+git fetch --tags
+git checkout v1.1.0   # the release you are moving to
 git -C ../utopia pull
 helm dependency update deploy/install
 helm upgrade --install lore deploy/install -n lore-floor -f my-values.yaml
 ```
 
-The image tags are pinned in `deploy/install/values.yaml`, so an upgrade moves to the builds that file names. All images come from `ghcr.io/re-cinq`:
+The chart at a release tag pins the five Lore images to that release in `deploy/install/values.yaml`, so checking out a newer tag is what moves the images. Do not edit those tags by hand. The releases are listed at <https://github.com/re-cinq/lore/releases>. All images come from `ghcr.io/re-cinq`:
 
 | Image | Public | Tag set in |
 | ----- | ------ | ---------- |
-| `lore-api`, `lore-mcp`, `lore-ui` | no, pulled with `ghcr-pull-secret` | `lore-platform.<app>.image.tag` |
-| `lore-stations` | yes | `lore-platform.lore-stations.image.tag` |
-| `lore-agent` (what agent pods work in) | yes | `lore-platform.lore-api.floor.agentImage` |
+| `lore-api`, `lore-mcp`, `lore-ui` | no, pulled with `ghcr-pull-secret` | the release tag, in `lore-platform.<app>.image.tag` |
+| `lore-stations` | yes | the release tag, in `lore-platform.lore-stations.image.tag` |
+| `lore-agent` (what agent pods work in) | yes | the release tag, in `lore-platform.lore-api.floor.agentImage` |
 | `floor` | yes | `floor.version` |
 | `ai-agent-controller`, `ai-agent` | yes | `floor.subsystem.version` |
+
+Agents that are already on the floor keep the image they were seeded with: Lore seeds an agent only when the floor holds none of that name, so an upgrade does not move them to the new `lore-agent`. Set the newer image on the `/agents` page.
 | `utopia` | no, pulled with `ghcr-pull-secret` | `utopia.image.tag` and `.digest` |
 
 ## 4. Our own GKE, with Argo CD
@@ -643,7 +646,7 @@ What an install on a client cluster hits. The list stays until each fix lands.
 2. **The baseline install has never run on a real Azure server** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). CI runs it against an empty pgvector database owned by a role without superuser, and the extension was the only step that needed more: a server admin creates it. Whether Azure Flexible Server lets `lore` create `vector` after allow-listing is not verified.
 3. **Embeddings on an OpenAI-compatible endpoint have never run against a real Foundry resource** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). The provider is tested against a local server only. Whether the deployment returns 768 dimensions is the client's to check; a reply of another width is refused and search falls back to keywords.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
-5. **Image tags in `deploy/install/values.yaml` are updated by hand.** The build workflows bump only our own cluster's values file.
+5. **A release is cut by hand.** Pushing a `vX.Y.Z` tag tags the images our own cluster runs and writes the GitHub release, but someone has to open the pull request that sets the version in `deploy/install/values.yaml` first (`deploy/README.md`, "Releasing Lore"). The first release is `v1.0.0`.
 6. **Utopia's chart is not published.** The install reads it from a checkout of re-cinq/utopia beside this repo (3.2), at whatever commit that checkout is on.
 7. **Utopia after install.** Sign-in was only ever run against Google as the issuer; Microsoft Entra ID as the issuer (3.3) is untested. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
@@ -652,6 +655,7 @@ What an install on a client cluster hits. The list stays until each fix lands.
 11. **Foundry, GitHub Enterprise Server and GitHub Enterprise Cloud with data residency have not run on a client cluster.** No agent pod has cloned from a Server or a `ghe.com` tenant and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
 12. **Grafana and Prometheus are not in the chart** (1.2).
 13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.
+14. **On a GitHub Enterprise Server, an agent's `gh` commands run unauthenticated.** The agent subsystem this chart bundles (v0.21.0) hands the pod its repository token as `GH_TOKEN`, which `gh` reads for github.com and `ghe.com` only; clone and push work. The fix is merged in the subsystem ([ai-agent-subsystem#388](https://github.com/re-cinq/ai-agent-subsystem/pull/388)) and reaches an install with the first floor chart that bundles a release containing it. Data residency (`ghe.com`) is not affected.
 
 ## Running on ARM64
 

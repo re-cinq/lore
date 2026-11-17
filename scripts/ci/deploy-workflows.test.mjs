@@ -12,6 +12,7 @@ const UMBRELLA_DEPLOY_WORKFLOWS = [
   ".github/workflows/build-lore-api.yml",
   ".github/workflows/build-stations.yml",
   ".github/workflows/build-ui.yml",
+  ".github/workflows/build-agent-image.yml",
 ];
 
 function deployJob(workflow) {

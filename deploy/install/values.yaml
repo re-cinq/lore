@@ -126,19 +126,20 @@ utopia:
 # subchart's name: lore-api, lore-ui, lore-stations, lore-mcp-gateway,
 # lore-db-helm, and platform for ingresses, Dgraph and monitoring.
 #
-# Images. Every image comes from ghcr.io/re-cinq at a pinned tag, so an install
-# does not depend on what `latest` is that day. lore-api, lore-mcp and lore-ui
-# are not public: they are pulled with ghcr-pull-secret, which this chart
-# renders from secrets.ghcr. To move to a newer build, change the four tags
-# below to the short SHA of a commit on main that all four images were built
-# from.
+# Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
+# the chart at git tag v1.0.0 pins all five images (the four tags below and
+# agentImage) to v1.0.0, so an install does not depend on what `latest` is that
+# day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
+# ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
+# newer release, check out its tag (git checkout v1.1.0) and upgrade; do not
+# edit the tags by hand.
 lore-platform:
   lore-api:
     # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "b4e4484"
+      tag: "v1.0.0"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -151,15 +152,15 @@ lore-platform:
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
       # The image agent pods work in. Public.
-      agentImage: ghcr.io/re-cinq/lore-agent:2d01cfa
+      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.0
   lore-ui:
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "b4e4484"
+      tag: "v1.0.0"
   lore-stations:
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "b4e4484"
+      tag: "v1.0.0"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -167,7 +168,7 @@ lore-platform:
   lore-mcp-gateway:
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "b4e4484"
+      tag: "v1.0.0"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:

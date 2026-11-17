@@ -6,11 +6,19 @@
 # Usage: bump-image-tag.sh <subchart> <tag> [values-file]
 #   e.g. bump-image-tag.sh lore-api 5d270e9
 # Needs GH_TOKEN with contents and pull-requests write.
+#
+# By default the tag lives at <subchart>.image.tag. An image recorded as one
+# string, like the agent image, sets VALUE_PATH (a yq path) and VALUE_PREFIX
+# (the text before the tag), e.g.
+#   VALUE_PATH='."lore-api".floor.agentImage' VALUE_PREFIX=ghcr.io/re-cinq/lore-agent: \
+#     bump-image-tag.sh lore-agent 2d01cfa
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-api}"
 TAG="${2:?image tag}"
 VALUES="${3:-deploy/clusters/internal-cluster.values.yaml}"
+VALUE_PATH="${VALUE_PATH:-.\"${SUBCHART}\".image.tag}"
+VALUE_PREFIX="${VALUE_PREFIX:-}"
 BRANCH="deploy/${SUBCHART}-${TAG}"
 
 git config user.name "github-actions[bot]"
@@ -28,7 +36,8 @@ for attempt in 1 2 3 4 5 6; do
   git checkout --quiet -B "$BRANCH" origin/main
 
   # A build that finishes late must not take the service back to an older commit.
-  CURRENT=$(yq ".\"${SUBCHART}\".image.tag" "$VALUES")
+  CURRENT=$(yq "$VALUE_PATH" "$VALUES")
+  CURRENT="${CURRENT#"$VALUE_PREFIX"}"
   if git merge-base --is-ancestor "$TAG" "$CURRENT" 2>/dev/null; then
     echo "[lore] ${SUBCHART} already at ${CURRENT}, which contains ${TAG}"
     exit 0
@@ -36,7 +45,7 @@ for attempt in 1 2 3 4 5 6; do
 
   # Tags are quoted on purpose: an all-digit short SHA would otherwise be read
   # as a number.
-  yq -i ".\"${SUBCHART}\".image.tag = \"${TAG}\"" "$VALUES"
+  yq -i "${VALUE_PATH} = \"${VALUE_PREFIX}${TAG}\"" "$VALUES"
 
   if git diff --quiet -- "$VALUES"; then
     echo "[lore] ${SUBCHART} already at ${TAG}"

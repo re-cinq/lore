@@ -77,7 +77,7 @@ lore-api/lore-mcp/stations/ui/lore-db subcharts under `charts/`); Argo CD on the
 internal cluster deploys it from `deploy/clusters/internal-cluster.values.yaml`.
 Every service has a `build-*.yml` workflow that builds its image and records the
 short SHA in that values file via `scripts/ci/bump-image-tag.sh`; chart values
-read `tag: latest` only as a never-used default.
+read `tag: latest` only as a never-used default. A `vX.Y.Z` tag on main runs `.github/workflows/release.yml`, which adds that tag to the images the values file names (`scripts/ci/release-images.sh`); see `deploy/README.md`.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
