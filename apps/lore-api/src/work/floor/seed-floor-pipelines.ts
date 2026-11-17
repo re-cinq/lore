@@ -79,7 +79,7 @@ function definitionsWithEnvironment(
   );
 }
 
-function settingsWithEnvironment(
+export function settingsWithEnvironment(
   settings: unknown,
   env: Record<string, string | undefined>,
 ): FloorAgentSettings {
