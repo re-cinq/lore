@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+BASELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../deploy/chart/charts/ui-helm/baseline" && pwd)"
+
 # Dark Factory schema migration (spec 6-dark-factory).
 # Idempotent — safe to re-run.
 
@@ -9,46 +11,7 @@ POD="lore-db-1"
 
 echo "[lore] Applying dark-factory schema migration..."
 
-kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
-  -- Branch-as-state lease (FR1.6, Q4 clarification). task_id is NULL for
-  -- task-less runs (detection assembly lines; ADR-019 amendment).
-  CREATE TABLE IF NOT EXISTS pipeline.task_leases (
-    branch_name   TEXT        PRIMARY KEY,
-    task_id       UUID,
-    holder        TEXT        NOT NULL,
-    acquired_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at    TIMESTAMPTZ NOT NULL,
-    phase         TEXT,
-    CONSTRAINT task_leases_task_fk FOREIGN KEY (task_id)
-      REFERENCES pipeline.tasks(id) ON DELETE CASCADE
-  );
-  CREATE INDEX IF NOT EXISTS task_leases_expires_idx
-    ON pipeline.task_leases(expires_at);
-
-  -- Pipeline-side audit log. The existing memory.audit_log is memory-scoped
-  -- and lacks task/repo fields needed for dark-factory events. New table
-  -- here in the pipeline schema.
-  CREATE TABLE IF NOT EXISTS pipeline.audit_log (
-    id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_type   TEXT         NOT NULL,
-    task_id      UUID,
-    repo         TEXT,
-    actor        TEXT,
-    payload      JSONB        NOT NULL,
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
-  );
-  CREATE INDEX IF NOT EXISTS audit_log_task_idx
-    ON pipeline.audit_log(task_id, created_at DESC);
-  CREATE INDEX IF NOT EXISTS audit_log_event_idx
-    ON pipeline.audit_log(event_type, created_at DESC);
-  CREATE INDEX IF NOT EXISTS audit_log_repo_idx
-    ON pipeline.audit_log(repo, created_at DESC);
-  CREATE UNIQUE INDEX IF NOT EXISTS audit_log_pr_merged_uniq
-    ON pipeline.audit_log (repo, (payload->>'prNumber'))
-    WHERE event_type = 'pr_merged'
-      AND repo IS NOT NULL
-      AND payload ? 'prNumber';
-"
+kubectl exec -i -n "$NS" "$POD" -- psql -U postgres -d lore -v ON_ERROR_STOP=1 --single-transaction -f - < "$BASELINE_DIR/06_dark_factory.sql"
 
 echo "[lore] Dark-factory schema migration complete."
 echo "[lore] Verify with: kubectl exec -n $NS $POD -- psql -U postgres -d lore -c '\\d pipeline.task_leases'"

@@ -7,13 +7,20 @@ name: DB Migrations
 # same way the hook does — as role `lore`, single transaction, tracked in
 # lore.schema_migrations — then re-applies the newest file to prove idempotency.
 # Zero baseline duplication: it uses the same scripts as local dev / the cluster.
+# The `fresh-install` job proves the other path: the hook's own script installing
+# the baseline on an empty database owned by a non-superuser role (a managed
+# Postgres), ending with the same schema.
 on:
   pull_request:
     # No `branches` filter (#1146): stacked PRs touching migrations must run
     # this guard too; base-retarget emits only `edited`, which never triggers.
     paths:
       - 'deploy/chart/charts/ui-helm/migrations/**'
+      - 'deploy/chart/charts/ui-helm/baseline/**'
+      - 'deploy/chart/charts/ui-helm/files/**'
+      - 'deploy/chart/charts/ui-helm/templates/migrate-*.yaml'
       - 'scripts/infra/setup-*.sh'
+      - 'scripts/ci/compare-baseline-install.sh'
       - 'scripts/check-bootstrap-columns.mjs'
       - 'scripts/check-bootstrap-columns.test.mjs'
       - '.github/workflows/migrations.yml'
@@ -240,3 +247,17 @@ jobs:
           echo "[migrate] re-applying $(basename "$newest") as role lore"
           docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 --single-transaction -f - < "$newest"
           echo "[migrate] idempotent re-apply OK"
+
+  fresh-install:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [precreated, lore-creates, resume]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install the baseline on an empty database owned by role lore (${{ matrix.variant }})
+        run: bash scripts/ci/compare-baseline-install.sh "${{ matrix.variant }}"

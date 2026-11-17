@@ -53,6 +53,9 @@ migrations:
   enabled: true
   image: ghcr.io/cloudnative-pg/postgresql:16-bookworm
   user: lore
+  # Team schemas (each with a chunks table) the baseline creates on a database
+  # that has none. A repo whose team has no schema of its own uses org_shared.
+  teamSchemas: org_shared
 
 dbPasswordSecret:
   name: lore-db-password

@@ -28,6 +28,14 @@ TRANSPORT="${LORE_SCHEMA_TRANSPORT:-docker}"
 # caller names it.
 SUPERUSER="${LORE_SCHEMA_SUPERUSER:-postgres}"
 
+# Team schemas the baseline creates (each with a chunks table). The cluster
+# path (setup-db.sh) takes the same list; the Helm hook on a fresh managed
+# database takes only org_shared, and CI sets that here to compare the two.
+TEAM_SCHEMAS="${LORE_TEAM_SCHEMAS:-payments,platform,mobile,data,org_shared}"
+
+CHART_DIR="$DIR/../../deploy/chart/charts/ui-helm"
+BASELINE_DIR="$CHART_DIR/baseline"
+
 log() { echo "[lore] $*"; }
 
 # Run psql as $1; remaining args and stdin pass through.
@@ -71,9 +79,8 @@ done
 # The GKE schemas GRANT to the 'lore' role and web-ui logs in as 'lore_ui';
 # both pre-exist in the cluster but not in a fresh container. Create them first.
 log "Ensuring roles, pgvector extension, and team chunk schemas..."
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 -f - >/dev/null < "$BASELINE_DIR/01_extension.sql"
 pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
-CREATE EXTENSION IF NOT EXISTS vector;
-
 -- The `lore` schema. On GKE it pre-exists (setup-db.sh), and on a dev container
 -- that has been through this script before it survives — which is why the GRANT
 -- further down never failed locally. On a genuinely EMPTY database it does not
@@ -97,38 +104,8 @@ DO $$ BEGIN
     CREATE ROLE lore_ui LOGIN PASSWORD 'lore';
   END IF;
 END $$;
-
--- Team chunk schemas + chunks tables (mirrors setup-db.sh's CNPG block, which
--- is kubectl-bound and does not run locally).
-DO $$
-DECLARE s TEXT;
-BEGIN
-  FOREACH s IN ARRAY ARRAY['payments', 'platform', 'mobile', 'data', 'org_shared']
-  LOOP
-    EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', s);
-    EXECUTE format('
-      CREATE TABLE IF NOT EXISTS %I.chunks (
-        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        content       TEXT NOT NULL,
-        embedding     VECTOR(768),
-        content_type  TEXT,
-        team          TEXT,
-        repo          TEXT,
-        file_path     TEXT,
-        author        TEXT,
-        ingested_at   TIMESTAMPTZ DEFAULT NOW(),
-        metadata      JSONB,
-        search_tsv    TSVECTOR GENERATED ALWAYS AS (to_tsvector(''english'', regexp_replace(content, ''\(\s*\[(validated|implemented) by [^]]*\]\([^)[:space:]]*\)(\s*(,|;\s*implemented by)\s*\[[^]]*\]\([^)[:space:]]*\))*\s*\)'', '' '', ''g''))) STORED
-      )', s);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_embedding_idx ON %I.chunks USING hnsw (embedding vector_cosine_ops)', s, s);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_search_idx ON %I.chunks USING GIN (search_tsv)', s, s);
-    -- Mirrors setup-db.sh: runtime reindex needs full DML on whichever team
-    -- schema a repo resolves to (re-ingest DELETEs before INSERTing, embedding
-    -- and verification stamps UPDATE, orphan pruning DELETEs).
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I.chunks TO lore', s);
-  END LOOP;
-END $$;
 SQL
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 --single-transaction -v team_schemas="$TEAM_SCHEMAS" -f - >/dev/null < "$BASELINE_DIR/07_team_chunks.sql"
 
 # Over tcp the shimmed `psql -U postgres` authenticates for real, and the role
 # created above has no password — so give it the one this run is using. Not needed
@@ -187,9 +164,10 @@ done
 # 0003 (ALTER pipeline.job_runs, created by setup-agent-schema.sh) would fail
 # with "must be owner". Reconcile here, idempotently, via the local socket as
 # postgres (not a network superuser) so the local chain matches the cluster.
-pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 -v team_schemas="$TEAM_SCHEMAS" >/dev/null <<'SQL'
+SELECT set_config('lore.team_schemas', :'team_schemas', false);
 GRANT CREATE ON DATABASE lore TO lore;
-GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
+GRANT CREATE, USAGE ON SCHEMA lore TO lore;
 -- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.plans)
 -- granted by migrations; it needs schema USAGE too. In
 -- the cluster lore_ui already has it; mirror that locally.
@@ -203,7 +181,8 @@ BEGIN
     SELECT n.nspname, c.relname, c.relkind
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname IN ('lore', 'pipeline', 'memory', 'payments', 'platform', 'mobile', 'data', 'org_shared') AND c.relkind IN ('r','S','v','m')
+    WHERE (n.nspname IN ('lore', 'pipeline', 'memory') OR n.nspname = ANY (string_to_array(current_setting('lore.team_schemas'), ',')))
+      AND c.relkind IN ('r','S','v','m')
   LOOP
     IF    r.relkind = 'r' THEN EXECUTE format('ALTER TABLE %I.%I OWNER TO lore', r.nspname, r.relname);
     ELSIF r.relkind = 'S' THEN EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO lore', r.nspname, r.relname);
@@ -214,28 +193,26 @@ BEGIN
 END $$;
 SQL
 
-# Incremental migrations. The GKE Helm hook (migrate-job.yaml) applies these on
-# every deploy as the 'lore' role, tracked in lore.schema_migrations; local dev
-# has no such hook. Mirror the hook exactly — same role, tracking table, filename
-# order, per-file single transaction, skip-if-applied — so a migration the 'lore'
-# role cannot apply (e.g. DDL on a schema it lacks CREATE on) fails here too,
-# instead of silently passing as superuser and only breaking on deploy.
-MIGRATIONS_DIR="$DIR/../../deploy/chart/charts/ui-helm/migrations"
-psql() { pg lore "$@"; }
-log "Applying migrations from $MIGRATIONS_DIR (as role 'lore')"
-psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
-CREATE SCHEMA IF NOT EXISTS lore;
-CREATE TABLE IF NOT EXISTS lore.schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
-SQL
-for f in "$MIGRATIONS_DIR"/*.sql; do
-  [ -e "$f" ] || continue
-  v="$(basename "$f")"
-  if [ "$(psql -tA -c "SELECT 1 FROM lore.schema_migrations WHERE version = '$v'")" = "1" ]; then
-    log "migrate skip   $v (already applied)"
-    continue
-  fi
-  log "migrate apply  $v"
-  psql -v ON_ERROR_STOP=1 --single-transaction -f - -c "INSERT INTO lore.schema_migrations (version) VALUES ('$v')" < "$f"
-done
+# Baseline check and incremental migrations: the SAME script the GKE Helm hook
+# runs (ui-helm/files/migrate.sh), as the same role ('lore'), tracked in
+# lore.schema_migrations, so a migration the 'lore' role cannot apply (e.g. DDL
+# on a schema it lacks CREATE on) fails here too, instead of silently passing as
+# superuser and only breaking on deploy. The baseline above came from the
+# setup-*.sh scripts, so the script finds it present and skips it. Over the
+# docker transport psql lives in the container, so a psql shim stands in.
+log "Applying migrations from $CHART_DIR/migrations (as role 'lore')"
+MIGRATE_SHIM_DIR="$(mktemp -d)"
+trap 'rm -rf "$SHIM_DIR" "$MIGRATE_SHIM_DIR"' EXIT
+if [ "$TRANSPORT" = "docker" ]; then
+  cat > "$MIGRATE_SHIM_DIR/psql" <<SHIM
+#!/bin/sh
+exec docker exec -i "$CONTAINER" psql -U lore -d lore "\$@"
+SHIM
+  chmod +x "$MIGRATE_SHIM_DIR/psql"
+fi
+PATH="$MIGRATE_SHIM_DIR:$PATH" \
+  PGHOST="${PGHOST:-localhost}" PGPORT="${PGPORT:-5432}" PGUSER=lore PGDATABASE=lore \
+  MIGRATIONS_DIR="$CHART_DIR/migrations" BASELINE_DIR="$BASELINE_DIR" TEAM_SCHEMAS="$TEAM_SCHEMAS" \
+  sh "$CHART_DIR/files/migrate.sh"
 
 log "Local schema applied to '$CONTAINER'."
