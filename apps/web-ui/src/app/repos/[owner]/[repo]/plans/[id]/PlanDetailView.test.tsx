@@ -109,6 +109,37 @@ describe("PlanDetailView", () => {
     }).toEqual({ editor: null, drafting: true });
   });
 
+  it("opens the editor without a reload once the run it follows starts its first analyze", () => {
+    const user = { id: "gedaiu", name: "Bogdan" };
+    const { rerender } = render(
+      <PlanDetailView meta={META} run={QUEUED_RUN} user={user} {...actions} />,
+    );
+
+    rerender(
+      <PlanDetailView
+        meta={META}
+        run={{
+          ...QUEUED_RUN,
+          status: "running",
+          nodes: [
+            {
+              nodeId: "analyze",
+              iteration: 1,
+              outcome: null,
+              agentCrName: null,
+              commitSha: null,
+              durationSeconds: null,
+            },
+          ],
+        }}
+        user={user}
+        {...actions}
+      />,
+    );
+
+    expect(screen.getByText("editor for Bogdan")).toBeInTheDocument();
+  });
+
   it("marks the plan page wide, so it spans the space between the side panels", () => {
     const { container } = render(
       <PlanDetailView meta={META} run={null} user={null} {...actions} />,
