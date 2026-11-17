@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { declaredNewPaths, groundingFindings } from "./grounding.js";
+import {
+  declaredNewPaths,
+  groundingFindings,
+  implementationEvidenceLink,
+} from "./grounding.js";
 
 const TREE = [
   "apps/stations/src/events/repo-handlers.ts",
@@ -262,5 +266,18 @@ describe("groundingFindings", () => {
     });
 
     expect(findings).toEqual([]);
+  });
+});
+
+describe("implementationEvidenceLink", () => {
+  it("links lines 3 to 9 of src/a.ts at commit abc123 on https://ghe.example.com", () => {
+    expect(
+      implementationEvidenceLink(
+        "o/r",
+        "abc123",
+        { path: "src/a.ts", start: 3, end: 9, text: "x" },
+        "ghe.example.com",
+      ),
+    ).toBe("https://ghe.example.com/o/r/blob/abc123/src/a.ts#L3-L9");
   });
 });

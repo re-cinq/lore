@@ -1,5 +1,6 @@
 // What a `plan_run` message says of a run (specs/plan-detail-fast-open FR4): the facts the plan page read through the run list's row until now, built by the same mapping, plus the spec PR's title and open threads as GitHub last described them.
 
+import { githubPullUrl } from "@re-cinq/lore-shared/github-host.js";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { toRunRow } from "../assembly-runs/run-row.js";
 import { floorEnrichmentOf } from "../floor/floor-run-rows.js";
@@ -46,9 +47,7 @@ export async function readPlanRunFacts(
 }
 
 function pullUrl(repo: string, prNumber: number | null): string | null {
-  return prNumber === null
-    ? null
-    : `https://github.com/${repo}/pull/${prNumber}`;
+  return prNumber === null ? null : githubPullUrl(repo, prNumber);
 }
 
 /** What GitHub said of the spec PR; nothing when nobody could ask. */

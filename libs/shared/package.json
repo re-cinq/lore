@@ -243,6 +243,10 @@
       "types": "./dist/domain/session-length.d.ts",
       "default": "./dist/domain/session-length.js"
     },
+    "./github-host.js": {
+      "types": "./dist/domain/github-host.d.ts",
+      "default": "./dist/domain/github-host.js"
+    },
     "./context-template.js": {
       "types": "./dist/domain/context-template.d.ts",
       "default": "./dist/domain/context-template.js"

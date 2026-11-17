@@ -119,28 +119,28 @@ not awaited; the route returns 200 regardless of their eventual outcome.
 ## Acceptance Criteria
 
 A request without `content` returns 400 without touching the DB. ([validated by
-`episode.test.ts:57`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L59))
+`episode.test.ts:57`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L60))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `episode.test.ts@6529450e`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L65))
+([validated by `episode.test.ts@6529450e`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L66))
 
 An insert that conflicts (returns no rows) yields `{ status: "duplicate" }`.
-([validated by `episode.test.ts@ae422704`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L107))
+([validated by `episode.test.ts@ae422704`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L108))
 
 A new episode returns `{ status: "ok", episode_id }`, triggers fact extraction,
 and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([validated by
-`episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116))
+`episode.test.ts:84`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L117))
 
 With `ANTHROPIC_API_KEY` unset, graph extraction is skipped entirely. ([validated
-by `episode.test.ts:111`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L143))
+by `episode.test.ts:111`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L144))
 
-A thrown insert returns 500. ([validated by `episode.test.ts@1ae2ee82`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L153))
+A thrown insert returns 500. ([validated by `episode.test.ts@1ae2ee82`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L154))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `episode.test.ts:130`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L162))
+by `episode.test.ts:130`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L163))
 
 A rejecting graph update is swallowed and the response stays 200. ([validated by
-`episode.test.ts:143`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L175))
+`episode.test.ts:143`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L176))
 
 The actual fact/entity/edge content produced by the extraction LLM is exercised
 only against the live model. *(untested: fact + graph extraction are live-IO LLM

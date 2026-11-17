@@ -7,5 +7,7 @@ export * from "./gemini-provider.js";
 export * from "./gemini-response.js";
 export * from "./model-pricing.js";
 export * from "./model-vendor.js";
+export * from "./openai-provider.js";
 export * from "./prompt-cache.js";
+export { llmConfigured } from "./select-provider.js";
 export * from "./vertex-provider.js";

@@ -47,6 +47,8 @@ resources:
     memory: 256Mi
 
 env:
+  # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
+  GITHUB_HOST: ""
   PORT: "3000"
   LORE_METRICS_PORT: "9464"
   # Leaves ~250 MB of the 1Gi limit for buffers, sockets and native memory.
@@ -139,6 +141,16 @@ utopia:
   apiUrl: http://utopia.utopia.svc.cluster.local
   workspaceId: ""
   tokenSecret: ""
+
+# Optional key for Lore's own model calls and embeddings against any
+# OpenAI-compatible API (OpenAI, Microsoft Foundry). Selected with the env
+# entries OPENAI_BASE_URL, LORE_LLM_PROVIDER=openai, LORE_FACT_MODEL,
+# LORE_EMBEDDING_PROVIDER=openai and LORE_EMBEDDING_MODEL; leave those unset
+# (they are not listed in env above on purpose, an empty value would still be
+# exported) and the secret is unused.
+openaiKeySecret:
+  name: lore-openai-key
+  key: api-key
 
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
 # namespace-scoped, so this names the lore-api-namespace copy that the

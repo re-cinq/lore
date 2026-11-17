@@ -1,3 +1,4 @@
+import { DEFAULT_GITHUB_HOST, githubUrls } from "@/lib/github-host";
 import type { SpecGraphNode } from "@/lib/spec-graph";
 
 /** The "Open in Lore" / "View on GitHub" links shown on a selected node's detail card. */
@@ -10,8 +11,12 @@ const SPEC_FAMILY_TYPES = new Set<SpecGraphNode["type"]>([
   "Section",
 ]);
 
-export function nodeLinks(node: SpecGraphNode, repo: string): NodeLink[] {
-  return [loreLink(node), githubLink(node, repo)].filter(
+export function nodeLinks(
+  node: SpecGraphNode,
+  repo: string,
+  host: string = DEFAULT_GITHUB_HOST,
+): NodeLink[] {
+  return [loreLink(node), githubLink(node, repo, host)].filter(
     (link): link is NodeLink => link !== null,
   );
 }
@@ -28,7 +33,11 @@ function loreLink(node: SpecGraphNode): NodeLink | null {
   };
 }
 
-function githubLink(node: SpecGraphNode, repo: string): NodeLink | null {
+function githubLink(
+  node: SpecGraphNode,
+  repo: string,
+  host: string,
+): NodeLink | null {
   if (!node.path) {
     return null;
   }
@@ -37,7 +46,7 @@ function githubLink(node: SpecGraphNode, repo: string): NodeLink | null {
 
   return {
     label: "View on GitHub",
-    href: `https://github.com/${repo}/blob/HEAD/${node.path}${line}`,
+    href: `${githubUrls(host).web}/${repo}/blob/HEAD/${node.path}${line}`,
     external: true,
   };
 }

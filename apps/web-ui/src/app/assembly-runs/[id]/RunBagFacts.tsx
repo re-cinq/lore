@@ -4,6 +4,7 @@
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { BlobPreview } from "@/lib/blob-previews";
 import { commitLink } from "@/lib/need-link";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import type { RunBag } from "@/lib/run-bag";
 import ItemValue from "./ItemValue";
 import { useRunFocus } from "./run-focus-context";
@@ -116,11 +117,13 @@ function attemptLabel(attempt: AssemblyRunNode): string {
 }
 
 function CommitRef({ bagItem }: { bagItem: BagItem }) {
+  const host = useGithubHost();
+
   if (!bagItem.sha) {
     return null;
   }
   const short = bagItem.sha.slice(0, SHORT_SHA_CHARS);
-  const href = commitLink(bagItem.ref, bagItem.sha);
+  const href = commitLink(bagItem.ref, bagItem.sha, host);
 
   return (
     <>

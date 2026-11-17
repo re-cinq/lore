@@ -69,3 +69,14 @@ describe("queryAnchors", () => {
     });
   });
 });
+
+describe("queryAnchors on host ghe.example.com", () => {
+  it("reads the path and line of a ghe.example.com blob link", () => {
+    expect(
+      queryAnchors(
+        "look at https://ghe.example.com/o/r/blob/main/src/a.ts#L7",
+        "ghe.example.com",
+      ).links,
+    ).toEqual([{ path: "src/a.ts", line: 7 }]);
+  });
+});

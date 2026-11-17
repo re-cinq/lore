@@ -1,0 +1,142 @@
+name: Release
+
+# Pushing a tag vX.Y.Z on a commit of main gives every Lore image that version
+# tag. Nothing is rebuilt: scripts/ci/release-images.sh adds the tag to the
+# images the cluster values file says our own cluster runs. The install chart,
+# with the floor, Lore and Utopia charts inside it, is pushed to
+# oci://ghcr.io/re-cinq/charts/lore-install at the same version.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Tag is vMAJOR.MINOR.PATCH
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH, e.g. v1.0.0"
+            exit 1
+          fi
+
+      - name: Tagged commit is on main
+        run: |
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Commit $GITHUB_SHA is not on main. Tag a commit of main."
+            exit 1
+          fi
+
+      - name: Install chart pins this version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/check-install-pins.sh "$TAG"
+
+  images:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      table: ${{ steps.release.outputs.table }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Tag the images
+        id: release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          bash scripts/ci/release-images.sh "$TAG" | tee release.log
+          {
+            echo "table<<EOF"
+            grep '^|' release.log
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify every version tag has its source digest
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/release-images.sh "$TAG" --verify
+
+  # After the images: a published chart never names an image that is missing.
+  chart:
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
+
+      - name: Package the install chart
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/package-install-chart.sh "$TAG" dist
+
+      - name: Push the install chart
+        env:
+          TAG: ${{ github.ref_name }}
+        run: helm push "dist/lore-install-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
+
+  release:
+    needs: [images, chart]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      # Notes are generated only from the release before this one. With no
+      # earlier release GitHub lists the whole history, which passed its
+      # 125000 character limit and failed v1.0.0's release.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          TABLE: ${{ needs.images.outputs.table }}
+        run: |
+          printf 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`, version `%s`.\n\n' "${TAG#v}" > notes.md
+          printf 'Images, all at `%s`:\n\n%s\n' "$TAG" "$TABLE" >> notes.md
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            gh release create "$TAG" --title "$TAG" --verify-tag --notes-file notes.md \
+              --generate-notes --notes-start-tag "$previous"
+          else
+            gh release create "$TAG" --title "$TAG" --verify-tag --notes-file notes.md
+          fi

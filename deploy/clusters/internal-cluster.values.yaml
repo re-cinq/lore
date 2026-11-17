@@ -1,6 +1,7 @@
 # re:cinq's internal cluster. Argo CD deploys the umbrella with these values
 # on every merge to main (re-cinq/infrastructure, docs/deploying.md). Image
-# tags under <subchart>.image.tag are bumped by the build workflows.
+# tags under <subchart>.image.tag (and lore-api.floor.agentImage) are bumped by
+# the build workflows.
 
 platform:
   gcpProject: re-cinq-internal
@@ -218,7 +219,7 @@ lore-api:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "be2849d"
+    tag: "62eef95"
   env:
     PORT: "3000"
     CONTEXT_PATH: /context
@@ -255,6 +256,8 @@ lore-api:
   floor:
     enabled: true
     skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+    # Bumped by build-agent-image.yml; the release script reads the tag from here.
+    agentImage: ghcr.io/re-cinq/lore-agent:62eef95
   utopia:
     enabled: true
     apiUrl: http://utopia.utopia.svc.cluster.local
@@ -264,13 +267,13 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "be2849d"
+    tag: "62eef95"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
-    tag: "be2849d"
+    tag: "2b5acea"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
@@ -298,7 +301,7 @@ lore-db-helm:
 lore-stations:
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "be2849d"
+    tag: "62eef95"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com

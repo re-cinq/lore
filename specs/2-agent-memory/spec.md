@@ -148,7 +148,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116), [`facts.test.ts@df3adbb6`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts@db95a496`](libs/server-core/src/work/memory/graph.test.ts#L5))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L117), [`facts.test.ts@df3adbb6`](libs/server-core/src/work/memory/facts.test.ts#L5), [`graph.test.ts@db95a496`](libs/server-core/src/work/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
@@ -260,7 +260,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 Raw text blobs ingested via `lore_write_episode` are the source of truth for
 passive knowledge capture; fact and graph extraction runs asynchronously
-after write. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116))
+after write. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L117))
 
 Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
 returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts@57f96622`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L280), [`memory-lifecycle.test.ts@30906d67`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L298), [`memory-lifecycle.test.ts@1f39da30`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L527))
@@ -295,7 +295,7 @@ with timestamp and agent ID. ([validated by `memory.test.ts@b370e76c`](libs/serv
 ## Fact Extraction
 
 Triggered by `extract_facts=true` on `lore_write_memory`, or automatically
-on all `lore_write_episode` calls. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116))
+on all `lore_write_episode` calls. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L117))
 
 Extraction is asynchronous and non-blocking: if the LLM is unreachable the
 memory write succeeds immediately and the memory stays searchable as raw text,
@@ -303,11 +303,11 @@ and a failed extraction (after its internal retries) is dropped rather than
 blocking or being re-queued. ([validated by `facts-extraction.test.ts@a845e123`](libs/server-core/src/work/memory/facts-extraction.test.ts#L90))
 
 The extraction LLM is configurable via `LORE_FACT_LLM` — `claude` (Anthropic,
-the default), `openai`, or `ollama` (local). ([validated by `select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29), [`select-provider.test.ts@af8bb8e1`](libs/shared/src/outbound/llm/select-provider.test.ts#L17), [`select-provider.test.ts:23`](libs/shared/src/outbound/llm/select-provider.test.ts#L23))
+the default), `openai`, or `ollama` (local). ([validated by picks openai for LORE_LLM_PROVIDER=openai @e3783ac1](libs/shared/src/outbound/llm/select-provider.test.ts#L22), [validated by picks ollama for LORE_LLM_PROVIDER=ollama @4338f3dc](libs/shared/src/outbound/llm/select-provider.test.ts#L36), [validated by honors LORE_FACT_LLM when LORE_LLM_PROVIDER is unset @bbfb0f98](libs/shared/src/outbound/llm/select-provider.test.ts#L48))
 
 Haiku is the default extraction model (minimizing cost on high-frequency
 writes), falling back to the Claude CLI when no `ANTHROPIC_API_KEY` is present;
-each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts@e92a7c28`](libs/shared/src/outbound/llm/select-provider.test.ts#L13), [`select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29))
+each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts@e92a7c28`](libs/shared/src/outbound/llm/select-provider.test.ts#L18), [`select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L44))
 
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
@@ -359,11 +359,11 @@ Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by
 
 Haiku extracts 1–3 higher-level patterns per repo (a minimum of 5 facts is
 required to trigger), stored as `consolidated/{repo}/{timestamp}` memories —
-turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L28), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108))
+turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L49), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108))
 
 Only `PATTERN:`-prefixed lines from the LLM response are kept (short
 patterns filtered out; a `NONE` response yields no patterns), and each
-consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L28), [`memory-lifecycle.test.ts@400635ce`](apps/stations/src/work/consolidation/consolidation.test.ts#L42), [`memory-lifecycle.test.ts@fbc60b53`](apps/stations/src/work/consolidation/consolidation.test.ts#L46), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts@f6465a3e`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L354))
+consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L49), [`memory-lifecycle.test.ts@400635ce`](apps/stations/src/work/consolidation/consolidation.test.ts#L63), [`memory-lifecycle.test.ts@fbc60b53`](apps/stations/src/work/consolidation/consolidation.test.ts#L67), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts@f6465a3e`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L354))
 
 ## Passive Memory Capture (Session Layer)
 
@@ -396,7 +396,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L116), [`memory-tools.test.ts@5aee62f9`](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L23), [`memory-tools.test.ts@ce437074`](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L60))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts@3aa59262`](apps/lore-api/src/transport/routes/memory/episode.test.ts#L117), [`memory-tools.test.ts@5aee62f9`](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L23), [`memory-tools.test.ts@ce437074`](apps/mcp-server/src/transport/tools/graph/query-graph.test.ts#L60))
 
 ## Transfer Scoring (Cross-Repo Context)
 

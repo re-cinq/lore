@@ -12,7 +12,16 @@ describe("makeGraphLlmCall", () => {
 
   it("returns undefined when ANTHROPIC_API_KEY is unset", () => {
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.LORE_LLM_PROVIDER;
     expect(makeGraphLlmCall(null)).toBeUndefined();
+  });
+
+  it("returns a caller when LORE_LLM_PROVIDER=openai and OPENAI_API_KEY is set without an Anthropic key", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.LORE_LLM_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "k";
+
+    expect(makeGraphLlmCall(null)).toBeDefined();
   });
 
   it("routes the prompt through the Llm singleton under the graph-extraction job", async () => {

@@ -1,0 +1,2 @@
+# Dependencies are fetched by `helm dependency update`, never committed.
+charts/

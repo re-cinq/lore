@@ -7,15 +7,36 @@ afterEach(() => {
 });
 
 describe("consolidation", () => {
-  it("skips, calling no model, when no ANTHROPIC_API_KEY is set", async () => {
+  it("skips, calling no model, when the default vendor has no ANTHROPIC_API_KEY", async () => {
+    vi.stubEnv("LORE_LLM_PROVIDER", "");
     vi.stubEnv("ANTHROPIC_API_KEY", "");
 
     expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(
-      "Skipped: no ANTHROPIC_API_KEY",
+      "Skipped: no model configured (the selected LORE_LLM_PROVIDER has no key)",
+    );
+  });
+
+  it("skips, calling no model, when LORE_LLM_PROVIDER=openai has no OPENAI_API_KEY", async () => {
+    vi.stubEnv("LORE_LLM_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(
+      "Skipped: no model configured (the selected LORE_LLM_PROVIDER has no key)",
+    );
+  });
+
+  it("goes on to count facts with LORE_LLM_PROVIDER=openai and OPENAI_API_KEY set, with no Anthropic key", async () => {
+    vi.stubEnv("LORE_LLM_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "k");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+
+    expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(
+      "Skipped: only 0 recent facts (need 5)",
     );
   });
 
   it("skips with 0 recent facts, 5 being the least worth consolidating", async () => {
+    vi.stubEnv("LORE_LLM_PROVIDER", "");
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
 
     expect(await consolidation(new InMemoryMemoryLifecycle())).toBe(

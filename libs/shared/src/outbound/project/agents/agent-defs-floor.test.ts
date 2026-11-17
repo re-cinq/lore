@@ -466,3 +466,18 @@ describe("FloorAgentDefs.renameRepo", () => {
     });
   });
 });
+
+describe("FloorAgentDefs on host ghe.example.com", () => {
+  it("keys a new variant ghe.example.com/re-cinq/otto", async () => {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put("loop-tdd", LOOP_TDD);
+    const defs = new FloorAgentDefs(floor, "ghe.example.com");
+
+    await defs.update("re-cinq/otto", "loop-tdd", { model: "gemini-3.1-pro" });
+
+    expect(
+      Object.keys((await floor.get("loop-tdd"))?.body.variants ?? {}),
+    ).toEqual(["ghe.example.com/re-cinq/otto"]);
+  });
+});

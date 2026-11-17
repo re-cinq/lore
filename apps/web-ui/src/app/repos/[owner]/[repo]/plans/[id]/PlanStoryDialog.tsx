@@ -10,6 +10,7 @@ import {
 } from "@/components/useRefreshingAction";
 import type { PlanStory } from "@/lib/api/plans";
 import { storyField } from "@/lib/plan-input";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import styles from "./PlanStoryDialog.module.scss";
 
 interface PlanStoryDialogProps {
@@ -74,7 +75,7 @@ function useStoryForm({
   return {
     text,
     setText,
-    problem: problemOf(text, repo),
+    problem: problemOf(text, repo, useGithubHost()),
     saving,
     removing,
     busy: saving.pending || removing.pending,
@@ -162,8 +163,12 @@ function issueText(story: PlanStory | null): string {
   return issue === null ? "" : String(issue);
 }
 
-function problemOf(text: string, repo: string): string | undefined {
-  const named = storyField(text, repo);
+function problemOf(
+  text: string,
+  repo: string,
+  host: string,
+): string | undefined {
+  const named = storyField(text, repo, host);
 
   return "error" in named ? named.error : undefined;
 }

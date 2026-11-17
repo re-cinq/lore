@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fail when a column added by a baseline `setup-*.sh` has no ordered migration
+// Fail when a column added by a baseline file (`ui-helm/baseline/*.sql`) has no ordered migration
 // behind it.
 //
 // The baseline scripts run ONCE, when an operator provisions a cluster. A column
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-export const BOOTSTRAP_DIR = "scripts/infra";
+export const BOOTSTRAP_DIR = "deploy/chart/charts/ui-helm/baseline";
 export const MIGRATIONS_DIR = "deploy/chart/charts/ui-helm/migrations";
 
 /** SQL with comments dropped and whitespace flattened, so a statement split
@@ -100,7 +100,7 @@ export function uncoveredColumns(bootstrap, migrations) {
     .filter(({ column }) => !covered.has(column));
 }
 
-const bootstrap = readAll(BOOTSTRAP_DIR, (f) => /^setup-.*\.sh$/.test(f));
+const bootstrap = readAll(BOOTSTRAP_DIR, (f) => f.endsWith(".sql"));
 const migrations = readAll(MIGRATIONS_DIR, (f) => f.endsWith(".sql"));
 const uncovered = uncoveredColumns(bootstrap, migrations);
 

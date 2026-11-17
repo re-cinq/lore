@@ -1,5 +1,7 @@
 // GitHub as one signed-in person: the OAuth code exchange and the reads that decide who they are and what they can open. Each takes the fetch to use, so a test never reaches GitHub.
 
+import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
+
 type FetchLike = typeof fetch;
 
 export type OrgRole = "admin" | "member";
@@ -22,9 +24,8 @@ export interface GithubRepo {
   owner: { login: string };
 }
 
-const API = "https://api.github.com";
-const TOKEN_URL = "https://github.com/login/oauth/access_token";
-const REPOS_URL = `${API}/user/repos?per_page=100&affiliation=owner,collaborator,organization_member`;
+const REPOS_QUERY =
+  "per_page=100&affiliation=owner,collaborator,organization_member";
 const MAX_REPO_PAGES = 10;
 const TIMEOUT_MS = 10_000;
 
@@ -36,8 +37,9 @@ const userHeaders = (token: string) => ({
 export async function exchangeCode(
   exchange: OAuthExchange,
   fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
 ): Promise<string | null> {
-  const res = await fetchImpl(TOKEN_URL, {
+  const res = await fetchImpl(githubUrls(host).oauthToken, {
     method: "POST",
     signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { Accept: "application/json", "content-type": "application/json" },
@@ -55,8 +57,9 @@ export async function exchangeCode(
 export async function fetchViewer(
   token: string,
   fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
 ): Promise<GithubViewer | null> {
-  const res = await getJson(`${API}/user`, token, fetchImpl);
+  const res = await getJson(`${githubUrls(host).api}/user`, token, fetchImpl);
 
   return res.ok ? ((await res.json()) as GithubViewer) : null;
 }
@@ -66,9 +69,10 @@ export async function fetchOrgRole(
   token: string,
   org: string,
   fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
 ): Promise<OrgRole | null> {
   const res = await getJson(
-    `${API}/user/memberships/orgs/${org}`,
+    `${githubUrls(host).api}/user/memberships/orgs/${org}`,
     token,
     fetchImpl,
   );
@@ -80,8 +84,14 @@ export async function fetchOrgRole(
 export function fetchUserRepos(
   token: string,
   fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
 ): Promise<GithubRepo[]> {
-  return reposFrom(REPOS_URL, token, fetchImpl, MAX_REPO_PAGES);
+  return reposFrom(
+    `${githubUrls(host).api}/user/repos?${REPOS_QUERY}`,
+    token,
+    fetchImpl,
+    MAX_REPO_PAGES,
+  );
 }
 
 async function reposFrom(

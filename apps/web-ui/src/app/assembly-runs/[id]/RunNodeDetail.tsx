@@ -9,6 +9,8 @@ import type { StepView } from "@/lib/step-presenter";
 import { modelShortLabel, type NodeModel } from "@/lib/node-models";
 import { typeFamilyOf } from "@/lib/node-type-family";
 import CollapsibleCard from "@/components/CollapsibleCard";
+import { useGithubHost } from "@/lib/GithubHostProvider";
+import { githubUrls } from "@/lib/github-host";
 import { AttemptHistory } from "./AttemptHistory";
 import styles from "./RunNodeDetail.module.css";
 
@@ -196,6 +198,8 @@ interface CommitFactProps {
 }
 
 function CommitFact({ commitSha, repo }: CommitFactProps) {
+  const host = useGithubHost();
+
   if (!commitSha) {
     return null;
   }
@@ -204,7 +208,7 @@ function CommitFact({ commitSha, repo }: CommitFactProps) {
     <Fact label="Commit">
       <a
         className={styles.mono}
-        href={`https://github.com/${repo}/commit/${commitSha}`}
+        href={`${githubUrls(host).web}/${repo}/commit/${commitSha}`}
         target="_blank"
         rel="noreferrer"
       >

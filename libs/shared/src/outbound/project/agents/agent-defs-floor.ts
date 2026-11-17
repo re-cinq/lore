@@ -6,6 +6,7 @@ import type {
   DefinitionApi,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../../lib/enforce.js";
+import { githubHost } from "../../../domain/github-host.js";
 import { skillsSourceWith } from "../../../domain/agents/skills-source.js";
 import type {
   AgentDefinition,
@@ -29,8 +30,6 @@ const FLOOR_FIELDS = {
 /** The settings a floor definition cannot run without, so an org write may change them but never clear them. */
 const REQUIRED_FIELDS = ["prompt", "image", "timeout_minutes"] as const;
 
-const GITHUB_HOST = "github.com";
-
 const HOST_PREFIX = /^[^/]+\/(?=[^/]+\/[^/]+$)/;
 
 interface VariantEntry {
@@ -41,6 +40,7 @@ interface VariantEntry {
 export class FloorAgentDefs implements AgentDefsWritePort {
   constructor(
     private readonly definitions: DefinitionApi<AgentDefinitionBody>,
+    private readonly host: string = githubHost(),
   ) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
@@ -71,7 +71,12 @@ export class FloorAgentDefs implements AgentDefsWritePort {
   ): Promise<AgentDefinition> {
     const body = await this.bodyOf(name);
     const variant = variantEntry(body, repo)?.variant ?? {};
-    const next = withVariant(body, repo, patched(variant, patch, podResources));
+    const next = withVariant(
+      body,
+      repo,
+      patched(variant, patch, podResources),
+      this.host,
+    );
 
     await this.putChecked(name, next);
 
@@ -81,7 +86,7 @@ export class FloorAgentDefs implements AgentDefsWritePort {
   async delete(repo: string, name: string): Promise<void> {
     const body = await this.bodyOf(name);
 
-    await this.putChecked(name, withVariant(body, repo, {}));
+    await this.putChecked(name, withVariant(body, repo, {}, this.host));
   }
 
   /** The org default: a new version with the patched settings, every repo's variant kept. */
@@ -108,7 +113,10 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     );
 
     for (const row of movable) {
-      await this.putChecked(row.id, renamedVariant(row.body, from, to));
+      await this.putChecked(
+        row.id,
+        renamedVariant(row.body, from, to, this.host),
+      );
     }
 
     return movable.map((row) => row.id);
@@ -205,8 +213,9 @@ function withVariant(
   body: AgentDefinitionBody,
   repo: string,
   variant: Variant,
+  host: string,
 ): AgentDefinitionBody {
-  const key = variantEntry(body, repo)?.key ?? variantKey(repo);
+  const key = variantEntry(body, repo)?.key ?? variantKey(repo, host);
   const { [key]: _replaced, ...others } = body.variants ?? {};
   const variants =
     Object.keys(variant).length > 0 ? { ...others, [key]: variant } : others;
@@ -217,8 +226,8 @@ function withVariant(
 }
 
 /** The floor matches a variant against the run's `host/owner/name`, so a new variant is keyed with the host. */
-function variantKey(repo: string): string {
-  return `${GITHUB_HOST}/${canonicalRepo(repo)}`;
+function variantKey(repo: string, host: string): string {
+  return `${host}/${canonicalRepo(repo)}`;
 }
 
 /** A field patched to a value sets it, to null removes it, left undefined keeps it. */
@@ -307,8 +316,9 @@ function renamedVariant(
   body: AgentDefinitionBody,
   from: string,
   to: string,
+  host: string,
 ): AgentDefinitionBody {
   const variant = variantEntry(body, from)?.variant ?? {};
 
-  return withVariant(withVariant(body, from, {}), to, variant);
+  return withVariant(withVariant(body, from, {}, host), to, variant, host);
 }

@@ -82,6 +82,14 @@ spec:
                   name: lore-anthropic-key
                   key: anthropic-api-key
                   optional: true
+            {{- if .Values.openaiKeySecret }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.openaiKeySecret.name }}
+                  key: {{ .Values.openaiKeySecret.key }}
+                  optional: true
+            {{- end }}
             {{- if .Values.anthropicAdminKeySecret }}
             # The Anthropic ORG admin key, for the cost-sync maintenance job
             # (#1348). Distinct from the API key above: it reads the billing

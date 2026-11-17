@@ -1,5 +1,6 @@
 // The implementation loop's "already done?" check before the definition-of-done pod (#3497): merged pull requests that name the ticket are shown to a small model with the ticket, and only its "done, by this pull request, because" closes the ticket. Over the weekend of 2026-10-23 the dod pod ended 294 of its 372 visits as already done or not testable, at about $2.07 each.
 import type { PullRef } from "../../outbound/project/pulls/pull-requests-port.js";
+import { githubHost, githubHostPattern } from "../../domain/github-host.js";
 import { issueNumberFromLoopBranch } from "./loop-merge-success.js";
 
 /** Pull requests shown to the judge, newest first: enough for the change that did it, few enough to stay a small call. */
@@ -13,9 +14,10 @@ export function mentionsIssue(
   text: string,
   repo: string,
   number: number,
+  host: string = githubHost(),
 ): boolean {
   const short = new RegExp(`(^|[^\\w/])#${number}(?!\\d)`);
-  const url = `github.com/${repo}/issues/${number}`;
+  const url = `${host}/${repo}/issues/${number}`;
   const byUrl = new RegExp(`${url.replace(/[./]/g, "\\$&")}(?!\\d)`, "i");
 
   return short.test(text) || byUrl.test(text);
@@ -24,14 +26,16 @@ export function mentionsIssue(
 /** Code files the ticket's text names, at most this many, each looked up for the pull requests that touched it. */
 export const NAMED_PATHS = 8;
 
-const BLOB_PATH = /github\.com\/[\w.-]+\/[\w.-]+\/blob\/[^/\s]+\/([^\s#)?]+)/g;
-
 const PATH_WORD = /(?<![\w./:-])((?:[\w.-]+\/)+[\w.-]+\.[A-Za-z]\w*)(?![\w/])/g;
 
 /** The repository files a ticket names, by blob link, in backticks or bare, in order of first mention: not a spec, an ADR or markdown, which say what to do rather than where it was done. */
-export function namedPaths(ticket: string): string[] {
-  const linked = [...ticket.matchAll(BLOB_PATH)].map(placed);
-  const blanked = ticket.replace(BLOB_PATH, (link) => " ".repeat(link.length));
+export function namedPaths(
+  ticket: string,
+  host: string = githubHost(),
+): string[] {
+  const blobPath = blobPathPattern(host);
+  const linked = [...ticket.matchAll(blobPath)].map(placed);
+  const blanked = ticket.replace(blobPath, (link) => " ".repeat(link.length));
   const bare = [...blanked.matchAll(PATH_WORD)].map(placed);
   const inOrder = [...linked, ...bare]
     .sort((a, b) => a.at - b.at)
@@ -40,6 +44,13 @@ export function namedPaths(ticket: string): string[] {
   return [...new Set(inOrder)]
     .filter((path) => !/^(specs|adrs)\//.test(path) && !path.endsWith(".md"))
     .slice(0, NAMED_PATHS);
+}
+
+function blobPathPattern(host: string): RegExp {
+  return new RegExp(
+    `${githubHostPattern(host)}/[\\w.-]+/[\\w.-]+/blob/[^/\\s]+/([^\\s#)?]+)`,
+    "g",
+  );
 }
 
 function placed(match: RegExpMatchArray): { path: string; at: number } {

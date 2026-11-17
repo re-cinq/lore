@@ -1,3 +1,4 @@
+import { githubIssueUrl } from "@re-cinq/lore-shared/github-host.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { IssueRef } from "@re-cinq/lore-shared";
@@ -122,5 +123,5 @@ function wordsOf(issue: IssueRef | null) {
 }
 
 function issueUrlOf(repo: string, number: number): string {
-  return `https://github.com/${repo}/issues/${number}`;
+  return githubIssueUrl(repo, number);
 }

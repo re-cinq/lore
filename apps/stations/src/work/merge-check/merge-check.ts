@@ -11,6 +11,10 @@ import { floorMergeLinePorts } from "./floor-merge-line.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
+import {
+  githubHost,
+  githubHostPattern,
+} from "@re-cinq/lore-shared/github-host.js";
 import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/settings/settings-port.js";
@@ -85,11 +89,14 @@ async function checkOnboardingRepo(
   return "unchanged";
 }
 
-/** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
+/** Extracts owner/repo and PR number from a pull URL on the configured GitHub host, or null when the URL is not one. */
 export function parseOnboardingPrUrl(
   url: string,
+  host: string = githubHost(),
 ): { owner: string; repoName: string; number: number } | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  const match = url.match(
+    new RegExp(`${githubHostPattern(host)}/([^/]+)/([^/]+)/pull/(\\d+)`),
+  );
 
   if (!match) {
     return null;

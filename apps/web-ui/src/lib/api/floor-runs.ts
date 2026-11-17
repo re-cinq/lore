@@ -1,4 +1,5 @@
 import "server-only";
+import { githubHost } from "@/lib/github-host";
 import {
   floorRunsPageOf,
   floorRunsPath,
@@ -21,5 +22,5 @@ export async function getFloorRuns(
     return { runs: [], nextCursor: null };
   }
 
-  return floorRunsPageOf(result.data);
+  return floorRunsPageOf(result.data, githubHost());
 }

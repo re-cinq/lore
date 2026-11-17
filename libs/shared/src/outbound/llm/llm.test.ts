@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { Llm } from "./llm.js";
+import { startRecordingHttpServer } from "../../test-helpers/recording-http-server.js";
 import type { LlmProvider } from "./llm-provider.js";
 
 const stub: LlmProvider = {
@@ -108,5 +109,34 @@ describe("Llm.forModel", () => {
         model: "gemini-2.5-flash",
       }),
     ).not.toBe(first);
+  });
+});
+
+describe("Llm.forModel on openai", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    Llm.reset();
+  });
+
+  it("calls the configured LORE_FACT_MODEL deployment when the context use names provider openai and a blank model", async () => {
+    const server = await startRecordingHttpServer({
+      choices: [{ message: { content: "a" } }],
+    });
+
+    vi.stubEnv("OPENAI_API_KEY", "k");
+    vi.stubEnv("OPENAI_BASE_URL", server.baseUrl);
+    vi.stubEnv("LORE_FACT_MODEL", "my-deployment");
+
+    await Llm.forModel("context", { provider: "openai", model: "" }).complete({
+      prompt: "u",
+    });
+    server.close();
+
+    expect(server.requests).toMatchObject([
+      {
+        url: "/openai/v1/chat/completions",
+        body: { model: "my-deployment" },
+      },
+    ]);
   });
 });

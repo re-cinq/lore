@@ -4,6 +4,7 @@
 import { useReducer, useRef, type Dispatch } from "react";
 import { loadFloorRunsPage, type FloorRunsPage } from "@/lib/floor-runs-page";
 import { floorRunOf } from "@/lib/assembly-run-rows";
+import { useGithubHost } from "@/lib/GithubHostProvider";
 import type { ChannelState } from "@/lib/live-socket/connection-machine";
 import type { RunListFrame } from "@/lib/live-socket/protocol";
 import AssemblyRunListView from "./AssemblyRunListView";
@@ -27,11 +28,12 @@ interface AssemblyRunsLiveProps {
 export default function AssemblyRunsLive(props: AssemblyRunsLiveProps) {
   const { activeStatus, cursor, initial, repo } = props;
   const [state, dispatch] = useReducer(reduceRunList, initial, initialRunList);
-  const reload = usePageReload({ repo, activeStatus, cursor }, dispatch);
+  const host = useGithubHost();
+  const reload = usePageReload({ repo, activeStatus, cursor }, dispatch, host);
 
   useRunsChannel({
     runIds: state.runs.map((run) => run.id),
-    onFrame: frameHandler({ dispatch, reload, onFirstPage: !cursor }),
+    onFrame: frameHandler({ dispatch, reload, onFirstPage: !cursor, host }),
     onConnectionChange: connectionChangeHandler(dispatch, reload),
   });
 
@@ -50,14 +52,15 @@ interface FrameContext {
   dispatch: Dispatch<RunListAction>;
   reload: () => void;
   onFirstPage: boolean;
+  host: string;
 }
 
-function frameHandler({ dispatch, reload, onFirstPage }: FrameContext) {
+function frameHandler({ dispatch, reload, onFirstPage, host }: FrameContext) {
   const handlers: Record<RunListFrame["type"], (frame: RunListFrame) => void> =
     {
       run_row: (frame) => {
         if (frame.type === "run_row") {
-          dispatch({ type: "run_row", run: floorRunOf(frame.run) });
+          dispatch({ type: "run_row", run: floorRunOf(frame.run, host) });
         }
       },
       // A keyset page does not shift when something starts: only the first page has a new row to show.
@@ -78,11 +81,12 @@ type ReadState = "idle" | "reading" | "stale";
 function usePageReload(
   query: { repo?: string; activeStatus?: string; cursor?: string },
   dispatch: Dispatch<RunListAction>,
+  host: string,
 ): () => void {
   const readState = useRef<ReadState>("idle");
   const readPage = async () => {
     const { repo, activeStatus: status, cursor } = query;
-    const page = await loadFloorRunsPage({ repo, status, cursor });
+    const page = await loadFloorRunsPage({ repo, status, cursor }, host);
 
     dispatch({ type: "page_loaded", ...page });
   };

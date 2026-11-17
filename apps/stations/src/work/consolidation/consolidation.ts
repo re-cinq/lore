@@ -2,6 +2,7 @@
 
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
+import { llmConfigured } from "@re-cinq/lore-shared/llm/select-provider.js";
 
 // ── Config ──────────────────────────────────────────────────────────
 
@@ -22,8 +23,8 @@ export function parseConsolidationPatterns(text: string): string[] {
 export async function consolidation(
   memory: MemoryLifecyclePort,
 ): Promise<string> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return "Skipped: no ANTHROPIC_API_KEY";
+  if (!llmConfigured(process.env)) {
+    return "Skipped: no model configured (the selected LORE_LLM_PROVIDER has no key)";
   }
 
   // Get recent facts from the last N days that haven't been consolidated

@@ -1,4 +1,5 @@
 // First-class assembly line runs (pipeline.assembly_runs, migration 0025) — the per-attempt records the list/tab/detail pages read through. PR/creator/cost join pipeline.tasks via task_id; task-less runs (code-review family) fall back to args.pr_number/args.actor and the assembly_run_id cost lateral (migration 0032).
+import { githubHost } from "@/lib/github-host";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 import {
@@ -30,28 +31,6 @@ export async function fetchAssemblyRuns(
   return readRuns(`?${assemblyRunFilterParams(opts)}`);
 }
 
-/** A plan's planning run — its open one, else the newest that was not cancelled, else its newest — or null before one has started. The run is keyed on the plan (`plan:<id>`, the subject the Floor stamps); a newer run can be over while an older one was reopened, and a shell run a migration cancelled after folding its steps into another run (#2154) must not hide the run that did the work. */
-export async function fetchPlanRun(
-  repo: string,
-  planId: string,
-): Promise<AssemblyRun | null> {
-  const runs = await fetchAssemblyRuns({
-    repo,
-    subjectKey: `plan:${planId}`,
-    blueprint: "feature-planning",
-  });
-
-  return (
-    runs.find((run) => OPEN_RUN.has(run.status)) ??
-    runs.find((run) => run.outcome !== CANCELLED) ??
-    runs.at(0) ??
-    null
-  );
-}
-
-const OPEN_RUN = new Set(["queued", "running"]);
-const CANCELLED = "cancelled";
-
 function assemblyRunFilterParams(opts: AssemblyRunFilter): URLSearchParams {
   const params = new URLSearchParams();
   const filters: Array<[string, string | undefined]> = [
@@ -82,7 +61,7 @@ async function readRuns(query: string): Promise<AssemblyRun[]> {
   }
   const { runs } = result.data;
 
-  return runs.map(toAssemblyRun);
+  return runs.map((row) => toAssemblyRun(row, githubHost()));
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */
@@ -94,7 +73,9 @@ export async function fetchAssemblyRun(
     `/api/assembly-lines/${encodeURIComponent(id)}`,
   );
 
-  return result.status === "ok" ? toAssemblyRun(result.data) : null;
+  return result.status === "ok"
+    ? toAssemblyRun(result.data, githubHost())
+    : null;
 }
 
 /** Newest run for a task, or null — a task-centric page (feature planning wizard) knows only its task id, and a retry mints a fresh row against the same task. */
