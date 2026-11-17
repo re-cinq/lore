@@ -10497,6 +10497,97 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/tickets/search": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_tickets_search",
+        "summary": "GET /api/repos/{owner}/{repo}/tickets/search",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The repo's GitHub issues, open and closed, that best match a query, highest-scoring first, with their current state from GitHub",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketSearchResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": ["open", "closed", "all"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/trace/overlay-drop": {
       "post": {
         "operationId": "post_api_repos_owner_repo_trace_overlay-drop",
@@ -25090,6 +25181,62 @@
             "additionalProperties": false
           }
         ]
+      },
+      "TicketSearchResults": {
+        "type": "object",
+        "properties": {
+          "tickets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "number"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["open", "closed"]
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "url": {
+                  "type": ["string", "null"]
+                },
+                "score": {
+                  "type": "number"
+                },
+                "excerpt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number",
+                "title",
+                "state",
+                "labels",
+                "url",
+                "score",
+                "excerpt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["tickets"],
+        "additionalProperties": false
       },
       "TokenList": {
         "type": "object",

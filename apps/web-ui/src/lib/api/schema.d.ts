@@ -2309,6 +2309,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/tickets/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/tickets/search */
+    get: operations["get_api_repos_owner_repo_tickets_search"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/trace/overlay-drop": {
     parameters: {
       query?: never;
@@ -6200,6 +6217,19 @@ export interface components {
             sections: string[];
           };
         };
+    TicketSearchResults: {
+      tickets: {
+        number: number;
+        title: string;
+        /** @enum {string} */
+        state: "open" | "closed";
+        labels: string[];
+        url: string | null;
+        score: number;
+        excerpt: string;
+      }[];
+      notes?: string[];
+    };
     TokenList: {
       tokens: {
         id: string;
@@ -11086,6 +11116,39 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_repos_owner_repo_tickets_search: {
+    parameters: {
+      query: {
+        query: string;
+        state?: "open" | "closed" | "all";
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The repo's GitHub issues, open and closed, that best match a query, highest-scoring first, with their current state from GitHub */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TicketSearchResults"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
