@@ -230,7 +230,7 @@ One install talks to one GitHub host. By default that is `github.com`; for a sel
 | Dgraph | infra team: a 50Gi volume class; Lore team: `platform.dgraph` in the values file (3.3) | `deploy/chart/templates/lore-dgraph.yaml` |
 | model credentials | client: keys into the vault | GCP Secret Manager |
 | embeddings | an embedding deployment on the client's OpenAI-compatible endpoint (1.6), or Vertex through a Google project | Vertex via `roles/aiplatform.user` on the lore-api service account |
-| traces | nothing; lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
+| traces | nothing, unless `OTEL_EXPORTER_OTLP_ENDPOINT` names an OTLP/HTTP collector (`LORE_TRACE_EXPORTER=otlp\|cloud-trace\|none` forces a choice); lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
 | cost pages | `/spend` shows the pod-hour estimate only | BigQuery `billing_export` (re-cinq/infrastructure) |
 | deploys | the Lore team's laptops with namespace-scoped kubeconfigs, one `helm upgrade --install` (3.5) | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
 
