@@ -112,6 +112,13 @@ slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
 
+# Who the agents' commits are authored and committed by: lore-api puts these into the
+# GIT_AUTHOR_* / GIT_COMMITTER_* env of every agent that commits (config.env of its
+# agent-defaults md), so a client's own identity replaces the default without a prompt edit.
+commitAuthor:
+  name: Lore Agent
+  email: lore-agent@re-cinq.com
+
 # The external floor engine (its own namespace and Helm release). Off by default:
 # nothing below renders until terraform sets enabled from var.enable_external_floor.
 floor:

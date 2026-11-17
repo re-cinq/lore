@@ -16,6 +16,8 @@ export interface ConfigWrite {
   adjustSkillModels?: boolean;
   /** Where pods fetch skills from, written only with a non-empty skills list when neither the layer's config nor inheritedConfig names one. */
   skillsSource?: string;
+  /** Variables merged into the layer's config.env, each over an existing one of the same name. */
+  env?: Record<string, string>;
   inheritedConfig: Record<string, unknown> | null;
 }
 

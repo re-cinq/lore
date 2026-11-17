@@ -20332,9 +20332,97 @@
           },
           "repo_count": {
             "type": "number"
+          },
+          "pack_sync": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "repo": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": ["string", "null"]
+                  },
+                  "commit": {
+                    "type": ["string", "null"]
+                  },
+                  "applied_at": {
+                    "type": ["string", "null"]
+                  },
+                  "agent_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "line_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "extra_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "refused_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "reason"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "agents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "pipelines": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "error": {
+                    "type": ["string", "null"]
+                  },
+                  "error_at": {
+                    "type": ["string", "null"]
+                  }
+                },
+                "required": [
+                  "repo",
+                  "ref",
+                  "commit",
+                  "applied_at",
+                  "agent_count",
+                  "line_count",
+                  "extra_count",
+                  "refused_files",
+                  "agents",
+                  "pipelines",
+                  "error",
+                  "error_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["settings", "repo_count"],
+        "required": ["settings", "repo_count", "pack_sync"],
         "additionalProperties": false
       },
       "OrgSettingsSaved": {

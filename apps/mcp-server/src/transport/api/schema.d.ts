@@ -4907,6 +4907,23 @@ export interface components {
         [key: string]: unknown;
       };
       repo_count: number;
+      pack_sync: {
+        repo: string;
+        ref: string | null;
+        commit: string | null;
+        applied_at: string | null;
+        agent_count: number;
+        line_count: number;
+        extra_count: number;
+        refused_files: {
+          path: string;
+          reason: string;
+        }[];
+        agents: string[];
+        pipelines: string[];
+        error: string | null;
+        error_at: string | null;
+      } | null;
     };
     OrgSettingsSaved: {
       /** @constant */

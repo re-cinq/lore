@@ -61,7 +61,38 @@ describe("org settings + repo sessions", () => {
       ).toEqual({
         settings: [{ key: "api_url", value: "https://x" }],
         repo_count: 8,
+        pack_sync: null,
       });
+    });
+
+    it("returns the pack.sync state parsed beside the settings rows", async () => {
+      const pool = makePool();
+      const packSync = {
+        repo: "acme/lore-pack",
+        ref: "main",
+        commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+        applied_at: "2026-11-17T10:00:00.000Z",
+        agent_count: 2,
+        line_count: 1,
+        extra_count: 0,
+        refused_files: [
+          { path: "merge/pipeline.yaml", reason: "names a shipped line" },
+        ],
+        agents: ["acme-triage"],
+        pipelines: ["acme-release"],
+        error: null,
+        error_at: null,
+      };
+
+      pool.query
+        .mockResolvedValueOnce({
+          rows: [{ key: "pack.sync", value: JSON.stringify(packSync) }],
+        })
+        .mockResolvedValueOnce({ rows: [{ count: 1 }] });
+
+      expect(
+        (await call("GET", "/api/settings", undefined, pool)).result,
+      ).toMatchObject({ pack_sync: packSync });
     });
   });
 

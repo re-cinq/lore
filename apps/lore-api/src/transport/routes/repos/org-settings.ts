@@ -14,6 +14,12 @@ import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import {
+  PACK_SYNC_KEY,
+  PackSyncStateSchema,
+  type PackSyncState,
+} from "@re-cinq/lore-shared/models/pack-sync-state.js";
+import { parsePackSync } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { parseSlackUsers } from "@re-cinq/lore-shared/digest/people.js";
 import {
   CONTEXT_MODEL_KEY,
@@ -49,6 +55,8 @@ type SettingsBody = z.infer<typeof SettingsBody>;
 const OrgSettingsSchema = z.object({
   settings: z.record(z.string(), z.unknown()),
   repo_count: z.number(),
+  /** What the last sync of the client's pack repo did; null while none has run (specs/client-packs). */
+  pack_sync: PackSyncStateSchema.nullable(),
 });
 
 /** How many developers have run a local session against a repo, and when last. */
@@ -85,18 +93,26 @@ function readOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-/** The stored settings rows alongside the number of repos they govern. */
-async function readOrgSettings(
-  pool: Pool,
-): Promise<{ settings: unknown[]; repo_count: number }> {
-  const { rows: settings } = await pool.query(
+/** The stored settings rows alongside the number of repos they govern and the pack sync state among them. */
+async function readOrgSettings(pool: Pool): Promise<{
+  settings: unknown[];
+  repo_count: number;
+  pack_sync: PackSyncState | null;
+}> {
+  const { rows: settings } = await pool.query<{ key: string; value: string }>(
     `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
   );
   const { rows: countRows } = await pool.query<{ count: number }>(
     `SELECT count(*)::int as count FROM lore.repos`,
   );
 
-  return { settings, repo_count: countRows[0]?.count ?? 0 };
+  return {
+    settings,
+    repo_count: countRows[0]?.count ?? 0,
+    pack_sync: parsePackSync(
+      settings.find(({ key }) => key === PACK_SYNC_KEY)?.value ?? null,
+    ),
+  };
 }
 
 function writeOrgSettingsRoute(getPool: () => Pool | null): ServerRoute {
