@@ -61,6 +61,37 @@ helm template lore deploy/chart -f deploy/clusters/internal-cluster.values.yaml
 helm lint deploy/chart
 ```
 
+## Releasing Lore
+
+A release is a git tag `vX.Y.Z` on a commit of `main`. The tag gives every Lore
+image that version, and the install chart (`deploy/install`) at the tag pins
+the images to it. No image is rebuilt: the tag is added to the images our own
+cluster runs, as recorded in `deploy/clusters/internal-cluster.values.yaml`.
+
+1. Wait until the `deploy(...)` pull requests of the build workflows for the
+   commits you want have merged to `main`. Those values are what gets released.
+2. Open a pull request that sets the new version in `deploy/install/values.yaml`
+   (the four `tag:` values and `agentImage`) and in the clone command of
+   `docs/INSTALL.md` section 3.2. Check it with
+   `bash scripts/ci/check-install-pins.sh vX.Y.Z`.
+3. After it merges, tag the merge commit and push the tag:
+   `git tag vX.Y.Z <merge commit> && git push origin vX.Y.Z`.
+4. `.github/workflows/release.yml` checks the tag and the pins, runs
+   `scripts/ci/release-images.sh`, verifies the digests and creates the GitHub
+   release with the image table.
+
+To see what a release would tag, run
+`bash scripts/ci/release-images.sh vX.Y.Z --dry-run` from the commit.
+
+When it fails: a check that fails before any image is tagged (bad tag, commit
+not on `main`, install chart pinned elsewhere) is fixed by deleting the tag
+(`git push origin :refs/tags/vX.Y.Z`), fixing the cause and tagging again. A
+version tag already on an image with another digest is an error on purpose, as
+a version is never moved: pick the next version instead. A permission error
+means the package does not give this repository write access (package settings,
+"Manage Actions access"). If only the release step failed, run the workflow
+again from the Actions tab, the image step is a no-op the second time.
+
 ## How to add a secret
 
 Secret values live in Secret Manager in `re-cinq-internal` and nowhere in git.

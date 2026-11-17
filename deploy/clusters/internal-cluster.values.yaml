@@ -1,6 +1,7 @@
 # re:cinq's internal cluster. Argo CD deploys the umbrella with these values
 # on every merge to main (re-cinq/infrastructure, docs/deploying.md). Image
-# tags under <subchart>.image.tag are bumped by the build workflows.
+# tags under <subchart>.image.tag (and lore-api.floor.agentImage) are bumped by
+# the build workflows.
 
 platform:
   gcpProject: re-cinq-internal
@@ -255,6 +256,8 @@ lore-api:
   floor:
     enabled: true
     skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+    # Bumped by build-agent-image.yml; the release script reads the tag from here.
+    agentImage: ghcr.io/re-cinq/lore-agent:2d01cfa
   utopia:
     enabled: true
     apiUrl: http://utopia.utopia.svc.cluster.local

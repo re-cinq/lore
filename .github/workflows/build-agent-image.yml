@@ -7,11 +7,13 @@ on:
       - '.github/workflows/_build-image.yml'
       - 'apps/agent-image/**'
       - '.github/workflows/build-agent-image.yml'
+      - 'scripts/ci/bump-image-tag.sh'
   pull_request:
     paths:
       - '.github/workflows/_build-image.yml'
       - 'apps/agent-image/**'
       - '.github/workflows/build-agent-image.yml'
+      - 'scripts/ci/bump-image-tag.sh'
   workflow_dispatch:
 
 concurrency:
@@ -35,3 +37,24 @@ jobs:
         tree --version && file --version >/dev/null && less --version >/dev/null &&
         java -version && javac -version
     secrets: inherit
+
+  deploy:
+    concurrency:
+      group: deploy-lore-agent
+      cancel-in-progress: true
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VALUE_PATH: '."lore-api".floor.agentImage'
+      VALUE_PREFIX: 'ghcr.io/re-cinq/lore-agent:'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Record the lore-agent image tag for Argo CD
+        run: bash scripts/ci/bump-image-tag.sh lore-agent "${{ needs.build.outputs.image_tag }}"
