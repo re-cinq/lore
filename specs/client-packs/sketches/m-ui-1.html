@@ -1,0 +1,224 @@
+<div class="sketch">
+  <style>
+    .sketch {
+      width: 680px;
+      font:
+        14px/1.5 Inter,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        sans-serif;
+      color: #1d1d1f;
+      background: #f5f5f7;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .sketch .section-heading {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: #6e6e73;
+      text-transform: uppercase;
+      margin: 0 0 8px;
+      font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .sketch .card {
+      background: #ffffff;
+      border: 1px solid #d2d2d7;
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .sketch .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sketch h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: #1d1d1f;
+    }
+    .sketch .repo-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: #ececee;
+      border-radius: 10px;
+    }
+    .sketch .repo-icon {
+      width: 36px;
+      height: 36px;
+      background: #ffffff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #1d1d1f;
+    }
+    .sketch .repo-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sketch .repo-name {
+      font-weight: 500;
+      color: #1d1d1f;
+      font-size: 14px;
+    }
+    .sketch .repo-ref {
+      font-size: 12px;
+      color: #6e6e73;
+    }
+    .sketch .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      background: #e4f3e8;
+      color: #1a7f37;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .sketch .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .sketch .stat {
+      background: #ececee;
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sketch .stat-label {
+      font-size: 11px;
+      font-weight: 400;
+      color: #6e6e73;
+      font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      letter-spacing: 0.06em;
+    }
+    .sketch .stat-value {
+      font-size: 22px;
+      font-weight: 500;
+      color: #1d1d1f;
+      letter-spacing: -0.01em;
+    }
+    .sketch .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sketch .commit-info {
+      font-size: 12px;
+      color: #6e6e73;
+    }
+    .sketch .commit-sha {
+      font-family:
+        ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      color: #1d1d1f;
+      font-size: 12px;
+    }
+    .sketch .sync-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      min-height: 32px;
+      border: 1px solid #d2d2d7;
+      border-radius: 9999px;
+      background: #ffffff;
+      color: #1d1d1f;
+      font:
+        13px/1 Inter,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        sans-serif;
+      font-weight: 500;
+      cursor: default;
+    }
+  </style>
+  <p class="section-heading">Integrations</p>
+  <div class="card">
+    <div class="card-header">
+      <h3>Pack</h3>
+    </div>
+    <div class="repo-row">
+      <div class="repo-icon">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="2" y="1" width="12" height="14" rx="1" />
+          <path d="M5 5h6M5 8h6M5 11h4" />
+        </svg>
+      </div>
+      <div class="repo-info">
+        <span class="repo-name">re-cinq/my-org-pack</span>
+        <span class="repo-ref">branch: main</span>
+      </div>
+      <span class="pill">
+        <svg width="7" height="7" viewBox="0 0 8 8">
+          <circle cx="4" cy="4" r="3.5" fill="currentColor" />
+        </svg>
+        Applied
+      </span>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">agents</span><span class="stat-value">3</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">lines</span><span class="stat-value">1</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">extras</span><span class="stat-value">2</span>
+      </div>
+    </div>
+    <div class="footer">
+      <span class="commit-info"
+        >Last applied: <span class="commit-sha">abc1234</span> &middot; 2 hours
+        ago</span
+      >
+      <button class="sync-btn">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M14 8A6 6 0 0 1 2.5 11.5" />
+          <path d="M2 8A6 6 0 0 1 13.5 4.5" />
+          <path d="M2.5 14v-3h3" />
+          <path d="M13.5 2v3h-3" />
+        </svg>
+        Sync now
+      </button>
+    </div>
+  </div>
+</div>
