@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 
 import {
   hasHook,
@@ -111,4 +112,25 @@ test("mergeLoreSettings drops a systemPromptSuffix that held only the Lore block
   });
 
   assert.equal("systemPromptSuffix" in merged, false);
+});
+
+test("the Stop hook reads owner/repo from an ssh remote on acme.ghe.com and an https remote on ghe.example.com", () => {
+  const merged = mergeLoreSettings({});
+  const command = merged.hooks.Stop.flatMap((entry) => entry.hooks)
+    .map((hook) => hook.command)
+    .find((hookCommand) => hookCommand.includes("api/session-summary"));
+  const remoteToRepo = command.match(/sed -E '[^']+'/)[0];
+  const repoOf = (remote) =>
+    execFileSync("sh", ["-c", `echo "$1" | ${remoteToRepo}`, "sh", remote], {
+      encoding: "utf8",
+    }).trim();
+
+  assert.deepEqual(
+    [
+      "git@acme.ghe.com:octo/app.git",
+      "https://ghe.example.com/octo/app",
+      "git@github.com:octo/app.git",
+    ].map(repoOf),
+    ["octo/app", "octo/app", "octo/app"],
+  );
 });

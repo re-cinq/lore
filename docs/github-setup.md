@@ -113,7 +113,7 @@ How to create it and which permissions it takes: [The lore-reviewer App](managin
 
 A self-hosted GitHub Enterprise Server (3.11 or newer) works with one change: set `GITHUB_HOST` to its bare host name, for example `ghe.example.com`, in the `lore-api`, `lore-ui` and `lore-stations` `env:` blocks. Everything above then happens on that instance: create the GitHub App and the OAuth App in the Server's own organization settings, not on github.com, and use the Server's URLs in the checks below. Lore reaches its API at `https://<host>/api/v3` and sends sign-in to `https://<host>/login/oauth/authorize`. The full list of what the Server needs (Actions synced or GitHub Connect, egress for agents, runners reaching Lore) is in [section 1.6.1 of the install guide](INSTALL.md#161-github-enterprise).
 
-Enterprise Cloud on github.com is github.com, so nothing changes. Enterprise Cloud with data residency (`<name>.ghe.com`) is not supported.
+Enterprise Cloud on github.com is github.com, so nothing changes. Enterprise Cloud with data residency (`<name>.ghe.com`) works the same way with `GITHUB_HOST` set to `<name>.ghe.com`, except that Lore reaches its API at `https://api.<name>.ghe.com` with no `/api/v3`. The 3.11 requirement is for a Server only. Lore has not been run against a real `ghe.com` tenant.
 
 ## After the install
 
