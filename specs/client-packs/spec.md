@@ -34,7 +34,7 @@ Every change to the pack reaches the running install automatically — on a push
 
 ## Automatic Sync
 
-- **FR-003**: Every change to the pack reaches the running install automatically — on a push to the pack repository, on a periodic catch-up, and whenever Lore restarts or is upgraded — without touching the cluster or performing a manual restart. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#scope-p-5))
+- **FR-003**: Every change to the pack reaches the running install automatically — at boot (`seedFloor` in `apps/lore-api/src/app/seed-floor.ts`, not on main, calls `applyPack` after `seedFloorPipelines` returns and before the HTTP server starts listening when `LORE_PACK_REPO` is set), on a push to the pack repository (a new `github.push` handler in `apps/stations/src/events/`, not on main, following the pattern in `apps/stations/src/events/floor-review-handlers.ts`), and on a scheduled catch-up tick (`cron.pack_sync.tick` added to `libs/shared/src/work/scheduler/`, not on main, with a sweep in `apps/stations/src/work/`) — without touching the cluster or performing a manual restart. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#scope-p-5), [from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#delivery-p-2), [from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#p_3e7d4628-b73f-42f2-8314-17d84dc82b9f))
 
 ## Apply Behavior
 
@@ -57,7 +57,7 @@ Every change to the pack reaches the running install automatically — on a push
 
 ## Pack Status Card
 
-- **FR-006**: A read-only Pack status card on the Settings page (`apps/web-ui/src/app/settings/`, not on main) shows the connected repository and branch, the last commit applied and when, counts of what the pack supplies (agents, pipelines, extensions), and any files the last sync refused; the data is served from the `pack.sync` key in `lore.settings` (`apps/lore-api/src/transport/routes/repos/org-settings.ts#L93`, not on main). ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#scope-p-8))
+- **FR-006**: A read-only Pack status card on the Settings page (`apps/web-ui/src/app/settings/`, not on main) shows the connected repository and branch, the last commit applied and when, counts of what the pack supplies (agents, pipelines, extensions), and any files the last sync refused; a "Sync now" action on the card triggers an immediate pack apply (access control subject to Q1); the data is served from the `pack.sync` key in `lore.settings` (`apps/lore-api/src/transport/routes/repos/org-settings.ts#L93`, not on main). ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#scope-p-8), [from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/eccd0780-db5e-4dc4-be8a-5d7f059b1197#delivery-p-6))
 
 ## Read-Only Enforcement
 
