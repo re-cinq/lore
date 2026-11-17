@@ -1,3 +1,4 @@
+import { packRoutes } from "../pack/pack.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
@@ -72,6 +73,8 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
     writeOrgSettingsRoute(getPool),
 
     repoSessionsRoute(getPool),
+
+    ...packRoutes(getPool),
   ];
 }
 
