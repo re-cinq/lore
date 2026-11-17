@@ -1,0 +1,90 @@
+<div class="sketch">
+<style>
+.sketch{width:680px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d1d1f;background:#f5f5f7;padding:24px;box-sizing:border-box}
+.sketch *{box-sizing:border-box}
+.sketch .seq{display:flex;align-items:center;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.sketch .seq-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6e6e73;margin-right:4px}
+.sketch .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:9999px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;font-weight:600;background:#e7f5ec;color:#1f7a3f;border:1px solid #b6e5c8;white-space:nowrap}
+.sketch .pill-g{background:#fff4e0;color:#b26a00;border-color:#f0c060}
+.sketch .pill-l{background:#eef2ff;color:#3730a3;border-color:#c7d2fe}
+.sketch .arrow{color:#6e6e73;font-size:13px}
+.sketch .card{margin-bottom:10px;padding:13px 15px;border:1px solid #d2d2d7;border-radius:14px;background:#fff}
+.sketch .badge{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;font-weight:600;padding:2px 10px;border-radius:9999px;margin-bottom:9px}
+.sketch .bg{background:#e7f5ec;color:#1f7a3f}
+.sketch .bg-g{background:#fff4e0;color:#b26a00}
+.sketch .bg-l{background:#eef2ff;color:#3730a3}
+.sketch dl{margin:0;display:grid;grid-template-columns:88px 1fr;gap:3px 12px;align-items:baseline}
+.sketch dt{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6e6e73;padding-top:1px}
+.sketch dd{margin:0;font-size:13px;color:#1d1d1f}
+.sketch .dim{color:#8a8a8e}
+</style>
+
+<div class="seq">
+  <span class="seq-label">Order</span>
+  <span class="pill pill-g">0 guard-open-pr</span>
+  <span class="arrow">&#8594;</span>
+  <span class="pill">1 align-implementation</span>
+  <span class="arrow">&#8594;</span>
+  <span class="pill">2 prune-decisions</span>
+  <span class="arrow">&#8594;</span>
+  <span class="pill">3 enforce-speckit</span>
+  <span class="arrow">&#8594;</span>
+  <span class="pill">4 check-length</span>
+  <span class="arrow">&#8594;</span>
+  <span class="pill pill-l">5 lint</span>
+</div>
+
+<div class="card">
+  <div class="badge bg-g">0 &nbsp;guard-open-pr</div>
+  <dl>
+    <dt>Reads</dt><dd>Open pull requests in the repository that touch the target spec file</dd>
+    <dt>Does</dt><dd>Halts the run immediately if any open PR already modifies that spec; logs the skip so the board shows "skipped — open PR" rather than a failure</dd>
+    <dt>Does not</dt><dd class="dim">Block on PRs that touch only other spec files &bull; Close or dismiss the conflicting PR</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="badge bg">1 &nbsp;align-implementation</div>
+  <dl>
+    <dt>Reads</dt><dd>Spec statements that carry a test-link parenthetical pointing to a test</dd>
+    <dt>Does</dt><dd>Checks each linked statement against the current test result; rewrites any statement whose wording no longer matches what the test asserts</dd>
+    <dt>Does not</dt><dd class="dim">Touch statements without a test link &bull; Run, modify, or reference test files</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="badge bg">2 &nbsp;prune-decisions</div>
+  <dl>
+    <dt>Reads</dt><dd>Spec statements carrying inline amendment markers such as "(added 2026-10-01, amended 2026-10-23)"</dd>
+    <dt>Does</dt><dd>Rewrites each marked statement in the present tense and strips the history annotation — the commit history already holds the full timeline</dd>
+    <dt>Does not</dt><dd class="dim">Choose between two conflicting statements &bull; Remove content that has no amendment marker</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="badge bg">3 &nbsp;enforce-speckit</div>
+  <dl>
+    <dt>Reads</dt><dd>The full spec file and the SpecKit template expected by the planning tools</dd>
+    <dt>Does</dt><dd>Validates section order, required rows (Owner, Status, Linked plan), and statement format; rewrites non-conforming sections to match the template</dd>
+    <dt>Does not</dt><dd class="dim">Change a statement's meaning — only its formatting and placement</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="badge bg">4 &nbsp;check-length</div>
+  <dl>
+    <dt>Reads</dt><dd>The spec file after the other three passes complete</dd>
+    <dt>Does</dt><dd>Counts lines; if the count exceeds ~500 it identifies coherent sub-features, drafts each as a new spec in a sibling feature directory, links extracted sections back from the original, and sets a split flag so the assembly line opens a separate PR for human review</dd>
+    <dt>Does not</dt><dd class="dim">Commit the split directly — a split always goes to a separate PR &bull; Auto-merge its own split pull requests</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <div class="badge bg-l">5 &nbsp;lint</div>
+  <dl>
+    <dt>Reads</dt><dd>All spec files written during this run</dd>
+    <dt>Does</dt><dd>Runs prettier --write on each changed file; if no bytes changed the run ends with "no changes"; if bytes changed it signals the assembly line to open a cleanup PR (and a separate split PR when the split flag is set)</dd>
+    <dt>Does not</dt><dd class="dim">Validate content logic — lint is format-only &bull; Run against code or test files</dd>
+  </dl>
+</div>
+</div>
