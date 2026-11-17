@@ -2,7 +2,9 @@
 # pre-install/pre-upgrade hook: apply DB migrations before the UI rolls out.
 # Re-runs every deploy; lore.schema_migrations makes applied files a no-op.
 # `helm upgrade --wait` blocks until this succeeds, so a bad migration fails
-# the deploy before any new UI pods take traffic.
+# the deploy before any new UI pods take traffic. On a database with no
+# baseline (a managed Postgres) the script installs the baseline first
+# (files/migrate.sh).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -41,38 +43,13 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -eu
-              echo "[migrate] waiting for $PGUSER@$PGHOST:$PGPORT/$PGDATABASE ..."
-              i=0
-              until psql -c 'SELECT 1' >/dev/null 2>&1; do
-                i=$((i + 1))
-                if [ "$i" -ge 30 ]; then
-                  echo "[migrate] ERROR: database unreachable after 60s; last attempt:" >&2
-                  psql -c 'SELECT 1' || true
-                  exit 1
-                fi
-                sleep 2
-              done
-              psql -v ON_ERROR_STOP=1 \
-                -c "CREATE SCHEMA IF NOT EXISTS lore;" \
-                -c "CREATE TABLE IF NOT EXISTS lore.schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());"
-              for f in /migrations/*.sql; do
-                v=$(basename "$f")
-                applied=$(psql -tA -c "SELECT 1 FROM lore.schema_migrations WHERE version = '$v'")
-                if [ "$applied" = "1" ]; then
-                  echo "[migrate] skip   $v (already applied)"
-                  continue
-                fi
-                echo "[migrate] apply  $v"
-                psql -v ON_ERROR_STOP=1 --single-transaction \
-                  -f "$f" \
-                  -c "INSERT INTO lore.schema_migrations (version) VALUES ('$v')"
-              done
-              echo "[migrate] done"
+{{ .Files.Get "files/migrate.sh" | indent 14 }}
           env:
             # A DDL statement queued behind a long transaction would otherwise
             # wait past the Job deadline and report nothing; a lock wait that
             # long is the wedge, so it fails fast and names the lock.
+            - name: TEAM_SCHEMAS
+              value: {{ .Values.migrations.teamSchemas | quote }}
             - name: PGOPTIONS
               value: "-c lock_timeout=60s"
             - name: PGHOST
@@ -99,8 +76,14 @@ spec:
             - name: migrations
               mountPath: /migrations
               readOnly: true
+            - name: baseline
+              mountPath: /baseline
+              readOnly: true
       volumes:
         - name: migrations
           configMap:
             name: {{ .Chart.Name }}-migrations
+        - name: baseline
+          configMap:
+            name: {{ .Chart.Name }}-baseline
 {{- end }}

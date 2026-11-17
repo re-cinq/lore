@@ -5,9 +5,37 @@ sync** of the umbrella chart, via this `ui-helm` subchart's
 `pre-install,pre-upgrade` hook Job (`templates/migrate-job.yaml`). Argo CD runs
 it as a PreSync hook on every merge to `main` (`deploy/README.md`).
 
-Unlike the baseline `scripts/infra/setup-*-schema.sh` scripts (run once by an
-operator when first provisioning a cluster), these run on each deploy and are
-tracked, so existing clusters converge without manual `kubectl exec`.
+These run on each deploy and are tracked, so existing clusters converge without
+manual `kubectl exec`. The baseline they build on lives in `../baseline/`
+(below).
+
+## The baseline (`../baseline/*.sql`)
+
+The one copy of the baseline schema: `01_extension.sql`, then repos, pipeline,
+agent, memory, dark factory, and `07_team_chunks.sql`, which reads its schema
+list from `psql -v team_schemas=a,b` (the chart value `migrations.teamSchemas`,
+`org_shared` by default). Two callers apply the same files:
+
+- `scripts/infra/setup-*.sh` pipe them to `psql` as `postgres` through
+  `kubectl exec` (our CloudNativePG database, local dev, CI).
+- `../files/migrate.sh`, the hook's script, applies them as `lore` on a database
+  that has none (a managed Postgres, where there is no pod and no superuser).
+
+Every file is idempotent and runs as `postgres` or as `lore` on its own objects.
+Add a column to a baseline file only together with a migration that adds it to
+existing databases (`scripts/check-bootstrap-columns.mjs` enforces it).
+
+The hook's rule, in `files/migrate.sh`: it takes the baseline path when the
+`0000_baseline` row of `lore.schema_migrations` is missing AND either
+`pipeline.tasks` does not exist or a `0000_baseline/<file>` progress row does.
+Each file records its own progress row in its transaction, and the marker is
+written after the last file. So a database provisioned by the setup scripts
+(`pipeline.tasks`, no progress row) never gets the baseline, and a baseline that
+stopped midway resumes after the last file that committed. If the server refuses
+`CREATE EXTENSION vector` to `lore`, the Job stops and prints the statement an
+admin runs; the next `helm upgrade --install` continues.
+`scripts/ci/compare-baseline-install.sh` (the `fresh-install` CI job) proves the
+result equals the `setup-local-schema.sh` schema.
 
 ## How it runs
 
@@ -23,7 +51,8 @@ initdb `owner`), using the chart's existing `dbPasswordSecret` — the same
 secret the UI connects with. Because `lore` owns its schemas, DDL and `GRANT`
 need no superuser; `enableSuperuserAccess` stays at CNPG's secure default. The
 only superuser step (`CREATE EXTENSION vector`) runs once at cluster bootstrap,
-not here. Disable with `--set lore-ui.migrations.enabled=false` (the value key is
+not here (on a managed server the hook tries it as `lore` and, if refused, stops
+with the statement for an admin). Disable with `--set lore-ui.migrations.enabled=false` (the value key is
 nested under the `lore-ui` subchart in the umbrella release).
 
 For clusters provisioned before `owner` was `lore` (where `postgres` still owns

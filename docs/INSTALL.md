@@ -100,7 +100,7 @@ These are **assumed, not installed**, by Lore's chart; on our GKE they come from
 
 | Need | Spec | Notes |
 | ---- | ---- | ----- |
-| **Lore Postgres** | PostgreSQL 16, extension `vector` (pgvector 0.5 or newer, for HNSW indexes), database `lore`, role `lore` as its owner, reachable from the Lore namespaces | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is applied by `scripts/infra/setup-*.sh` once and by a migrations hook on every deploy (`deploy/chart/charts/ui-helm/migrations/`) |
+| **Lore Postgres** | PostgreSQL 16, an empty database `lore` owned by the role `lore` (no superuser needed), reachable from the Lore namespaces, with pgvector 0.5 or newer (for HNSW indexes): the extension `vector` allow-listed on the server and either created in the database already or creatable by `lore` | in-cluster: a CloudNativePG `Cluster`, 1 instance, 50Gi, image `ghcr.io/cloudnative-pg/postgresql:16-bookworm` (what `scripts/infra/setup-db.sh` creates, extension included). Managed: Azure Database for PostgreSQL Flexible Server with `vector` allow-listed in `azure.extensions`, or RDS/Cloud SQL with pgvector. Lore's schema is installed by the migrations hook on the first `helm install` and updated by it on every deploy (3.4). Whether `lore` may create `vector` itself on Azure is unverified; the safe step is for a server admin to run `CREATE EXTENSION IF NOT EXISTS vector;` in database `lore` once |
 | **floor Postgres** | a **second database and role**, never shared with Lore: floor owns its schema (tables `events`, `blobs`, `definitions`) and migrates it on every install. Any Postgres; the role may create tables | the same server is fine. The floor chart never deploys one ([floor install doc](https://github.com/re-cinq/floor/blob/main/docs/install.md)) |
 | **Dgraph** | one StatefulSet, `dgraph/standalone:v24.0.0`, 50Gi ReadWriteOnce volume, 4Gi to 16Gi memory | the spec-traceability and memory graphs. The chart renders it from `platform.dgraph` |
 | Backups | in-cluster Postgres: an object-storage bucket for barman (GCS, S3 or Azure Blob) with write access from the `lore-db` namespace; managed Postgres: its own backups | ours: GCS bucket, 30-day lifecycle, daily `ScheduledBackup` at 02:00 |
@@ -308,14 +308,18 @@ kubectl get crd clusters.postgresql.cnpg.io           # the CloudNativePG operat
 kubectl auth can-i create customresourcedefinitions   # must answer: yes
 ```
 
-Postgres needs two databases on a PostgreSQL 16 server, `lore` and `floor`, each with its own role, and the `vector` extension available in `lore`:
+Postgres needs two databases on a PostgreSQL 16 server, `lore` and `floor`, each with its own role. `lore` is empty and owned by its role, and the `vector` extension is available in it:
 
 ```bash
 psql "host=<postgres host> dbname=lore user=lore sslmode=require" \
   -c "select name from pg_available_extensions where name = 'vector'"
 ```
 
-It prints one row, `vector`. No row means the extension is not allow-listed on the server (Azure: the `azure.extensions` server parameter).
+It prints one row, `vector`. No row means the extension is not allow-listed on the server (Azure: the `azure.extensions` server parameter). A server admin can also create it now, so the install does not depend on the privileges of `lore` (3.4):
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
 
 DNS: the five hostnames of 1.4 (API, UI, MCP, webhook, Utopia) point at the ingress controller's public IP.
 
@@ -412,18 +416,27 @@ Settings you may need:
 
 Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. `deploy/install/values.yaml` lists what the chart already sets and why.
 
-### 3.4 Apply the database schema
+### 3.4 The database schema
 
-The install runs Lore's incremental migrations, and they expect the baseline schema to exist. Apply it once, before installing.
+Nothing to run by hand. The install applies the schema itself.
 
-**An in-cluster CloudNativePG database:**
+The migrations hook (a Job that runs before every install and upgrade, as the role `lore`) checks the database first. On an empty one it applies the baseline schema from `deploy/chart/charts/ui-helm/baseline/*.sql` in name order, records it in `lore.schema_migrations` as version `0000_baseline`, then applies the incremental migrations. A database that already has the baseline is left alone. The hook needs no superuser, only the role that owns the database.
+
+The baseline creates one team schema, `org_shared`, which every repository uses until a team gets its own (value `migrations.teamSchemas`, a comma separated list, only read on the first install).
+
+**If `lore` cannot create the extension.** The first baseline file runs `CREATE EXTENSION IF NOT EXISTS vector;`. Where the server refuses it, the Job stops and its log prints the statement an admin runs once, in database `lore`:
 
 ```bash
-scripts/infra/setup-db.sh
-scripts/infra/setup-pipeline-schema.sh
+kubectl -n lore-ui logs job/lore-ui-migrate
 ```
 
-**A managed server (Azure Database for PostgreSQL):** there is no supported command for this. The `scripts/infra/setup-*.sh` scripts run their SQL through `kubectl exec` into a CloudNativePG pod ([#3904](https://github.com/re-cinq/lore/issues/3904)). `scripts/infra/setup-local-schema.sh` can reach a server over the network (`LORE_SCHEMA_TRANSPORT=tcp`), but it is built for throwaway databases: it creates a `postgres` superuser and roles with the password `lore`. Do not run it against a client's server as it is. Until #3904 is fixed, a re:cinq engineer applies the SQL from those scripts by hand.
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+On Azure the extension must also be allow-listed in `azure.extensions`. After that, run `helm upgrade --install` again with the same command as 3.5: the hook continues from where it stopped, because each baseline file is recorded as it completes.
+
+Our own CloudNativePG database is the exception: `scripts/infra/setup-db.sh` creates the cluster, the extension and the schemas, and the hook then finds the baseline present. The scripts `scripts/infra/setup-*-schema.sh` apply the same SQL files by `kubectl exec` and stay for that path.
 
 ### 3.5 Install
 
@@ -434,7 +447,7 @@ helm upgrade --install lore deploy/install \
   -n lore-floor --create-namespace -f my-values.yaml
 ```
 
-Helm creates the namespaces and Secrets, runs the floor's and Lore's database migrations, then starts everything. When it returns:
+Helm creates the namespaces and Secrets, runs the floor's database migrations and Lore's (the baseline schema first, on an empty database, see 3.4), then starts everything. When it returns:
 
 ```bash
 for ns in lore-floor lore-api lore-ui lore-stations lore-dgraph; do
@@ -516,12 +529,7 @@ Our reference install, described in [deploy/README.md](../deploy/README.md). Arg
 
 There the floor and the agent subsystem are separate Argo CD applications, in the namespaces `floor` and `ai-agents`, installed as [floor/docs/install.md](https://github.com/re-cinq/floor/blob/main/docs/install.md) describes. The `deploy/install` chart is not used.
 
-Secret values are added by a person with `gcloud secrets versions add <name> --project re-cinq-internal` ([managing-secrets.md](managing-secrets.md)). Non-secret config is an edit to the values file. On a fresh cluster, then the baseline schema:
-
-```bash
-scripts/infra/setup-db.sh
-scripts/infra/setup-pipeline-schema.sh
-```
+Secret values are added by a person with `gcloud secrets versions add <name> --project re-cinq-internal` ([managing-secrets.md](managing-secrets.md)). Non-secret config is an edit to the values file. On a fresh cluster, `scripts/infra/setup-db.sh` creates the CloudNativePG cluster with the `vector` extension; the migrations hook applies the baseline schema on the first sync (3.4).
 
 ## 5. Configure webhooks
 
@@ -626,7 +634,7 @@ Our GKE: the cluster's add-ons and cloud resources come back from re-cinq/infras
 What an install on a client cluster hits. The list stays until each fix lands.
 
 1. **The `deploy/install` chart has been rendered, not yet installed on a cluster** (2026-11-16). The order in which it creates namespaces and Secrets ahead of the migration jobs is by design and unproven.
-2. **The baseline schema has no command for a managed Postgres** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). The `scripts/infra/setup-*.sh` scripts reach Postgres through `kubectl exec` into a CNPG pod.
+2. **The baseline install has never run on a real Azure server** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). CI runs it against an empty pgvector database owned by a role without superuser, and the extension was the only step that needed more: a server admin creates it. Whether Azure Flexible Server lets `lore` create `vector` after allow-listing is not verified.
 3. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). Off Google Cloud, search is keyword-only. A second `EmbeddingProvider` at 768 dimensions is the fix.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
 5. **Image tags in `deploy/install/values.yaml` are updated by hand.** The build workflows bump only our own cluster's values file.

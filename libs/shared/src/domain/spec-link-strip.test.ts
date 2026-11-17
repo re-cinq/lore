@@ -77,12 +77,11 @@ describe("SPEC_LINK_GROUP_SQL_PATTERN", () => {
     );
   });
 
-  it("is carried verbatim by migration 0070 and both baseline schema scripts", () => {
+  it("is carried verbatim by migration 0070 and the baseline team chunks file", () => {
     const root = repoRoot();
     const carriers = [
       "deploy/chart/charts/ui-helm/migrations/0070_chunks_search_tsv_strip_links.sql",
-      "scripts/infra/setup-db.sh",
-      "scripts/infra/setup-local-schema.sh",
+      "deploy/chart/charts/ui-helm/baseline/07_team_chunks.sql",
     ];
 
     expect(

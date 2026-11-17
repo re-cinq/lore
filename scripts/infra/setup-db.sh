@@ -15,6 +15,8 @@ set -euo pipefail
 # Usage: ./scripts/infra/setup-lore-db.sh [password]
 
 NAMESPACE="lore-db"
+BASELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../deploy/chart/charts/ui-helm/baseline" && pwd)"
+TEAM_SCHEMAS="${LORE_TEAM_SCHEMAS:-payments,platform,mobile,data,org_shared}"
 DB_PASSWORD="${1:-${ALLOYDB_PASSWORD:?Set ALLOYDB_PASSWORD or pass password as first argument}}"
 
 # Check if CNPG operator is already installed
@@ -91,61 +93,14 @@ for i in {1..60}; do
 done
 
 echo "[lore] Creating schemas and indexes..."
-kubectl exec -n "$NAMESPACE" lore-db-1 -- psql -U postgres -d lore -c "
-  CREATE EXTENSION IF NOT EXISTS vector;
-
-  DO \$\$
-  DECLARE
-    s TEXT;
-  BEGIN
-    FOREACH s IN ARRAY ARRAY['payments', 'platform', 'mobile', 'data', 'org_shared']
-    LOOP
-      EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', s);
-      EXECUTE format('
-        CREATE TABLE IF NOT EXISTS %I.chunks (
-          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          content       TEXT NOT NULL,
-          embedding     VECTOR(768),
-          content_type  TEXT,
-          team          TEXT,
-          repo          TEXT,
-          file_path     TEXT,
-          author        TEXT,
-          ingested_at   TIMESTAMPTZ DEFAULT NOW(),
-          metadata      JSONB,
-          search_tsv    TSVECTOR GENERATED ALWAYS AS (to_tsvector(''english'', regexp_replace(content, ''\(\s*\[(validated|implemented) by [^]]*\]\([^)[:space:]]*\)(\s*(,|;\s*implemented by)\s*\[[^]]*\]\([^)[:space:]]*\))*\s*\)'', '' '', ''g''))) STORED
-        )', s);
-      EXECUTE format('
-        CREATE INDEX IF NOT EXISTS %I_chunks_embedding_idx
-        ON %I.chunks USING hnsw (embedding vector_cosine_ops)', s, s);
-      EXECUTE format('
-        CREATE INDEX IF NOT EXISTS %I_chunks_search_idx
-        ON %I.chunks USING GIN (search_tsv)', s, s);
-      -- The runtime role reindexes whichever schema a repo resolves to:
-      -- per-file re-ingest DELETEs before INSERTing, embedding writes and the
-      -- verification sweep UPDATE, orphan pruning DELETEs. A schema granted
-      -- less (e.g. only the 0035 migration minimum) fails every write the
-      -- moment a repo's team resolves there.
-      EXECUTE format('
-        GRANT SELECT, INSERT, UPDATE, DELETE ON %I.chunks TO lore', s);
-      -- Migrations run as 'lore'; ALTER TABLE/INDEX needs ownership, not just
-      -- GRANT ALL. Hand the table (and its indexes) to lore at creation time
-      -- so a migration like 0070 (DROP INDEX … chunks_search_idx) never hits
-      -- "must be owner".
-      EXECUTE format('ALTER TABLE %I.chunks OWNER TO lore', s);
-    END LOOP;
-  END\$\$;
-
-  -- Team schemas are created here as the bootstrap superuser, so 'lore' (the
-  -- DB owner, but not the schema owner) cannot CREATE in them. The deploy-time
-  -- migration runner connects as 'lore' and DDLs these schemas (e.g.
-  -- spec_test_links), so grant it CREATE/USAGE. Mirrors the lore-schema handoff
-  -- in ui-helm/migrations/README.md; this is a one-time bootstrap step.
-  GRANT CREATE, USAGE ON SCHEMA payments, platform, mobile, data, org_shared TO lore;
-"
+psql_as_postgres() {
+  kubectl exec -i -n "$NAMESPACE" lore-db-1 -- psql -U postgres -d lore -v ON_ERROR_STOP=1 --single-transaction "$@"
+}
+psql_as_postgres -f - < "$BASELINE_DIR/01_extension.sql"
+psql_as_postgres -v team_schemas="$TEAM_SCHEMAS" -f - < "$BASELINE_DIR/07_team_chunks.sql"
 
 echo ""
 echo "[lore] PostgreSQL + pgvector is ready (via CloudNativePG)."
-echo "  Schemas: payments, platform, mobile, data, org_shared"
+echo "  Schemas: ${TEAM_SCHEMAS//,/, }"
 echo "  Connect: kubectl port-forward svc/lore-db-rw 5432:5432 -n $NAMESPACE"
 echo "  Then:    psql -h localhost -U postgres -d lore"
