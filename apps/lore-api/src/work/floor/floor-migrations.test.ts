@@ -129,6 +129,7 @@ describe("readFloorMigrations", () => {
         "floor/0010_refine_acts_on_thread_outcome",
         "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
         "floor/0012_spec_tickets_decompose_scoped_tasks",
+        "floor/0013_ticket_agents_search_first",
       ],
       unshipped: [],
     });
@@ -256,6 +257,19 @@ describe("floor/0012_spec_tickets_decompose_scoped_tasks", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt spec-tickets-decompose",
+    ]);
+  });
+});
+
+describe("floor/0013_ticket_agents_search_first", () => {
+  it("writes the shipped prompts of spec-tickets-decompose and triage-decompose, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0013_ticket_agents_search_first",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt spec-tickets-decompose",
+      "prompt triage-decompose",
     ]);
   });
 });

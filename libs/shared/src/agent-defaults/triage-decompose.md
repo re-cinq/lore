@@ -32,6 +32,8 @@ Read the issue at `{issue_url}` (its title and body are in `/workspace/issue-sco
 
 Break the fix into the smallest independently implementable tasks. Each task names the concrete code change, its acceptance criteria and a test plan. Group them under one story.
 
+Before you propose a task, call `lore_search_tickets` with `repo`, the task's intent as `query` and `state: all`, where `repo` is the owner/name in `{issue_url}`. An open match that covers the same work is a duplicate: leave the task out. A closed match whose work was completed may already be built: check the code and leave the task out when it is. A match closed as not planned is not filed again without a new reason. When a match is related but not the same work, end the task's `context` with `Related: #<number>`. When the tool is missing or answers an error, go on without it.
+
 Write the result to `decomposition.json` at exactly `{decomposition_path}`:
 
 ```json
