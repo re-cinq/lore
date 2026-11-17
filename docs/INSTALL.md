@@ -528,6 +528,8 @@ The chart at a release tag pins the five Lore images to that release in `deploy/
 | `lore-agent` (what agent pods work in) | yes | the release tag, in `lore-platform.lore-api.floor.agentImage` |
 | `floor` | yes | `floor.version` |
 | `ai-agent-controller`, `ai-agent` | yes | `floor.subsystem.version` |
+
+Agents that are already on the floor keep the image they were seeded with: Lore seeds an agent only when the floor holds none of that name, so an upgrade does not move them to the new `lore-agent`. Set the newer image on the `/agents` page.
 | `utopia` | no, pulled with `ghcr-pull-secret` | `utopia.image.tag` and `.digest` |
 
 ## 4. Our own GKE, with Argo CD

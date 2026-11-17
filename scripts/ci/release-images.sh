@@ -82,7 +82,7 @@ done
 echo
 echo "[lore] ${VERSION}"
 echo "$SUMMARY"
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+if [[ "$MODE" != --verify && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf '### Lore %s\n\n%s\n' "$VERSION" "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
 fi
 exit "$failed"
