@@ -6,13 +6,13 @@
 
 ## Done when these pass
 
-- [ ] **T002: Migrate existing prompts to use Helm author values** — migrates existing agents with hardcoded author blocks cleanly without prompt duplication
+- [x] **T002: Migrate existing prompts to use Helm author values** — migrates existing agents with hardcoded author blocks cleanly without prompt duplication
   `apps/lore-api/src/work/floor/migrate-agent-author.acceptance.test.ts`
 
 ## Facets
 
-- [ ] Add the migration script `0011_migrate_agent_author.ts` to `apps/lore-api/src/work/floor/migrations/`.
-- [ ] Implement `migrate` to read existing prompts, strip the hardcoded git config lines, and save.
+- [x] Add the migration script `0012_migrate_agent_author.ts` to `apps/lore-api/src/work/floor/migrations/`.
+- [x] Implement `migrate` to read existing prompts, strip the hardcoded git config lines, and save.
 
 ## Out of scope
 

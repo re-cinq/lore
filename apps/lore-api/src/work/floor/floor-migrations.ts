@@ -17,6 +17,8 @@ export interface FloorMigrationApi {
   updateTimeout(agent: string, file: string): Promise<void>;
   /** Writes the `config.skills` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor, with the skills source when it has none. */
   updateSkills(agent: string, file: string): Promise<void>;
+  /** Removes an exact literal block from the org-level prompt of every agent that contains it. */
+  stripFromPrompts(block: string): Promise<void>;
 }
 
 export type FloorMigration = (floor: FloorMigrationApi) => Promise<void>;
@@ -135,7 +137,23 @@ export function floorApiFor(agentDefs: FloorAgentDefs): FloorMigrationApi {
     },
     updateSkills: async (agent, file) =>
       await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
+    stripFromPrompts: (block) => stripFromPrompts(agentDefs, block),
   };
+}
+
+async function stripFromPrompts(
+  agentDefs: FloorAgentDefs,
+  block: string,
+): Promise<void> {
+  const agents = await agentDefs.list("_no_repo_");
+
+  for (const agent of agents) {
+    if (agent.prompt?.includes(block)) {
+      const stripped = agent.prompt.replaceAll(block, "");
+
+      await agentDefs.updateOrg(agent.name, { prompt: stripped });
+    }
+  }
 }
 
 type ShippedAgents = ReturnType<typeof shippedFloorAgents>;
