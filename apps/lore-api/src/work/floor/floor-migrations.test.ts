@@ -128,6 +128,7 @@ describe("readFloorMigrations", () => {
         "floor/0009_plan_sketches_downstream",
         "floor/0010_refine_acts_on_thread_outcome",
         "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
+        "floor/0012_spec_tickets_decompose_scoped_tasks",
       ],
       unshipped: [],
     });
@@ -239,6 +240,18 @@ describe("floor/0011_spec_tickets_decompose_leaves_closed_tickets", () => {
   it("writes the shipped prompt of spec-tickets-decompose, and nothing else", async () => {
     const { writes } = await everyWrite(
       "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt spec-tickets-decompose",
+    ]);
+  });
+});
+
+describe("floor/0012_spec_tickets_decompose_scoped_tasks", () => {
+  it("writes the shipped prompt of spec-tickets-decompose again, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0012_spec_tickets_decompose_scoped_tasks",
     );
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([

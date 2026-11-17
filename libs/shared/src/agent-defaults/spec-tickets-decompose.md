@@ -275,6 +275,16 @@ Rules:
   that uses them; tests and integration after the code they cover.
 - Prefer a handful of well-scoped tasks per story over many trivial
   ones.
+- **Never write a catch-all task or story** ("Implement remaining
+  features", "Implementation gaps"). Group the missing work by the
+  spec's own sections into stories, and give each task the few
+  statements one pull request delivers: no more than 8 `spec_lines`.
+  A task naming dozens of statements is one ticket nobody can
+  implement, however many lines it covers.
+- **Take every `spec_lines` entry from your own `statements` list**:
+  the `line` of an entry you assessed `missing` or `partial`. Never
+  name a line you assessed `present`, a settled line, or a line that
+  begins no statement; the verifier rejects the task.
 - Output ONLY the JSON object, no prose, no markdown fences, then end
   your final message with the line
   `LORE_NODE_RESULT: {"outcome":"success"}`.
