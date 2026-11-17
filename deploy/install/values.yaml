@@ -125,6 +125,8 @@ utopia:
 # Any value of deploy/chart and its subcharts can be set here, under the
 # subchart's name: lore-api, lore-ui, lore-stations, lore-mcp-gateway,
 # lore-db-helm, and platform for ingresses, Dgraph and monitoring.
+# platform.monitoring.enabled: true (kube-prometheus-stack required) renders the
+# ServiceMonitors and the Lore Grafana dashboards the sidecar picks up.
 #
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
 # the chart published for release v1.0.4 pins all five images (the four tags below and
