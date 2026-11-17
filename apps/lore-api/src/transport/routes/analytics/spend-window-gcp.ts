@@ -15,21 +15,26 @@ const GCP_TOTALS_SQL = `SELECT
          0)::float8 AS billed_usd,
        MAX(fetched_at) AS as_of,
        MAX(bucket_date)::text AS billed_through
-     FROM pipeline.gcp_cost_daily`;
+     FROM pipeline.gcp_cost_daily
+    WHERE provider = $3`;
 
-/** What GCP billed for the cluster the platform runs on. */
-export async function readGcpSpend(pool: Pool, win: SpendWindow) {
+/** What a cloud billed for the cluster the platform runs on: GCP's rows from the BigQuery export, or Azure's from Cost Management. Both live in the one table, told apart by `provider`. */
+export async function readCloudSpend(
+  pool: Pool,
+  win: SpendWindow,
+  provider: "gcp" | "azure",
+) {
   const { interval } = win;
   const gcpTotalRows = await optionalTableRows<{
     billed_usd: number;
     as_of: string | null;
     billed_through: string | null;
-  }>(pool, GCP_TOTALS_SQL, [interval.from, interval.to]);
+  }>(pool, GCP_TOTALS_SQL, [interval.from, interval.to, provider]);
 
   return {
     ...toGcpTotals(gcpTotalRows[0]),
-    by_service: await gcpBreakdown(pool, interval, "service"),
-    daily: await gcpBreakdown(pool, interval, "bucket_date"),
+    by_service: await gcpBreakdown(pool, interval, provider, "service"),
+    daily: await gcpBreakdown(pool, interval, provider, "bucket_date"),
   };
 }
 
@@ -68,6 +73,7 @@ function gcpTotalsOf(row: {
 async function gcpBreakdown(
   pool: Pool,
   interval: { from: string; to: string },
+  provider: string,
   by: "service" | "bucket_date",
 ) {
   const column =
@@ -79,7 +85,8 @@ async function gcpBreakdown(
     `SELECT ${column}, SUM(cost_usd + credits_usd)::float8 AS cost_usd
        FROM pipeline.gcp_cost_daily
       WHERE bucket_date >= $1::date AND bucket_date <= $2::date
+        AND provider = $3
       GROUP BY ${by} ORDER BY ${order}`,
-    [interval.from, interval.to],
+    [interval.from, interval.to, provider],
   );
 }

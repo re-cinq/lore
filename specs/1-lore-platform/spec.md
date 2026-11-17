@@ -934,6 +934,14 @@ is deleted. ([validated by links to no task page @3943c8fd](apps/web-ui/src/app/
   the interval happened to contain.
   ([validated by [`spend-window.test.ts@f3bcffcd`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L445), [`vendor-split.test.ts@e818d766`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L5), [`vendor-split.test.ts@50710d54`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L19), [`vendor-split.test.ts@eb09edfc`](apps/lore-api/src/work/analytics/vendor-split.test.ts#L25), [`model-vendor.test.ts@ff43728b`](libs/shared/src/outbound/llm/model-vendor.test.ts#L5), [`model-vendor.test.ts@f19d0b92`](libs/shared/src/outbound/llm/model-vendor.test.ts#L17), [`model-vendor.test.ts@3422021c`](libs/shared/src/outbound/llm/model-vendor.test.ts#L21), [`model-vendor.test.ts@01fee088`](libs/shared/src/outbound/llm/model-vendor.test.ts#L11), [`model-vendor.test.ts@b0ae5638`](libs/shared/src/outbound/llm/model-vendor.test.ts#L25), [`model-vendor.test.ts@bd40fd10`](libs/shared/src/outbound/llm/model-vendor.test.ts#L31), [`SpendView.test.tsx@2eea7107`](apps/web-ui/src/app/spend/SpendView.test.tsx#L471), [`SpendView.test.tsx@18d50242`](apps/web-ui/src/app/spend/SpendView.test.tsx#L478), [`SpendView.test.tsx@bac96c81`](apps/web-ui/src/app/spend/SpendView.test.tsx#L491))
 
+- **FR-19j — Azure cloud cost on the spend page** _(added 2026-11-18)_.
+  `GET /api/analytics/spend-window` carries an `azure` block shaped like `gcp`,
+  read from the same `pipeline.gcp_cost_daily` table under provider `azure`
+  (written by the `azure-cost-sync` station), and the GCP block reads only
+  provider `gcp`. The page shows an Azure billed card and Azure by-service and
+  daily tables once that sync has run, and nothing before.
+  ([validated by reports Azure's rows beside GCP's, each read under its own provider](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L608), [validated by renders the Azure billed card, by-service and daily tables from Cost Management](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [validated by hides the Azure card and sections until the Azure sync has run](apps/web-ui/src/app/spend/SpendView.test.tsx#L626))
+
 - **FR-19h — Reading the spend page at a glance** _(added 2026-09-09)_.
   The page groups its figures into three labelled bands — Lore-computed LLM
   spend, vendor invoices, and Kubernetes compute — each carrying an

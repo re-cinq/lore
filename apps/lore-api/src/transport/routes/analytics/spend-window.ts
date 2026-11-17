@@ -13,7 +13,7 @@ import { SpendWindowSchema } from "./spend-window-schema.js";
 import type { SpendWindow } from "./spend-window-db.js";
 import { readLlmSpend } from "./spend-window-llm.js";
 import { readAnthropicSpend } from "./spend-window-anthropic.js";
-import { readGcpSpend } from "./spend-window-gcp.js";
+import { readCloudSpend } from "./spend-window-gcp.js";
 import { readUnitCosts } from "./spend-window-units.js";
 import {
   readComputeSpend,
@@ -97,8 +97,9 @@ async function spendWindowBody(
     interval: win.interval,
     llm: await readLlmSpend(pool, win, deps.floor),
     billed: await readAnthropicSpend(pool, win),
-    gcp: await readGcpSpend(pool, win),
+    gcp: await readCloudSpend(pool, win, "gcp"),
     compute: await readComputeSpend(pool, win, deps),
     unit_costs: await readUnitCosts(pool, win),
+    azure: await readCloudSpend(pool, win, "azure"),
   };
 }

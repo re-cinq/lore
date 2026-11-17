@@ -40,7 +40,7 @@ written with `@re-cinq/floor-station`.
 | `memory-ttl`                                               | sweep | cron hourly (courier CronJob) + http    |
 | `importance-decay`                                         | sweep | cron 05:00 (courier CronJob) + http     |
 | `consolidation`                                            | sweep | cron 05:30 (courier CronJob) + http     |
-| `anthropic-cost-sync`, `gcp-cost-sync`                     | sweep | cron (courier CronJob) + http           |
+| `anthropic-cost-sync`, `gcp-cost-sync`, `azure-cost-sync`  | sweep | cron (courier CronJob) + http           |
 
 The node stations the old walk dispatched (`detect`, `ingest`, `validate`,
 `retrospective`, `feature-review`, `pr-review`, `ci-check`), the
