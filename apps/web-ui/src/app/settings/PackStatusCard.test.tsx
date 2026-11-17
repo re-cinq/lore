@@ -21,7 +21,11 @@ const applied: PackStatusCardProps["pack"] = {
 
 function renderCard(pack: Partial<PackStatusCardProps["pack"]> = {}) {
   return render(
-    <PackStatusCard pack={{ ...applied, ...pack }} syncPack={vi.fn()} />,
+    <PackStatusCard
+      pack={{ ...applied, ...pack }}
+      githubWebUrl="https://ghe.acme.example"
+      syncPack={vi.fn()}
+    />,
   );
 }
 
@@ -36,9 +40,32 @@ describe("PackStatusCard", () => {
         (label) => screen.getByText(label).nextElementSibling?.textContent,
       ),
     }).toEqual({
-      text: "Packacme/lore-packbranch: mainAppliedagents3lines1extras2Last applied: 9a7b72d · 2026-11-17 10:30 UTCSync now",
+      text: "Packacme/lore-packbranch: mainAppliedagents3lines1extras2Last applied: 9a7b72d · 2026-11-17 10:30 UTCOpen repoSync now",
       stats: ["3", "1", "2"],
     });
+  });
+
+  it("links Open repo to https://ghe.acme.example/acme/lore-pack/tree/main in a new tab", () => {
+    renderCard();
+    const link = screen.getByRole("link", { name: "Open repo" });
+
+    expect({
+      href: link.getAttribute("href"),
+      target: link.getAttribute("target"),
+      rel: link.getAttribute("rel"),
+    }).toEqual({
+      href: "https://ghe.acme.example/acme/lore-pack/tree/main",
+      target: "_blank",
+      rel: "noopener noreferrer",
+    });
+  });
+
+  it("links Open repo to the repository root when the pack has no ref", () => {
+    renderCard({ ref: null });
+
+    expect(
+      screen.getByRole("link", { name: "Open repo" }).getAttribute("href"),
+    ).toBe("https://ghe.acme.example/acme/lore-pack");
   });
 
   it("names the default branch when the pack has no ref", () => {
@@ -93,7 +120,13 @@ describe("PackStatusCard", () => {
   it("submits the form to the sync action when Sync now is clicked", async () => {
     const syncPack = vi.fn();
 
-    render(<PackStatusCard pack={applied} syncPack={syncPack} />);
+    render(
+      <PackStatusCard
+        pack={applied}
+        githubWebUrl="https://github.com"
+        syncPack={syncPack}
+      />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Sync now" }));
 
     expect(syncPack).toHaveBeenCalledTimes(1);

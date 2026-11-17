@@ -5,6 +5,8 @@ import styles from "./PackStatusCard.module.css";
 
 export interface PackStatusCardProps {
   pack: PackSync;
+  /** The web address of the GitHub this install talks to, such as https://github.com. */
+  githubWebUrl: string;
   syncPack: (formData: FormData) => void | Promise<void>;
 }
 
@@ -13,6 +15,7 @@ const SHORT_COMMIT_LENGTH = 7;
 /** The client's pack repo and what its last sync applied (specs/client-packs FR-006). */
 export default function PackStatusCard({
   pack,
+  githubWebUrl,
   syncPack,
 }: PackStatusCardProps) {
   return (
@@ -24,11 +27,27 @@ export default function PackStatusCard({
         <Stat label="extras" value={pack.extra_count} />
       </div>
       <RefusedFiles files={pack.refused_files} />
-      <form action={syncPack} className={styles.footer}>
-        <LastApplied pack={pack} />
-        <SubmitButton pendingLabel="Syncing…">Sync now</SubmitButton>
-      </form>
+      <PackFooter pack={pack} githubWebUrl={githubWebUrl} syncPack={syncPack} />
     </SettingsCard>
+  );
+}
+
+function PackFooter({ pack, githubWebUrl, syncPack }: PackStatusCardProps) {
+  return (
+    <form action={syncPack} className={styles.footer}>
+      <LastApplied pack={pack} />
+      <div className={styles.actions}>
+        <a
+          href={packRepoUrl(githubWebUrl, pack)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.repoLink}
+        >
+          Open repo
+        </a>
+        <SubmitButton pendingLabel="Syncing…">Sync now</SubmitButton>
+      </div>
+    </form>
   );
 }
 
@@ -106,4 +125,11 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function utcMinute(iso: string | null): string {
   return iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : "";
+}
+
+/** The pack's branch on GitHub, or the repository itself when the pack reads the default branch. */
+function packRepoUrl(githubWebUrl: string, pack: PackSync): string {
+  const repo = `${githubWebUrl}/${pack.repo}`;
+
+  return pack.ref ? `${repo}/tree/${pack.ref}` : repo;
 }

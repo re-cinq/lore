@@ -51,6 +51,8 @@ export interface SettingsViewProps {
   regenerateToken: (formData: FormData) => void | Promise<void>;
   /** What the last sync of the client's pack repo did; null while no pack is configured, which hides the Pack card. */
   packSync: PackSync | null;
+  /** The web address of the GitHub this install talks to, for the Pack card's link to the pack repo. */
+  githubWebUrl: string;
   syncPack: (formData: FormData) => void | Promise<void>;
   /** The GitHub accounts Lore is connected to (specs/4-ux-repo-onboarding FR-8). */
   githubInstallations: GithubInstallationRow[];
@@ -106,12 +108,18 @@ function navFor(packSync: PackSync | null): SettingsNavItem[] {
 
 /** The platform card, then the client's pack repo when one is configured. */
 function PlatformSections(props: SettingsViewProps) {
-  const { packSync, syncPack } = props;
+  const { packSync, syncPack, githubWebUrl } = props;
 
   return (
     <>
       <PlatformConfigForm {...props} />
-      {packSync && <PackStatusCard pack={packSync} syncPack={syncPack} />}
+      {packSync && (
+        <PackStatusCard
+          pack={packSync}
+          githubWebUrl={githubWebUrl}
+          syncPack={syncPack}
+        />
+      )}
     </>
   );
 }

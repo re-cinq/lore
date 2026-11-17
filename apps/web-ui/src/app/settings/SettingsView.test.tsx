@@ -44,6 +44,7 @@ function renderView(
       githubInstallations={[]}
       githubInstallUrl={null}
       packSync={null}
+      githubWebUrl="https://github.com"
       syncPack={action}
       {...over}
     />,
