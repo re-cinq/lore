@@ -53,6 +53,8 @@ secrets:
 
 utopia:
   hostname: utopia.example.com
+  # Utopia's chat and embedding models are not set here: they are saved in its
+  # web UI after the install (docs/INSTALL.md 3.6.1).
   # Who may sign in: an OpenID Connect issuer and the email domains it accepts.
   oidc:
     issuer: https://accounts.google.com
