@@ -108,7 +108,7 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
 otherwise returns a caller that routes the prompt through the `Llm` singleton
-under the `graph-extraction` job name. ([validated by `helpers.test.ts@071f9690`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts@a9c99104`](apps/lore-api/src/transport/routes/helpers.test.ts#L18))
+under the `graph-extraction` job name. ([validated by `helpers.test.ts@071f9690`](apps/lore-api/src/transport/routes/helpers.test.ts#L13), [`helpers.test.ts@a9c99104`](apps/lore-api/src/transport/routes/helpers.test.ts#L27))
 
 ### Anthropic cost sync window
 

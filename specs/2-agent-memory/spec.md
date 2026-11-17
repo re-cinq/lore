@@ -307,7 +307,7 @@ the default), `openai`, or `ollama` (local). ([validated by picks openai for LOR
 
 Haiku is the default extraction model (minimizing cost on high-frequency
 writes), falling back to the Claude CLI when no `ANTHROPIC_API_KEY` is present;
-each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts@e92a7c28`](libs/shared/src/outbound/llm/select-provider.test.ts#L13), [`select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L29))
+each extracted fact gets an independent embedding for fine-grained search. ([validated by `select-provider.test.ts@e92a7c28`](libs/shared/src/outbound/llm/select-provider.test.ts#L18), [`select-provider.test.ts:29`](libs/shared/src/outbound/llm/select-provider.test.ts#L44))
 
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
@@ -359,11 +359,11 @@ Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by
 
 Haiku extracts 1–3 higher-level patterns per repo (a minimum of 5 facts is
 required to trigger), stored as `consolidated/{repo}/{timestamp}` memories —
-turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L28), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108))
+turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L49), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108))
 
 Only `PATTERN:`-prefixed lines from the LLM response are kept (short
 patterns filtered out; a `NONE` response yields no patterns), and each
-consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L28), [`memory-lifecycle.test.ts@400635ce`](apps/stations/src/work/consolidation/consolidation.test.ts#L42), [`memory-lifecycle.test.ts@fbc60b53`](apps/stations/src/work/consolidation/consolidation.test.ts#L46), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts@f6465a3e`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L354))
+consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts@5a7f4b6a`](apps/stations/src/work/consolidation/consolidation.test.ts#L49), [`memory-lifecycle.test.ts@400635ce`](apps/stations/src/work/consolidation/consolidation.test.ts#L63), [`memory-lifecycle.test.ts@fbc60b53`](apps/stations/src/work/consolidation/consolidation.test.ts#L67), [`memory-lifecycle.test.ts@588332ee`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L108), [`memory-lifecycle.test.ts@f6465a3e`](libs/shared/src/outbound/project/memory/memory-lifecycle.test.ts#L354))
 
 ## Passive Memory Capture (Session Layer)
 
