@@ -156,6 +156,8 @@ The install in section 3 creates every Secret below from the values file (`secre
 | `lore-api` | `lore-webhook-secret` | `secret` | `lore-webhook-secret` | HMAC secret of the GitHub webhooks |
 | `lore-api` | `lore-anthropic-key` | `anthropic-api-key` (+ `anthropic-admin-key`, optional, cost sync) | `lore-anthropic-api-key` | the model key lore-api's own jobs use (fact extraction, triage, evals) |
 | `lore-stations` | `lore-stations-anthropic-key` | same | same | |
+| `lore-api` | `lore-openai-key` | `api-key` | none | optional: the key of an OpenAI-compatible API (OpenAI, Microsoft Foundry) for lore-api's own model calls and embeddings (1.6). The charts tolerate its absence |
+| `lore-stations` | `lore-stations-openai-key` | same | same | optional: the same key, for the stations' own model calls |
 | `lore-api` | `lore-slack-credentials` | `signing-secret`, `bot-token` | `lore-slack-*` | the Slack app (1.6). Optional: the charts tolerate its absence |
 | `lore-stations` | `lore-stations-slack` | `bot-token` | `lore-slack-bot-token` | |
 | `lore-api` | `lore-github-oauth` | `client-id`, `client-secret` | `lore-github-oauth-*` | the GitHub OAuth App for UI sign-in, which lore-api runs (ADR-053) |
@@ -188,14 +190,14 @@ The install in section 3 creates every Secret below from the values file (`secre
 | **Slack app** (optional) | a Slack admin | from `scripts/slack-app-manifest.yaml`: bot scopes `chat:write`, `commands`, `users:read`, `users:read.email`, `reactions:read`; slash command `/lore` and events at `https://<lore_api_url>/api/webhook/slack` and `/slack-events` |
 | **ghcr.io read token** ([step by step](github-setup.md#3-the-registry-token)) | the Lore team (re-cinq) | a `read:packages` token of a member of the re-cinq organization, for the non-public images `ghcr.io/re-cinq/{lore-api,lore-mcp,lore-ui,utopia}`. `lore-stations`, `lore-agent`, the floor and subsystem images (`ghcr.io/re-cinq/{floor,ai-agent-controller,ai-agent}`) and the third-party ones (`ghcr.io/cloudnative-pg/postgresql`, `dgraph/standalone`, `curlimages/curl`, `alpine`) are public |
 | **Sign-in for Utopia** | the client | an OpenID Connect client (the chart's default issuer is Google, `https://accounts.google.com`) with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`; the email domains allowed to sign in. Values: client ID, client secret |
-| **Model access** | the client | agent pods: an Anthropic API key, or a Claude Code OAuth token (`claude setup-token`, bills a subscription), optionally a Gemini API key; which key an agent reads is per model family (`clusterAgent.modelSecretKeys`). Or **Microsoft Foundry** for Claude Code and Codex agents, see below. lore-api and stations: an Anthropic key (or Gemini, or an Ollama endpoint; one use can run on its own vendor through `LORE_<USE>_LLM_PROVIDER` and `LORE_<USE>_LLM_MODEL`) |
-| **Embeddings** | see below | |
+| **Model access** | the client | agent pods: an Anthropic API key, or a Claude Code OAuth token (`claude setup-token`, bills a subscription), optionally a Gemini API key; which key an agent reads is per model family (`clusterAgent.modelSecretKeys`). Or **Microsoft Foundry** for Claude Code and Codex agents, see below. lore-api and stations: an Anthropic key, or Gemini, or an Ollama endpoint, or an OpenAI-compatible endpoint such as a Foundry resource (a key, the endpoint and a chat deployment name, see below); one use can run on its own vendor through `LORE_<USE>_LLM_PROVIDER` and `LORE_<USE>_LLM_MODEL` |
+| **Embeddings** | the client | Vertex AI on Google Cloud, or an OpenAI-compatible endpoint (an embedding deployment that serves 768 dimensions), see below |
 
-**Embeddings are Vertex AI only, today.** `LORE_EMBEDDING_PROVIDER` knows one vendor: Vertex `text-embedding-005`, 768 dimensions, reached through Google application-default credentials and a GCP project (`libs/shared/src/outbound/embeddings/select-embedding-provider.ts`). Without it Lore starts and runs, but every vector column stays empty and search falls back to keywords, which the evals put far below hybrid search. A client not on GCP has two options: a GCP project used for nothing but Vertex, with a service-account key mounted in lore-api (against this repo's no-long-lived-credentials rule, so a conscious exception), or a second `EmbeddingProvider` for the client's vendor at 768 dimensions (Azure OpenAI `text-embedding-3-small` fits), which is a code change tracked under [Known rough edges](#known-rough-edges).
+**Embeddings have two providers.** `LORE_EMBEDDING_PROVIDER` is `vertex` (the default) or `openai` (`libs/shared/src/outbound/embeddings/select-embedding-provider.ts`). Both produce 768-dimension vectors, the width of the stored columns. Vertex uses `text-embedding-005`. It reads its token from `GOOGLE_ACCESS_TOKEN` or the GKE metadata server and its project from `GCP_PROJECT`, so off Google Cloud it has nothing to authenticate with. `openai` calls `{OPENAI_BASE_URL}/embeddings` with `OPENAI_API_KEY`, using the model or deployment named in `LORE_EMBEDDING_MODEL` (default `text-embedding-3-small`); the deployment must be able to return 768 dimensions. With neither working, Lore starts and runs, but every vector column stays empty and search falls back to keywords, which the evals put far below hybrid search. Changing the vendor on a database that already holds vectors needs every vector embedded again, because vectors of two models cannot be compared.
 
 **Agents on Microsoft Foundry.** Claude Code and Codex agents can run on Foundry. The client provides a Foundry deployment named exactly after each model id in the agent definitions, the two endpoints (`https://<resource>.openai.azure.com/openai/v1` for Codex, `https://<resource>.services.ai.azure.com/anthropic` for Claude Code), and an API key for each endpoint. Entra ID is not supported. The switch is a set of entries in the `agent-secrets` Secret (3.6), not a Helm value, and a cluster uses one provider. Lore's shipped agents name Claude and Gemini models, so on a Codex-only cluster each agent's model is changed on the `/agents` page after the install. Gemini agents do not go through Foundry.
 
-**Lore's own model calls cannot use Foundry yet.** lore-api and stations make their own model calls (fact extraction, triage, context assembly, evals) through Anthropic, Gemini, Vertex or Ollama. There is no provider for an Azure or OpenAI-compatible endpoint. See [Known rough edges](#known-rough-edges).
+**Lore's own model calls on Foundry, or any OpenAI-compatible API.** lore-api and stations make their own model calls (fact extraction, triage, context assembly, evals) through the provider named in `LORE_LLM_PROVIDER`: `anthropic`, `gemini`, `vertex`, `ollama`, `cli` or `openai`. With `openai`, set `OPENAI_BASE_URL` (default `https://api.openai.com/v1`; on Foundry `https://<resource>.openai.azure.com/openai/v1`), `OPENAI_API_KEY` and `LORE_FACT_MODEL`, the name of the chat model deployment. One endpoint and key serve the embeddings too. Each use that has its own setting must be moved off its default as well: `LORE_EVAL_LLM_PROVIDER` and `LORE_CONTEXT_LLM_PROVIDER` (the context builder's default is Vertex; its model can also be chosen on the Settings page). A `LORE_LLM_PROVIDER` that names no known provider stops the process at its first model call. Lore has no price list for a deployment, so the cost of these calls shows as 0 on the cost pages while the token counts are real. `deploy/install/values.azure.example.yaml` has all of these entries. See [Known rough edges](#known-rough-edges).
 
 ### 1.6.1 GitHub Enterprise
 
@@ -227,7 +229,7 @@ One install talks to one GitHub host. By default that is `github.com`; for a sel
 | floor Postgres | infra team: a second database + role | same |
 | Dgraph | infra team: a 50Gi volume class; Lore team: `platform.dgraph` in the values file (3.3) | `deploy/chart/templates/lore-dgraph.yaml` |
 | model credentials | client: keys into the vault | GCP Secret Manager |
-| embeddings | decision needed (1.6) | Vertex via `roles/aiplatform.user` on the lore-api service account |
+| embeddings | an embedding deployment on the client's OpenAI-compatible endpoint (1.6), or Vertex through a Google project | Vertex via `roles/aiplatform.user` on the lore-api service account |
 | traces | nothing; lore-api disables the exporter when Cloud Trace is unavailable | Cloud Trace |
 | cost pages | `/spend` shows the pod-hour estimate only | BigQuery `billing_export` (re-cinq/infrastructure) |
 | deploys | the Lore team's laptops with namespace-scoped kubeconfigs, one `helm upgrade --install` (3.5) | build workflows bump image tags in the values file; Argo CD syncs every merge to `main` |
@@ -332,7 +334,7 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 | A GitHub user and token with `read:packages`, from re:cinq | pulling the non-public images |
 | An OpenID Connect client for Utopia: client ID and secret | signing in to Utopia |
 | An Anthropic API key | Lore's own jobs, and the agents |
-| On Microsoft Foundry, in its place: the endpoints and keys of 1.6 | the agents |
+| On Microsoft Foundry, in its place: the endpoints and keys of 1.6, and the names of a chat and an embedding deployment | the agents, Lore's own jobs and the embeddings |
 
 ### 3.2 Get the chart
 
@@ -363,7 +365,11 @@ Replace every `CHANGE-ME` and every `example.com`:
 | `secrets.ingestToken`, `.internalToken`, `.webhookSecret`, `secrets.floor.*` | six random values, generated below |
 | `secrets.githubApp.*` | the GitHub App's ID, private key (the whole PEM) and installation ID |
 | `secrets.githubOAuth.*` | the OAuth App's client ID and secret |
-| `secrets.anthropicApiKey` | the Anthropic key for Lore's own jobs. With no Anthropic key (a Foundry-only client), delete the line |
+| `secrets.anthropicApiKey` | the Anthropic key for Lore's own jobs. In the Azure example it is commented out; use it instead of `secrets.openaiApiKey`, and delete the `OPENAI_*`, `LORE_LLM_PROVIDER`, `LORE_FACT_MODEL`, `LORE_*_LLM_PROVIDER` and `LORE_EMBEDDING_*` entries |
+| `secrets.openaiApiKey` | the key of the Foundry resource (or any OpenAI-compatible API) for Lore's own jobs and the embeddings |
+| `OPENAI_BASE_URL` (lore-api and lore-stations) | the endpoint, `https://<resource>.openai.azure.com/openai/v1` on Foundry |
+| `LORE_FACT_MODEL` (lore-api and lore-stations), `LORE_EVAL_LLM_MODEL` (lore-api) | the name of the chat model deployment |
+| `LORE_EMBEDDING_MODEL` | the name of the embedding deployment, which must serve 768 dimensions |
 | `secrets.utopia.dbPassword`, `.appDbPassword`, `.secretKey`, `.cookieSecret` | four more random values, generated below |
 | `secrets.utopia.oauthClientId`, `.oauthClientSecret` | Utopia's OpenID Connect client |
 | `utopia.hostname`, `UTOPIA_URL` | the Utopia hostname |
@@ -635,14 +641,14 @@ What an install on a client cluster hits. The list stays until each fix lands.
 
 1. **The `deploy/install` chart has been rendered, not yet installed on a cluster** (2026-11-16). The order in which it creates namespaces and Secrets ahead of the migration jobs is by design and unproven.
 2. **The baseline install has never run on a real Azure server** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). CI runs it against an empty pgvector database owned by a role without superuser, and the extension was the only step that needed more: a server admin creates it. Whether Azure Flexible Server lets `lore` create `vector` after allow-listing is not verified.
-3. **Embeddings are Vertex only** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). Off Google Cloud, search is keyword-only. A second `EmbeddingProvider` at 768 dimensions is the fix.
+3. **Embeddings on an OpenAI-compatible endpoint have never run against a real Foundry resource** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). The provider is tested against a local server only. Whether the deployment returns 768 dimensions is the client's to check; a reply of another width is refused and search falls back to keywords.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
 5. **Image tags in `deploy/install/values.yaml` are updated by hand.** The build workflows bump only our own cluster's values file.
 6. **Utopia's chart is not published.** The install reads it from a checkout of re-cinq/utopia beside this repo (3.2), at whatever commit that checkout is on.
 7. **Utopia after install.** Sign-in was only ever run against Google as the issuer; Microsoft Entra ID as the issuer (3.3) is untested. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
 9. lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant on our GKE, so traces are silently off there ([#3905](https://github.com/re-cinq/lore/issues/3905)).
-10. **Lore's own model calls cannot use Microsoft Foundry.** A provider for an OpenAI-compatible endpoint is the fix.
+10. **Lore's own model calls on Microsoft Foundry have never run against a real endpoint** (see 1.6). The provider is tested against a local server only, and the cost of its calls shows as 0.
 11. **Foundry, GitHub Enterprise Server and GitHub Enterprise Cloud with data residency have not run on a client cluster.** No agent pod has cloned from a Server or a `ghe.com` tenant and no Codex agent of Lore's has run on Foundry. The shipped agents name Claude and Gemini models.
 12. **Grafana and Prometheus are not in the chart** (1.2).
 13. **No Microsoft Teams integration.** The digest and notifications post to Slack only.

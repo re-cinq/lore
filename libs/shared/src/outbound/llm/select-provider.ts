@@ -7,6 +7,8 @@ import { OllamaProvider } from "./ollama-provider.js";
 import { GeminiProvider } from "./gemini-provider.js";
 import { CliProvider } from "./cli-provider.js";
 import { VertexProvider } from "./vertex-provider.js";
+import { OpenAiProvider } from "./openai-provider.js";
+import { enforceTrue } from "../../lib/enforce.js";
 
 // No API key → fall back to the `claude` CLI (subscription, zero API spend).
 function claudeProvider(
@@ -28,7 +30,7 @@ type ProviderFactory = (
   opts: { usage?: UsagePort },
 ) => LlmProvider;
 
-const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
+const PROVIDER_FACTORIES: Partial<Record<string, ProviderFactory>> = {
   ollama: (env) =>
     new OllamaProvider({ model: env.LORE_FACT_MODEL || "llama3" }),
   gemini: (env, opts) =>
@@ -42,6 +44,13 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
       model: env.LORE_FACT_MODEL || "gemini-2.5-flash",
       usage: opts.usage,
     }),
+  openai: (env, opts) =>
+    new OpenAiProvider({
+      model: env.LORE_FACT_MODEL,
+      apiKey: env.OPENAI_API_KEY,
+      baseUrl: env.OPENAI_BASE_URL,
+      usage: opts.usage,
+    }),
   cli: () => new CliProvider(),
   claude: claudeProvider,
   anthropic: claudeProvider,
@@ -52,9 +61,30 @@ export function selectProvider(
   opts: { usage?: UsagePort } = {},
 ): LlmProvider {
   const vendor = resolveVendor(env);
-  const factory = PROVIDER_FACTORIES[vendor] ?? claudeProvider;
+  const factory = PROVIDER_FACTORIES[vendor];
+
+  enforceTrue(
+    factory,
+    Error,
+    `Unknown LLM provider ${vendor}; known: ${Object.keys(PROVIDER_FACTORIES).join(", ")}`,
+  );
 
   return factory(env, opts);
+}
+
+/** The credential each vendor needs; a vendor absent here (vertex, ollama, cli) needs none in the environment. */
+const REQUIRED_CREDENTIAL: Partial<Record<string, string>> = {
+  openai: "OPENAI_API_KEY",
+  claude: "ANTHROPIC_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GEMINI_API_KEY",
+};
+
+/** Whether the process has what the vendor it selects needs to make a call, so a job that needs a model can skip itself instead of failing on every run. */
+export function llmConfigured(env: NodeJS.ProcessEnv): boolean {
+  const credential = REQUIRED_CREDENTIAL[resolveVendor(env)];
+
+  return credential === undefined || Boolean(env[credential]);
 }
 
 function resolveVendor(env: NodeJS.ProcessEnv): string {

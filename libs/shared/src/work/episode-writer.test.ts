@@ -118,6 +118,28 @@ describe("writeEpisodeWithCuration", () => {
     expect(d.memory.episodes).toHaveLength(1);
   });
 
+  it("curates with LORE_LLM_PROVIDER=openai and OPENAI_API_KEY set, with no Anthropic key", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.LORE_LLM_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "k";
+    const d = deps("A real lesson learned.");
+
+    try {
+      await writeEpisodeWithCuration(d.deps, {
+        content: "outcome",
+        source: "ci",
+        ref: "r",
+        agentId: "merge-check",
+        taskId: "t1",
+      });
+    } finally {
+      delete process.env.LORE_LLM_PROVIDER;
+      delete process.env.OPENAI_API_KEY;
+    }
+
+    expect(d.fake.calls).toHaveLength(1);
+  });
+
   it("skips curation for a duplicate episode (no new id)", async () => {
     const d = deps("A real lesson learned.");
 

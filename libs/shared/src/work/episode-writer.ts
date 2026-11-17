@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { redactSecrets } from "../lib/redact.js";
 import { Llm } from "../outbound/llm/llm.js";
+import { llmConfigured } from "../outbound/llm/select-provider.js";
 import type { MemoryLifecyclePort } from "../outbound/project/memory/memory-lifecycle-port.js";
 
 export interface WriteEpisodeDeps {
@@ -38,8 +39,8 @@ export async function writeEpisodeWithCuration(
   // Write the episode first (always)
   const episodeId = await writeEpisode(deps, { content, source, ref, agentId });
 
-  // Skip curation if no API key or episode was a duplicate
-  if (!episodeId || !process.env.ANTHROPIC_API_KEY) {
+  // Skip curation if no model is configured or episode was a duplicate
+  if (!episodeId || !llmConfigured(process.env)) {
     return;
   }
 

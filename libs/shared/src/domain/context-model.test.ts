@@ -54,18 +54,26 @@ describe("contextModelOf", () => {
 });
 
 describe("contextSettingError", () => {
+  it("keeps a blank model for the saved provider openai, so the process's LORE_FACT_MODEL answers", () => {
+    expect(contextModelOf({ context_llm_provider: "openai" }, {})).toEqual({
+      provider: "openai",
+      model: "",
+    });
+  });
+
   it("refuses a context_llm_provider of ollama", () => {
     expect(contextSettingError("context_llm_provider", "ollama")).toBe(
-      "context_llm_provider must be off, vertex or anthropic",
+      "context_llm_provider must be off, vertex, anthropic or openai",
     );
   });
 
-  it("accepts vertex and a blank provider, and leaves every other key alone", () => {
+  it("accepts openai, vertex and a blank provider, and leaves every other key alone", () => {
     expect([
+      contextSettingError("context_llm_provider", "openai"),
       contextSettingError("context_llm_provider", "vertex"),
       contextSettingError("context_llm_provider", ""),
       contextSettingError("context_llm_model", "gemini-3-flash-preview"),
       contextSettingError("api_url", "anything"),
-    ]).toEqual([null, null, null, null]);
+    ]).toEqual([null, null, null, null, null]);
   });
 });

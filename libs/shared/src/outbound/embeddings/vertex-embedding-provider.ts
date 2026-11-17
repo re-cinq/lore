@@ -5,15 +5,14 @@ import {
   resolveGoogleProject,
 } from "../google/access-token.js";
 import { recordEmbeddingOutcome } from "./embedding-health.js";
+import {
+  embedBatchwise,
+  MAX_EMBEDDING_TEXT_CHARS,
+} from "./embedding-batches.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";
 
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
-
-/** Vertex's per-request ceilings for text-embedding-005: 250 instances and 20k tokens. Chars stand in for tokens at a conservative 50k (~12.5k tokens), since each text is already capped at 8000 chars. */
-const MAX_BATCH_TEXTS = 250;
-const MAX_BATCH_CHARS = 50_000;
-const MAX_TEXT_CHARS = 8000;
 
 export class VertexEmbeddingProvider implements EmbeddingProvider {
   readonly vendor = "vertex";
@@ -30,13 +29,10 @@ export class VertexEmbeddingProvider implements EmbeddingProvider {
 
       return texts.map(() => null);
     }
-    const vectors: Array<number[] | null> = [];
 
-    for (const batch of embeddingBatches(texts)) {
-      vectors.push(...(await fetchVertexEmbeddings(project, token, batch)));
-    }
-
-    return vectors;
+    return embedBatchwise(texts, (batch) =>
+      fetchVertexEmbeddings(project, token, batch),
+    );
   }
 }
 
@@ -50,31 +46,6 @@ async function resolveProjectOrWarn(): Promise<string> {
   }
 
   return project;
-}
-
-/** Groups texts, in order, into the fewest batches Vertex accepts in one predict call. */
-export function embeddingBatches(texts: string[]): string[][] {
-  const batches: string[][] = [];
-  let batchChars = 0;
-
-  for (const text of texts) {
-    const chars = Math.min(text.length, MAX_TEXT_CHARS);
-    const current = batches.at(-1);
-
-    if (
-      !current ||
-      current.length >= MAX_BATCH_TEXTS ||
-      batchChars + chars > MAX_BATCH_CHARS
-    ) {
-      batches.push([text]);
-      batchChars = chars;
-      continue;
-    }
-    current.push(text);
-    batchChars += chars;
-  }
-
-  return batches;
 }
 
 async function fetchVertexEmbeddings(
@@ -113,7 +84,7 @@ function embeddingRequestInit(token: string, batch: string[]): RequestInit {
     },
     body: JSON.stringify({
       instances: batch.map((text) => ({
-        content: text.substring(0, MAX_TEXT_CHARS),
+        content: text.substring(0, MAX_EMBEDDING_TEXT_CHARS),
       })),
     }),
   };

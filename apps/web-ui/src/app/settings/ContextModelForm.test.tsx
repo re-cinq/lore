@@ -19,7 +19,7 @@ describe("ContextModelForm", () => {
     }).toEqual({ provider: "vertex", model: "gemini-3-flash-preview" });
   });
 
-  it("offers off, vertex and anthropic as providers, with vertex selected when nothing is saved", () => {
+  it("offers off, vertex, anthropic and openai as providers, with vertex selected when nothing is saved", () => {
     render(
       <ContextModelForm
         contextProvider=""
@@ -32,6 +32,25 @@ describe("ContextModelForm", () => {
     expect({
       options: [...provider.options].map((option) => option.value),
       selected: provider.value,
-    }).toEqual({ options: ["off", "vertex", "anthropic"], selected: "vertex" });
+    }).toEqual({
+      options: ["off", "vertex", "anthropic", "openai"],
+      selected: "vertex",
+    });
+  });
+
+  it("labels the openai option OpenAI-compatible", () => {
+    render(
+      <ContextModelForm
+        contextProvider="openai"
+        contextModel=""
+        saveContextModel={vi.fn()}
+      />,
+    );
+    const provider = screen.getByLabelText("Provider") as HTMLSelectElement;
+
+    expect({
+      selected: provider.value,
+      label: provider.selectedOptions[0].textContent,
+    }).toEqual({ selected: "openai", label: "OpenAI-compatible" });
   });
 });

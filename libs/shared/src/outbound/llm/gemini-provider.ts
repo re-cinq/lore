@@ -1,7 +1,12 @@
 // Google Gemini provider: raw `fetch`, no `@google/generative-ai` dep; structured output uses `responseMimeType: "application/json"` since Gemini has no `tool_choice`-equivalent forced-tool-call primitive.
 
 import { enforceTrue } from "../../lib/enforce.js";
-import type { LlmCallRecord, UsagePort } from "../project/usage/usage-port.js";
+import type { UsagePort } from "../project/usage/usage-port.js";
+import {
+  recordCall,
+  recordFailure,
+  type LlmCallMetrics,
+} from "./llm-call-accounting.js";
 import { computeGeminiCost } from "./gemini-pricing.js";
 import {
   textFromResponse,
@@ -44,70 +49,6 @@ export interface GeminiProviderOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 90_000;
-
-interface GeminiCallMetrics {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-  durationMs: number;
-}
-
-function usageLogEntry(
-  req: { taskId?: string; jobName?: string },
-  metrics: GeminiCallMetrics,
-): LlmCallRecord {
-  return {
-    taskId: req.taskId || null,
-    jobName: req.jobName || null,
-    model: metrics.model,
-    inputTokens: metrics.inputTokens,
-    outputTokens: metrics.outputTokens,
-    costUsd: metrics.costUsd,
-    durationMs: metrics.durationMs,
-  };
-}
-
-function failedCallRecord(
-  req: { taskId?: string; jobName?: string },
-  model: string,
-  durationMs: number,
-  message: string,
-): LlmCallRecord {
-  return {
-    taskId: req.taskId || null,
-    jobName: req.jobName || null,
-    model,
-    inputTokens: 0,
-    outputTokens: 0,
-    costUsd: 0,
-    durationMs,
-    status: "failed",
-    error: message,
-  };
-}
-
-function warnIfUncorrelated(
-  result: { correlated: boolean } | null,
-  taskId?: string,
-): void {
-  if (!result || result.correlated || !taskId) {
-    return;
-  }
-  console.warn(
-    `[llm] cost row uncorrelated: id ${taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
-  );
-}
-
-function logCallLine(kind: string, metrics: GeminiCallMetrics): void {
-  console.log(
-    `[llm] ${kind}: ${metrics.model} ${metrics.inputTokens}+${metrics.outputTokens} tokens $${metrics.costUsd.toFixed(4)} ${metrics.durationMs}ms`,
-  );
-}
-
-function logCallFailure(kind: string, err: unknown): void {
-  console.error(`[llm] ${kind} failed:`, err);
-}
 
 /** One generateContent call's inputs, grouped so the request body and its caller agree on exactly what a call carries. */
 interface GenerateRequest {
@@ -192,36 +133,6 @@ export class GeminiProvider implements LlmProvider {
     return this.opts.model || DEFAULT_MODEL;
   }
 
-  private async logCall(
-    req: { taskId?: string; jobName?: string },
-    metrics: GeminiCallMetrics,
-  ): Promise<void> {
-    if (!this.opts.usage) {
-      return;
-    }
-    const result = await this.opts.usage
-      .logLlmCall(usageLogEntry(req, metrics))
-      .catch(() => null);
-
-    warnIfUncorrelated(result, req.taskId);
-  }
-
-  private async recordFailedCall(
-    req: { taskId?: string; jobName?: string },
-    model: string,
-    durationMs: number,
-    message: string,
-  ): Promise<void> {
-    const { usage } = this.opts;
-
-    if (!usage) {
-      return;
-    }
-    const record = failedCallRecord(req, model, durationMs, message);
-
-    await usage.logLlmCall(record).catch(() => null);
-  }
-
   private async generate(
     model: string,
     req: GenerateRequest,
@@ -248,31 +159,13 @@ export class GeminiProvider implements LlmProvider {
     model: string,
     response: GeminiResponse,
     start: number,
-  ): GeminiCallMetrics & { text: string } {
+  ): LlmCallMetrics & { text: string } {
     const durationMs = Date.now() - start;
     const text = textFromResponse(response);
     const { inputTokens, outputTokens } = tokensFromResponse(response);
     const costUsd = computeGeminiCost(model, inputTokens, outputTokens);
 
     return { text, model, inputTokens, outputTokens, costUsd, durationMs };
-  }
-
-  private async reportFailure(
-    attempt: {
-      req: { taskId?: string; jobName?: string };
-      model: string;
-      start: number;
-      kind: string;
-    },
-    err: unknown,
-  ): Promise<void> {
-    logCallFailure(attempt.kind, err);
-    await this.recordFailedCall(
-      attempt.req,
-      attempt.model,
-      Date.now() - attempt.start,
-      (err as Error).message,
-    );
   }
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
@@ -283,12 +176,15 @@ export class GeminiProvider implements LlmProvider {
       const response = await this.generate(model, { ...req, model });
       const metrics = this.summarizeCall(model, response, start);
 
-      await this.logCall(req, metrics);
-      logCallLine("call", metrics);
+      await recordCall(this.opts.usage, req, "call", metrics);
 
       return { ...metrics, ...ZERO_CACHE };
     } catch (err) {
-      await this.reportFailure({ req, model, start, kind: "call" }, err);
+      await recordFailure(
+        this.opts.usage,
+        { req, model, start, kind: "call" },
+        err,
+      );
       throw err;
     }
   }
@@ -297,7 +193,7 @@ export class GeminiProvider implements LlmProvider {
     req: LlmToolRequest,
     model: string,
     start: number,
-  ): Promise<GeminiCallMetrics & { text: string }> {
+  ): Promise<LlmCallMetrics & { text: string }> {
     const response = await this.generate(model, {
       ...req,
       model,
@@ -305,8 +201,7 @@ export class GeminiProvider implements LlmProvider {
     });
     const metrics = this.summarizeCall(model, response, start);
 
-    await this.logCall(req, metrics);
-    logCallLine("tool call", metrics);
+    await recordCall(this.opts.usage, req, "tool call", metrics);
 
     return metrics;
   }
@@ -324,7 +219,11 @@ export class GeminiProvider implements LlmProvider {
         ...ZERO_CACHE,
       };
     } catch (err) {
-      await this.reportFailure({ req, model, start, kind: "tool call" }, err);
+      await recordFailure(
+        this.opts.usage,
+        { req, model, start, kind: "tool call" },
+        err,
+      );
       throw err;
     }
   }
