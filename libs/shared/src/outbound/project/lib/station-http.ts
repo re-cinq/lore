@@ -44,6 +44,9 @@ interface HttpCall {
   headers: Record<string, string>;
 }
 
+const HTTP_TOO_MANY_REQUESTS = 429;
+const RATE_LIMITED_GET_ATTEMPTS = 5;
+
 function httpGet<T>(
   call: HttpCall,
   path: string,
@@ -52,11 +55,37 @@ function httpGet<T>(
   const qs = new URLSearchParams(query).toString();
 
   return unwrap(
-    call.fetchImpl(`${call.base}${path}${qs ? `?${qs}` : ""}`, {
-      headers: call.headers,
-    }),
+    getPastRateLimit(call, `${call.base}${path}${qs ? `?${qs}` : ""}`),
     `GET ${path}`,
   );
+}
+
+/** Every station of a Monday tick reads through one stations token, whose per-minute budget a few repos' spec reads spend in seconds (spec-upkeep run fd10373c, 2026-11-16): a GET waits out lore-api's Retry-After instead of failing the visit. */
+async function getPastRateLimit(
+  call: HttpCall,
+  url: string,
+): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await call.fetchImpl(url, { headers: call.headers });
+
+    if (
+      res.status !== HTTP_TOO_MANY_REQUESTS ||
+      attempt === RATE_LIMITED_GET_ATTEMPTS
+    ) {
+      return res;
+    }
+    await sleep(retryAfterMs(res));
+  }
+}
+
+function retryAfterMs(res: Response): number {
+  const seconds = Number(res.headers.get("Retry-After"));
+
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 60_000;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function httpSend<T>(

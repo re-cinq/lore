@@ -31,6 +31,31 @@ function fakeFetch(routes: Record<string, unknown>): {
 const env = { LORE_API_URL: "https://api", LORE_STATION_TOKEN: "tok" };
 
 describe("createStationProject", () => {
+  it("returns the spec document after lore-api answers 429 with Retry-After 0 once", async () => {
+    const document = { filePath: "specs/a/spec.md", statements: [] };
+    const answers = [
+      new Response("{}", { status: 429, headers: { "Retry-After": "0" } }),
+      Response.json(document),
+    ];
+    const fetchImpl = (async () => answers.shift()) as unknown as typeof fetch;
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    expect(await project.trace.document("specs/a/spec.md")).toEqual(document);
+  });
+
+  it("rejects with the 429 after lore-api refuses every attempt", async () => {
+    const fetchImpl = (async () =>
+      new Response("{}", {
+        status: 429,
+        headers: { "Retry-After": "0" },
+      })) as unknown as typeof fetch;
+    const project = createStationProject("o/r", env, fetchImpl);
+
+    await expect(project.trace.document("specs/a/spec.md")).rejects.toThrow(
+      new Error("GET /trace/document failed: 429"),
+    );
+  });
+
   it("requires LORE_API_URL", () => {
     expect(() => createStationProject("o/r", {})).toThrow(/LORE_API_URL/);
   });
