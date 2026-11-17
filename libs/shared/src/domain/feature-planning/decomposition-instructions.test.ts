@@ -75,6 +75,17 @@ describe("DECOMPOSITION_EXAMPLE", () => {
     expect(missing).toEqual([]);
   });
 
+  it("leaves a closed ticket's task out instead of writing a placeholder for it", () => {
+    expect({
+      leftOut: DECOMPOSITION_INSTRUCTIONS.includes(
+        "A ticket already closed is finished work: leave its task out.",
+      ),
+      noPlaceholder: DECOMPOSITION_INSTRUCTIONS.includes(
+        "Never\n  write a placeholder task for it",
+      ),
+    }).toEqual({ leftOut: true, noPlaceholder: true });
+  });
+
   it("tells the agent each task becomes its own issue a developer implements from alone", () => {
     expect({
       ownIssue: DECOMPOSITION_INSTRUCTIONS.includes(

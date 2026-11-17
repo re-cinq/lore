@@ -127,6 +127,7 @@ describe("readFloorMigrations", () => {
         "floor/0008_plan_agents_read_user_story",
         "floor/0009_plan_sketches_downstream",
         "floor/0010_refine_acts_on_thread_outcome",
+        "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
       ],
       unshipped: [],
     });
@@ -230,6 +231,18 @@ describe("floor/0010_refine_acts_on_thread_outcome", () => {
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt plan-sketch",
       "prompt plan-analyze",
+    ]);
+  });
+});
+
+describe("floor/0011_spec_tickets_decompose_leaves_closed_tickets", () => {
+  it("writes the shipped prompt of spec-tickets-decompose, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0011_spec_tickets_decompose_leaves_closed_tickets",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt spec-tickets-decompose",
     ]);
   });
 });
