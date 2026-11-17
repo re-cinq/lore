@@ -1,4 +1,4 @@
-// Drops the new tasks an existing ticket already holds before the issues station files them (specs/spec-tickets FR27). The decision is ticket-dedupe's; this reads, searches and produces. A failed search keeps the task: dedupe never fails a run.
+// Drops the new tasks an existing ticket already holds before the issues station files them (specs/spec-tickets FR30). The search picks candidates, a model judges them, ticket-dedupe applies the verdicts. A failed search or judge keeps the task: dedupe never fails a run.
 import {
   defineStation,
   type Handle,
@@ -7,29 +7,61 @@ import {
 } from "@re-cinq/floor-station";
 import { eventLine } from "@re-cinq/lore-assembly-lines";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import {
+  parseDecomposition,
+  type DecompTask,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
+import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
+import type { LlmToolResult } from "@re-cinq/lore-shared/llm/llm-provider.js";
 import {
   searchTicketsOverHttp,
   type TicketSearchAnswer,
   type TicketSearchRequest,
 } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import {
-  dedupeDecomposition,
+  applyJudgements,
+  candidatesOf,
   dedupeReport,
+  judgePrompt,
+  JUDGE_TOOL_SCHEMA,
   newTasks,
   ticketQuery,
   type OwnTickets,
-  type TicketSearchOutcome,
+  type TaskJudgement,
 } from "@re-cinq/lore-shared/spec-tickets/ticket-dedupe.js";
-import type { DecompTask } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import type { TicketListing } from "../load-tickets/listing.js";
 
 export interface DedupeDeps {
   search(request: TicketSearchRequest): Promise<TicketSearchAnswer>;
+  judge(prompt: string): Promise<LlmToolResult<unknown>>;
 }
 
+const LLM_USE = "ticket_dedupe";
 const SEARCH_LIMIT = 5;
+const JUDGES_AT_ONCE = 4;
+
+const productionDeps: DedupeDeps = {
+  search: (request) => searchTicketsOverHttp(request),
+  judge: (prompt) =>
+    Llm.for(LLM_USE).completeWithTool<unknown>({
+      prompt,
+      jobName: LLM_USE,
+      temperature: 0,
+      maxTokens: 400,
+      toolName: "ticket_dedupe",
+      toolDescription:
+        "Whether an existing ticket already covers the task, which one, and why.",
+      toolSchema: JUDGE_TOOL_SCHEMA,
+    }),
+};
+
+interface Visit {
+  deps: DedupeDeps;
+  repo: string;
+  own: OwnTickets;
+  tools: Tools;
+}
 
 export function dedupeHandle(deps: DedupeDeps): Handle {
   return async ({ needs }, tools) => {
@@ -56,11 +88,11 @@ async function dedupeVisit(
     parseModelJson(await readText(tools, "verified_decomposition")),
   );
   const own = ownTicketsOf(await readText(tools, "existing_tickets"));
-  const tasks = newTasks(decomposition, own);
-  const searched = await Promise.all(
-    tasks.map((task) => searchOne(deps, repo, task)),
+  const visit = { deps, repo, own, tools };
+  const judged = await pooled(newTasks(decomposition, own), (task) =>
+    judgementOf(visit, task),
   );
-  const result = dedupeDecomposition(decomposition, new Map(searched), own);
+  const result = applyJudgements(decomposition, new Map(judged.flat()));
 
   await tools.produce(
     "deduped_decomposition",
@@ -82,27 +114,86 @@ function ownTicketsOf(listing: string): OwnTickets {
   };
 }
 
-async function searchOne(
-  deps: DedupeDeps,
-  repo: string,
-  task: DecompTask,
-): Promise<[string, TicketSearchOutcome]> {
-  const request = {
-    repo,
-    query: ticketQuery(task),
-    state: "all" as const,
-    limit: SEARCH_LIMIT,
-  };
-  const outcome = await deps
-    .search(request)
-    .catch((err: Error): TicketSearchOutcome => ({ error: err.message }));
+type Judged = [string, TaskJudgement];
 
-  return [task.id, outcome];
+/** A task with no candidate gets no judgement and stays as it is. */
+async function judgementOf(visit: Visit, task: DecompTask): Promise<Judged[]> {
+  const searched = await searchFor(visit, task);
+
+  if ("failed" in searched) {
+    return [[task.id, searched]];
+  }
+  const candidates = candidatesOf(searched, visit.own);
+
+  return candidates.length
+    ? [[task.id, await judged(visit, task, candidates)]]
+    : [];
+}
+
+async function searchFor(
+  { deps, repo }: Visit,
+  task: DecompTask,
+): Promise<TicketSearchAnswer | { failed: "search_failed"; reason: string }> {
+  const request = { repo, query: ticketQuery(task), state: "all" as const };
+
+  try {
+    const answer = await deps.search({ ...request, limit: SEARCH_LIMIT });
+    const notes = answer.notes ?? [];
+
+    return notes.length
+      ? { failed: "search_failed", reason: notes.join("; ") }
+      : answer;
+  } catch (err) {
+    return { failed: "search_failed", reason: (err as Error).message };
+  }
+}
+
+async function judged(
+  visit: Visit,
+  task: DecompTask,
+  candidates: ReturnType<typeof candidatesOf>,
+): Promise<TaskJudgement> {
+  try {
+    const answer = await visit.deps.judge(judgePrompt(task, candidates));
+
+    await visit.tools.modelCall(modelCallOf(answer));
+
+    return { candidates, answer: answer.parsed };
+  } catch (err) {
+    return { failed: "judge_failed", reason: (err as Error).message };
+  }
+}
+
+function modelCallOf(answer: LlmToolResult<unknown>) {
+  return {
+    model: answer.model,
+    costUsd: answer.costUsd,
+    usage: {
+      input_tokens: answer.inputTokens,
+      cache_read_input_tokens: answer.cacheReadTokens,
+      output_tokens: answer.outputTokens,
+    },
+  };
+}
+
+/** Judges JUDGES_AT_ONCE tasks at a time, keeping their order. */
+async function pooled<T, R>(
+  tasks: T[],
+  work: (task: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let index = next++; index < tasks.length; index = next++) {
+      results[index] = await work(tasks[index] as T);
+    }
+  };
+
+  await Promise.all(Array.from({ length: JUDGES_AT_ONCE }, worker));
+
+  return results;
 }
 
 export function startSpecTicketsDedupeStation(): RunningStation {
-  return defineStation(
-    "spec-tickets-dedupe",
-    dedupeHandle({ search: (request) => searchTicketsOverHttp(request) }),
-  );
+  return defineStation("spec-tickets-dedupe", dedupeHandle(productionDeps));
 }

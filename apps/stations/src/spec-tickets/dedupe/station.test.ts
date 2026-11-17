@@ -1,10 +1,22 @@
 import type { Tools } from "@re-cinq/floor-station";
+import type { LlmToolResult } from "@re-cinq/lore-shared/llm/llm-provider.js";
 import type {
   TicketSearchAnswer,
   TicketSearchRequest,
 } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { describe, expect, it } from "vitest";
-import { dedupeHandle } from "./station.js";
+import { dedupeHandle, type DedupeDeps } from "./station.js";
+
+function planned(id: string, title: string) {
+  return {
+    id,
+    title,
+    description: `Build ${title.toLowerCase()}.`,
+    depends_on: [],
+    parallelizable: false,
+    phase: 0,
+  };
+}
 
 const DECOMPOSITION = {
   spec_commit: "c1",
@@ -14,22 +26,9 @@ const DECOMPOSITION = {
       summary: "",
       acceptance_criteria: [],
       tasks: [
-        {
-          id: "T001",
-          title: "Add login",
-          description: "Build login.",
-          depends_on: [],
-          parallelizable: false,
-          phase: 0,
-        },
-        {
-          id: "T002",
-          title: "Add logout",
-          description: "Build logout.",
-          depends_on: [],
-          parallelizable: false,
-          phase: 0,
-        },
+        planned("T001", "Add login"),
+        planned("T002", "Add logout"),
+        planned("T003", "Add signup"),
       ],
     },
   ],
@@ -50,11 +49,23 @@ function ticket(number: number, score: number) {
   };
 }
 
-function scene(
-  search: (request: TicketSearchRequest) => Promise<TicketSearchAnswer>,
-) {
+function answered(parsed: unknown): LlmToolResult<unknown> {
+  return {
+    parsed,
+    model: "fake",
+    inputTokens: 1,
+    outputTokens: 1,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    costUsd: 0,
+    durationMs: 0,
+  };
+}
+
+function scene(deps: DedupeDeps) {
   const produced: Record<string, string> = {};
   const requests: TicketSearchRequest[] = [];
+  const prompts: string[] = [];
   const bag: Record<string, string> = {
     verified_decomposition: JSON.stringify(DECOMPOSITION),
     existing_tickets: JSON.stringify(EXISTING),
@@ -71,7 +82,12 @@ function scene(
     search: (request) => {
       requests.push(request);
 
-      return search(request);
+      return deps.search(request);
+    },
+    judge: (prompt) => {
+      prompts.push(prompt);
+
+      return deps.judge(prompt);
     },
   });
   const run = () =>
@@ -88,49 +104,91 @@ function scene(
       tools,
     );
 
-  return { produced, requests, run };
+  return { produced, requests, prompts, run };
 }
 
+const SEARCHES: Record<string, TicketSearchAnswer> = {
+  "Add login\nBuild add login.": { tickets: [ticket(7, 0.03)] },
+  "Add signup\nBuild add signup.": { tickets: [ticket(8, 0.02)] },
+};
+
 describe("dedupeHandle", () => {
-  it("searches only new task T001 and drops it as duplicate_of open #7, keeping rewrite T002", async () => {
-    const { produced, requests, run } = scene(async () => ({
-      tickets: [ticket(7, 0.95)],
-    }));
+  it("searches new tasks T001 and T003, judges only T001 whose #7 is a candidate, and drops it as duplicate_of #7", async () => {
+    const { produced, requests, prompts, run } = scene({
+      search: async ({ query }) => SEARCHES[query] ?? { tickets: [] },
+      judge: async () =>
+        answered({ verdict: "duplicate", ticket: 7, why: "same login" }),
+    });
 
     expect(await run()).toEqual({ outcome: "success" });
     expect({
-      requests,
+      searched: requests.map(({ query, state, limit }) => [
+        query,
+        state,
+        limit,
+      ]),
+      judged: prompts.length,
       kept: JSON.parse(
         produced.deduped_decomposition ?? "{}",
       ).stories[0].tasks.map((task: { id: string }) => task.id),
       report: produced.dedupe_report,
     }).toEqual({
-      requests: [
-        {
-          repo: "acme/widget",
-          query: "Add login\nBuild login.",
-          state: "all",
-          limit: 5,
-        },
+      searched: [
+        ["Add login\nBuild add login.", "all", 5],
+        ["Add signup\nBuild add signup.", "all", 5],
       ],
-      kept: ["T002"],
-      report: "## Ticket dedupe\n\n- T001: duplicate_of #7",
+      judged: 1,
+      kept: ["T002", "T003"],
+      report: "## Ticket dedupe\n\n- T001: duplicate_of #7 — same login",
     });
   });
 
-  it("keeps every task and reports the failure when the search throws a 503", async () => {
-    const { produced, run } = scene(async () => {
-      throw new Error("GET /tickets/search failed: 503");
+  it("keeps every task and reports both failures when the search throws a 503 and the judge is never asked", async () => {
+    const { produced, prompts, run } = scene({
+      search: async () => {
+        throw new Error("GET /tickets/search failed: 503");
+      },
+      judge: async () => answered({ verdict: "new", why: "x" }),
     });
 
     expect(await run()).toEqual({ outcome: "success" });
     expect({
       decomposition: JSON.parse(produced.deduped_decomposition ?? "{}"),
+      judged: prompts.length,
       report: produced.dedupe_report,
     }).toEqual({
       decomposition: DECOMPOSITION,
+      judged: 0,
       report:
-        "## Ticket dedupe\n\n- T001: kept, search failed: GET /tickets/search failed: 503",
+        "## Ticket dedupe\n\n- T001: kept, search_failed: GET /tickets/search failed: 503\n- T003: kept, search_failed: GET /tickets/search failed: 503",
     });
+  });
+
+  it("keeps T001 and reports judge_failed when the judge throws", async () => {
+    const { produced, run } = scene({
+      search: async ({ query }) => SEARCHES[query] ?? { tickets: [] },
+      judge: async () => {
+        throw new Error("vertex 503");
+      },
+    });
+
+    expect(await run()).toEqual({ outcome: "success" });
+    expect(produced.dedupe_report).toBe(
+      "## Ticket dedupe\n\n- T001: kept, judge_failed: vertex 503",
+    );
+  });
+
+  it("keeps T001 and reports the note when the search answers no Utopia base", async () => {
+    const note = "search_tickets: acme/widget has no Utopia base";
+    const { produced, run } = scene({
+      search: async () => ({ tickets: [], notes: [note] }),
+      judge: async () => answered({ verdict: "new", why: "x" }),
+    });
+
+    await run();
+
+    expect(produced.dedupe_report).toBe(
+      `## Ticket dedupe\n\n- T001: kept, search_failed: ${note}\n- T003: kept, search_failed: ${note}`,
+    );
   });
 });
