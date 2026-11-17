@@ -8,8 +8,8 @@ import { dgraphReachable } from "../../lib/dgraph-test-gate.js";
 import { makeDeleteRepoNodes } from "../../outbound/spec-trace/test-helpers/delete-repo-nodes.js";
 import { callersOf } from "../../outbound/spec-trace/code-callers.js";
 import { anchorHashOf } from "../../domain/anchor-hash.js";
+import { codeDefinitionsOf } from "./code-definitions.js";
 import {
-  codeDefinitionsOf,
   deleteCodeFile,
   listCodeFilePaths,
   projectCodeFile,

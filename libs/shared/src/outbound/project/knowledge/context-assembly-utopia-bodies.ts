@@ -26,8 +26,7 @@ export async function withBodies(
 async function bodyOf(span: Span, files: RepoFiles): Promise<string | null> {
   const source = await files(span.path);
   const lines = source?.split("\n") ?? [];
-  const { start, end: knownEnd } = located(span, source);
-  const end = Math.min(knownEnd ?? (start ?? 0) + MAX_LINES - 1, lines.length);
+  const { start, end } = boundsOf(span, source, lines.length);
 
   if (start === null || end < start) {
     return null;
@@ -39,18 +38,26 @@ async function bodyOf(span: Span, files: RepoFiles): Promise<string | null> {
   ].join("\n");
 }
 
-/** A span's lines as pushed, or for a test named by anchor hash alone, from the line carrying the hash to the line before the next test declared in the file, at most 40 lines. */
-function located(
+/** The span's first and last line in a file of `length` lines: 40 lines when no end is known, never past the file's end. */
+function boundsOf(
   span: Span,
   source: string | null,
+  length: number,
+): { start: number | null; end: number } {
+  const { start, end } =
+    span.anchorHash === undefined
+      ? span
+      : anchoredBounds(span.anchorHash, source);
+
+  return { start, end: Math.min(end ?? (start ?? 0) + MAX_LINES - 1, length) };
+}
+
+/** A test named by anchor hash alone: from the line carrying the hash to the line before the next test declared in the file, at most 40 lines. */
+function anchoredBounds(
+  hash: string,
+  source: string | null,
 ): { start: number | null; end: number | null } {
-  if (span.anchorHash === undefined) {
-    return { start: span.start, end: span.end };
-  }
-  const start = resolveAnchorLine(
-    { line: null, hash: span.anchorHash },
-    source,
-  );
+  const start = resolveAnchorLine({ line: null, hash }, source);
   const next = testDeclarations(source ?? "").find(
     (declaration) => start !== null && declaration.line > start,
   );
@@ -58,9 +65,9 @@ function located(
   return {
     start,
     end:
-      next && start !== null
-        ? Math.min(next.line - 1, start + MAX_LINES - 1)
-        : null,
+      start === null
+        ? null
+        : Math.min((next?.line ?? Infinity) - 1, start + MAX_LINES - 1),
   };
 }
 

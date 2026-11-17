@@ -51,8 +51,8 @@ export {
   projectCodeFile,
   deleteCodeFile,
   listCodeFilePaths,
-  codeDefinitionsOf,
 } from "./spec-trace/project-code-file.js";
+export { codeDefinitionsOf } from "./spec-trace/code-definitions.js";
 export {
   failuresTouching,
   type FailureHit,

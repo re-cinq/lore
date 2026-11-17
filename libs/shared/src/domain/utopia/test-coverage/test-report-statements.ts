@@ -234,56 +234,68 @@ function coverParts(
       input.definitions?.get(path) ?? [],
       ranges,
     );
-    const definitionParts = symbols.map((symbol): Fragment => {
-      const definition = definitionName(input.repo, path, symbol);
+    const definitions = symbols.map((symbol) =>
+      definitionCover(test, file, definitionName(input.repo, path, symbol)),
+    );
 
-      return {
-        e: [
-          [file, "SourceFile", true],
-          [definition, "CodeDefinition", true],
-        ],
-        s: [
-          relation(file, "defines", definition),
-          relation(test, "covers", definition),
-        ],
-      };
-    });
-    const fileCover: Fragment = {
-      e: [[file, "SourceFile", true]],
-      s: [relation(test, "covers", file)],
-    };
-
-    return outside ? [fileCover, ...definitionParts] : definitionParts;
+    return outside ? [fileCover(test, file), ...definitions] : definitions;
   });
 }
 
-/** The innermost definitions each range overlaps (a method, not the class around it), sorted by symbol, and whether some range overlaps none. */
+function definitionCover(
+  test: string,
+  file: string,
+  definition: string,
+): Fragment {
+  return {
+    e: [
+      [file, "SourceFile", true],
+      [definition, "CodeDefinition", true],
+    ],
+    s: [
+      relation(file, "defines", definition),
+      relation(test, "covers", definition),
+    ],
+  };
+}
+
+function fileCover(test: string, file: string): Fragment {
+  return {
+    e: [[file, "SourceFile", true]],
+    s: [relation(test, "covers", file)],
+  };
+}
+
+/** The innermost definitions the ranges overlap, sorted by symbol, and whether some range overlaps none. */
 function coveredSymbols(
   definitions: readonly CodeSpan[],
   ranges: LineRange[],
 ): { symbols: string[]; outside: boolean } {
-  const perRange = ranges.map((range) => {
-    const overlapping = definitions.filter(
-      (definition) =>
-        definition.start <= range.end && definition.end >= range.start,
-    );
-
-    return overlapping.filter(
-      (definition) =>
-        !overlapping.some(
-          (inner) =>
-            inner !== definition &&
-            inner.start >= definition.start &&
-            inner.end <= definition.end,
-        ),
-    );
-  });
+  const perRange = ranges.map((range) => innermostAt(definitions, range));
   const symbols = perRange.flat().map((definition) => definition.symbol);
 
   return {
     symbols: [...new Set(symbols)].sort(),
     outside: perRange.some((innermost) => innermost.length === 0),
   };
+}
+
+/** The definitions overlapping the range that hold no other overlapping one: a method, not the class around it. */
+function innermostAt(
+  definitions: readonly CodeSpan[],
+  range: LineRange,
+): CodeSpan[] {
+  const overlapping = definitions.filter(
+    (definition) =>
+      definition.start <= range.end && definition.end >= range.start,
+  );
+  const holdsAnother = (outer: CodeSpan) =>
+    overlapping.some(
+      (inner) =>
+        inner !== outer && inner.start >= outer.start && inner.end <= outer.end,
+    );
+
+  return overlapping.filter((definition) => !holdsAnother(definition));
 }
 
 /** Each file's covered ranges sorted by path and line, with overlapping and adjacent ranges merged into one. */

@@ -142,6 +142,7 @@ describe("mirrorDocument", () => {
 
   it("pushes the stmt items of specs/mirror/spec.md when statements already mirrored are skipped and the ledger holds none", async () => {
     const statements = statementRecorder(() => "created");
+
     await mirrorDocument(
       targetsOf(textRecorder().deps, statements.deps).targets,
       input,

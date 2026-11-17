@@ -54,7 +54,7 @@ function testSpan(tuple: Tuple, test: string): Span {
 function coveredSpans(tuple: Tuple, test: string): Span[] {
   return tuple.s.flatMap((row) => {
     const file =
-      row[1] === test && row[2] === "covers" && row[5]?.lines ? row[3] : null;
+      row[1] === test && row[2] === "covers" && row[5].lines ? row[3] : null;
 
     return file
       ? String(row[5].lines)
@@ -144,7 +144,7 @@ function coveredName(tuple: Tuple, test: string, covered: string): string {
   const row = tuple.s.find(
     (s) => s[1] === test && s[2] === "covers" && s[3] === covered,
   );
-  const lines = row?.[5]?.lines;
+  const lines = row?.[5].lines;
   const [file] = subjectsOf(tuple, "defines", covered);
 
   if (lines) {
