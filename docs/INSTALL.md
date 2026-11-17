@@ -213,7 +213,7 @@ One install talks to one GitHub host. By default that is `github.com`; for a sel
 
 - Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
 - A Server must be GitHub Enterprise Server 3.11 or newer (this does not apply to data residency, which GitHub runs): Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
-- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in the chart's `values.yaml`, shown by `helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1`).
+- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in the chart's `values.yaml`, shown by `helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2`).
 - The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
 - The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
 - The Server must reach the webhook hostname of 1.4 to deliver its events.
@@ -339,10 +339,10 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 ### 3.2 Get the example values
 
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2 --untar
 ```
 
-This writes the directory `lore-install/`. The only file you need from it is `values.azure.example.yaml`. The chart is public and needs no login. Version 1.0.1 is the Lore release: the chart pins every Lore image to that version, and it holds the floor chart `0.5.5` and the Utopia chart that goes with the Utopia image it names. The chart is the published package, not a checkout, so nothing else is cloned.
+This writes the directory `lore-install/`. The only file you need from it is `values.azure.example.yaml`. The chart is public and needs no login. Version 1.0.2 is the Lore release: the chart pins every Lore image to that version, and it holds the floor chart `0.5.5` and the Utopia chart that goes with the Utopia image it names. The chart is the published package, not a checkout, so nothing else is cloned.
 
 ### 3.3 Fill in the values file
 
@@ -399,7 +399,7 @@ Check the file before touching the cluster:
 
 ```bash
 grep -c -e CHANGE-ME -e example.com my-values.yaml      # must print 0
-helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 -n lore-floor -f my-values.yaml > /dev/null && echo ok
+helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2 -n lore-floor -f my-values.yaml > /dev/null && echo ok
 ```
 
 A missing value stops the second command and names it, for example `secrets.ghcr.username is required`.
@@ -417,7 +417,7 @@ Settings you may need:
 | A Slack app | `secrets.slack.signingSecret` and `secrets.slack.botToken` |
 | No Utopia | `utopia.enabled: false` and `lore-platform.lore-api.utopia.enabled: false`, both |
 
-Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. The chart's own `values.yaml` (`helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1`) lists what it already sets and why.
+Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. The chart's own `values.yaml` (`helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2`) lists what it already sets and why.
 
 ### 3.4 The database schema
 
@@ -446,7 +446,7 @@ Our own CloudNativePG database is the exception: `scripts/infra/setup-db.sh` cre
 The release name and namespace are fixed. The chart refuses any other.
 
 ```bash
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.1 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.2 \
   -n lore-floor --create-namespace -f my-values.yaml
 ```
 
@@ -642,7 +642,7 @@ What an install on a client cluster hits. The list stays until each fix lands.
 2. **The baseline install has never run on a real Azure server** ([#3904](https://github.com/re-cinq/lore/issues/3904), see 3.4). CI runs it against an empty pgvector database owned by a role without superuser, and the extension was the only step that needed more: a server admin creates it. Whether Azure Flexible Server lets `lore` create `vector` after allow-listing is not verified.
 3. **Embeddings on an OpenAI-compatible endpoint have never run against a real Foundry resource** ([#3903](https://github.com/re-cinq/lore/issues/3903), see 1.6). The provider is tested against a local server only. Whether the deployment returns 768 dimensions is the client's to check; a reply of another width is refused and search falls back to keywords.
 4. **The agents' model key is a manual step** (3.6): the floor chart creates `agent-secrets` empty and takes no value for it.
-5. **A release is cut by hand.** Pushing a `vX.Y.Z` tag tags the images our own cluster runs and writes the GitHub release, but someone has to open the pull request that sets the version in `deploy/install/values.yaml` first (`deploy/README.md`, "Releasing Lore"). The tag also publishes the `lore-install` chart. The first release is `v1.0.0`, and the chart is published from `v1.0.1`.
+5. **A release is cut by hand.** Pushing a `vX.Y.Z` tag tags the images our own cluster runs and writes the GitHub release, but someone has to open the pull request that sets the version in `deploy/install/values.yaml` first (`deploy/README.md`, "Releasing Lore"). The tag also publishes the `lore-install` chart. The first release is `v1.0.0`, and the chart is published from `v1.0.1`. Install `1.0.2` or later: the `1.0.1` chart renders `ExternalSecret` objects for Utopia, which a cluster with no secret store refuses.
 6. **Utopia's chart is not published on its own.** The `lore-install` chart carries it, taken from the git tag of the Utopia image the chart pins (`utopia.image.tag`), so an install gets the chart that matches its image.
 7. **Utopia after install.** Sign-in was only ever run against Google as the issuer; Microsoft Entra ID as the issuer (3.3) is untested. The write token that lets Lore create a knowledge base per repository is made by hand once Utopia is up ([managing-secrets.md](managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)); until then a person sets each repository up in Utopia.
 8. **Shared settings are repeated.** `LORE_DB_HOST` and the public URLs are written once per app in the values file.
