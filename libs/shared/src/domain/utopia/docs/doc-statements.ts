@@ -41,7 +41,7 @@ export interface DocStatementsInput {
   path: string;
   content: string;
   commit: string;
-  /** ISO 8601 commit time, when the caller knows it. */
+  /** ISO 8601 commit time, when the caller knows it: the `doc:` item's doc_time, never a statement's. */
   commitTime?: string;
   kind: MirroredDocKind;
   /** Linked test files' source at the commit, by repo path: a hashed link is read at the line its hash now sits on, and a link whose label is no title is named by the test declared there. */
@@ -62,21 +62,14 @@ const DOC_KIND_WORD = { spec: "Spec", adr: "Adr", doc: "Doc" } as const;
 
 export type MirroredDocKind = keyof typeof DOC_KIND_WORD;
 
-/** The items of the document's statements alone: each statement's text, its tests, source files and ADRs. */
+/** The items of the document's statements alone: each statement's text, its tests, source files and ADRs. They carry no doc_time: a commit that edits one statement would date every other one anew, and Utopia re-extracts an item whose bytes changed. */
 export function statementItems(input: DocStatementsInput): StatementItem[] {
   const names = namesOf(input);
   const sections = sectionsOf(input.content, names.doc);
 
-  return timed(
-    linksForStatements(input.content).flatMap(({ statement, testLinks }) =>
-      itemsOfStatement(names, sections, statement, testLinks),
-    ),
-    input.commitTime,
+  return linksForStatements(input.content).flatMap(({ statement, testLinks }) =>
+    itemsOfStatement(names, sections, statement, testLinks),
   );
-}
-
-function timed(pushed: StatementItem[], time?: string): StatementItem[] {
-  return pushed.map((one) => (time ? { ...one, doc_time: time } : one));
 }
 
 function namesOf(input: DocStatementsInput): DocNames {

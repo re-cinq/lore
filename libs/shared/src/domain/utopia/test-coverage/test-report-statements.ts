@@ -1,4 +1,4 @@
-// One test run as Utopia statement items: one item per test, keyed on the test's anchor hash (Repository contains SourceFile contains Test), each with the test's attributes, the statements it validates or violates, and the lines it covers, split across `#hash.2`, `#hash.3` when its covered files overflow Utopia's push limits.
+// One test run as Utopia statement items: one item per test, keyed on the test's anchor hash (Repository contains SourceFile contains Test), each with the test's attributes, the statements it validates or violates, and the definitions it covers, split across `#hash.2`, `#hash.3` when its covered files overflow Utopia's push limits.
 
 import { anchorHashOf } from "../../anchor-hash.js";
 import { parseSpecAnchors } from "../../spec-trace/spec-anchor.js";
@@ -8,7 +8,13 @@ import type {
   TestDescriptor,
 } from "../../test-report.js";
 import { joinFragments, splitToFit, type Fragment } from "../fragments.js";
-import { blobUrl, fileName, statementName, testName } from "../names.js";
+import {
+  blobUrl,
+  definitionName,
+  fileName,
+  statementName,
+  testName,
+} from "../names.js";
 import {
   attribute,
   knownAs,
@@ -22,6 +28,15 @@ export interface TestReportInput {
   repo: string;
   tests: TestDescriptor[];
   results: TaggedRunResult[];
+  /** The definitions of each covered file by path, as the code graph holds them: a covered range is named by the definition it ran, never by its lines. */
+  definitions?: ReadonlyMap<string, readonly CodeSpan[]>;
+}
+
+/** One definition of a source file and the lines it spans. */
+export interface CodeSpan {
+  symbol: string;
+  start: number;
+  end: number;
 }
 
 interface LineRange {
@@ -162,8 +177,8 @@ function testAttributes(
       attribute(test, "title", title),
       knownAs(test, title),
       attribute(test, "path", descriptor.file),
-      ...lineAttributes(test, descriptor),
-      attribute(test, "permalink", permalinkOf(input, descriptor)),
+      ...anchorAttribute(test, descriptor),
+      attribute(test, "permalink", `${blobUrl(input.repo)}/${descriptor.file}`),
     ],
   };
 }
@@ -177,29 +192,14 @@ function titleOf(descriptor: TestDescriptor): string {
     : descriptor.name;
 }
 
-function lineAttributes(test: string, descriptor: TestDescriptor): Statement[] {
-  return [
-    ...(descriptor.anchorHash === undefined
-      ? []
-      : [attribute(test, "anchor_hash", descriptor.anchorHash)]),
-    ...(descriptor.startLine === undefined
-      ? []
-      : [attribute(test, "line_start", String(descriptor.startLine))]),
-    ...(descriptor.endLine === undefined
-      ? []
-      : [attribute(test, "line_end", String(descriptor.endLine))]),
-  ];
-}
-
-function permalinkOf(
-  input: TestReportInput,
+/** The anchor hash names the test wherever it stands; its lines are left out, since a line added above it would change the item and Utopia would re-extract it. */
+function anchorAttribute(
+  test: string,
   descriptor: TestDescriptor,
-): string {
-  const { startLine, endLine } = descriptor;
-  const end = endLine === undefined ? "" : `-L${endLine}`;
-  const anchor = startLine === undefined ? "" : `#L${startLine}${end}`;
-
-  return `${blobUrl(input.repo)}/${descriptor.file}${anchor}`;
+): Statement[] {
+  return descriptor.anchorHash === undefined
+    ? []
+    : [attribute(test, "anchor_hash", descriptor.anchorHash)];
 }
 
 function outcomeFragment(
@@ -222,21 +222,80 @@ function outcomeFragment(
   };
 }
 
-/** One part per covered file: the relation qualified by the merged lines, naming the file only, since the `code:` item owns its path and names. */
+/** One part per covered definition, and one for the file when a covered range lies outside every definition the file is known to have. No line reaches the push: an edit that only moves lines leaves the item as it was. */
 function coverParts(
   input: TestReportInput,
   test: string,
   covered: CoveredChunk[],
 ): Fragment[] {
-  return [...rangesByFile(covered)].map(([path, ranges]) => {
+  return [...rangesByFile(covered)].flatMap(([path, ranges]) => {
     const file = fileName(input.repo, path);
-    const lines = ranges.map(({ start, end }) => `${start}-${end}`).join(",");
+    const { symbols, outside } = coveredSymbols(
+      input.definitions?.get(path) ?? [],
+      ranges,
+    );
+    const definitions = symbols.map((symbol) =>
+      definitionCover(test, file, definitionName(input.repo, path, symbol)),
+    );
 
-    return {
-      e: [[file, "SourceFile", true]],
-      s: [relation(test, "covers", file, { lines })],
-    };
+    return outside ? [fileCover(test, file), ...definitions] : definitions;
   });
+}
+
+function definitionCover(
+  test: string,
+  file: string,
+  definition: string,
+): Fragment {
+  return {
+    e: [
+      [file, "SourceFile", true],
+      [definition, "CodeDefinition", true],
+    ],
+    s: [
+      relation(file, "defines", definition),
+      relation(test, "covers", definition),
+    ],
+  };
+}
+
+function fileCover(test: string, file: string): Fragment {
+  return {
+    e: [[file, "SourceFile", true]],
+    s: [relation(test, "covers", file)],
+  };
+}
+
+/** The innermost definitions the ranges overlap, sorted by symbol, and whether some range overlaps none. */
+function coveredSymbols(
+  definitions: readonly CodeSpan[],
+  ranges: LineRange[],
+): { symbols: string[]; outside: boolean } {
+  const perRange = ranges.map((range) => innermostAt(definitions, range));
+  const symbols = perRange.flat().map((definition) => definition.symbol);
+
+  return {
+    symbols: [...new Set(symbols)].sort(),
+    outside: perRange.some((innermost) => innermost.length === 0),
+  };
+}
+
+/** The definitions overlapping the range that hold no other overlapping one: a method, not the class around it. */
+function innermostAt(
+  definitions: readonly CodeSpan[],
+  range: LineRange,
+): CodeSpan[] {
+  const overlapping = definitions.filter(
+    (definition) =>
+      definition.start <= range.end && definition.end >= range.start,
+  );
+  const holdsAnother = (outer: CodeSpan) =>
+    overlapping.some(
+      (inner) =>
+        inner !== outer && inner.start >= outer.start && inner.end <= outer.end,
+    );
+
+  return overlapping.filter((definition) => !holdsAnother(definition));
 }
 
 /** Each file's covered ranges sorted by path and line, with overlapping and adjacent ranges merged into one. */

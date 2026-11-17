@@ -88,7 +88,7 @@ export async function backfillDepsFor(
   };
 }
 
-/** The documents' sources are had on the first document, so a walk of commits or issues creates none. */
+/** The documents' sources are had on the first document, so a walk of commits or issues creates none. A document already mirrored keeps its statements as pushed: ingest pushes them again on a real edit. */
 function docMirrorFor(pool: Pool, repo: string): BackfillDeps["mirror"] {
   let targets: Promise<DocTargets | null> | undefined;
 
@@ -102,6 +102,10 @@ function docMirrorFor(pool: Pool, repo: string): BackfillDeps["mirror"] {
       `${repo} has no Utopia knowledge base to mirror to`,
     );
 
-    return mirrorDocument(held!, { repo, ...doc });
+    return mirrorDocument(
+      held!,
+      { repo, ...doc },
+      { skipMirroredStatements: true },
+    );
   };
 }

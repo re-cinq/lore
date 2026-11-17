@@ -7,11 +7,12 @@ interface Tuple {
   s: Statement[];
 }
 
-/** Lines of one file a coupling item cites: a test from its first line to its last (null when the push knew no last line), or a range a test covers. */
+/** Lines of one file a coupling item cites: a test from its first line to its last (null when the push knew no last line), or a range a test covers. A test pushed without lines names its start by `anchorHash` alone, found in the file when it is read. */
 export interface Span {
   path: string;
-  start: number;
+  start: number | null;
   end: number | null;
+  anchorHash?: string;
 }
 
 /** The spans a `stmt:` or `test:` tuple cites, in the order the item names them: each test a statement is validated by, or the test itself then each range it covers; nothing for a `code:` item or a chunk that is no tuple. */
@@ -35,19 +36,25 @@ export function citedSpans(externalId: string, hitText: string): Span[] {
 }
 
 function testSpan(tuple: Tuple, test: string): Span {
+  const path = valueOf(tuple, test, "path");
+  const start = valueOf(tuple, test, "line_start");
   const end = valueOf(tuple, test, "line_end");
 
-  return {
-    path: valueOf(tuple, test, "path"),
-    start: Number(valueOf(tuple, test, "line_start")),
-    end: end ? Number(end) : null,
-  };
+  return start
+    ? { path, start: Number(start), end: end ? Number(end) : null }
+    : {
+        path,
+        start: null,
+        end: null,
+        anchorHash: valueOf(tuple, test, "anchor_hash"),
+      };
 }
 
-/** `7-7,9-14` of a `covers` row read as one span per range. */
+/** `7-7,9-14` of a `covers` row read as one span per range; a row pushed since 2026-11-17 names a definition or a file with no lines, and cites nothing. */
 function coveredSpans(tuple: Tuple, test: string): Span[] {
   return tuple.s.flatMap((row) => {
-    const file = row[1] === test && row[2] === "covers" ? row[3] : null;
+    const file =
+      row[1] === test && row[2] === "covers" && row[5].lines ? row[3] : null;
 
     return file
       ? String(row[5].lines)
@@ -127,11 +134,26 @@ function hashed(tuple: Tuple, test: string): string {
 }
 
 function coveredLines(tuple: Tuple, test: string): string[] {
-  return tuple.s.flatMap((row) =>
-    row[1] === test && row[2] === "covers" && row[3]
-      ? [`  covers ${fileOf(tuple, row[3])} lines ${row[5].lines}`]
-      : [],
+  return objectsOf(tuple, test, "covers").map(
+    (covered) => `  covers ${coveredName(tuple, test, covered)}`,
   );
+}
+
+/** A definition by its symbol and the file that defines it, a file by its path, and a row pushed with lines by its lines. */
+function coveredName(tuple: Tuple, test: string, covered: string): string {
+  const row = tuple.s.find(
+    (s) => s[1] === test && s[2] === "covers" && s[3] === covered,
+  );
+  const lines = row?.[5].lines;
+  const [file] = subjectsOf(tuple, "defines", covered);
+
+  if (lines) {
+    return `${fileOf(tuple, covered)} lines ${lines}`;
+  }
+
+  return file
+    ? `${bareSymbol(tuple, covered)} (${fileOf(tuple, file)})`
+    : fileOf(tuple, covered);
 }
 
 /** The file, then each definition it defines on its own line, a method indented under the class that contains it. */
@@ -198,7 +220,7 @@ function located(tuple: Tuple, test: string): string {
   const path = valueOf(tuple, test, "path");
   const line = valueOf(tuple, test, "line_start");
 
-  return `${valueOf(tuple, test, "title")} (${path}:${line})`;
+  return `${valueOf(tuple, test, "title")} (${path}${line ? `:${line}` : ""})`;
 }
 
 /** The file's `path` row, or its entity name with the leading `<repo>:` dropped when the item only names the file. */

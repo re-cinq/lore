@@ -44,27 +44,35 @@ export interface DocTargets {
   sweepMissing(): Promise<void>;
 }
 
+export interface DocMirrorOptions {
+  /** A backfill's: a document whose statements the ledger already holds keeps them as pushed, since a real edit pushes them through ingest, and a change to how items are built would otherwise re-queue every statement of every repository at once. */
+  skipMirroredStatements?: boolean;
+}
+
 export async function mirrorDocument(
   targets: DocTargets,
   input: DocStatementsInput,
+  options: DocMirrorOptions = {},
 ): Promise<MirrorOutcome> {
   const text = await pushDocuments(targets.text, [docDocument(input)]);
-  const statements = await pushStatements(targets, input);
+  const previous = await targets.ledger.pushedFor(input.path);
 
-  return combineOutcomes(text, statements);
+  if (options.skipMirroredStatements && previous.length > 0) {
+    return text;
+  }
+
+  return combineOutcomes(text, await pushStatements(targets, input, previous));
 }
 
 /** The document's statement items, and a tombstone for every item its last push had and this one has not. */
 async function pushStatements(
   targets: DocTargets,
   input: DocStatementsInput,
+  previous: string[],
 ): Promise<MirrorOutcome> {
   const testSources = await readTestSources(targets.statements, input);
   const current = statementItems({ ...input, testSources });
-  const removed = staleItemTombstones(
-    await targets.ledger.pushedFor(input.path),
-    current,
-  );
+  const removed = staleItemTombstones(previous, current);
   const outcome = await pushItems(targets.statements, [...current, ...removed]);
 
   if (outcome.failed.length === 0) {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { anchorHashOf } from "../../../domain/anchor-hash.js";
 import { withBodies } from "./context-assembly-utopia-bodies.js";
 
 const TEST_FILE = "libs/shared/src/domain/pr-body.test.ts";
@@ -19,6 +20,37 @@ const FILES: Record<string, string> = {
 const files = async (path: string) => FILES[path] ?? null;
 
 describe("withBodies", () => {
+  it("appends prints Lore-Task from the line carrying its anchor hash, 3, to 6, the line before the next test", async () => {
+    const anchorHash = anchorHashOf('it("prints Lore-Task", () => {') ?? "";
+
+    expect(
+      await withBodies(
+        "prints Lore-Task",
+        [{ path: TEST_FILE, start: null, end: null, anchorHash }],
+        files,
+      ),
+    ).toEqual(
+      [
+        "prints Lore-Task",
+        `  --- ${TEST_FILE}:3-6`,
+        '  it("prints Lore-Task", () => {',
+        '    expect(prFooter("t1")).toBe("Lore-Task: t1");',
+        "  });",
+        "  ",
+      ].join("\n"),
+    );
+  });
+
+  it("appends nothing for an anchor hash no line of the file carries", async () => {
+    expect(
+      await withBodies(
+        "x",
+        [{ path: TEST_FILE, start: null, end: null, anchorHash: "00000000" }],
+        files,
+      ),
+    ).toEqual("x");
+  });
+
   it("appends the test's lines 3-5 of pr-body.test.ts and the covered lines 7-7 and 9-10 of pr-body.ts under the item, each span led by its file and lines", async () => {
     expect(
       await withBodies(
