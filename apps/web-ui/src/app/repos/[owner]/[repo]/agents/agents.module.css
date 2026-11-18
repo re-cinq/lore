@@ -51,6 +51,18 @@
   margin-bottom: var(--space-4);
 }
 
+.baseImageForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.baseImageForm label {
+  margin: 0;
+}
+
 /* Wide content scrolls inside its own container — the page body must not. */
 .tableWrap {
   overflow-x: auto;
@@ -60,6 +72,19 @@
 .name {
   font-weight: var(--fw-semibold);
   font-family: var(--font-mono);
+}
+
+.imageLabel {
+  display: block;
+  font-weight: var(--fw-normal);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+.imageLayer {
+  margin-left: var(--space-2);
+  opacity: 0.75;
 }
 
 .detail {

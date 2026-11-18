@@ -1,16 +1,49 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const deleteAgent = vi.fn();
+const putRepoSettings = vi.fn();
 const revalidatePath = vi.fn();
 
 vi.mock("@/lib/agents-api", () => ({ deleteAgent }));
+vi.mock("@/lib/api/repos", () => ({ putRepoSettings }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-const { removeAgentOverrideAction } = await import("./actions.js");
+const { removeAgentOverrideAction, saveBaseImageAction } =
+  await import("./actions.js");
 
 beforeEach(() => {
   deleteAgent.mockReset();
+  putRepoSettings.mockReset();
   revalidatePath.mockReset();
+});
+
+describe("saveBaseImageAction", () => {
+  it("saves the selected base image and refreshes the agents and settings tabs", async () => {
+    putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
+    const formData = new FormData();
+
+    formData.set("base_image", "node:20-alpine");
+
+    await saveBaseImageAction("re-cinq/lore", formData);
+
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      settings: { base_image: "node:20-alpine" },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/repos/re-cinq/lore/agents");
+  });
+
+  it("clears the base image to null when the selection is empty", async () => {
+    putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
+    const formData = new FormData();
+
+    formData.set("base_image", "");
+
+    await saveBaseImageAction("re-cinq/lore", formData);
+
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      settings: { base_image: null },
+    });
+  });
 });
 
 describe("removeAgentOverrideAction", () => {
