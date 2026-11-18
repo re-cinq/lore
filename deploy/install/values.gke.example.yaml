@@ -105,9 +105,13 @@ lore-platform:
       UTOPIA_URL: https://utopia.example.com
       LORE_API_PUBLIC_URL: https://lore-api.example.com
       LORE_WS_URL: wss://lore.example.com/api/ws
+      # GITHUB_HOST: ghe.example.com
+      # LORE_DB_HOST: CHANGE-ME
   lore-stations:
     env:
       LORE_UI_URL: https://lore.example.com
+      # GITHUB_HOST: ghe.example.com
+      # LORE_DB_HOST: CHANGE-ME
       LORE_LLM_PROVIDER: vertex
       LORE_FACT_MODEL: gemini-2.5-flash
       LORE_EMBEDDING_PROVIDER: vertex

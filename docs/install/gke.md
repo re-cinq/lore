@@ -6,7 +6,7 @@ You will have Lore, the floor and the agent subsystem running on a GKE cluster, 
 
 | You need | Who provides it |
 | -------- | --------------- |
-| GKE 1.27 or newer with Workload Identity, Helm 3.8 or newer, `kubectl` with cluster-admin once (the operators install CRDs) | your cloud admin |
+| GKE 1.30 or newer (the Traefik chart of step 1 needs it; with another ingress controller, 1.29 for CloudNativePG) with Workload Identity, Helm 3.8 or newer, `kubectl` with cluster-admin once (the operators install CRDs) | your cloud admin |
 | A network plugin that enforces NetworkPolicy (GKE Dataplane V2 does). Without enforcement the agent pods' egress rules bind nothing | your cloud admin |
 | A default StorageClass for ReadWriteOnce volumes | your cloud admin |
 | Room for the workloads: 3 nodes of 8 vCPU and 32 GiB for the platform, 2 of the same size for agents (an estimate from requests and limits, not a measurement) | your cloud admin |
@@ -15,6 +15,8 @@ You will have Lore, the floor and the agent subsystem running on a GKE cluster, 
 | For Vertex: a Google service account with `roles/aiplatform.user`. Or an Anthropic API key | your cloud admin, or you |
 
 Lore calls out only to GitHub and to your model endpoint. Every signed-in member of your GitHub organization is an administrator in Lore today.
+
+Install with `helm upgrade --install`, as below. The chart generates tokens and database passwords once and reads them back from the cluster on every upgrade. A tool that only renders the chart (`helm template` piped to `kubectl apply`, Argo CD, Flux with a rendered source) cannot read the cluster, so it would generate new ones on each run. With such a tool, set every token in `secrets:` yourself or create the Secrets of the [table](../../deploy/install/README.md) and set `secrets.create: false`, and bring a database of your own instead of the `lore-databases` chart.
 
 ## 1. Install the operators
 
@@ -57,7 +59,7 @@ It shows `READY True`. Without cert-manager, remove `clusterIssuer` from the val
 The databases chart creates two PostgreSQL 16 clusters with pgvector and the Secrets that hold their passwords. It uses the cluster's default StorageClass unless you set `defaults.storageClass`.
 
 ```bash
-helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.0 \
+helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.1 \
   -n lore-db --create-namespace
 kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db --timeout=300s
 ```
@@ -69,7 +71,7 @@ The wait prints `condition met` for both.
 ## 3. Fill in the values file
 
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 --untar
 cp lore-install/values.gke.example.yaml my-values.yaml
 grep -n CHANGE-ME my-values.yaml
 ```
@@ -92,14 +94,14 @@ For an Anthropic key instead of Vertex, set `secrets.anthropicApiKey`, delete th
 Check the file offline:
 
 ```bash
-helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 -n lore-floor -f my-values.yaml > /dev/null && echo ok
+helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 -n lore-floor -f my-values.yaml > /dev/null && echo ok
 ```
 
 ## 4. Install Lore
 
 ```bash
 kubectl config current-context
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
   -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 15m
 ```
 
@@ -177,7 +179,17 @@ Repeat the block under `floor:` with another path. Dgraph runs as one pod with o
 
 ## Optional: Utopia with Google sign-in
 
-Utopia mirrors each repository's specs and ADRs into a knowledge graph. Create an OAuth client for a web application in your Google Cloud project with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`. The example's `global.oidc.issuer` is `https://accounts.google.com`. Set `allowedDomains` (the email domains that may sign in) in `global.oidc` and again in `utopia.oidc`, since the chart refuses a mismatch. The client ID and secret go in `secrets.oidc`. After the install, sign in at `https://<utopia host>` and, under Administration, tab Models, enter the chat and embedding endpoints (Base URL, Model, API key), or Utopia stores documents and extracts nothing. Lore's write token for Utopia is made once by hand ([managing-secrets.md](../managing-secrets.md#the-utopia-write-token-lore-utopia-lore-api-token)). Utopia's database has its own backup setting, `utopia.database.backup.objectStore`.
+Utopia mirrors each repository's specs and ADRs into a knowledge graph. Create an OAuth client for a web application in your Google Cloud project with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`. The example's `global.oidc.issuer` is `https://accounts.google.com`. Set `allowedDomains` (the email domains that may sign in) in `global.oidc` and again in `utopia.oidc`, since the chart refuses a mismatch. The client ID and secret go in `secrets.oidc`. After the install, sign in at `https://<utopia host>` and, under Administration, tab Models, enter the chat and embedding endpoints (Base URL, Model, API key), or Utopia stores documents and extracts nothing. Utopia's database has its own backup setting, `utopia.database.backup.objectStore`.
+
+Lore's write token for Utopia is made once by hand. Sign in to Utopia as the person you keep for Lore, who must be an admin of the workspace, and under Account, Agents & tokens, issue a personal access token with scope `write` and no knowledge-base limit. Store it and tell lore-api where it is:
+
+```bash
+read -rs UTOPIA_TOKEN
+kubectl -n lore-api create secret generic utopia-token --from-literal=token="${UTOPIA_TOKEN}"
+unset UTOPIA_TOKEN
+```
+
+Then set `lore-platform.lore-api.utopia.tokenSecret: utopia-token` and `lore-platform.lore-api.utopia.workspaceId` (the id in the workspace's Utopia URL, `/workspaces/<id>`) in `my-values.yaml` and run the upgrade below. Without the token Lore still starts, and a person sets each repository's knowledge base up by hand.
 
 ## Upgrade
 

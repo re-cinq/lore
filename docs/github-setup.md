@@ -63,7 +63,7 @@ Then:
 1. **Create the App.** Its settings page shows the **App ID**.
 2. **Generate a private key** (on the same page, under "Private keys"). GitHub downloads a `.pem` file. It is shown once.
 3. **Install the App** on the organization ("Install App" in the left menu), on all repositories or on the ones Lore should work in.
-4. **Read the installation ID.** After installing, the browser is on `https://github.com/organizations/<org>/settings/installations/<number>`. The number is the installation ID.
+4. **Read the installation ID.** After installing, GitHub sends the browser to the Setup URL with `?installation_id=<number>` in the address. Before Lore is installed that page does not load, which is expected; the number is the installation ID. You can also read it later: **Organization settings → GitHub Apps → Configure** on the App opens `…/settings/installations/<number>`.
 
 What you now have, and where it goes in `my-values.yaml`:
 
