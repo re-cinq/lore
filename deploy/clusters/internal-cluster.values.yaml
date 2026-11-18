@@ -315,7 +315,7 @@ lore-stations:
   gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "2cf961b"
+    tag: "3b0b384"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
