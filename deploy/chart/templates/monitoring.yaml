@@ -17,6 +17,32 @@ spec:
   endpoints:
     - { port: metrics, path: /metrics, interval: 30s }
 {{- end }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lore-database-volume
+  namespace: lore-ui
+spec:
+  groups:
+    - name: database-volume
+      rules:
+        - alert: DatabaseVolumeFilling
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes{namespace=~"utopia|lore-db"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace=~"utopia|lore-db"}
+            ) > 0.8
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Database PVC {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }} is above 80% full"
+            description: >-
+              PVC {{ "{{" }} $labels.persistentvolumeclaim {{ "}}" }} in namespace
+              {{ "{{" }} $labels.namespace {{ "}}" }} is at
+              {{ "{{" }} $value | humanizePercentage {{ "}}" }} capacity.
 {{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
 ---
 apiVersion: v1
