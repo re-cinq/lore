@@ -170,3 +170,15 @@ lore-platform:
       LORE_FACT_MODEL: CHANGE-ME
       # GITHUB_HOST: ghe.example.com
       LORE_UI_URL: https://lore.example.com
+      # Cloud cost on /spend from Azure Cost Management (INSTALL.md, "Cloud cost on Azure").
+      # The scope is a subscription or a resource group; unset, the sync skips itself.
+      # LORE_AZURE_COST_SCOPE: /subscriptions/CHANGE-ME
+      # AZURE_CLIENT_ID and AZURE_TENANT_ID are injected by the Workload Identity webhook
+      # from the service account annotation and the pod label below.
+    # The identity of a user-assigned managed identity with Cost Management Reader on that scope,
+    # federated to the service account system:serviceaccount:lore-stations:lore-stations.
+    # serviceAccount:
+    #   annotations:
+    #     azure.workload.identity/client-id: CHANGE-ME
+    # podLabels:
+    #   azure.workload.identity/use: "true"

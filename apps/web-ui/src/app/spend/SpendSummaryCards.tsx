@@ -18,12 +18,13 @@ interface SummaryCardsProps {
   llm: SpendWindow["llm"];
   billed: SpendWindow["billed"];
   gcp: SpendWindow["gcp"];
+  azure?: SpendWindow["azure"];
   compute: SpendWindow["compute"];
 }
 
 /** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
 export function SummaryCards(props: SummaryCardsProps) {
-  const { llm, billed, gcp, compute } = props;
+  const { llm, billed, gcp, azure, compute } = props;
 
   return (
     <StatTiles title="Headline figures">
@@ -34,9 +35,24 @@ export function SummaryCards(props: SummaryCardsProps) {
         figure={usd(compute.est_total_usd)}
         estimate
       />
-      {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
-      {gcp.available && <GcpBilledCard gcp={gcp} />}
+      <CloudBilledCards gcp={gcp} azure={azure} />
     </StatTiles>
+  );
+}
+
+/** Each cloud's invoice, synced from its billing export; it lags a day or more, so the estimate is still needed. */
+function CloudBilledCards(props: Pick<SummaryCardsProps, "gcp" | "azure">) {
+  const { gcp, azure } = props;
+
+  return (
+    <>
+      {gcp.available && (
+        <CloudBilledCard label="Google Cloud (billed)" cloud={gcp} />
+      )}
+      {azure?.available && (
+        <CloudBilledCard label="Azure (billed)" cloud={azure} />
+      )}
+    </>
   );
 }
 
@@ -94,12 +110,15 @@ function AnthropicBilledCard({ billed }: { billed: SpendWindow["billed"] }) {
   );
 }
 
-function GcpBilledCard({ gcp }: { gcp: SpendWindow["gcp"] }) {
+/** A cloud's invoice from its billing export; GCP's and Azure's rows share one shape. */
+function CloudBilledCard(props: { label: string; cloud: SpendWindow["gcp"] }) {
+  const { label, cloud } = props;
+
   return (
-    <StatCard label="Google Cloud (billed)" figure={usd(gcp.total_usd)}>
+    <StatCard label={label} figure={usd(cloud.total_usd)}>
       <Subnote>
-        {gcp.billed_through
-          ? `billed through ${day(gcp.billed_through)}`
+        {cloud.billed_through
+          ? `billed through ${day(cloud.billed_through)}`
           : "no closed day in this interval yet"}{" "}
         — net of credits
       </Subnote>

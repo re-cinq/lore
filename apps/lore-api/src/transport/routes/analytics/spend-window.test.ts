@@ -284,8 +284,9 @@ describe("GET /api/analytics/spend-window", () => {
 
     await get(await serverWith(BASE_ROWS, {}, issued));
 
-    const gcpReads = issued.filter(({ sql }) =>
-      sql.includes("pipeline.gcp_cost_daily"),
+    const gcpReads = issued.filter(
+      ({ sql, params }) =>
+        sql.includes("pipeline.gcp_cost_daily") && params[2] === "gcp",
     );
 
     expect(gcpReads).toHaveLength(3);
@@ -602,5 +603,38 @@ describe("GET /api/analytics/spend-window", () => {
     expect(issued.some(({ sql }) => sql.includes("l.assembly_run_id"))).toBe(
       false,
     );
+  });
+
+  it("reports Azure's rows beside GCP's, each read under its own provider", async () => {
+    const issued: Issued[] = [];
+    const azureRows = [
+      [
+        {
+          billed_usd: 55.5,
+          as_of: "2026-09-02T08:30:00.000Z",
+          billed_through: "2026-09-01",
+        },
+      ],
+      [{ service: "Azure Kubernetes Service", cost_usd: 40.25 }],
+      [{ bucket_date: "2026-09-01", cost_usd: 7.5 }],
+    ];
+    const body = JSON.parse(
+      (await get(await serverWith([...BASE_ROWS, ...azureRows], {}, issued)))
+        .payload,
+    );
+
+    expect(body.azure).toEqual({
+      available: true,
+      total_usd: 55.5,
+      as_of: "2026-09-02T08:30:00.000Z",
+      billed_through: "2026-09-01",
+      by_service: [{ service: "Azure Kubernetes Service", cost_usd: 40.25 }],
+      daily: [{ bucket_date: "2026-09-01", cost_usd: 7.5 }],
+    });
+    expect(
+      issued
+        .filter(({ sql }) => sql.includes("pipeline.gcp_cost_daily"))
+        .map(({ params }) => params[2]),
+    ).toEqual(["gcp", "gcp", "gcp", "azure", "azure", "azure"]);
   });
 });

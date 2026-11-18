@@ -592,3 +592,42 @@ describe("anthropicEstimate", () => {
     expect(anthropicEstimate(llm([], 5))).toBe(5);
   });
 });
+
+describe("Azure cloud cost", () => {
+  const withAzureBilling: SpendWindow = {
+    ...loreOnly,
+    azure: {
+      available: true,
+      total_usd: 55.5,
+      as_of: "2026-09-02T08:30:00.000Z",
+      billed_through: "2026-09-01",
+      by_service: [{ service: "Azure Kubernetes Service", cost_usd: 40.25 }],
+      daily: [{ bucket_date: "2026-09-01", cost_usd: 7.5 }],
+    },
+  };
+
+  it("renders the Azure billed card, by-service and daily tables from Cost Management", () => {
+    render(<SpendView spend={withAzureBilling} />);
+    const card = screen.getByText("Azure (billed)").parentElement!;
+
+    expect(within(card).getByText(usd(55.5))).toBeInTheDocument();
+
+    const byService = tableByHeading("Azure Billed by Service");
+
+    expect(
+      within(byService).getByText("Azure Kubernetes Service"),
+    ).toBeInTheDocument();
+    expect(within(byService).getByText(usd(40.25))).toBeInTheDocument();
+    expect(
+      within(tableByHeading("Azure Daily Billed")).getByText(usd(7.5)),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the Azure card and sections until the Azure sync has run", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(screen.queryByText("Azure (billed)")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Azure Billed by Service" }),
+    ).not.toBeInTheDocument();
+  });
+});

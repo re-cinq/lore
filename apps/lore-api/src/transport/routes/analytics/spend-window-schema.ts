@@ -45,6 +45,16 @@ const UnitCostsSchema = z.object({
   ),
 });
 
+const CloudBilled = z.object({
+  available: z.boolean(),
+  total_usd: z.number(),
+  as_of: z.string().nullable(),
+  // Last day the provider's export has actually closed — MAX(bucket_date) over the provider's rows, since billing exports lag a day or more.
+  billed_through: z.string().nullable(),
+  by_service: z.array(z.object({ service: z.string(), cost_usd: z.number() })),
+  daily: z.array(z.object({ bucket_date: z.string(), cost_usd: z.number() })),
+});
+
 export const SpendWindowSchema = z.object({
   interval: z.object({ from: z.string(), to: z.string() }),
   llm: z.object({
@@ -141,17 +151,9 @@ export const SpendWindowSchema = z.object({
     unbilled_days: z.number(),
   }),
   // Google's own billing (gcp_cost_daily, via gcp-cost-sync + Cloud Billing export); authoritative counterpart to the compute ESTIMATE below, reported beside it, net of credits.
-  gcp: z.object({
-    available: z.boolean(),
-    total_usd: z.number(),
-    as_of: z.string().nullable(),
-    // Last day the export has actually closed — MAX(bucket_date) over the whole table, since Google's export lags a day or more.
-    billed_through: z.string().nullable(),
-    by_service: z.array(
-      z.object({ service: z.string(), cost_usd: z.number() }),
-    ),
-    daily: z.array(z.object({ bucket_date: z.string(), cost_usd: z.number() })),
-  }),
+  gcp: CloudBilled,
+  // Azure's own billing: the same table, provider azure, via azure-cost-sync + Cost Management. Unavailable until that sync has run.
+  azure: CloudBilled.optional(),
   compute: z.object({
     rates: z.object({
       cpu_hour_usd: z.number(),

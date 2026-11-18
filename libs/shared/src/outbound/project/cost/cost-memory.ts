@@ -24,13 +24,14 @@ export class InMemoryCost implements CostPort {
   }
 }
 
-/** In-memory GcpCostPort: models upsert semantics per (bucketDate, service) key. */
+/** In-memory GcpCostPort: models upsert semantics per (provider, bucketDate, service) key. */
 export class InMemoryGcpCost implements GcpCostPort {
   readonly rows: GcpCostDailyRow[] = [];
 
   async upsertGcpDaily(row: GcpCostDailyRow): Promise<void> {
     const index = this.rows.findIndex(
       (existing) =>
+        (existing.provider ?? "gcp") === (row.provider ?? "gcp") &&
         existing.bucketDate === row.bucketDate &&
         existing.service === row.service,
     );

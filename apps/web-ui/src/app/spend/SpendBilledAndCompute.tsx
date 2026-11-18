@@ -16,14 +16,17 @@ interface DailyBilledProps {
 export function BilledBreakdowns({
   billed,
   gcp,
+  azure,
 }: {
   billed: SpendWindow["billed"];
   gcp: SpendWindow["gcp"];
+  azure?: SpendWindow["azure"];
 }) {
   return (
     <>
       <AnthropicBilled billed={billed} />
-      <GcpBilled gcp={gcp} />
+      <CloudBilled name="GCP" cloud={gcp} />
+      {azure && <CloudBilled name="Azure" cloud={azure} />}
     </>
   );
 }
@@ -43,23 +46,25 @@ function AnthropicBilled({ billed }: { billed: SpendWindow["billed"] }) {
   );
 }
 
-/** The same for GCP: what the cloud invoice says, when that export exists. */
-function GcpBilled({ gcp }: { gcp: SpendWindow["gcp"] }) {
-  if (!gcp.available) {
+/** The same for a cloud: what its invoice says, when that export exists. */
+function CloudBilled(props: { name: string; cloud: SpendWindow["gcp"] }) {
+  const { name, cloud } = props;
+
+  if (!cloud.available) {
     return null;
   }
 
   return (
     <>
       <CostTable
-        title="GCP Billed by Service"
+        title={`${name} Billed by Service`}
         columns={["Service", "Billed Cost"]}
-        rows={gcp.by_service}
+        rows={cloud.by_service}
         rowKey={(r) => r.service}
         cells={(r) => [r.service, usd(r.cost_usd)]}
       />
 
-      <DailyBilledTable title="GCP Daily Billed" rows={gcp.daily} />
+      <DailyBilledTable title={`${name} Daily Billed`} rows={cloud.daily} />
     </>
   );
 }

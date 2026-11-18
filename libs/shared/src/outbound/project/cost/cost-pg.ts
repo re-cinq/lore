@@ -35,20 +35,26 @@ const ANTHROPIC_UPSERT_SQL = `INSERT INTO pipeline.anthropic_cost_daily
    cache_read_tokens = EXCLUDED.cache_read_tokens,
    fetched_at = now()`;
 
-/** Postgres-backed {@link GcpCostPort}: a single upsert into `pipeline.gcp_cost_daily`, same replace-on-resync shape as the Anthropic table. */
+/** Postgres-backed {@link GcpCostPort}: a single upsert into `pipeline.gcp_cost_daily`, same replace-on-resync shape as the Anthropic table; a row with no provider is GCP's, and the Azure sync writes through the same method. */
 export class PgGcpCost implements GcpCostPort {
   constructor(private readonly pool: PgPool) {}
 
   async upsertGcpDaily(row: GcpCostDailyRow): Promise<void> {
     await this.pool.query(
       `INSERT INTO pipeline.gcp_cost_daily
-         (bucket_date, service, cost_usd, credits_usd, fetched_at)
-       VALUES ($1, $2, $3, $4, now())
-       ON CONFLICT (bucket_date, service) DO UPDATE SET
+         (provider, bucket_date, service, cost_usd, credits_usd, fetched_at)
+       VALUES ($1, $2, $3, $4, $5, now())
+       ON CONFLICT (provider, bucket_date, service) DO UPDATE SET
          cost_usd = EXCLUDED.cost_usd,
          credits_usd = EXCLUDED.credits_usd,
          fetched_at = now()`,
-      [row.bucketDate, row.service, row.costUsd, row.creditsUsd],
+      [
+        row.provider ?? "gcp",
+        row.bucketDate,
+        row.service,
+        row.costUsd,
+        row.creditsUsd,
+      ],
     );
   }
 }

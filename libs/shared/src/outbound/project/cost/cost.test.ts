@@ -101,21 +101,33 @@ function sampleGcpRow(): GcpCostDailyRow {
 }
 
 describe("PgGcpCost adapter", () => {
-  it("upserts into pipeline.gcp_cost_daily keyed on (bucket_date, service)", async () => {
+  it("upserts a row with no provider as gcp keyed on (provider, bucket_date, service)", async () => {
     const { pool, calls } = fakePool();
 
     await new PgGcpCost(pool).upsertGcpDaily(sampleGcpRow());
 
     expect(calls[0]?.text).toContain("INSERT INTO pipeline.gcp_cost_daily");
     expect(calls[0]?.text).toContain(
-      "ON CONFLICT (bucket_date, service) DO UPDATE SET",
+      "ON CONFLICT (provider, bucket_date, service) DO UPDATE SET",
     );
     expect(calls[0]?.params).toEqual([
+      "gcp",
       "2026-09-01",
       "Kubernetes Engine",
       14.62,
       -1.31,
     ]);
+  });
+
+  it("upserts a row carrying provider azure under that provider", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgGcpCost(pool).upsertGcpDaily({
+      ...sampleGcpRow(),
+      provider: "azure",
+    });
+
+    expect(calls[0]?.params?.[0]).toBe("azure");
   });
 });
 
@@ -148,6 +160,19 @@ describe("InMemoryGcpCost double", () => {
     expect(cost.rows).toEqual([
       sampleGcpRow(),
       { ...sampleGcpRow(), service: "Networking" },
+    ]);
+  });
+
+  it("keeps separate rows for the same date and service across providers", async () => {
+    const cost = new InMemoryGcpCost();
+
+    await cost.upsertGcpDaily(sampleGcpRow());
+
+    await cost.upsertGcpDaily({ ...sampleGcpRow(), provider: "azure" });
+
+    expect(cost.rows).toEqual([
+      sampleGcpRow(),
+      { ...sampleGcpRow(), provider: "azure" },
     ]);
   });
 });

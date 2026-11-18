@@ -14,7 +14,7 @@ export interface SpendViewProps {
 }
 
 export default function SpendView({ spend }: SpendViewProps) {
-  const { llm, billed, gcp, compute } = spend;
+  const { llm, billed, gcp, azure, compute } = spend;
 
   return (
     <div>
@@ -22,8 +22,8 @@ export default function SpendView({ spend }: SpendViewProps) {
       <SpendCompareBars pairs={comparePairs(spend)} />
       <LoreComputedSection llm={llm} />
       <UnitCostsSection unitCosts={spend.unit_costs} />
-      {(billed.available || gcp.available) && (
-        <VendorInvoicesSection billed={billed} gcp={gcp} />
+      {(billed.available || gcp.available || azure?.available) && (
+        <VendorInvoicesSection billed={billed} gcp={gcp} azure={azure} />
       )}
       <ComputeSection compute={compute} gcpAvailable={gcp.available} />
     </div>
@@ -90,17 +90,19 @@ function UnitCostsSection({
 function VendorInvoicesSection({
   billed,
   gcp,
+  azure,
 }: {
   billed: SpendWindow["billed"];
   gcp: SpendWindow["gcp"];
+  azure?: SpendWindow["azure"];
 }) {
   return (
     <SpendSection
       title="Vendor invoices"
       kind="billed"
-      caption="What Anthropic and Google Cloud actually billed. A vendor appears only once its billing export is wired up."
+      caption="What Anthropic, Google Cloud and Azure actually billed. A vendor appears only once its billing export is wired up."
     >
-      <BilledBreakdowns billed={billed} gcp={gcp} />
+      <BilledBreakdowns billed={billed} gcp={gcp} azure={azure} />
     </SpendSection>
   );
 }

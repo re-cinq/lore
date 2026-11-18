@@ -15,6 +15,7 @@ import { blockedReason } from "./blocked-reason/manifest.js";
 import { busPrune } from "./bus-prune/manifest.js";
 import { prBlockedReasonsPrune } from "./pr-blocked-reasons-prune/manifest.js";
 import { telemetryPrune } from "./telemetry-prune/manifest.js";
+import { azureCostSync } from "./azure-cost-sync/manifest.js";
 import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { consolidationStation } from "./consolidation/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
@@ -28,6 +29,7 @@ import { webhookEnsureTickStation } from "./webhook-ensure-tick/manifest.js";
 export const STATION_NAMES = [
   "anthropic-cost-sync",
   "auto-merge-tick",
+  "azure-cost-sync",
   "blocked-reason",
   "bus-prune",
   "changelog-tick",
@@ -55,6 +57,7 @@ export type StationName = (typeof STATION_NAMES)[number];
 export const STATIONS: Record<StationName, StationModule> = {
   "anthropic-cost-sync": anthropicCostSync,
   "auto-merge-tick": autoMergeTickStation,
+  "azure-cost-sync": azureCostSync,
   "blocked-reason": blockedReason,
   "bus-prune": busPrune,
   "changelog-tick": changelogTickStation,

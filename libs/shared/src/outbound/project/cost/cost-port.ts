@@ -12,7 +12,7 @@ export interface CostPort {
 /** What a writer supplies for one pipeline.gcp_cost_daily bucket, under the same fetchedAt-is-server-side rule as the Anthropic row. */
 export type GcpCostDailyRow = GcpCostDailyUpsert;
 
-/** GCP daily-cost upsert surface — the gcp-cost-sync station's write path, keyed on (bucketDate, service); a re-synced bucket replaces stored totals, letting a late restatement in Google's export self-heal. */
+/** Cloud daily-cost upsert surface — the write path of the gcp-cost-sync and azure-cost-sync stations, keyed on (provider, bucketDate, service), a row with no provider being GCP's; a re-synced bucket replaces stored totals, letting a late restatement in Google's export self-heal. */
 export interface GcpCostPort {
   upsertGcpDaily(row: GcpCostDailyRow): Promise<void>;
 }

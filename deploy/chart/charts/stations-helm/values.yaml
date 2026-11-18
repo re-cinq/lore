@@ -41,6 +41,12 @@ resources:
 serviceAccount:
   annotations: {}
 
+# Extra labels on the stations pod. On AKS, Workload Identity needs
+# azure.workload.identity/use: "true" here (and azure.workload.identity/client-id
+# in serviceAccount.annotations) for the azure-cost-sync station to read Cost
+# Management without a stored secret. Empty otherwise.
+podLabels: {}
+
 env:
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
   GITHUB_HOST: ""
@@ -165,6 +171,12 @@ courierJobs:
   - name: gcp-cost-sync
     schedule: "0 8 * * *"
     path: /api/stations/gcp-cost-sync
+  # The Azure counterpart of gcp-cost-sync, half an hour after it, writing the
+  # same rows under provider azure. Skips (never fails) until
+  # LORE_AZURE_COST_SCOPE and the Workload Identity settings are set.
+  - name: azure-cost-sync
+    schedule: "30 8 * * *"
+    path: /api/stations/azure-cost-sync
   # Was the Floor's consolidation CronJob, the last scheduled job that ran from
   # the Floor's image and did real work. Same hour. It calls a model, so the
   # post takes as long as those calls do: a few seconds per repository.

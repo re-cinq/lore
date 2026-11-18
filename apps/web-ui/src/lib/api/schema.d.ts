@@ -6044,6 +6044,20 @@ export interface components {
           cost_usd: number;
         }[];
       };
+      azure?: {
+        available: boolean;
+        total_usd: number;
+        as_of: string | null;
+        billed_through: string | null;
+        by_service: {
+          service: string;
+          cost_usd: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          cost_usd: number;
+        }[];
+      };
       compute: {
         rates: {
           cpu_hour_usd: number;
