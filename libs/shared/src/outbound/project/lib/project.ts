@@ -105,6 +105,7 @@ export class Project {
     return new AgentDefs(
       this.fullName,
       this.port<AgentDefsReadPort>("agentDefs"),
+      this.ports.get("settings") as SettingsPort | undefined,
     );
   }
 
@@ -112,6 +113,7 @@ export class Project {
     return new AgentDefsWriter(
       this.fullName,
       this.port<AgentDefsWritePort>("agentDefs"),
+      this.ports.get("settings") as SettingsPort | undefined,
     );
   }
 

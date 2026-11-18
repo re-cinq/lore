@@ -1,9 +1,16 @@
 import type {
   AgentDefinitionBody,
+  AgentSettings,
   DefinitionApi,
   DefinitionRowView,
   PutResult,
 } from "@re-cinq/floor-client";
+
+/** A relaxed body shape used by test fixtures: settings fields beyond image are irrelevant to resolution tests. */
+type LooseBody = {
+  settings: Partial<AgentSettings>;
+  variants?: Record<string, Partial<AgentSettings>>;
+};
 
 export class InMemoryAgentDefinitions implements DefinitionApi<AgentDefinitionBody> {
   readonly rows = new Map<string, DefinitionRowView<AgentDefinitionBody>[]>();
@@ -28,11 +35,14 @@ export class InMemoryAgentDefinitions implements DefinitionApi<AgentDefinitionBo
     return Promise.resolve(null);
   }
 
-  put(id: string, body: AgentDefinitionBody): Promise<PutResult> {
+  put(id: string, body: LooseBody): Promise<PutResult> {
     const versions = this.rows.get(id) ?? [];
     const hash = `v${versions.length + 1}`;
 
-    this.rows.set(id, [...versions, this.stored(id, hash, body)]);
+    this.rows.set(id, [
+      ...versions,
+      this.stored(id, hash, body as AgentDefinitionBody),
+    ]);
 
     return Promise.resolve({ hash, created: true });
   }
