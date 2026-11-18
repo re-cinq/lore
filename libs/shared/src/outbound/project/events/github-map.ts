@@ -219,13 +219,20 @@ function closedPrEvent(
       repo,
       pr_number: prNumber,
       merged: pr.merged === true,
-      branch: pr.head?.ref ?? "",
-      base_ref: pr.base?.ref ?? "",
-      merge_commit_sha: pr.merge_commit_sha ?? null,
+      ...closedPrRefs(pr),
+      body: pr.body ?? null,
       labels: labelNames(pr.labels),
     },
     key,
   );
+}
+
+function closedPrRefs(pr: GitHubPayload) {
+  return {
+    branch: pr.head?.ref ?? "",
+    base_ref: pr.base?.ref ?? "",
+    merge_commit_sha: pr.merge_commit_sha ?? null,
+  };
 }
 
 function reviewTriggerEvent(
