@@ -1,6 +1,6 @@
 # Platform Engineer Guide
 
-**For the people who operate Lore for their org.** This guide covers the day-to-day of running the platform: onboarding repos, tuning per-repo and global settings, watching the pipeline, reading analytics, and the API security model. For first-time deployment of the backend itself, see [Installation & Deployment](../INSTALL.md).
+**For the people who operate Lore for their org.** This guide covers the day-to-day of running the platform: onboarding repos, tuning per-repo and global settings, watching the pipeline, reading analytics, and the API security model. For first-time deployment of the backend itself, see [Install Lore](../install/README.md).
 
 If you're standing up Lore for the first time, deploy the backend first, then come back here to onboard your repos.
 
@@ -154,7 +154,7 @@ Two things outlived it. Every Lore-authored commit still carries the `Lore-Task:
 
 ## See also
 
-- [Installation & Deployment](../INSTALL.md) — deploy the Lore backend on a Kubernetes cluster (do this first).
+- [Install Lore](../install/README.md) — deploy the Lore backend on a Kubernetes cluster (do this first).
 - [Developer Guide](developer.md) — what your developers experience once a repo is onboarded.
 - [Architecture](../building-lore/architecture.md) and [Scheduled Jobs](../building-lore/scheduled-jobs.md) — how the platform works internally.
 - [Back to README](../../README.md)

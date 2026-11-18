@@ -188,7 +188,7 @@ Pick the guide that matches what you're doing.
 - [Product Manager Guide](docs/using-lore/product-manager.md) — turn a plain-language idea into a spec and a merged PR
 - [Platform Engineer Guide](docs/using-lore/platform-engineer.md) — onboard repos, tune settings, monitor the pipeline, analytics, and API security
 - [Pack layout reference](docs/using-lore/pack-layout-reference.md) — customise agents and add assembly lines from your own git repository, check it in CI, and write a custom stations service
-- [Installation & Deployment](docs/INSTALL.md) — deploy the Lore backend on a Kubernetes cluster
+- [Install Lore](docs/install/README.md) — deploy the Lore backend on Kubernetes: AKS, GKE, or a trial on one machine with kind
 
 ### Building Lore
 
@@ -204,7 +204,16 @@ git clone git@github.com:re-cinq/lore.git
 cd lore && scripts/install.sh
 ```
 
-This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the remote backend — so the backend must be deployed first. See [docs/INSTALL.md](docs/INSTALL.md) for the complete deployment guide.
+This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the remote backend — so the backend must be deployed first. See [docs/install](docs/install/README.md) for the deployment tutorials.
+
+The installer needs git, Node.js 18 or newer, and the `claude` CLI, and runs on macOS and Linux. It is safe to run again after a `git pull`. It reads the backend address from git config, which you set before or after:
+
+```bash
+git config --global lore.api-url      "https://<api host>"
+git config --global lore.ingest-token "<token>"   # optional; needed to delegate tasks
+```
+
+The address is your Lore API host. The token is the Secret `lore-ingest-token` in the `lore-api` namespace, which your platform engineer can read. To onboard a repository, open `https://<ui host>/onboard` or ask Claude to "onboard your-org/your-repo to lore".
 
 Then open Claude Code and type **`/lore-help`** — what Lore does, how a session works, every skill, and which one fits the job you're on.
 

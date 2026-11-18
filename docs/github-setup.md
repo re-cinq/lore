@@ -1,14 +1,13 @@
 # GitHub setup for a Lore install
 
-Lore needs three things from GitHub before it is installed, and a GitHub organization owner creates two of them. When you finish this page you have every GitHub value the [install tutorial](INSTALL.md#3-install-on-a-client-cluster) asks for.
+Lore needs two things from GitHub before it is installed, and a GitHub organization owner creates them. When you finish this page you have every GitHub value the [install tutorials](install/README.md) ask for.
 
 | What | Who creates it | What Lore uses it for |
 | ---- | -------------- | --------------------- |
 | [A GitHub App](#1-the-github-app) | an owner of the client's organization | reading and writing repositories, issues and pull requests as Lore |
 | [A GitHub OAuth App](#2-the-oauth-app-for-sign-in) | the same owner | signing people in to the web UI |
-| [A registry token](#3-the-registry-token) | re:cinq | pulling the images that are not public |
 
-Optional, later: [a second App that approves pull requests](#4-optional-the-reviewer-app).
+Optional, later: [a second App that approves pull requests](#3-optional-the-reviewer-app).
 
 You need the hostnames of the install first. This page writes them as:
 
@@ -109,27 +108,7 @@ An OAuth App has no permissions to set. At a person's first sign-in GitHub shows
 
 If the organization restricts OAuth App access (**Organization settings → Third-party Access → OAuth app policy**), an OAuth App the organization owns is approved already. One created under a personal account has to be approved there by an owner.
 
-## 3. The registry token
-
-Four images are not public: `ghcr.io/re-cinq/lore-api`, `lore-mcp`, `lore-ui` and `utopia`. The cluster pulls them with a GitHub token that re:cinq provides.
-
-re:cinq creates it: a member of the re-cinq organization, or a machine user that belongs to it, opens **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token**, and selects the one scope `read:packages`.
-
-| Value | Key in the values file |
-| ----- | ---------------------- |
-| The GitHub username the token belongs to | `secrets.ghcr.username` |
-| The token | `secrets.ghcr.token` |
-
-Check it before installing:
-
-```bash
-echo "<token>" | docker login ghcr.io -u "<username>" --password-stdin
-docker manifest inspect ghcr.io/re-cinq/lore-api:latest > /dev/null && echo "token works"
-```
-
-A token from an account outside the re-cinq organization logs in and then fails on the second command.
-
-## 4. Optional: the reviewer App
+## 3. Optional: the reviewer App
 
 Lore's own App cannot approve the pull requests it opened, because GitHub refuses an approval from the author. A second App, `lore-reviewer`, exists only to approve them, for the auto-merge loop. Without it, Lore still approves people's pull requests and leaves its own waiting.
 
@@ -146,13 +125,32 @@ Install it on the same repositories. On a client cluster its three values go int
 
 ## GitHub Enterprise Server
 
-A self-hosted GitHub Enterprise Server (3.11 or newer) works with one change: set `GITHUB_HOST` to its bare host name, for example `ghe.example.com`, in the `lore-api`, `lore-ui` and `lore-stations` `env:` blocks. Everything above then happens on that instance: create the GitHub App and the OAuth App in the Server's own organization settings, not on github.com, and use the Server's URLs in the checks below. Lore reaches its API at `https://<host>/api/v3` and sends sign-in to `https://<host>/login/oauth/authorize`. The full list of what the Server needs (Actions synced or GitHub Connect, egress for agents, runners reaching Lore) is in [section 1.6.1 of the install guide](INSTALL.md#161-github-enterprise).
+A self-hosted GitHub Enterprise Server (3.11 or newer) works with one change: set `GITHUB_HOST` to its bare host name, for example `ghe.example.com`, in the `lore-api`, `lore-ui` and `lore-stations` `env:` blocks. Everything above then happens on that instance: create the GitHub App and the OAuth App in the Server's own organization settings, not on github.com, and use the Server's URLs in the checks below. Lore reaches its API at `https://<host>/api/v3` and sends sign-in to `https://<host>/login/oauth/authorize`. What else the Server needs:
 
-Enterprise Cloud on github.com is github.com, so nothing changes. Enterprise Cloud with data residency (`<name>.ghe.com`) works the same way with `GITHUB_HOST` set to `<name>.ghe.com`, except that Lore reaches its API at `https://api.<name>.ghe.com` with no `/api/v3`. The 3.11 requirement is for a Server only. Lore has not been run against a real `ghe.com` tenant.
+- The instance must be GitHub Enterprise Server 3.11 or newer, because Lore reads branch rules through `rules/branches`. No Server instance has run it yet.
+- Agents must reach the Server. When it has a private address, allow it in `floor.agentNetworkPolicy.extraEgress` (the commented example in `deploy/install/values.yaml`).
+- The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`, so the instance needs GitHub Connect enabled or those actions synced to it.
+- The Actions runners must reach the Lore API URL, and the Server must reach the API host to deliver webhooks.
+
+Enterprise Cloud on github.com is github.com, so nothing changes. Enterprise Cloud with data residency (`<name>.ghe.com`) works the same way with `GITHUB_HOST` set to `<name>.ghe.com`, except that Lore reaches its API at `https://api.<name>.ghe.com` with no `/api/v3`. Lore has not been run against a real `ghe.com` tenant.
 
 ## After the install
 
-Webhooks need no setup. When a repository is onboarded, Lore creates its webhook, pointed at `https://<webhook host>/api/events` and signed with `secrets.webhookSecret`. [Section 5 of the install guide](INSTALL.md#5-configure-webhooks) has the manual version, for the rare case the App may not manage webhooks.
+Webhooks need no setup. When a repository is onboarded, Lore creates its webhook, pointed at `https://<api host>/api/webhook/github` and signed with the Secret `lore-webhook-secret`. GitHub must be able to reach the API host. If the App may not manage webhooks, create the hook by hand:
+
+```bash
+gh api repos/<org>/<repo>/hooks --method POST --input - <<'JSON'
+{
+  "name": "web",
+  "active": true,
+  "events": ["issues", "pull_request", "pull_request_review", "pull_request_review_comment",
+             "issue_comment", "repository", "push", "release", "create", "check_suite"],
+  "config": { "url": "https://<api host>/api/webhook/github", "content_type": "json", "secret": "<webhook secret>" }
+}
+JSON
+```
+
+The secret must equal the value of `lore-webhook-secret` in the `lore-api` namespace, or every delivery is refused with `401`. Read it with `kubectl -n lore-api get secret lore-webhook-secret -o jsonpath='{.data.secret}' | base64 -d` and paste it in without echoing it.
 
 Check that GitHub and Lore agree:
 
@@ -160,6 +158,6 @@ Check that GitHub and Lore agree:
 | ----- | --- | ----------- |
 | Sign-in works | open `https://<ui host>` and sign in | you land in the UI. A person outside `<org>` is refused |
 | Lore sees the App | **Settings → GitHub** in the UI | the organization is listed as connected |
-| A repository's webhook exists | onboard a repository, then `gh api repos/<org>/<repo>/hooks --jq '.[].config.url'` | the `/api/events` URL |
+| A repository's webhook exists | onboard a repository, then `gh api repos/<org>/<repo>/hooks --jq '.[].config.url'` | the `/api/webhook/github` URL |
 
 To let Lore work in more repositories later, change the App's repository access on GitHub (**Organization settings → GitHub Apps → Configure**). Nothing changes in the cluster.
