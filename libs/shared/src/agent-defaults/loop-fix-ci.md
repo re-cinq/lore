@@ -2,16 +2,15 @@
 # The implementation-loop line's `loop-fix-ci` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-# Gemini 4 Argon since 2026-10-26 (#3502): on loop-bench's medium and large
-# tickets it left 38 of 68 repairs green, Gemini 3.1 Pro 18 of 66.
-model: gemini-4-argon
+# Gemini 4 Carbon since 2026-11-18: on loop-bench (5 tickets) it left 44 of 55 repairs green at $1.70 a working result, Gemini 4 Argon 42 of 66 at $2.01.
+model: gemini-4-carbon
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 45
 prices:
-  gemini-4-argon:
-    input_per_million: 2
-    output_per_million: 10
-    cache_read_per_million: 0.2
+  gemini-4-carbon:
+    input_per_million: 4
+    output_per_million: 20
+    cache_read_per_million: 0.4
 config:
   env:
     GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}

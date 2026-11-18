@@ -112,6 +112,22 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     return resolvedFor(name, next, null);
   }
 
+  /** The org default's model with the prices the floor costs it at, together: a model the prices do not name is costed at nothing. No prices drops the key. */
+  async updateOrgModel(
+    name: string,
+    model: string,
+    prices: AgentSettings["prices"] | null,
+  ): Promise<void> {
+    const body = await this.bodyOf(name);
+    const settings = withField(
+      withField(body.settings, "model", model),
+      "prices",
+      prices,
+    );
+
+    await this.putChecked(name, { ...body, settings });
+  }
+
   /** A renamed repository's overrides follow it: each definition with a variant under `from` gets a version with it under `to`, unless `to` already has one. Answers the definitions moved. */
   async renameRepo(from: string, to: string): Promise<string[]> {
     const rows = await this.definitions.list();

@@ -218,17 +218,17 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs spec-tickets-decompose on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
+  it("runs spec-tickets-decompose on gemini-4-hydrogen at 1.5 and 7.5 dollars per million input and output tokens, cache reads at 0.15", () => {
     const { settings } =
       pipelineOf("spec-tickets").agent_definitions!["spec-tickets-decompose"]!;
 
     expect({ model: settings.model, prices: settings.prices }).toEqual({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-4-hydrogen",
       prices: {
-        "gemini-3.1-pro-preview": {
-          input_per_million: 2,
-          output_per_million: 12,
-          cache_read_per_million: 0.2,
+        "gemini-4-hydrogen": {
+          input_per_million: 1.5,
+          output_per_million: 7.5,
+          cache_read_per_million: 0.15,
         },
       },
     });
@@ -976,7 +976,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6, test-review on claude-opus-5-5 and fix-ci on gemini-4-argon, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -1004,10 +1004,10 @@ describe("the floor pipelines shipped in this folder", () => {
       reviewers: modelsOf(["code-review", "code-review-recheck"]),
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
-      tddRound: "claude-sonnet-4-6",
+      tddRound: "claude-sonnet-5-5",
       testReview: "claude-opus-5-5",
-      fixCi: "gemini-4-argon",
-      restOfLoop: ["gemini-3.1-pro-preview"],
+      fixCi: "gemini-4-carbon",
+      restOfLoop: ["gemini-4-carbon", "gemini-4-hydrogen"],
       reviewers: ["gemini-4-argon", "gemini-4-argon"],
       reply: ["claude-sonnet-4-6"],
     });
@@ -1642,7 +1642,7 @@ describe("the feature-planning pipeline", () => {
     ).toEqual(agents.map(() => true));
   });
 
-  it("runs the draft, question and answer agents on gemini-3.1-pro-preview at 2 and 12 dollars per million input and output tokens, cache reads at 0.2", () => {
+  it("runs the draft, question and answer agents on gemini-4-hydrogen at 1.5 and 7.5 dollars per million input and output tokens, cache reads at 0.15", () => {
     const agents = [
       "spec-draft",
       "spec-qa-generate",
@@ -1660,12 +1660,12 @@ describe("the feature-planning pipeline", () => {
     ).toEqual(
       agents.map((agent) => ({
         agent,
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-4-hydrogen",
         prices: {
-          "gemini-3.1-pro-preview": {
-            input_per_million: 2,
-            output_per_million: 12,
-            cache_read_per_million: 0.2,
+          "gemini-4-hydrogen": {
+            input_per_million: 1.5,
+            output_per_million: 7.5,
+            cache_read_per_million: 0.15,
           },
         },
       })),
