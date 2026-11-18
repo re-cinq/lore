@@ -215,7 +215,7 @@ One install talks to one GitHub host. By default that is `github.com`; for a sel
 
 - Create the GitHub App and the OAuth App on the Server instance, as in [GitHub setup](github-setup.md), not on github.com.
 - A Server must be GitHub Enterprise Server 3.11 or newer (this does not apply to data residency, which GitHub runs): Lore reads branch rules through `rules/branches` and sends `X-GitHub-Api-Version`. This is assumed from the documentation; no Server instance has run it yet.
-- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in the chart's `values.yaml`, shown by `helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4`).
+- Agents and CI must reach the Server: allow it in `floor.agentNetworkPolicy.extraEgress` when it has a private address (commented example in the chart's `values.yaml`, shown by `helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5`).
 - The onboarded workflows use `actions/checkout@v4` and `actions/github-script@v7`: the instance needs GitHub Connect enabled, or those actions synced to it.
 - The Actions runners must reach the Lore API URL (`LORE_API_URL`) to post test reports and ingest.
 - The Server must reach the webhook hostname of 1.4 to deliver its events.
@@ -341,10 +341,10 @@ You also need these in hand. **[GitHub setup](github-setup.md) walks through the
 ### 3.2 Get the example values
 
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 --untar
 ```
 
-This writes the directory `lore-install/`. The only file you need from it is `values.azure.example.yaml`. The chart is public and needs no login. Version 1.0.4 is the Lore release: the chart pins every Lore image to that version, and it holds the floor chart `0.5.5` and the Utopia chart that goes with the Utopia image it names. The chart is the published package, not a checkout, so nothing else is cloned.
+This writes the directory `lore-install/`. The only file you need from it is `values.azure.example.yaml`. The chart is public and needs no login. Version 1.0.5 is the Lore release: the chart pins every Lore image to that version, and it holds the floor chart `0.5.5` and the Utopia chart that goes with the Utopia image it names. The chart is the published package, not a checkout, so nothing else is cloned.
 
 ### 3.3 Fill in the values file
 
@@ -401,7 +401,7 @@ Check the file before touching the cluster:
 
 ```bash
 grep -c -e CHANGE-ME -e example.com my-values.yaml      # must print 0
-helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4 -n lore-floor -f my-values.yaml > /dev/null && echo ok
+helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 -n lore-floor -f my-values.yaml > /dev/null && echo ok
 ```
 
 A missing value stops the second command and names it, for example `secrets.ghcr.username is required`.
@@ -419,7 +419,7 @@ Settings you may need:
 | A Slack app | `secrets.slack.signingSecret` and `secrets.slack.botToken` |
 | No Utopia | `utopia.enabled: false` and `lore-platform.lore-api.utopia.enabled: false`, both |
 
-Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. The chart's own `values.yaml` (`helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4`) lists what it already sets and why.
+Any other value of the charts can be set under `lore-platform:`, `floor:` and `utopia:`. The chart's own `values.yaml` (`helm show values oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5`) lists what it already sets and why.
 
 ### 3.4 The database schema
 
@@ -448,7 +448,7 @@ Our own CloudNativePG database is the exception: `scripts/infra/setup-db.sh` cre
 The release name and namespace are fixed. The chart refuses any other.
 
 ```bash
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 \
   -n lore-floor --create-namespace -f my-values.yaml
 ```
 

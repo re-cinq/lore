@@ -4,7 +4,7 @@
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
 #
-#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.4 \
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 \
 #     -n lore-floor --create-namespace -f my-values.yaml
 
 # Created before anything else. lore-floor is the release namespace and comes
@@ -129,8 +129,8 @@ utopia:
 # ServiceMonitors and the Lore Grafana dashboards the sidecar picks up.
 #
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
-# the chart published for release v1.0.4 pins all five images (the four tags below and
-# agentImage) to v1.0.4, so an install does not depend on what `latest` is that
+# the chart published for release v1.0.5 pins all five images (the four tags below and
+# agentImage) to v1.0.5, so an install does not depend on what `latest` is that
 # day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
 # ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
 # newer release, upgrade with its chart version (--version 1.1.0); do not
@@ -144,7 +144,7 @@ lore-platform:
     #   env: { LORE_PACK_REPO: acme/lore-assembly-lines, LORE_PACK_REF: main }
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "v1.0.4"
+      tag: "v1.0.5"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -157,15 +157,15 @@ lore-platform:
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
       # The image agent pods work in. Public.
-      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.4
+      agentImage: ghcr.io/re-cinq/lore-agent:v1.0.5
   lore-ui:
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "v1.0.4"
+      tag: "v1.0.5"
   lore-stations:
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "v1.0.4"
+      tag: "v1.0.5"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -173,7 +173,7 @@ lore-platform:
   lore-mcp-gateway:
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "v1.0.4"
+      tag: "v1.0.5"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:
