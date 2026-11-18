@@ -512,7 +512,14 @@ export default tseslint.config(
       // nothing on screen says the first one is running. Promote to error once
       // those five own their pending state.
       "re-lint/no-unguarded-async-button": "warn",
+      "re-lint/no-credential-env": "error",
     },
+  },
+
+  // The one web-ui module that owns a credential: the GitHub App private key.
+  {
+    files: ["apps/web-ui/src/lib/github-client.ts"],
+    rules: { "re-lint/no-credential-env": "off" },
   },
 
   // Tooling/config TS not covered by any package tsconfig (root config, scripts,
