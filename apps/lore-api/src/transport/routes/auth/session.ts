@@ -5,9 +5,9 @@ import type { Pool } from "pg";
 import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { repoAllowed } from "../../../work/auth/login-grant.js";
 import { revokeTokenByHash } from "../../../work/tokens/mint-token.js";
 import { bearerScope, principalOf } from "../../http/bearer-scope.js";
+import { repoAccessOf } from "../../http/repo-guard.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -55,10 +55,11 @@ export function accessRoute(): ServerRoute {
         errors: [400],
       },
     ),
-    handler: (request) => {
+    handler: async (request) => {
       const { repo } = request.query as z.infer<typeof AccessQuery>;
+      const access = repoAccessOf(request);
 
-      return { allowed: repoAllowed(principalOf(request), repo) };
+      return { allowed: await access.canOpen(principalOf(request), repo) };
     },
   };
 }
