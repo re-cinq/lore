@@ -258,7 +258,7 @@ describe("the floor pipelines shipped in this folder", () => {
     ).toBe(true);
   });
 
-  it("walks implementation-loop from sync-start through done-check, brief, dod, open-pr, tdd-round, await-ci, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
+  it("walks implementation-loop from sync-start through done-check, brief, dod, open-pr, tdd-round, await-ci, test-review, ready-for-review, sync-final, mark-ready and await-pr to done", () => {
     const { line } = pipelineOf("implementation-loop");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && !REPAIRS.includes(edge.from))
@@ -273,7 +273,8 @@ describe("the floor pipelines shipped in this folder", () => {
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
-      "await-ci>ready-for-review",
+      "await-ci>test-review",
+      "test-review>ready-for-review",
       "ready-for-review>sync-final",
       "sync-final>mark-ready",
       "sync-final-rebase>mark-ready",
@@ -479,6 +480,28 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect(prompt("loop-tdd-round")).toContain("/workspace/round-brief.md");
     expect(prompt("loop-fix-ci")).toContain("/workspace/round-brief.md");
+  });
+
+  it("reviews the loop's tests after a green await-ci: success and a failed review go to ready-for-review, missing tests go back to tdd-round twice at most", () => {
+    const { line } = pipelineOf("implementation-loop");
+    const route = (from: string, on: string) => {
+      const edge = line.edges.find(
+        (candidate) => candidate.from === from && candidate.on === on,
+      );
+      return { to: edge?.to, iteration_max: edge?.iteration_max };
+    };
+
+    expect({
+      awaitCiSuccess: route("await-ci", "success"),
+      reviewSuccess: route("test-review", "success"),
+      reviewChangesRequested: route("test-review", "changes_requested"),
+      reviewFailed: route("test-review", "failed"),
+    }).toEqual({
+      awaitCiSuccess: { to: "test-review", iteration_max: undefined },
+      reviewSuccess: { to: "ready-for-review", iteration_max: undefined },
+      reviewChangesRequested: { to: "tdd-round", iteration_max: 2 },
+      reviewFailed: { to: "ready-for-review", iteration_max: undefined },
+    });
   });
 
   it("walks spec-upkeep from detect-drift through detect-unlinked, update-specs, open-pr, await-ci and request-review to done", () => {
@@ -926,7 +949,7 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6 and fix-ci on gemini-4-argon, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on gemini-3.1-pro-preview except tdd-round on claude-sonnet-4-6, test-review on claude-opus-5-5 and fix-ci on gemini-4-argon, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -937,12 +960,16 @@ describe("the floor pipelines shipped in this folder", () => {
 
     expect({
       tddRound: loop["loop-tdd-round"]?.settings.model,
+      testReview: loop["loop-test-review"]?.settings.model,
       fixCi: loop["loop-fix-ci"]?.settings.model,
       restOfLoop: [
         ...new Set(
           Object.entries(loop)
             .filter(
-              ([name]) => !["loop-tdd-round", "loop-fix-ci"].includes(name),
+              ([name]) =>
+                !["loop-tdd-round", "loop-test-review", "loop-fix-ci"].includes(
+                  name,
+                ),
             )
             .map(([, definition]) => definition.settings.model),
         ),
@@ -951,6 +978,7 @@ describe("the floor pipelines shipped in this folder", () => {
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
       tddRound: "claude-sonnet-4-6",
+      testReview: "claude-opus-5-5",
       fixCi: "gemini-4-argon",
       restOfLoop: ["gemini-3.1-pro-preview"],
       reviewers: ["gemini-4-argon", "gemini-4-argon"],

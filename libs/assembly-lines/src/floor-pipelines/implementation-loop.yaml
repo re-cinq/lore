@@ -1,7 +1,8 @@
 # One backlog ticket per run (specs/implementation-loop FR3, specs/external-floor
 # FR12): acceptance tests first, then one red-green-refactor round per visit,
 # each judged by the pull request's own CI, behind a draft pull request, and a
-# wait until it is green with no unresolved review threads. It never merges.
+# wait until it is green with no unresolved review threads, the tests the rounds
+# wrote reviewed once CI is green. It never merges.
 #
 # The two waits are human stations nobody answers by hand: Lore's
 # pr-ready-check sweep reads the pull request and reports to the parked visit.
@@ -72,6 +73,12 @@ line:
       route: "{args.pr_url}"
     - id: repair-build
       station: loop-repair-build
+      bind:
+        target: repo
+    # The tests are judged once the code exists, by an agent that did not write
+    # them. A review that cannot run holds nothing.
+    - id: test-review
+      station: loop-test-review
       bind:
         target: repo
     - id: ready-for-review
@@ -185,7 +192,7 @@ line:
       on: failed
       iteration_max: 1
     - from: await-ci
-      to: ready-for-review
+      to: test-review
       on: success
     # The round budget. Twelve rounds on one ticket means it was mis-sized,
     # so the budget failing IS the diagnosis.
@@ -213,6 +220,19 @@ line:
       to: repair-build
       on: failed
       iteration_max: 1
+    - from: test-review
+      to: ready-for-review
+      on: success
+    # The review budget: two trips back to a round, then the run settles as over
+    # budget and the ticket says which tests were left.
+    - from: test-review
+      to: tdd-round
+      on: changes_requested
+      iteration_max: 2
+    # A net, not a gate: a review that failed to run lets the work go on.
+    - from: test-review
+      to: ready-for-review
+      on: failed
     - from: ready-for-review
       to: sync-final
       on: success
@@ -461,6 +481,11 @@ stations:
         kind: file
         path: round-brief.md
         optional: true
+      # Absent until a test review found tests missing.
+      - name: test_gaps
+        kind: file
+        path: test-gaps.md
+        optional: true
     produces:
       - name: tdd_done
         kind: value
@@ -468,6 +493,32 @@ stations:
         kind: value
       - name: tdd_blocked
         kind: value
+  loop-test-review:
+    description: "An AI agent reads the tests the ticket's rounds wrote and checks them for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. Missing ones go back to the round as failing tests or as written instructions."
+    kind: agent
+    agent_definition: loop-test-review
+    conversation: new
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    result_required: true
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: write
+      - name: ticket
+        kind: file
+        path: ticket.md
+      - name: brief
+        kind: file
+        path: brief.md
+        optional: true
+    produces:
+      - name: test_gaps
+        kind: file
+        path: test-gaps.md
   loop-await-ci:
     description: Waits until the pull request's CI judges the latest round. Green moves on to review, red asks for another round, and a build that stays red goes to repair.
     kind: human
