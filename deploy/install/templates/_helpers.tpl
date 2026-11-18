@@ -88,7 +88,9 @@ lists too (the ingress hosts are a list). Takes: path and values, a map or a lis
 {{- define "lore-install.noPlaceholders" -}}
 {{- $path := .path -}}
 {{- range $key, $value := .values -}}
-{{- if or (kindIs "map" $value) (kindIs "slice" $value) -}}
+{{- /* Helm copies `global` into every subchart's values; report it once, at the top. */ -}}
+{{- if and $path (eq (toString $key) "global") -}}
+{{- else if or (kindIs "map" $value) (kindIs "slice" $value) -}}
 {{- include "lore-install.noPlaceholders" (dict "path" (printf "%s%v." $path $key) "values" $value) -}}
 {{- else if and (kindIs "string" $value) (contains "CHANGE-ME" $value) -}}
 {{- fail (printf "%s%v still holds the placeholder CHANGE-ME" $path $key) -}}

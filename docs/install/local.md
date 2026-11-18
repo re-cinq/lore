@@ -130,7 +130,7 @@ The first command waits for you to paste the key and press Enter. The patch prin
 kubectl get pods -A
 ```
 
-Every pod is `Running` or `Completed`. The ones to look for are `lore-floor-api`, `lore-floor-cluster-agent` and `agent-controller` in `lore-floor`, `lore-api` and `lore-mcp-gateway` in `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph-alpha-0`, and `lore-db-1` and `floor-db-1` in `lore-db`. Then the front doors:
+Every pod is `Running` or `Completed`. The ones to look for are `lore-floor-api`, `lore-floor-cluster-agent` and `agent-controller` in `lore-floor`, `lore-api` and `lore-mcp-gateway` in `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph-alpha-0`, and `lore-db-1` and `floor-db-1` in `lore-db`. Then the public addresses:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://lore.localtest.me/

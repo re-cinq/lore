@@ -1,6 +1,6 @@
-# Defaults of the lore-install chart. A client copies the example for their cluster
+# Defaults of the lore-install chart. Copy the example for your cluster
 # (values.aks.example.yaml, values.gke.example.yaml, values.local.example.yaml)
-# and fills it in; this file holds what is the same on every install.
+# and fill it in; this file holds what is the same on every install.
 #
 # A value set to CHANGE-ME anywhere stops the install: replace every one.
 #
@@ -12,7 +12,7 @@
 
 # Placement and policy for every workload of the three charts.
 global:
-  # Run every controller on one pool, for example a management node pool:
+  # Run every Lore pod on one pool, for example a management node pool:
   #   nodeSelector: { pool: management }
   #   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
   # Agent run pods are the floor's and keep no scheduling rule.
@@ -48,7 +48,7 @@ namespaces: [lore-api, lore-ui, lore-stations]
 # names the Secret and its keys. (helm template cannot read the cluster, so it
 # skips that check and renders no Secret for an empty group.)
 #
-# Tokens are never your problem: a token left empty is generated on the first
+# You do not have to choose tokens: a token left empty is generated on the first
 # install and kept after, and an upgrade reads the Secret that is there, so a
 # rotation done with kubectl survives. A token you set must be at least 32
 # characters. A Secret this chart wrote carries the label
@@ -148,8 +148,8 @@ floor:
     enabled: true
     allowedNamespaces: [lore-api, lore-stations]
   agentNetworkPolicy:
-    # The one in-cluster door agent pods need beyond the floor: Lore's MCP
-    # gateway and skills registry.
+    # The one in-cluster address agent pods reach besides the floor: Lore's MCP
+    # gateway, which also serves the agents' skills.
     extraEgress:
       - to:
           - namespaceSelector:
@@ -293,8 +293,14 @@ lore-platform:
   lore-stations:
     podDisruptionBudget:
       enabled: false
-    # The Azure cost sync skips itself without LORE_AZURE_COST_SCOPE, so it is
-    # not scheduled here; values.aks.example.yaml schedules it (skipCourierJobs: []).
+    # Courier jobs are CronJobs (lore-stations-courier-<name>) that each send one
+    # HTTP request to the stations service on a schedule; the service does the
+    # work: memory-ttl (hourly, deletes expired memories), importance-decay and
+    # consolidation (daily, remove low-value memories and summarize the week's facts),
+    # anthropic-cost-sync and azure-cost-sync (daily, costs for the Spend page).
+    # A name listed here is not scheduled. The Azure cost sync does nothing
+    # without LORE_AZURE_COST_SCOPE, so it is left out; values.aks.example.yaml
+    # schedules it with an empty list.
     skipCourierJobs: [azure-cost-sync]
     env:
       LORE_EMBEDDING_PROVIDER: openai   # see lore-api above

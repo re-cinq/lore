@@ -1,18 +1,19 @@
 # Install Lore on Google GKE
 
-You will have Lore, the floor and the agent subsystem running on a GKE cluster, behind Traefik with certificates from cert-manager. Lore's own model calls use Vertex AI or an Anthropic key. Utopia, the knowledge graph, is an optional section with Google sign-in. Plan on two hours, longer if DNS or IAM is slow.
+You will have Lore, the floor and the agent subsystem running on a GKE cluster, behind Traefik with certificates from cert-manager. Lore's own model calls use Vertex AI or an Anthropic key. Utopia, the knowledge graph, is optional and uses Google sign-in here: the example values file has it switched on, and step 3 says how to switch it off. Plan on two hours, longer if DNS or IAM is slow.
 
 ## Before you start
 
 | You need | Who provides it |
 | -------- | --------------- |
 | GKE 1.30 or newer (the Traefik chart of step 1 needs it; with another ingress controller, 1.29 for CloudNativePG) with Workload Identity, Helm 3.8 or newer, `kubectl` with cluster-admin once (the operators install CRDs) | your cloud admin |
-| A network plugin that enforces NetworkPolicy (GKE Dataplane V2 does). Without enforcement the agent pods' egress rules bind nothing | your cloud admin |
+| A network plugin that enforces NetworkPolicy (GKE Dataplane V2 does). Without enforcement the agent pods' egress rules have no effect | your cloud admin |
 | A default StorageClass for ReadWriteOnce volumes | your cloud admin |
 | Room for the workloads: 3 nodes of 8 vCPU and 32 GiB for the platform, 2 of the same size for agents (an estimate from requests and limits, not a measurement) | your cloud admin |
-| Three DNS names for one public IP: UI, API, and Utopia if you enable it. A fourth, the MCP gateway, is optional | your cloud admin |
+| Two to four DNS names for one public IP. Always the UI and the API. Utopia if you keep it on. The MCP gateway only if something outside the cluster has to call it: agent pods use its in-cluster address, so to leave it out delete the `lore-mcp` line under `ingresses` | your cloud admin |
 | A GitHub App and an OAuth App ([GitHub setup](../github-setup.md)) | your GitHub organization owner |
-| For Vertex: a Google service account with `roles/aiplatform.user`. Or an Anthropic API key | your cloud admin, or you |
+| For Lore's own model calls: a Google service account with `roles/aiplatform.user` (Vertex), or an Anthropic API key | your cloud admin, or you |
+| For the agents: an Anthropic or a Gemini API key (step 5), also when Lore's own calls use Vertex | you |
 
 Lore calls out only to GitHub and to your model endpoint. Every signed-in member of your GitHub organization is an administrator in Lore today.
 
@@ -20,7 +21,7 @@ Install with `helm upgrade --install`, as below. The chart generates tokens and 
 
 ## 1. Install the operators
 
-CloudNativePG runs the databases. Traefik is the ingress in this tutorial, and any controller works if it allows request bodies up to 25 MB on the API host (GitHub webhooks) and keeps WebSocket connections open. cert-manager is optional and only issues certificates.
+CloudNativePG runs the databases. Traefik is the ingress in this tutorial, and any controller works if it allows request bodies up to 25 MB on the API host (GitHub webhooks) and keeps WebSocket connections open. cert-manager is optional and only issues certificates. The commands install the newest chart of each. The kind trial ran with chart 0.29.2 of CloudNativePG and 42.4.1 of Traefik; add `--version` to pin them.
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -35,7 +36,7 @@ helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --crea
 kubectl -n traefik get svc traefik
 ```
 
-Point the three DNS names at the `EXTERNAL-IP` of that Service. For certificates, create an issuer (`<email>` is where Let's Encrypt writes):
+Point your DNS names at the `EXTERNAL-IP` of that Service. For certificates, create an issuer (`<email>` is where Let's Encrypt writes):
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -85,9 +86,13 @@ Replace each placeholder and every `example.com`. The file holds secrets, so kee
 | `GCP_PROJECT`, and `serviceAccount.annotations` under `lore-api` | your project, and `iam.gke.io/gcp-service-account: lore-api@<project>.iam.gserviceaccount.com`, the Google service account that holds `roles/aiplatform.user` |
 | Utopia lines | see the last section, or set `utopia.enabled` and `lore-platform.lore-api.utopia.enabled` to `false` and delete the `global.oidc`, `utopia` and `secrets.oidc` blocks |
 
-The example sends Lore's own calls to Vertex AI (Gemini, and `text-embedding-005` for search). Your admin lets the Kubernetes service account `lore-api` in namespace `lore-api` act as that Google service account (Workload Identity). The stations call Vertex too: add the same annotation under `lore-platform.lore-stations.serviceAccount.annotations`, with the same Google service account or another, and bind the Kubernetes service account `lore-stations` in `lore-stations`. The example sets `LORE_TRACE_EXPORTER: cloud-trace`, and traces stay off unless the Google service account also holds `roles/cloudtrace.agent`.
+The example sends Lore's own calls to Vertex AI (Gemini, and `text-embedding-005` for search) through Workload Identity:
 
-For an Anthropic key instead of Vertex, set `secrets.anthropicApiKey`, delete the `serviceAccount` block, `GCP_PROJECT` and the `vertex` entries, and also delete `LORE_TRACE_EXPORTER: cloud-trace` unless you want it. Search is then keyword-only until you set `LORE_EMBEDDING_PROVIDER: openai`, `secrets.openaiApiKey`, `OPENAI_BASE_URL` and `LORE_EMBEDDING_MODEL` (768 dimensions), and `/healthz` can report `degraded` with HTTP 200 meanwhile.
+- Your admin lets the Kubernetes service account `lore-api` in namespace `lore-api` act as the Google service account.
+- The stations call Vertex too. Add the same annotation under `lore-platform.lore-stations.serviceAccount.annotations`, and have your admin bind the Kubernetes service account `lore-stations` in `lore-stations` the same way.
+- The example sets `LORE_TRACE_EXPORTER: cloud-trace`. Traces arrive only if the Google service account also holds `roles/cloudtrace.agent`.
+
+For an Anthropic key instead of Vertex, set `secrets.anthropicApiKey`, delete the `serviceAccount` block, `GCP_PROJECT` and the `vertex` entries, and also delete `LORE_TRACE_EXPORTER: cloud-trace` unless you want it. Search is then keyword-only until you set `LORE_EMBEDDING_PROVIDER: openai`, `secrets.openaiApiKey`, `OPENAI_BASE_URL` and `LORE_EMBEDDING_MODEL` (Lore asks for 768 dimensions, so the model must accept the `dimensions` parameter), and `/healthz` can report `degraded` with HTTP 200 meanwhile.
 
 **GitHub Enterprise.** For a Server or a data-residency tenant (`<name>.ghe.com`), create both GitHub apps there and uncomment `GITHUB_HOST` in the three `env:` blocks, with the bare host name. A Server on a private address needs a rule under `floor.agentNetworkPolicy.extraEgress`, which `values.yaml` shows. github.com needs nothing.
 
@@ -151,7 +156,7 @@ global:
   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
 ```
 
-This places every Lore, floor, subsystem and Utopia controller. Databases and Dgraph follow it only if their disks can move, which cloud disks do within a zone. Agent run pods are not covered. A taint on the pool keeps them off it.
+This places every pod of Lore, the floor, the agent subsystem and Utopia. Databases and Dgraph follow it only if their disks can move, which cloud disks do within a zone. Agent run pods are not covered. A taint on the pool keeps them off it.
 
 ## Backups to Cloud Storage
 
@@ -214,4 +219,4 @@ Compare the new chart's `values.gke.example.yaml` with your file first. An upgra
 
 ## What this tutorial has not been tested on
 
-The charts were installed and checked on a local kind cluster only, and this page's GKE values were rendered offline with `helm template`, never applied. Nobody at re:cinq has run these steps on GKE as a client would, nor cert-manager certificate issuance, Traefik on GKE, backups to Cloud Storage, Workload Identity for Lore's service accounts, Vertex AI through these values, Google sign-in to Utopia, Cloud SQL, GitHub Enterprise Server or a `ghe.com` tenant, or anything that needs real GitHub credentials or a model: sign-in, webhook delivery and an agent run.
+The charts were installed and checked on a local kind cluster only, and this page's GKE values were rendered offline with `helm template`, never applied. Nobody at re:cinq has run these steps on GKE, nor cert-manager certificate issuance, Traefik on GKE, backups to Cloud Storage, Workload Identity for Lore's service accounts, Vertex AI through these values, Google sign-in to Utopia, Cloud SQL, GitHub Enterprise Server or a `ghe.com` tenant, or anything that needs real GitHub credentials or a model: sign-in, webhook delivery and an agent run.

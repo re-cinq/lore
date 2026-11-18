@@ -1,16 +1,16 @@
 # Install Lore on Azure AKS
 
-You will have Lore, the floor and the agent subsystem running on an AKS cluster, behind Traefik with certificates from cert-manager, using Microsoft Foundry for models. Utopia, the knowledge graph, is an optional last section. Plan on two hours, longer if DNS or Azure permissions are slow.
+You will have Lore, the floor and the agent subsystem running on an AKS cluster, behind Traefik with certificates from cert-manager, using Microsoft Foundry for models. Utopia, the knowledge graph, is optional: the example values file has it switched on, and step 3 says how to switch it off. Plan on two hours, longer if DNS or Azure permissions are slow.
 
 ## Before you start
 
 | You need | Who provides it |
 | -------- | --------------- |
 | AKS 1.30 or newer (the Traefik chart of step 1 needs it; with another ingress controller, 1.29 for CloudNativePG), Helm 3.8 or newer, `kubectl` with cluster-admin once (the operators install CRDs) | your cloud admin |
-| A network plugin that enforces NetworkPolicy (the plugin has to enforce it, or the agent pods' egress rules bind nothing) | your cloud admin |
+| A network plugin that enforces NetworkPolicy (without enforcement the agent pods' egress rules have no effect) | your cloud admin |
 | A default StorageClass for ReadWriteOnce volumes | your cloud admin |
 | Room for the workloads: 3 nodes of 8 vCPU and 32 GiB for the platform, 2 of the same size for agents (a sizing estimate from requests and limits, not a measurement) | your cloud admin |
-| Three DNS names for one public IP: UI, API, and Utopia if you enable it. A fourth, the MCP gateway, is optional | your cloud admin |
+| Two to four DNS names for one public IP. Always the UI and the API. Utopia if you keep it on. The MCP gateway only if something outside the cluster has to call it: agent pods use its in-cluster address, so to leave it out delete the `lore-mcp` line under `ingresses` | your cloud admin |
 | A GitHub App and an OAuth App ([GitHub setup](../github-setup.md)) | your GitHub organization owner |
 | A Foundry resource with a chat deployment and an embedding deployment whose model accepts the `dimensions` parameter (Lore asks for 768; `text-embedding-3-small` does, `text-embedding-ada-002` does not), and its key | your cloud admin |
 
@@ -20,7 +20,7 @@ Install with `helm upgrade --install`, as below. The chart generates tokens and 
 
 ## 1. Install the operators
 
-CloudNativePG runs the databases. Traefik is the ingress in this tutorial, and any controller works if it allows request bodies up to 25 MB on the API host (GitHub webhooks) and keeps WebSocket connections open. cert-manager is optional and only issues certificates.
+CloudNativePG runs the databases. Traefik is the ingress in this tutorial, and any controller works if it allows request bodies up to 25 MB on the API host (GitHub webhooks) and keeps WebSocket connections open. cert-manager is optional and only issues certificates. The commands install the newest chart of each. The kind trial ran with chart 0.29.2 of CloudNativePG and 42.4.1 of Traefik; add `--version` to pin them.
 
 ```bash
 helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -35,7 +35,7 @@ helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --crea
 kubectl -n traefik get svc traefik
 ```
 
-Point the three DNS names at the `EXTERNAL-IP` of that Service. For certificates, create an issuer (`<email>` is where Let's Encrypt writes):
+Point your DNS names at the `EXTERNAL-IP` of that Service. For certificates, create an issuer (`<email>` is where Let's Encrypt writes):
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -64,7 +64,7 @@ helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-database
 kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db --timeout=300s
 ```
 
-The wait prints `condition met` for both. To keep the controllers off the agents' nodes, add `--set global.nodeSelector.pool=management` here and in step 4 (see "Run on a management node pool").
+The wait prints `condition met` for both. To keep Lore's own pods off the agents' nodes, add `--set global.nodeSelector.pool=management` here and in step 4 (see "Run on a management node pool").
 
 **Alternative: Azure Database for PostgreSQL.** Skip this step. Create a PostgreSQL 16 server, allow-list the extension `vector` in the server parameter `azure.extensions`, and create a database `lore` owned by a role `lore`, and a database `floor` with its own role. In the values file of step 3 set `secrets.loreDbPassword`, `secrets.floorDbConnectionString` (`postgres://floor:<password>@<server>.postgres.database.azure.com:5432/floor`) and `LORE_DB_HOST` in the `env:` of lore-api, lore-ui and lore-stations. If the role `lore` may not create the extension, a server admin runs `CREATE EXTENSION IF NOT EXISTS vector;` in database `lore` once.
 
@@ -82,12 +82,12 @@ Replace each placeholder and every `example.com` (the chart stops on a leftover 
 | ----- | ---------- |
 | `secrets.githubApp.*`, `secrets.githubOAuth.*`, `GITHUB_ORG`, `GITHUB_APP_SLUG` | from [GitHub setup](../github-setup.md), with `https://<ui host>` and `https://<api host>` |
 | `secrets.openaiApiKey`, `OPENAI_BASE_URL` | the Foundry key and `https://<resource>.openai.azure.com/openai/v1`, for Lore's own model calls and embeddings |
-| `LORE_FACT_MODEL`, `LORE_EVAL_LLM_MODEL`, `LORE_EMBEDDING_MODEL` | the names of your chat and embedding deployments. Foundry routes by deployment name |
+| `LORE_FACT_MODEL`, `LORE_EVAL_LLM_MODEL`, `LORE_EMBEDDING_MODEL` | the names of your Foundry deployments, since Foundry finds a model by its deployment name. `LORE_FACT_MODEL` is the chat model for Lore's own calls, `LORE_EVAL_LLM_MODEL` the chat model that scores the context Lore builds (the same deployment is fine), and `LORE_EMBEDDING_MODEL` the embedding model for search |
 | `host:` of every entry under `ingresses`, `LORE_API_URL`, `LORE_UI_URL`, `LORE_WEBHOOK_URL`, `LORE_API_PUBLIC_URL`, `LORE_WS_URL` | your hostnames. `LORE_WS_URL` is `wss://<ui host>/api/ws`, on the UI's host |
 | `floor.agentNetworkPolicy.nodeLocalDnsAddress` | optional. The default `169.254.20.10` lets agent pods reach a NodeLocal DNSCache. If your cluster runs none, set it to `""` so they reach only the cluster's DNS pods. If it runs one on another address, put that address here |
 | Utopia lines | see the last section, or set `utopia.enabled` and `lore-platform.lore-api.utopia.enabled` to `false` and delete the `global.oidc`, `utopia` and `secrets.oidc` blocks |
 
-For an Anthropic key instead of Foundry for Lore's own calls, set `secrets.anthropicApiKey` and delete the `OPENAI_*`, `LORE_*_LLM_*` and `LORE_EMBEDDING_*` lines. Search is then keyword-only, and `/healthz` can report `degraded` with HTTP 200.
+For an Anthropic key instead of Foundry for Lore's own calls, set `secrets.anthropicApiKey`, delete `secrets.openaiApiKey`, and delete `OPENAI_BASE_URL` and every line ending in `_PROVIDER` or `_MODEL` under `lore-api` and `lore-stations`. Search is then keyword-only, and `/healthz` can report `degraded` with HTTP 200.
 
 **GitHub Enterprise.** For a Server or a data-residency tenant (`<name>.ghe.com`), create both GitHub apps there and uncomment `GITHUB_HOST` in the three `env:` blocks, with the bare host name. A Server on a private address needs a rule under `floor.agentNetworkPolicy.extraEgress`, which `values.yaml` shows. github.com needs nothing. Your onboarded repositories' Actions runners must reach the API host.
 
@@ -154,11 +154,15 @@ global:
   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
 ```
 
-This places every Lore, floor, subsystem and Utopia controller. Databases and Dgraph follow it only if their disks can move, which cloud disks do within a zone. Agent run pods are not covered. A taint on the pool keeps them off it.
+This places every pod of Lore, the floor, the agent subsystem and Utopia. Databases and Dgraph follow it only if their disks can move, which cloud disks do within a zone. Agent run pods are not covered. A taint on the pool keeps them off it.
 
 ## Azure Workload Identity and backups
 
-A workload identity is a label and an annotation, both set from values. Your cloud admin creates a managed identity and federates it to the Kubernetes service account. For the Azure cost sync on the Spend page, that account is `system:serviceaccount:lore-stations:lore-stations`, the identity needs the Cost Management Reader role, and the file's commented lines under `lore-stations` are the values (`serviceAccount.annotations` with `azure.workload.identity/client-id`, `podLabels` with `azure.workload.identity/use: "true"`, `skipCourierJobs: []`, `LORE_AZURE_COST_SCOPE`).
+Azure Workload Identity lets a pod act as a managed identity without a stored key. It takes an annotation on the Kubernetes service account and a label on the pod, and both are values of the chart. The one place Lore uses it is the daily Azure cost sync, which fills the Spend page:
+
+1. Your cloud admin creates a managed identity with the Cost Management Reader role and federates it to `system:serviceaccount:lore-stations:lore-stations`.
+2. In `my-values.yaml`, uncomment the lines at the end of the `lore-stations` block: `serviceAccount.annotations` with the identity's client ID, `podLabels`, and `LORE_AZURE_COST_SCOPE` with your subscription.
+3. Run the upgrade.
 
 Backups of the in-cluster databases go to Blob storage through the CloudNativePG barman-cloud plugin, which you install beside the operator:
 
@@ -166,7 +170,7 @@ Backups of the in-cluster databases go to Blob storage through the CloudNativePG
 kubectl apply -f https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.11.0/manifest.yaml
 ```
 
-Then, in `databases-values.yaml`, then add `-f databases-values.yaml` to step 2 and run it again:
+Then write a `databases-values.yaml` with the block below, add `-f databases-values.yaml` to the command of step 2 and run it again:
 
 ```yaml
 defaults:
@@ -180,13 +184,18 @@ lore:
       azureCredentials: { inheritFromAzureAD: true }
 ```
 
-Repeat the block under `floor:` with another path. The chart sets the annotation on the database service account but has no value for the pod label that Azure Workload Identity also wants, so check that your pods get one. Dgraph runs as one pod with one volume and has no backup of its own. It is being removed from Lore.
+Repeat the block under `floor:` with another path. The databases chart sets the annotation on the database service account but has no value yet for the pod label `azure.workload.identity/use: "true"`, which Azure Workload Identity also needs. Expect `inheritFromAzureAD` not to work until it has one, and use a storage account key in `azureCredentials` instead (`storageAccount` and `storageKey`, each the name and key of a Secret in `lore-db`). Dgraph runs as one pod with one volume and has no backup of its own. It is being removed from Lore.
 
 ## Optional: Utopia with Microsoft Entra sign-in
 
-Utopia mirrors each repository's specs and ADRs into a knowledge graph. Your cloud admin registers an app in your tenant (single tenant) with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`, adds the optional ID-token claims `email` and `xms_edov`, and creates a client secret. Utopia opens an account only for a token with a true `xms_edov`.
+Utopia mirrors each repository's specs and ADRs into a knowledge graph.
 
-In the values file, the issuer is `https://login.microsoftonline.com/<tenant GUID>/v2.0`, the GUID and not the domain. Set it in `global.oidc.issuer` and again in `utopia.oidc.issuer`, with the same `allowedDomains` in both, since the chart refuses a mismatch. The client goes in `secrets.oidc`. After the install, sign in at `https://<utopia host>` and, under Administration, tab Models, enter the chat and embedding deployments of your Foundry resource, or Utopia stores documents and extracts nothing. Lore's write token for Utopia is made once by hand. Sign in to Utopia as the person you keep for Lore, who must be an admin of the workspace, and under Account, Agents & tokens, issue a personal access token with scope `write` and no knowledge-base limit. Store it and tell lore-api where it is:
+1. Your cloud admin registers an app in your tenant, single tenant, with the redirect URI `https://<utopia host>/api/v1/auth/oidc/callback`, and creates a client secret.
+2. On that app, the admin adds the optional ID-token claims `email` and `xms_edov` (under Token configuration, or in the app manifest). `xms_edov` is Microsoft's statement that the owner of the email's domain is verified. Utopia opens an account only when it is true, because Entra does not verify the `email` claim by itself.
+3. In the values file, set the issuer `https://login.microsoftonline.com/<tenant GUID>/v2.0` (the GUID, not the domain) and `allowedDomains` in `global.oidc`, and the same two values in `utopia.oidc`. The client ID and secret go in `secrets.oidc`.
+4. After the install, sign in at `https://<utopia host>`. Under Administration, tab Models, enter the chat and embedding deployments of your Foundry resource. Without them Utopia stores documents and extracts nothing.
+
+Lore's write token for Utopia is made once by hand. Sign in to Utopia as the person you keep for Lore, who must be an admin of the workspace, and under Account, Agents & tokens, issue a personal access token with scope `write` and no knowledge-base limit. Store it and tell lore-api where it is:
 
 ```bash
 read -rs UTOPIA_TOKEN

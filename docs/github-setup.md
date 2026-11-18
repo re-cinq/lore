@@ -4,7 +4,7 @@ Lore needs two things from GitHub before it is installed, and a GitHub organizat
 
 | What | Who creates it | What Lore uses it for |
 | ---- | -------------- | --------------------- |
-| [A GitHub App](#1-the-github-app) | an owner of the client's organization | reading and writing repositories, issues and pull requests as Lore |
+| [A GitHub App](#1-the-github-app) | an owner of your GitHub organization | reading and writing repositories, issues and pull requests as Lore |
 | [A GitHub OAuth App](#2-the-oauth-app-for-sign-in) | the same owner | signing people in to the web UI |
 
 Optional, later: [a second App that approves pull requests](#3-optional-the-reviewer-app).
@@ -75,7 +75,7 @@ What you now have, and where it goes in `my-values.yaml`:
 | Slug | `lore-platform.lore-ui.env.GITHUB_APP_SLUG` |
 | Organization name | `lore-platform.lore-api.env.GITHUB_ORG` |
 
-Quote the two IDs in the values file (`"123456"`), so they are read as text.
+The two IDs are numbers. Write them with or without quotes.
 
 ## 2. The OAuth App for sign-in
 
@@ -121,7 +121,7 @@ Create it like the App in section 1, named `lore-reviewer`, with the webhook off
 | Metadata | Read-only |
 | Pull requests | Read and write |
 
-Install it on the same repositories. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
+Install it on the same repositories. Its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
 
 ## GitHub Enterprise Server
 
