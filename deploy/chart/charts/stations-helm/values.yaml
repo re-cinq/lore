@@ -18,8 +18,8 @@ podDisruptionBudget:
 nodeSelector: {}
 tolerations: []
 
-# The Google project of the GCP billing export. Empty leaves out the gcp-cost-sync
-# courier job, which has nothing to read without one.
+# The Google project of a GCP billing export. Empty leaves out the gcp-cost-sync
+# courier job, which has nothing to read without one. Not an identity setting.
 gcpProject: ""
 
 image:
@@ -48,16 +48,19 @@ resources:
     cpu: "50m"
     memory: 256Mi
 
-# Annotations for the lore-stations KSA. Terraform sets the Workload Identity
-# annotation here when enable_gcp_billing_export is on; empty otherwise.
+# Identity of the stations pod, as plain labels and annotations, whatever the cluster binds them to
+# (a workload identity label on the pod and an annotation on the ServiceAccount,
+# a service mesh, a cost label). podLabels / podAnnotations here win over
+# global.podLabels / global.podAnnotations of the parent chart; none is set by
+# default. Example, Azure Workload Identity:
+#   podLabels: { azure.workload.identity/use: "true" }
+#   serviceAccount: { annotations: { azure.workload.identity/client-id: <client id> } }
+podLabels: {}
+podAnnotations: {}
 serviceAccount:
   annotations: {}
-
-# Extra labels on the stations pod. On AKS, Workload Identity needs
-# azure.workload.identity/use: "true" here (and azure.workload.identity/client-id
-# in serviceAccount.annotations) for the azure-cost-sync station to read Cost
-# Management without a stored secret. Empty otherwise.
-podLabels: {}
+# On AKS the azure-cost-sync station reads Cost Management with the two lines of
+# the example, so it needs no stored secret.
 
 env:
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
@@ -153,11 +156,19 @@ slackBotTokenSecret:
 # the work. Work with STEPS is not a courier job: it is a line on the external
 # floor, started by a tick in the stations service.
 courier:
+  # The courier pods' identity, like the stations pod's above. Empty by default.
+  podLabels: {}
+  podAnnotations: {}
+  serviceAccount:
+    annotations: {}
   # Pinned by DIGEST, not by tag: this container is handed the org ingest token,
   # and a tag is mutable — `8.11.1` can be repointed at a different image without
   # anything in this repo changing. The tag is kept alongside the digest for
   # human legibility; the digest is what Kubernetes resolves.
   image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+# Names of courierJobs below that are not rendered, for a job that has nothing to
+# do on this cluster (azure-cost-sync off Azure).
+skipCourierJobs: []
 courierJobs:
   # Was the Floor's memory_ttl CronJob (#1351): a single DELETE that had its own
   # pod built from the coordinator's image. Same hour, same work, two hops.

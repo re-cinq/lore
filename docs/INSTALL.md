@@ -370,7 +370,7 @@ Replace every `CHANGE-ME` and every `example.com`:
 | `LORE_FACT_MODEL` (lore-api and lore-stations), `LORE_EVAL_LLM_MODEL` (lore-api) | the name of the chat model deployment |
 | `LORE_EMBEDDING_MODEL` | the name of the embedding deployment, which must serve 768 dimensions |
 | `secrets.utopia.dbPassword`, `.appDbPassword`, `.secretKey`, `.cookieSecret` | four more random values, generated below |
-| `secrets.utopia.oauthClientId`, `.oauthClientSecret` | Utopia's OpenID Connect client |
+| `secrets.oidc.clientId`, `.clientSecret` (issuer: `global.oidc`) | Utopia's OpenID Connect client |
 | `utopia.hostname`, `UTOPIA_URL` | the Utopia hostname |
 | `utopia.oidc.allowedDomains` | the email domain allowed to sign in to Utopia, for example `acme.com` |
 | `utopia.ingress.className`, `.clusterIssuer`, `utopia.data.storageClass` | the same names as for Lore |

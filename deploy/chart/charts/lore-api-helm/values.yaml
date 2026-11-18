@@ -6,6 +6,18 @@ replicaCount: 1
 # Where the pods run. Empty: anywhere. Unset here, global.nodeSelector and
 # global.tolerations of the parent chart apply; set here, they win.
 nodeSelector: {}
+
+# Identity as plain labels and annotations, whatever the cluster binds them to
+# (a workload identity label on the pod and an annotation on the ServiceAccount,
+# a service mesh, a cost label). podLabels / podAnnotations here win over
+# global.podLabels / global.podAnnotations of the parent chart; none is set by
+# default. Example, Azure Workload Identity:
+#   podLabels: { azure.workload.identity/use: "true" }
+#   serviceAccount: { annotations: { azure.workload.identity/client-id: <client id> } }
+podLabels: {}
+podAnnotations: {}
+serviceAccount:
+  annotations: {}
 tolerations: []
 
 # The restricted pod profile: non-root user, no privilege escalation, every
@@ -23,11 +35,6 @@ runAsUser: 1000
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
-
-# GCP project of the `lore-api` GSA the pod's KSA impersonates for Vertex
-# embeddings (templates/serviceaccount.yaml). Empty: the ServiceAccount carries
-# no Workload Identity annotation. Set by terraform.
-gcpProject: ""
 
 image:
   repository: ghcr.io/re-cinq/lore-api

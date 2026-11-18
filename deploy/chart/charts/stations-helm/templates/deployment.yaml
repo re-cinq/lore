@@ -14,9 +14,13 @@ spec:
     metadata:
       labels:
         app: lore-stations
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+        {{- with (include "lore.podLabels" . | trim) }}
+        {{- . | nindent 8 }}
         {{- end }}
+      {{- with (include "lore.podAnnotations" . | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true

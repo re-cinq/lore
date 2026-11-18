@@ -31,6 +31,13 @@ spec:
     metadata:
       labels:
         app: {{ .Chart.Name }}-migrate
+        {{- with (include "lore.podLabels" . | trim) }}
+        {{- . | nindent 8 }}
+        {{- end }}
+      {{- with (include "lore.podAnnotations" . | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       restartPolicy: Never
       serviceAccountName: {{ .Chart.Name }}-migrate

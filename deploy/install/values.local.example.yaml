@@ -8,6 +8,7 @@
 # First: CloudNativePG, Traefik and the lore-databases chart. The GitHub and
 # model credentials are yours; with dummies the install runs but sign-in,
 # webhooks and model calls do not. Every CHANGE-ME must be replaced.
+# Utopia (the knowledge graph) is off; values.aks.example.yaml shows how to turn it on.
 
 secrets:
   githubApp:
@@ -21,27 +22,6 @@ secrets:
     clientId: CHANGE-ME
     clientSecret: CHANGE-ME
   anthropicApiKey: CHANGE-ME
-  utopia:
-    oauthClientId: CHANGE-ME
-    oauthClientSecret: CHANGE-ME
-
-utopia:
-  hostname: utopia.localtest.me
-  oidc:
-    issuer: https://accounts.google.com
-    allowedDomains: CHANGE-ME
-  ingress: { className: traefik }
-  # Small enough for a laptop; Utopia's defaults ask for 8 GiB.
-  resources:
-    requests: { cpu: 100m, memory: 256Mi }
-    limits: { memory: 1Gi }
-  data: { size: 2Gi }
-  database:
-    size: 5Gi
-    resources:
-      requests: { cpu: 100m, memory: 512Mi }
-      limits: { memory: 1Gi }
-    parameters: { shared_buffers: 128MB, effective_cache_size: 384MB, work_mem: 4MB }
 
 lore-platform:
   platform:
@@ -69,7 +49,6 @@ lore-platform:
   lore-ui:
     env:
       GITHUB_APP_SLUG: CHANGE-ME
-      UTOPIA_URL: http://utopia.localtest.me
       LORE_API_PUBLIC_URL: http://lore-api.localtest.me
       LORE_WS_URL: ws://lore.localtest.me/api/ws
   lore-stations:

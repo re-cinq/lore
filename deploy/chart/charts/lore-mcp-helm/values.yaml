@@ -6,6 +6,18 @@ replicaCount: 1
 
 # Where the pod runs and how it is locked down: see lore-api-helm/values.yaml.
 nodeSelector: {}
+
+# Identity as plain labels and annotations, whatever the cluster binds them to
+# (a workload identity label on the pod and an annotation on the ServiceAccount,
+# a service mesh, a cost label). podLabels / podAnnotations here win over
+# global.podLabels / global.podAnnotations of the parent chart; none is set by
+# default. Example, Azure Workload Identity:
+#   podLabels: { azure.workload.identity/use: "true" }
+#   serviceAccount: { annotations: { azure.workload.identity/client-id: <client id> } }
+podLabels: {}
+podAnnotations: {}
+serviceAccount:
+  annotations: {}
 tolerations: []
 hardened: false
 runAsUser: 1000

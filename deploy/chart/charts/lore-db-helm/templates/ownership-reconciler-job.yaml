@@ -34,6 +34,13 @@ spec:
     metadata:
       labels:
         app: lore-db-ownership-reconciler
+        {{- with (include "lore.podLabels" (dict "Values" (dict "global" .Values.global "podLabels" .Values.ownershipReconciler.podLabels))) }}
+        {{- . | trim | nindent 8 }}
+        {{- end }}
+      {{- with (include "lore.podAnnotations" (dict "Values" (dict "global" .Values.global "podAnnotations" .Values.ownershipReconciler.podAnnotations))) }}
+      annotations:
+        {{- . | trim | nindent 8 }}
+      {{- end }}
     spec:
       restartPolicy: Never
       serviceAccountName: lore-db-ownership-reconciler

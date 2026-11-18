@@ -15,6 +15,7 @@ sweep that answers when its work is done and whose work is slow; it must stay
 under the job's 120-second deadline, which is what stops a timed-out post from
 being retried into a second run of the same work.
 Optional: .requires (the name of a value of this chart, which must be set for the job to render; gcp-cost-sync needs gcpProject).
+Not rendered: a job whose .name is in skipCourierJobs.
 Optional: .retries (curl's own retries of one post, default 3). Set 0 for work
 that must not run twice: curl retries a timed-out post, and by then the first
 one may already have done the work.
@@ -28,7 +29,7 @@ anything else in the pod).
 */}}
 {{- $root := . -}}
 {{- range .Values.courierJobs }}
-{{- if or (not .requires) (get $root.Values .requires) }}
+{{- if and (not (has .name ($root.Values.skipCourierJobs | default list))) (or (not .requires) (get $root.Values .requires)) }}
 {{- $url := printf "http://%s.%s.svc.cluster.local:%v%s" $root.Chart.Name $root.Values.namespace $root.Values.service.port .path }}
 ---
 apiVersion: batch/v1
@@ -60,6 +61,13 @@ spec:
             app: lore-api
             component: courier
             courier-job: {{ .name | trunc 63 }}
+            {{- with (include "lore.podLabels" (dict "Values" (dict "global" $root.Values.global "podLabels" $root.Values.courier.podLabels))) }}
+            {{- . | trim | nindent 12 }}
+            {{- end }}
+          {{- with (include "lore.podAnnotations" (dict "Values" (dict "global" $root.Values.global "podAnnotations" $root.Values.courier.podAnnotations))) }}
+          annotations:
+            {{- . | trim | nindent 12 }}
+          {{- end }}
         spec:
           restartPolicy: Never
           # Talks to lore-api over HTTP and to nothing else; a mounted API-server

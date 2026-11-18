@@ -10,6 +10,14 @@
 # and passwords not listed here are generated on the first install and kept.
 # To run every controller on one node pool: --set global.nodeSelector.pool=management
 
+# One identity provider for Utopia (Lore does not use it yet and will read the
+# same block). Google shown; any OpenID Connect issuer works (Microsoft Entra ID:
+# https://login.microsoftonline.com/<tenant id>/v2.0).
+global:
+  oidc:
+    issuer: https://accounts.google.com
+    allowedDomains: CHANGE-ME                                  # e.g. example.com
+
 secrets:
   # The databases are the lore-databases chart's. For Cloud SQL instead, skip
   # that chart, set these two, and set LORE_DB_HOST in lore-api, lore-ui and
@@ -29,13 +37,17 @@ secrets:
   # Lore's own model calls with an Anthropic key. With Vertex AI (Gemini) there
   # is no key: drop this line and use the Vertex block under lore-api.
   anthropicApiKey: CHANGE-ME
-  utopia:
-    oauthClientId: CHANGE-ME
-    oauthClientSecret: CHANGE-ME
+  # The OIDC client (app registration) of Utopia's sign-in, and its secret.
+  # Leave both empty to create Secret utopia-oauth (keys client-id,
+  # client-secret) yourself.
+  oidc:
+    clientId: CHANGE-ME
+    clientSecret: CHANGE-ME
 
 utopia:
+  enabled: true
   hostname: utopia.example.com
-  # Who may sign in: an OpenID Connect issuer and the email domains it accepts.
+  # Repeats global.oidc until Utopia reads the shared block.
   oidc:
     issuer: https://accounts.google.com
     allowedDomains: CHANGE-ME
@@ -64,22 +76,27 @@ lore-platform:
       - { name: lore-ui-live, namespace: lore-api, host: lore.example.com, path: /api/ws, pathType: Prefix, service: lore-api, port: 3000 }
 
   lore-api:
+    utopia: { enabled: true }
     # Vertex AI under Workload Identity: lore-api's Kubernetes ServiceAccount
     # impersonates the Google service account lore-api@<project>, which needs
     # roles/aiplatform.user. Used for Gemini calls and for the embeddings
     # (Vertex text-embedding-005, 768 dimensions), which are Vertex by default.
-    gcpProject: CHANGE-ME
+    serviceAccount:
+      annotations:
+        iam.gke.io/gcp-service-account: lore-api@CHANGE-ME.iam.gserviceaccount.com
     env:
       LORE_WEBHOOK_URL: https://lore-api.example.com/api/webhook/github
       LORE_API_URL: https://lore-api.example.com
       LORE_UI_URL: https://lore.example.com
       GITHUB_ORG: CHANGE-ME
       GCP_PROJECT: CHANGE-ME
-      # Without Vertex: delete gcpProject, GCP_PROJECT and the two entries below
-      # (Anthropic is then the default). Embeddings still default to Vertex, so
-      # also set LORE_EMBEDDING_PROVIDER: openai and secrets.openaiApiKey.
+      # Without Vertex: delete serviceAccount, GCP_PROJECT and the Vertex entries
+      # below (Anthropic is then the default, embeddings keyword-only unless you
+      # set LORE_EMBEDDING_PROVIDER: openai and secrets.openaiApiKey).
       LORE_LLM_PROVIDER: vertex
       LORE_FACT_MODEL: gemini-2.5-flash
+      LORE_EMBEDDING_PROVIDER: vertex   # text-embedding-005
+      LORE_TRACE_EXPORTER: cloud-trace  # Google Cloud Trace
       # GITHUB_HOST: ghe.example.com   # GitHub Enterprise; unset for github.com
       # LORE_DB_HOST: CHANGE-ME        # Cloud SQL only
   lore-ui:
@@ -93,4 +110,5 @@ lore-platform:
       LORE_UI_URL: https://lore.example.com
       LORE_LLM_PROVIDER: vertex
       LORE_FACT_MODEL: gemini-2.5-flash
+      LORE_EMBEDDING_PROVIDER: vertex
       GCP_PROJECT: CHANGE-ME

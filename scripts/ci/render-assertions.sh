@@ -1,6 +1,6 @@
 # Sourced by the chart check scripts. Assertions on rendered Kubernetes YAML:
 # the rendered text is the first argument, the rest is jq over one object per
-# workload with .kind, .name, .namespace and .pod (its pod spec).
+# workload with .kind, .name, .namespace, .meta (its pod template metadata) and .pod (its pod spec).
 
 render_failed=0
 
@@ -12,6 +12,7 @@ render_workloads() {
   render_objects "$1" | jq -c '
     select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "Job" or .kind == "CronJob")
     | {kind, name: .metadata.name, namespace: (.metadata.namespace // ""),
+       meta: (.spec.template // .spec.jobTemplate.spec.template).metadata,
        pod: (.spec.template // .spec.jobTemplate.spec.template).spec}'
 }
 

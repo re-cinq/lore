@@ -95,16 +95,54 @@ echo "service accounts and storage"
 every_workload "$neutral" "every workload has a dedicated ServiceAccount, and only the reconciler mounts its token" \
 	'(.pod.serviceAccountName // "default") != "default" and (.pod.automountServiceAccountToken == false or .name == "lore-db-ownership-reconciler")' "$lore_namespaces"
 service_accounts_exist "$neutral" "$lore_namespaces"
-rendered_lacks "$neutral" "no GKE annotation on a ServiceAccount without a Google project" \
-	'.kind == "ServiceAccount" and ((.metadata.annotations // {}) | keys | any(startswith("iam.gke.io")))'
-rendered_has "$(render --set platform.gcpProject=p --set lore-api.gcpProject=p)" "the GKE annotation returns with platform.gcpProject" \
-	'.kind == "ServiceAccount" and .metadata.name == "lore-ui" and (.metadata.annotations | has("iam.gke.io/gcp-service-account"))'
+rendered_lacks "$neutral" "no cloud identity annotation on a ServiceAccount unless a value sets one" \
+	'.kind == "ServiceAccount" and ((.metadata.annotations // {}) | keys | any(test("^(iam\\.gke\\.io|azure\\.workload\\.identity|eks\\.amazonaws\\.com)")))'
+rendered_text_lacks "$neutral" "no Google service account anywhere in the neutral render" 'gserviceaccount'
+
+echo "identity: labels and annotations, nothing cloud-specific"
+labelled="$(render --set global.podLabels.identity=on --set global.podAnnotations.identity=on \
+	--set lore-db-helm.ownershipReconciler.enabled=true)"
+every_workload "$labelled" "global.podLabels and global.podAnnotations reach every pod template (Deployments, StatefulSet, Jobs, courier CronJobs)" \
+	'.meta.labels.identity == "on" and .meta.annotations.identity == "on"' "$lore_namespaces"
+every_workload "$(render --set global.podLabels.identity=on --set lore-api.podLabels.identity=own)" \
+	"a subchart's own podLabels win over the global ones" \
+	'.meta.labels.identity == (if .name == "lore-api" then "own" else "on" end)' '^lore-(api|ui)$'
+for target in lore-api lore-ui lore-stations lore-mcp-gateway; do
+	account="$target"
+	own="$(render --set "${target}.podLabels.who=${target}" --set "${target}.podAnnotations.who=${target}" \
+		--set "${target}.serviceAccount.annotations.who=${target}")"
+	every_workload "$own" "${target}.podLabels and podAnnotations reach its Deployment and no other" \
+		'.kind != "Deployment" or ((.name == "'"$target"'") == (.meta.labels.who == "'"$target"'" and .meta.annotations.who == "'"$target"'"))' "$lore_namespaces"
+	rendered_has "$own" "${target}.serviceAccount.annotations reach its ServiceAccount" \
+		'.kind == "ServiceAccount" and .metadata.name == "'"$account"'" and .metadata.annotations.who == "'"$target"'"'
+done
+dgraph="$(render --set platform.dgraph.podLabels.who=dg --set platform.dgraph.podAnnotations.who=dg --set platform.dgraph.serviceAccount.annotations.who=dg)"
+every_workload "$dgraph" "platform.dgraph.podLabels and podAnnotations reach the Dgraph pod and its schema Job" \
+	'.meta.labels.who == "dg" and .meta.annotations.who == "dg"' '^lore-dgraph$'
+rendered_has "$dgraph" "platform.dgraph.serviceAccount.annotations reach the Dgraph ServiceAccount" \
+	'.kind == "ServiceAccount" and .metadata.name == "lore-dgraph" and .metadata.annotations.who == "dg"'
+rendered_has "$(render --set lore-stations.courier.serviceAccount.annotations.who=c)" "lore-stations.courier.serviceAccount.annotations reach the courier ServiceAccount" \
+	'.kind == "ServiceAccount" and .metadata.name == "lore-stations-courier" and .metadata.annotations.who == "c"'
+every_workload "$(render --set lore-stations.courier.podLabels.who=c --set lore-stations.courier.podAnnotations.who=c)" "lore-stations.courier.podLabels and podAnnotations reach the courier CronJobs" \
+	'.kind != "CronJob" or (.meta.labels.who == "c" and .meta.annotations.who == "c")' '^lore-stations$'
+rendered_has "$(render --set lore-ui.migrations.serviceAccount.annotations.who=m)" "lore-ui.migrations.serviceAccount.annotations reach the migrate ServiceAccount" \
+	'.kind == "ServiceAccount" and .metadata.name == "lore-ui-migrate" and .metadata.annotations.who == "m"'
+rendered_has "$(render --set lore-db-helm.ownershipReconciler.enabled=true --set lore-db-helm.ownershipReconciler.serviceAccount.annotations.who=r)" "ownershipReconciler.serviceAccount.annotations reach the reconciler ServiceAccount" \
+	'.kind == "ServiceAccount" and .metadata.name == "lore-db-ownership-reconciler" and .metadata.annotations.who == "r"'
+rendered_lacks "$neutral" "Dgraph keeps its own telemetry by default (our own cluster)" \
+	'.kind == "StatefulSet" and ([.spec.template.spec.containers[0].env[]? | select(.name | test("TELEMETRY"))] | length > 0)'
+rendered_has "$(render --set platform.dgraph.telemetry=false)" "platform.dgraph.telemetry=false switches off Dgraph's usage reports and Sentry (both processes)" \
+	'.kind == "StatefulSet" and ([.spec.template.spec.containers[0].env[] | select(.name == "DGRAPH_ALPHA_TELEMETRY" or .name == "DGRAPH_ZERO_TELEMETRY") | .value] == ["reports=false; sentry=false;", "reports=false; sentry=false;"])'
 rendered_lacks "$neutral" "Dgraph names no storage class unless asked" \
 	'.kind == "StatefulSet" and (.spec.volumeClaimTemplates[0].spec | has("storageClassName"))'
 rendered_has "$(render --set platform.dgraph.storageClass=fast)" "Dgraph uses platform.dgraph.storageClass when set" \
 	'.kind == "StatefulSet" and .spec.volumeClaimTemplates[0].spec.storageClassName == "fast"'
 rendered_lacks "$neutral" "the gcp-cost-sync courier is off without a Google project" \
 	'.kind == "CronJob" and (.metadata.name | endswith("gcp-cost-sync"))'
+rendered_has "$neutral" "the azure-cost-sync courier is rendered by default (our own cluster)" \
+	'.kind == "CronJob" and (.metadata.name | endswith("azure-cost-sync"))'
+rendered_lacks "$(render --set 'lore-stations.skipCourierJobs={azure-cost-sync}')" "skipCourierJobs leaves a courier job out" \
+	'.kind == "CronJob" and (.metadata.name | endswith("azure-cost-sync"))'
 rendered_has "$(render --set lore-stations.gcpProject=p)" "the gcp-cost-sync courier returns with a Google project" \
 	'.kind == "CronJob" and (.metadata.name | endswith("gcp-cost-sync"))'
 

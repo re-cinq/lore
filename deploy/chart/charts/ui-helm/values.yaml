@@ -6,6 +6,18 @@ replicaCount: 1
 # Where the pods run. Empty: anywhere. Unset here, global.nodeSelector and
 # global.tolerations of the parent chart apply; set here, they win.
 nodeSelector: {}
+
+# Identity as plain labels and annotations, whatever the cluster binds them to
+# (a workload identity label on the pod and an annotation on the ServiceAccount,
+# a service mesh, a cost label). podLabels / podAnnotations here win over
+# global.podLabels / global.podAnnotations of the parent chart; none is set by
+# default. Example, Azure Workload Identity:
+#   podLabels: { azure.workload.identity/use: "true" }
+#   serviceAccount: { annotations: { azure.workload.identity/client-id: <client id> } }
+podLabels: {}
+podAnnotations: {}
+serviceAccount:
+  annotations: {}
 tolerations: []
 
 # The restricted pod profile: non-root user, no privilege escalation, every
@@ -70,6 +82,9 @@ migrations:
   # Team schemas (each with a chunks table) the baseline creates on a database
   # that has none. A repo whose team has no schema of its own uses org_shared.
   teamSchemas: org_shared
+  # Annotations of the migrate Job's ServiceAccount (it talks to Postgres only).
+  serviceAccount:
+    annotations: {}
 
 dbPasswordSecret:
   name: lore-db-password

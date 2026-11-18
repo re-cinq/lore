@@ -87,7 +87,7 @@ DATABASES_ARCHIVE="$DESTINATION/lore-databases-${VERSION}.tgz"
 tar tzf "$DATABASES_ARCHIVE" | grep -qx 'lore-databases/templates/clusters.yaml' || fail "${DATABASES_ARCHIVE} has no clusters template"
 
 listing="$(tar tzf "$ARCHIVE")"
-for example in values.aks.example.yaml values.gke.example.yaml values.local.example.yaml; do
+for example in values.aks.example.yaml values.gke.example.yaml values.local.example.yaml values.minimal.example.yaml; do
   grep -qx "lore-install/${example}" <<<"$listing" || fail "${ARCHIVE} has no ${example}"
 done
 for dependency in lore-platform floor utopia; do
@@ -141,7 +141,68 @@ for namespace in lore-api lore-ui lore-stations lore-dgraph; do
     '.kind == "NetworkPolicy" and .metadata.name == "default-deny-ingress" and .metadata.namespace == "'"$namespace"'"'
 done
 
-for example in gke local; do
+echo "[lore] only GitHub is mandatory: the minimal example"
+MINIMAL="$WORK/values.minimal.filled.yaml"
+sed 's/CHANGE-ME/render-check-value-0123456789abcdef/g' "$REPO/deploy/install/values.minimal.example.yaml" >"$MINIMAL"
+render_minimal() { helm template lore "$ARCHIVE" -n lore-floor -f "$MINIMAL" "$@"; }
+minimal="$(render_minimal)" || fail "helm template of ${ARCHIVE} with values.minimal.example.yaml failed"
+yq -e '.utopia.enabled == false and .["lore-platform"]["lore-api"].utopia.enabled == false' "$REPO/deploy/install/values.yaml" >/dev/null \
+  && render_ok "Utopia is off by default" || render_fail "Utopia is on by default"
+rendered_lacks "$minimal" "no Utopia object" '(.metadata.name // "") | test("utopia")'
+rendered_text_lacks "$minimal" "lore-api is not told where Utopia is" 'UTOPIA_API_URL'
+rendered_has "$minimal" "the minimal install turns Cloud Trace off" \
+  '.kind == "Deployment" and .metadata.name == "lore-api" and ([.spec.template.spec.containers[0].env[] | select(.name == "LORE_TRACE_EXPORTER") | .value] == ["none"])'
+rendered_has "$minimal" "the minimal install does not default to Vertex embeddings" \
+  '.kind == "Deployment" and .metadata.name == "lore-api" and ([.spec.template.spec.containers[0].env[] | select(.name == "LORE_EMBEDDING_PROVIDER") | .value] == ["openai"])'
+rendered_has "$minimal" "the minimal install turns off Dgraph's usage reports and Sentry" \
+  '.kind == "StatefulSet" and .metadata.name == "lore-dgraph-alpha" and ([.spec.template.spec.containers[0].env[] | select(.name | test("TELEMETRY")) | .value] == ["reports=false; sentry=false;", "reports=false; sentry=false;"])'
+rendered_lacks "$minimal" "no ExternalSecret" '.kind == "ExternalSecret"'
+rendered_lacks "$minimal" "no ServiceAccount annotation names an identity" '.kind == "ServiceAccount" and ((.metadata.annotations // {}) | keys | any(test("iam\\.gke\\.io|azure\\.workload|amazonaws")))'
+# No rendered env value, annotation or URL names another provider. Three kinds of
+# line are allowed. The optional Slack secretKeyRefs of lore-api and lore-stations:
+# env variable and Secret NAMES, marked optional, with no value and no host when
+# the Secret is absent; the code posts to Slack only with a bot token.
+# The other: the migrate script's error message about an Azure server parameter,
+# printed only when creating an extension fails. Dgraph's two TELEMETRY variables,
+# whose value is `sentry=false`: they switch Sentry off. The migrate ConfigMaps (SQL that
+# creates tables, one of them gcp_cost_daily) are not scanned: they call nothing.
+vendor_pattern='googleapis|google|gcp|gserviceaccount|azure|microsoft|slack|vertex|sentry|datadog|segment\.io|amplitude'
+allowed_pattern='LORE_SLACK_(SIGNING_SECRET|BOT_TOKEN)|name: lore(-stations)?-slack|On Azure the extension must also be allow-listed|DGRAPH_(ALPHA|ZERO)_TELEMETRY'
+scanned="$(yq 'select((.kind == "ConfigMap" and (.metadata.name | test("migrat|baseline"))) | not)' <<<"$minimal")"
+vendor_hits="$(grep -inE "$vendor_pattern" <<<"$scanned" | grep -viE '^[0-9]+:\s*#' | grep -vE "$allowed_pattern" || true)"
+allowed_count="$(grep -iE "$vendor_pattern" <<<"$scanned" | grep -cE "$allowed_pattern" || true)"
+if [[ -z "$vendor_hits" ]]; then
+  render_ok "the minimal render names no Google, Azure, Microsoft, Slack, Vertex or Sentry host, value or annotation (${allowed_count} allow-listed lines: optional Slack secretKeyRefs, one migrate error message, Dgraph's telemetry-off variables; migrate ConfigMaps not scanned)"
+else
+  render_fail "the minimal render names a third party: $(head -5 <<<"$vendor_hits" | paste -sd'|')"
+fi
+
+echo "[lore] a Secret of your own instead of a value"
+byo="$(render_minimal --set-string secrets.githubApp.appId= --set-string secrets.githubApp.privateKey= --set-string secrets.githubApp.installationId= \
+  --set-string secrets.githubOAuth.clientId= --set-string secrets.githubOAuth.clientSecret= --set-string secrets.anthropicApiKey=)" \
+  && render_ok "empty credential groups render (helm template cannot read the cluster)" || render_fail "empty credential groups fail an offline render"
+rendered_lacks "${byo:-}" "an empty GitHub or model group writes no Secret" \
+  '.kind == "Secret" and (.metadata.name | test("github-app|github-oauth|anthropic"))'
+partial_error="$(render_minimal --set-string secrets.githubApp.appId= 2>&1 >/dev/null || true)"
+grep -q 'secrets.githubApp is set only in part' <<<"$partial_error" && render_ok "a GitHub App set only in part is refused" || render_fail "a partial GitHub App was accepted"
+rendered_has "$minimal" "set values write the GitHub Secret, labelled as this chart's" \
+  '.kind == "Secret" and .metadata.name == "github-app-credentials" and .metadata.namespace == "lore-api" and .metadata.labels["lore-install.re-cinq.com/managed"] == "true"'
+rendered_has "$minimal" "set values write the tokens too" '.kind == "Secret" and .metadata.name == "lore-ingest-token" and .metadata.namespace == "lore-stations"'
+
+echo "[lore] one identity provider block, required only with Utopia"
+rendered_lacks "$rendered" "the example's OIDC client lands in utopia-oauth, from secrets.oidc" \
+  '.kind == "Secret" and .metadata.name == "utopia-oauth" and (.stringData["client-id"] != "render-check-value-0123456789abcdef" or .stringData["client-secret"] != "render-check-value-0123456789abcdef")'
+rendered_has "$rendered" "utopia-oauth is rendered when Utopia is on" '.kind == "Secret" and .metadata.name == "utopia-oauth"'
+rendered_lacks "$(render --set-string secrets.oidc.clientId= --set-string secrets.oidc.clientSecret=)" "an empty OIDC client is a Secret of your own" \
+  '.kind == "Secret" and .metadata.name == "utopia-oauth"'
+issuer_error="$(render_minimal --set utopia.enabled=true --set lore-platform.lore-api.utopia.enabled=true 2>&1 >/dev/null || true)"
+grep -q 'global.oidc.issuer is required' <<<"$issuer_error" && render_ok "Utopia without global.oidc.issuer is refused" || render_fail "Utopia was enabled with no issuer"
+mismatch_error="$(render --set global.oidc.issuer=https://other.example.com 2>&1 >/dev/null || true)"
+grep -q 'must repeat global.oidc' <<<"$mismatch_error" && render_ok "utopia.oidc differing from global.oidc is refused" || render_fail "a utopia.oidc that differs from global.oidc was accepted"
+rendered_has "$rendered" "Utopia reads the issuer of the example" \
+  '.kind == "Deployment" and .metadata.name == "utopia" and ([.spec.template.spec.containers[0].env[] | select(.name == "UTOPIA_OIDC_ISSUER") | .value] | length == 1)'
+
+for example in gke local minimal; do
   file="deploy/install/values.${example}.example.yaml"
   filled_example="$WORK/values.${example}.filled.yaml"
   sed 's/CHANGE-ME/render-check-value-0123456789abcdef/g' "$REPO/$file" >"$filled_example"
@@ -151,13 +212,22 @@ for example in gke local; do
   rendered_lacks "$example_rendered" "no ExternalSecret" '.kind == "ExternalSecret"'
   rendered_text_lacks "$example_rendered" "no ingress controller annotation is needed" 'nginx.ingress.kubernetes.io'
   every_workload "$example_rendered" "global.nodeSelector reaches every workload" '.pod.nodeSelector.pool == "management"'
-  if [[ "$example" == local ]]; then
-    rendered_lacks "$example_rendered" "a laptop trial has no TLS section on Lore's ingresses" \
+  if [[ "$example" == local || "$example" == minimal ]]; then
+    rendered_lacks "$example_rendered" "a laptop trial or the minimal example has no TLS section on Lore's ingresses" \
       '.kind == "Ingress" and (.metadata.namespace | test("^lore-(api|ui)$")) and (.spec | has("tls"))'
   else
     rendered_has "$example_rendered" "Lore's ingresses carry a TLS section" \
       '.kind == "Ingress" and .metadata.name == "lore-ui" and (.spec | has("tls"))'
   fi
+  if [[ "$example" == gke ]]; then
+    rendered_has "$example_rendered" "the GKE example binds lore-api's ServiceAccount to its Google service account by annotation" \
+      '.kind == "ServiceAccount" and .metadata.name == "lore-api" and (.metadata.annotations | has("iam.gke.io/gcp-service-account"))'
+    rendered_has "$example_rendered" "the GKE example turns Utopia on" '.kind == "Deployment" and .metadata.name == "utopia"'
+  else
+    rendered_lacks "$example_rendered" "only the GKE example carries a Google identity annotation" \
+      '.kind == "ServiceAccount" and ((.metadata.annotations // {}) | keys | any(startswith("iam.gke.io")))'
+  fi
+  [[ "$example" != local && "$example" != minimal ]] || rendered_lacks "$example_rendered" "the ${example} example leaves Utopia off" '(.metadata.name // "") | test("utopia")'
   raw_example_error="$(helm template lore "$ARCHIVE" -n lore-floor -f "$REPO/$file" 2>&1 >/dev/null || true)"
   grep -q 'CHANGE-ME' <<<"$raw_example_error" && render_ok "the unedited ${file} is refused" || render_fail "the unedited ${file} was not refused"
 done

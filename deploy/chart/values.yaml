@@ -26,9 +26,11 @@ lore-db-helm:
 # global.nodeSelector and global.tolerations (set on the parent chart or here)
 # place every Lore workload. A subchart's own nodeSelector or tolerations win.
 # global.podSecurity is the platform.podSecurity default.
+# global.podLabels and global.podAnnotations go on every pod template; each
+# subchart's own podLabels / podAnnotations / serviceAccount.annotations add to
+# or win over them. This is the one way to bind a workload identity (a label on
+# the pod and an annotation on the ServiceAccount), whatever the cloud.
 platform:
-  # The Google project Workload Identity is bound in. Empty off Google Cloud.
-  gcpProject: ""
   # The ClusterSecretStore the ExternalSecrets below read from. Only needed when
   # externalSecrets is not empty; a cluster that creates its Secrets some other
   # way leaves both empty.
@@ -67,7 +69,9 @@ platform:
   # the lore-db namespace. replica keeps streaming until set to false.
   database: null
   # image, storageSize, resources; optional storageClass (empty: the cluster's
-  # default), nodeSelector, tolerations and schemaImage.
+  # default), nodeSelector, tolerations, schemaImage, podLabels, podAnnotations,
+  # serviceAccount.annotations, and telemetry (false switches off Dgraph's usage
+  # reports and Sentry; unset leaves Dgraph's defaults).
   dgraph: null
   # ServiceMonitors and Grafana dashboards, for a cluster that runs the
   # Prometheus operator (re-cinq/infrastructure, docs/deploying.md).

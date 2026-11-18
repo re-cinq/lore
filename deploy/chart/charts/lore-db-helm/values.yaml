@@ -19,6 +19,10 @@ cluster:
   container: postgres
 
 ownershipReconciler:
+  podLabels: {}
+  podAnnotations: {}
+  serviceAccount:
+    annotations: {}
   # Disable to skip the pre-install/pre-upgrade hook (e.g. for an
   # offline cluster where you'd run it manually).
   enabled: true
