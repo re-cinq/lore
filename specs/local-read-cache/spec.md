@@ -79,7 +79,7 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    `LORE_CACHE_ENABLED=false` *(2026-11-13, #3717)*. ([implemented by `isMemoryDbAvailable@41995396`](libs/server-core/src/work/memory/memory-core.ts#L17), [`withReadCache@a72efe6a`](apps/mcp-server/src/transport/tools/shared/deps.ts#L18))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
-   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false` @d3e81fbe](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled@17843c02`](libs/server-core/src/outbound/proxy-cache.ts#L43))
+   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false` @d3e81fbe](libs/server-core/src/outbound/proxy-cache.test.ts#L148), [`isCacheEnabled@17843c02`](libs/server-core/src/outbound/proxy-cache.ts#L44))
 
 3. **AC3** A fresh entry (`age < ttl`) is returned without a network call,
    prefixed with a `lore-cache: HIT` marker (for labeled callers). ([validated by `returns a fresh hit within ttl` @18ad6085](libs/server-core/src/outbound/proxy-cache.test.ts#L71), [`proxy-cache.test.ts@8aaa4d33`](libs/server-core/src/outbound/proxy-cache.test.ts#L158))
@@ -98,10 +98,10 @@ A retriable status (408/429/5xx) retries with backoff and succeeds on a later at
    is served — fresh or stale — and the denial is surfaced to the caller. ([validated by does not serve a stale cached copy when the backend denies access (403) @7f070148](apps/mcp-server/src/transport/tools/context/assemble-context.test.ts#L192))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
-   overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl@0eb06605`](libs/server-core/src/outbound/proxy-cache.ts#L190))
+   overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl@0eb06605`](libs/server-core/src/outbound/proxy-cache.ts#L238))
 
 9. **AC9** When entry count exceeds `max_entries` (default 2000), the oldest
-   entries are evicted. ([validated by `evicts the oldest entries past max_entries` @1c7d3b0e](libs/server-core/src/outbound/proxy-cache.test.ts#L128), [`evictIfNeeded@0191225d`](libs/server-core/src/outbound/proxy-cache.ts#L212))
+   entries are evicted. ([validated by `evicts the oldest entries past max_entries` @1c7d3b0e](libs/server-core/src/outbound/proxy-cache.test.ts#L128), [`evictIfNeeded@0191225d`](libs/server-core/src/outbound/proxy-cache.ts#L268))
 
 10. **AC10** Mutations are never cached and invalidate the reads they affect:
     memory write/delete → memory reads + `assemble_context`; episode write →
