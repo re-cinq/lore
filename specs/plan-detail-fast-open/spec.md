@@ -3,7 +3,7 @@
 | Field     | Value                                                            |
 |-----------|------------------------------------------------------------------|
 | Feature   | A plan opens at once                                             |
-| Status    | In Progress                                                      |
+| Status    | Implemented                                                      |
 | Created   | 2026-11-04                                                       |
 | Owner     | Platform Engineering                                             |
 | Builds on | [specs/7-feature-planning](../7-feature-planning/spec.md)        |
@@ -104,7 +104,7 @@ Once Next has prefetched the plan page down to its `loading.tsx`, a click shows 
 
 ## FR10: ADR-048 records the `plan-run` channel
 
-- `adrs/ADR-048-one-websocket-for-live-channels.md` gains an amendment naming the `plan-run` kind: what its subject and token are, that it follows a plan's current run across runs, and that its members get no agent events and no `ci_check`.
+- `adrs/ADR-048-one-websocket-for-live-channels.md` gains an amendment naming the `plan-run` kind: what its subject and token are, that it follows a plan's current run across runs, and that its members get no agent events and no `ci_check`. ([validated by reads a plan-run open of plan p1 with its token, and refuses one without a token @e6eee538](../../apps/lore-api/src/work/assembly-line-station/protocol.test.ts#L76))
 
 ## FR11: A web UI deploy does not reload an open plan *(added 2026-11-17)*
 
@@ -127,9 +127,9 @@ Today every reconnect of the editor and of the `plan-run` channel mints its toke
 
 ## Success Criteria
 
-- **SC-001:** After a click on a plan card, the card's pending state or the plan's loading skeleton is visible within 100 ms, on every click.
+- **SC-001:** After a click on a plan card, the card's pending state or the plan's loading skeleton is visible within 100 ms, on every click. ([validated by draws the route skeleton from the toolbar and body parts, each hidden from assistive technology @1624915a](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailSkeleton.test.tsx#L18))
 - **SC-002:** The plan's toolbar renders without waiting for any floor or GitHub call, and in production the time from click to header is under 1 s at p95. The server render of the plan page makes exactly six lore-api calls (plan, user story, session, access, two tokens) and no floor or GitHub call *(amended 2026-11-06 to count the access check, and 2026-11-13 to count the user story, a plan read now)* ([validated by renders plan p1 for gedaiu from the plan, its story, the access check and two tokens, reading no run, visit or PR @2c256706](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailPage.test.tsx#L89)).
-- **SC-003:** For the plan measured above, the toolbar's run text is drawn within 3 s of the toolbar, where today the page renders after more than 30 s with no run at all. The timings of `GET /api/assembly-runs?subject_key=plan:…` (still used by the run list pages) and `GET /api/pr-status` are recorded again after Phase 3. The run-list read is faster, and the PR-status read makes one fewer GitHub call (no installation-token request).
+- **SC-003:** For the plan measured above, the toolbar's run text is drawn within 3 s of the toolbar, where today the page renders after more than 30 s with no run at all. The timings of `GET /api/assembly-runs?subject_key=plan:…` (still used by the run list pages) and `GET /api/pr-status` are recorded again after Phase 3. The run-list read is faster, and the PR-status read makes one fewer GitHub call (no installation-token request). ([validated by renders plan p1 for gedaiu from the plan, its story, the access check and two tokens, reading no run, visit or PR @2c256706](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailPage.test.tsx#L89))
 - **SC-004:** No plan page opens its editor while its planning run is drafting, including when the run is not known yet, when the channel fails, and when it times out. ([validated by draws Faster checkout's toolbar and its actions menu at once, and a loading body instead of the editor @759a2a77](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailView.test.tsx#L231), [validated by says the planning run could not be loaded and opens no editor when the channel failed @711887fb](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/PlanDetailView.test.tsx#L254), [validated by fails when no plan_run arrives within 15 seconds @32db7022](../../apps/web-ui/src/app/repos/[owner]/[repo]/plans/[id]/usePlanRunChannel.test.tsx#L166))
 - **SC-005:** Opening the plan page streams no agent events to the browser. ([validated by opens plan p1's plan-run channel: opened, the run's facts with its spec PR, then its status and visits with no agent event and no ci_check @f6447c3f](../../apps/lore-api/src/work/assembly-line-station/live-socket.test.ts#L426), [validated by forwards the feed's run_status and node_status but no agent_event and no ci_check @6d4e5aa3](../../apps/lore-api/src/work/assembly-line-station/plan-run-channel.test.ts#L221))
 - **SC-006:** An open plan page does not reload when the web UI is deployed: with a plan open and an edit in progress, a web UI deploy on the internal cluster leaves the page, the edit and the run card as they were. ([from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/20f1fa4e-2fb6-4a02-8fd7-3d2cc6d2d3e3#k-reload-zero), [from plan](https://lore.gcp.re-cinq.com/repos/re-cinq/lore/plans/20f1fa4e-2fb6-4a02-8fd7-3d2cc6d2d3e3#delivery-p-7))
