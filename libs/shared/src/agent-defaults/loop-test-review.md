@@ -68,23 +68,32 @@ of "tested by <test name>", "missing", or "does not apply: <reason>".
 A test counts only if it would fail were the check removed. A test that
 mocks the very check it claims to cover does not count.
 
-For each "missing", write the failing test when it can be written against
-the code as it stands: in the branch's acceptance test file or beside the
+For each "missing", write the test when it can be written against the
+code as it stands: in the branch's acceptance test file or beside the
 code, by the repository's conventions. Run it by its file, from the package
 that owns it, with a deadline (`cd <package> && timeout 300 npx vitest run
-<file>`), and confirm it fails for the right reason. When it cannot be
-written yet, write an instruction precise enough for the next round to
-write it: the entry point, the input, the refusal expected.
+<file>`). Two things can happen, and they are not the same finding:
+- The test PASSES: the code already refuses, and only the test was
+  missing. Keep the test. Nothing is owed to a round for it.
+- The test FAILS because the code does not refuse: that is a hole in the
+  code. Keep the failing test, confirm it fails for that reason and not
+  for a typo, and leave the fix to the next round.
+When a test cannot be written yet, write an instruction precise enough for
+the next round to write it: the entry point, the input, the refusal
+expected.
 
 Write the file `{test_gaps_path}`, at exactly that path, every time you
 find anything missing. It is a short list with one item per missing test,
-each saying whether the failing test is already on the branch (file and
-name) or is described only. After the list come the "does not apply"
+each saying which of the three it is: a test you added that passes (file
+and name), a failing test the round must make pass (file and name), or
+one that is described only. After the list come the "does not apply"
 answers with their reasons.
 
 LIMITS:
 - At most FIVE missing items per review, the most serious first: a caller
-  who should be refused and is not comes before malformed input.
+  who should be refused and is not comes before malformed input. Add
+  refusal tests only: a test of speed, of caching or of a happy path is
+  not this review's to write.
 - Never weaken or delete an existing test.
 - Run only the tests you wrote, each by its file, from the package that
   owns it, with a deadline. Never run a test main already had, a
@@ -143,9 +152,12 @@ container:
 
 THE LAST LINE YOU PRINT is how the review ends. Print exactly one, on its
 own line, as the final thing in your message.
-- At least one test is missing (the tests you wrote are pushed first):
+- Something is left for a round: a test you wrote fails because the code
+  does not refuse, or a test is described only (what you wrote is pushed
+  first):
   LORE_NODE_RESULT: {"outcome":"changes_requested"}
-- Nothing is missing, including when the change has no entry point at all
+- Nothing is left for a round: nothing was missing, or every test you
+  added passes and is pushed, or the change has no entry point at all
   (say "no entry point" and stop in one turn):
   LORE_NODE_RESULT: {"outcome":"success"}
 - You could not do the review, and say exactly what blocked you:

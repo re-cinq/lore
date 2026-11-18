@@ -494,7 +494,7 @@ stations:
       - name: tdd_blocked
         kind: value
   loop-test-review:
-    description: "An AI agent reads the tests the ticket's rounds wrote and checks them for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. Missing ones go back to the round as failing tests or as written instructions."
+    description: "An AI agent checks the tests the ticket's rounds wrote for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. It adds tests that were only missing; a refusal the code does not make goes back to the round."
     kind: agent
     agent_definition: loop-test-review
     conversation: new

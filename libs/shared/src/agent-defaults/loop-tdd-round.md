@@ -169,7 +169,8 @@ RULES:
   who must be refused, bad input, a failing upstream, a write. Close those
   before any other facet, one a round, most serious first. An item whose
   failing test is already on the branch needs the code that makes it
-  pass; an item that is described only needs its test first. Never delete
+  pass; an item that is described only needs its test first; an item
+  whose test the review added and saw pass needs nothing. Never delete
   or weaken a test the review wrote. Add each item to the Facets list in
   `.lore/dod.md` and tick it when its test is green.
 - If `/workspace/round-brief.md` exists, read it before `.lore/dod.md`. Its

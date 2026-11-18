@@ -21,7 +21,7 @@ export const LOOP_STEP_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "repair-build":
     "An AI agent fixes only the checks that stayed red after a round that pushed nothing new, so the loop does not re-derive the same failure.",
   "test-review":
-    "An AI agent reads the tests the ticket's rounds wrote and checks them for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. Missing ones go back to the round as failing tests or as written instructions.",
+    "An AI agent checks the tests the ticket's rounds wrote for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. It adds tests that were only missing; a refusal the code does not make goes back to the round.",
   "ready-for-review":
     "Writes the pull request's title and description from its diff, the ticket and the definition of done with one small model call, and deletes the definition of done from the branch.",
   "sync-final": SYNC_DESC,
