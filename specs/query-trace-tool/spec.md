@@ -50,7 +50,7 @@ main-branch graph through the remote API.
 Wire `lore-query-trace` to proxy a read to the remote `/trace/document` route and
 project the returned `TraceDocument` into agent-readable text. The orchestrator
 resolves the repo, issues one GET via the proxy, and formats the result
-([`runQueryTrace@ebf22ef0`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L172));
+([`runQueryTrace@ebf22ef0`](../../libs/server-core/src/work/spec-trace/query-trace.ts#L26));
 the projection itself is a pure function
 ([`formatTraceQuery@6825be7c`](../../libs/server-core/src/work/spec-trace/query-trace-document.ts#L9));
 the GET proxy reuses the shared retry/config machinery
