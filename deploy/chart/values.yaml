@@ -33,6 +33,8 @@ platform:
   # externalSecrets is not empty; a cluster that creates its Secrets some other
   # way leaves both empty.
   secretStore: ""
+  # false: the ingresses carry no tls section (plain HTTP, for a trial on a laptop).
+  ingressTls: true
   # cert-manager ClusterIssuer that issues the ingresses' TLS Secrets. Empty:
   # no cert-manager annotation, the Secrets come from elsewhere.
   clusterIssuer: ""

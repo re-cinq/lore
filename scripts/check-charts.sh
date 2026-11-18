@@ -84,9 +84,9 @@ say "assertions on lore-databases"
 base="$(render_databases)"
 rendered_count "$base" "two CloudNativePG clusters" '.kind == "Cluster"' 2
 rendered_has "$base" "lore-db is a cluster named lore-db, in lore-db, owned by lore, with pgvector" \
-  '.kind == "Cluster" and .metadata.name == "lore-db" and .metadata.namespace == "lore-db" and .spec.bootstrap.initdb.owner == "lore" and (.spec.bootstrap.initdb.postInitSQL | index("CREATE EXTENSION IF NOT EXISTS vector") != null)'
+  '.kind == "Cluster" and .metadata.name == "lore-db" and .metadata.namespace == "lore-db" and .spec.bootstrap.initdb.owner == "lore" and (.spec.bootstrap.initdb.postInitApplicationSQL | index("CREATE EXTENSION IF NOT EXISTS vector") != null)'
 rendered_has "$base" "floor-db is a cluster named floor-db owned by floor, with no extension" \
-  '.kind == "Cluster" and .metadata.name == "floor-db" and .spec.bootstrap.initdb.owner == "floor" and (.spec.bootstrap.initdb | has("postInitSQL") | not)'
+  '.kind == "Cluster" and .metadata.name == "floor-db" and .spec.bootstrap.initdb.owner == "floor" and (.spec.bootstrap.initdb | has("postInitApplicationSQL") | not)'
 rendered_count "$base" "the six Secrets the clusters and the install chart read" \
   '.kind == "Secret" and ([.metadata.namespace + "/" + .metadata.name] | inside(["lore-db/lore-db-credentials", "lore-db/floor-db-credentials", "lore-api/lore-api-db-password", "lore-ui/lore-db-password", "lore-stations/lore-stations-db-password", "lore-floor/floor-postgres"]))' 6
 rendered_count "$base" "every Secret is kept on uninstall" \

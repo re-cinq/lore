@@ -1,0 +1,108 @@
+# Lore on Azure AKS. Pull the chart (`helm pull oci://ghcr.io/re-cinq/charts/lore-install
+# --version X.Y.Z --untar`), copy this file, fill it in, then:
+#
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
+#     -n lore-floor --create-namespace -f my-values.yaml
+#
+# First (docs/install/aks.md): CloudNativePG, Traefik, cert-manager, and the
+# lore-databases chart. Every CHANGE-ME must be replaced; the install stops
+# while one is left. The filled file holds secrets: keep it out of git. Tokens
+# and passwords not listed here are generated on the first install and kept.
+# To run every controller on one node pool: --set global.nodeSelector.pool=management
+
+secrets:
+  # The databases are the lore-databases chart's. For Azure Database for
+  # PostgreSQL instead, skip that chart, set these two, and set LORE_DB_HOST in
+  # lore-api, lore-ui and lore-stations below:
+  # loreDbPassword: CHANGE-ME
+  # floorDbConnectionString: postgres://floor:CHANGE-ME@CHANGE-ME.postgres.database.azure.com:5432/floor
+  githubApp:
+    appId: "CHANGE-ME"
+    installationId: "CHANGE-ME"
+    privateKey: |
+      -----BEGIN RSA PRIVATE KEY-----
+      CHANGE-ME
+      -----END RSA PRIVATE KEY-----
+  githubOAuth:
+    clientId: CHANGE-ME
+    clientSecret: CHANGE-ME
+  # The Foundry resource key for Lore's own model calls and embeddings (not the
+  # agents' keys: see the tutorial). With an Anthropic key instead, set
+  # anthropicApiKey and drop the OPENAI_* and LORE_*_PROVIDER entries below.
+  openaiApiKey: CHANGE-ME
+  utopia:
+    oauthClientId: CHANGE-ME
+    oauthClientSecret: CHANGE-ME
+
+utopia:
+  hostname: utopia.example.com
+  # Who may sign in: an OpenID Connect issuer and the email domains it accepts.
+  # Microsoft Entra ID (untested): https://login.microsoftonline.com/<tenant id>/v2.0
+  oidc:
+    issuer: https://accounts.google.com
+    allowedDomains: CHANGE-ME
+  # The controller must allow request bodies up to 200 MB and keep WebSockets open.
+  ingress:
+    className: traefik
+    clusterIssuer: letsencrypt-prod
+  # Storage uses the cluster's default class unless you name one:
+  # data: { storageClass: managed-csi }
+
+lore-platform:
+  platform:
+    ingressClassName: traefik
+    # The cert-manager ClusterIssuer; empty: bring the TLS Secrets yourself.
+    clusterIssuer: letsencrypt-prod
+    networkPolicies:
+      ingressNamespace: traefik
+    # dgraph: { storageClass: managed-csi }
+    # The controller must allow request bodies up to 25 MB on the API host
+    # (GitHub webhooks) and keep WebSockets open on the UI host (live run page).
+    ingresses:
+      - { name: lore-api, namespace: lore-api, host: lore-api.example.com, service: lore-api, port: 3000 }
+      - { name: lore-mcp, namespace: lore-api, host: lore-mcp.example.com, service: lore-mcp-gateway, port: 8080 }
+      - { name: lore-ui, namespace: lore-ui, host: lore.example.com, service: lore-ui, port: 3000 }
+      # The live socket on the UI's own host, so the session cookie rides the upgrade.
+      # Prefix, not Exact: Traefik 3 ranks an Exact path below the UI's "/" prefix.
+      - { name: lore-ui-live, namespace: lore-api, host: lore.example.com, path: /api/ws, pathType: Prefix, service: lore-api, port: 3000 }
+
+  lore-api:
+    env:
+      LORE_WEBHOOK_URL: https://lore-api.example.com/api/webhook/github
+      LORE_API_URL: https://lore-api.example.com
+      LORE_UI_URL: https://lore.example.com
+      GITHUB_ORG: CHANGE-ME
+      # GITHUB_HOST: ghe.example.com   # GitHub Enterprise Server or ghe.com; unset for github.com
+      # LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com   # managed Postgres only
+      # OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4318
+      # Lore's own model calls and embeddings on a Microsoft Foundry resource.
+      OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      LORE_LLM_PROVIDER: openai
+      LORE_FACT_MODEL: CHANGE-ME        # the chat model deployment
+      LORE_EVAL_LLM_PROVIDER: openai
+      LORE_EVAL_LLM_MODEL: CHANGE-ME    # the chat model deployment
+      LORE_CONTEXT_LLM_PROVIDER: openai
+      LORE_EMBEDDING_PROVIDER: openai
+      LORE_EMBEDDING_MODEL: text-embedding-3-small   # must serve 768 dimensions
+  lore-ui:
+    env:
+      GITHUB_APP_SLUG: CHANGE-ME
+      UTOPIA_URL: https://utopia.example.com
+      LORE_API_PUBLIC_URL: https://lore-api.example.com
+      LORE_WS_URL: wss://lore.example.com/api/ws
+      # GITHUB_HOST: ghe.example.com
+      # LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+  lore-stations:
+    env:
+      LORE_UI_URL: https://lore.example.com
+      OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      LORE_LLM_PROVIDER: openai
+      LORE_FACT_MODEL: CHANGE-ME
+      # GITHUB_HOST: ghe.example.com
+      # LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
+      # Cloud cost on /spend from Azure Cost Management; unset, the sync skips itself.
+      # LORE_AZURE_COST_SCOPE: /subscriptions/CHANGE-ME
+    # A user-assigned managed identity with Cost Management Reader, federated to
+    # system:serviceaccount:lore-stations:lore-stations (Workload Identity):
+    # serviceAccount: { annotations: { azure.workload.identity/client-id: CHANGE-ME } }
+    # podLabels: { azure.workload.identity/use: "true" }

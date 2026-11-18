@@ -20,7 +20,7 @@ spec:
       owner: {{ $own.owner }}
       secret: { name: {{ $own.name }}-credentials }
       {{- if eq $key "lore" }}
-      postInitSQL:
+      postInitApplicationSQL:
         - CREATE EXTENSION IF NOT EXISTS vector
       {{- end }}
   storage:

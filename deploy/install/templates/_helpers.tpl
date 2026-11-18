@@ -40,7 +40,8 @@ stringData:
 {{/*
 One secret value. Takes: setting (the values key, for messages), provided (what
 the installer set), namespace, name and key (where an earlier install left it),
-generate (true: make one when nothing else gives it) and minLength.
+generate (true: make one when nothing else gives it), length (of a generated
+one) and hex (true: generate 64 hexadecimal characters, 32 bytes) and minLength.
 In order: the installer's value; the value already in the cluster, so a rotation
 done outside Helm survives an upgrade; a generated one; else the install stops.
 */}}
@@ -54,6 +55,8 @@ done outside Helm survives an upgrade; a generated one; else the install stops.
 {{- $existing := lookup "v1" "Secret" .namespace .name -}}
 {{- if and $existing $existing.data (hasKey $existing.data .key) -}}
 {{- index $existing.data .key | b64dec -}}
+{{- else if and .generate .hex -}}
+{{- sha256sum (randAlphaNum 48) -}}
 {{- else if .generate -}}
 {{- randAlphaNum (int (.length | default 48)) -}}
 {{- else -}}

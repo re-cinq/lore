@@ -28,6 +28,40 @@ spec:
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
+      {{- if .Values.floor.enabled }}
+      # lore-api puts its pipelines and agent definitions to the floor once, at
+      # boot, and does not try again. On a first install the floor's api is
+      # still waiting for its own migration, so wait for it here (at most five
+      # minutes: a floor out of reach must not stop the deploy).
+      initContainers:
+        - name: wait-for-floor
+          image: {{ include "lore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - node
+            - -e
+            - |
+              const url = process.env.FLOOR_API_URL + "/readyz";
+              const giveUpAt = Date.now() + 300000;
+              (async () => {
+                while (Date.now() < giveUpAt) {
+                  try {
+                    if ((await fetch(url, { signal: AbortSignal.timeout(3000) })).ok) return;
+                  } catch {}
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                }
+                console.log("the floor is not ready; starting anyway");
+              })();
+          env:
+            - name: FLOOR_API_URL
+              value: {{ .Values.floor.apiUrl | quote }}
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 128Mi }
+      {{- end }}
       containers:
         - name: mcp
           image: {{ include "lore.image" . | quote }}

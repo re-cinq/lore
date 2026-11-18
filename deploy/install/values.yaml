@@ -1,4 +1,5 @@
-# Defaults of the lore-install chart. A client copies values.azure.example.yaml
+# Defaults of the lore-install chart. A client copies the example for their cluster
+# (values.aks.example.yaml, values.gke.example.yaml, values.local.example.yaml)
 # and fills it in; this file holds what is the same on every install.
 #
 # A value set to CHANGE-ME anywhere stops the install: replace every one.
@@ -20,7 +21,7 @@ global:
   # The Pod Security Admission level enforced on lore-api, lore-ui, lore-stations
   # and lore-dgraph; each is also warned and audited at restricted. Only
   # namespaces this chart creates are labelled; label an existing one yourself.
-  podSecurity: baseline
+  podSecurity: restricted
 
 # Created before anything else. lore-floor is the release namespace and comes
 # from --create-namespace. A namespace that already exists is left alone.
@@ -69,7 +70,8 @@ secrets:
     clientSecret: ""
   # Utopia (only read when utopia.enabled). Passwords of its two database
   # roles, its encryption key and its cookie secret are generated when empty
-  # (cookieSecret is exactly 16, 24 or 32 characters). The OAuth client people
+  # (cookieSecret is exactly 16, 24 or 32 characters; secretKey is 32 bytes as
+  # 64 hexadecimal characters or base64: openssl rand -hex 32). The OAuth client people
   # sign in with is yours.
   utopia:
     dbPassword: ""
@@ -81,7 +83,7 @@ secrets:
   # Optional: the model key Lore's own jobs use (not the agents' key).
   anthropicApiKey: ""
   # Optional: the key of an OpenAI-compatible API (OpenAI, Microsoft Foundry) for
-  # Lore's own model calls and embeddings. See values.azure.example.yaml for the
+  # Lore's own model calls and embeddings. See values.aks.example.yaml for the
   # env entries that select it.
   openaiApiKey: ""
   # Optional: the Slack app.
@@ -91,9 +93,9 @@ secrets:
 
 # ---- The floor, with the agent subsystem it bundles ---------------------------
 # Any value of the floor chart can be set here:
-#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.5
+#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.6
 floor:
-  version: "0.5.5"
+  version: "0.5.6"
   # The agent subsystem: controller and CRDs. Agents run in the release namespace.
   subsystem:
     enabled: true
@@ -105,6 +107,12 @@ floor:
   postgres:
     existingSecret: floor-postgres
     secretKey: connectionString
+  # Only Lore's own apps call the floor's api (lore-api and lore-stations), plus
+  # the floor's own cluster agent and agent pods, which the chart admits itself.
+  # Everything else is refused.
+  apiNetworkPolicy:
+    enabled: true
+    allowedNamespaces: [lore-api, lore-stations]
   agentNetworkPolicy:
     # The one in-cluster door agent pods need beyond the floor: Lore's MCP
     # gateway and skills registry.
@@ -135,12 +143,22 @@ utopia:
   enabled: true
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.35
-    digest: sha256:737e04c76ca0cfdf061cf68acb9626d59c098502e0962590312127bd8f76fa6c
+    tag: 0.1.0-re.36
+    digest: sha256:f7f77e0cdc0f44ddf7d1befe74dea3bb1825842a9ef882bc1e04756c9fdf73d2
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
+  # The image is public: no pull secret. Utopia's chart honours global.nodeSelector
+  # and global.tolerations, sets no cloud-specific annotation of its own, and
+  # signs people in with the OpenID Connect issuer of your values file.
+  googleDrive:
+    enabled: false
+  ingress:
+    annotations: {}
   network:
+    # The namespace of your ingress controller; keep it equal to
+    # lore-platform.platform.networkPolicies.ingressNamespace.
+    ingressControllerNamespace: traefik
     # lore-api is the one in-cluster caller.
     allowFrom:
       - namespace: lore-api
@@ -167,9 +185,22 @@ lore-platform:
   platform:
     networkPolicies:
       enabled: true
+    namespaces: [lore-dgraph]
+    # Dgraph, the memory and trace graph. It has no authentication of its own;
+    # its NetworkPolicy lets only lore-api and lore-stations in. Storage is the
+    # cluster's default class unless dgraph.storageClass is set.
+    dgraph:
+      image: dgraph/standalone:v24.0.0@sha256:e790caab0a81c95039fb6009d1c914a8c59e3ef02f33504b6110707601f0aa81
+      storageSize: 50Gi
+      resources:
+        requests: { cpu: "1", memory: 4Gi }
+        limits: { cpu: "4", memory: 16Gi }
   lore-api:
     hardened: true
     imagePullSecrets: []
+    env:
+      LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+      LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
     # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     # Your own agents and assembly lines (a pack, docs/using-lore/pack-layout-reference.md):

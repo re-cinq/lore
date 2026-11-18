@@ -9,7 +9,7 @@ set -euo pipefail
 
 TAG="${1:?version, e.g. v1.0.1}"
 DESTINATION="${2:?destination directory}"
-VALUES_EXAMPLE="deploy/install/values.azure.example.yaml"
+VALUES_EXAMPLE="deploy/install/values.aks.example.yaml"
 UTOPIA_REPOSITORY="https://github.com/re-cinq/utopia.git"
 
 fail() {
@@ -87,7 +87,9 @@ DATABASES_ARCHIVE="$DESTINATION/lore-databases-${VERSION}.tgz"
 tar tzf "$DATABASES_ARCHIVE" | grep -qx 'lore-databases/templates/clusters.yaml' || fail "${DATABASES_ARCHIVE} has no clusters template"
 
 listing="$(tar tzf "$ARCHIVE")"
-grep -qx 'lore-install/values.azure.example.yaml' <<<"$listing" || fail "${ARCHIVE} has no values.azure.example.yaml"
+for example in values.aks.example.yaml values.gke.example.yaml values.local.example.yaml; do
+  grep -qx "lore-install/${example}" <<<"$listing" || fail "${ARCHIVE} has no ${example}"
+done
 for dependency in lore-platform floor utopia; do
   grep -Eq -- "^lore-install/charts/${dependency}/Chart.yaml$|^lore-install/charts/${dependency}-[0-9][^/]*\\.tgz$" <<<"$listing" \
     || fail "${ARCHIVE} holds no ${dependency} chart"
@@ -102,7 +104,6 @@ grep -Eq -- '(^|/)lore-platform/charts/lore-api/Chart.yaml$' <<<"$platform_listi
 FILLED="$WORK/values.filled.yaml"
 sed 's/CHANGE-ME/render-check-value-0123456789abcdef/g' "$REPO/$VALUES_EXAMPLE" >"$FILLED"
 render() { helm template lore "$ARCHIVE" -n lore-floor -f "$FILLED" "$@"; }
-lore_namespaces='^(lore-api|lore-ui|lore-stations|lore-dgraph)$'
 
 rendered="$(render)" || fail "helm template of ${ARCHIVE} with ${VALUES_EXAMPLE} failed"
 
@@ -123,13 +124,42 @@ for generated in lore-ingest-token lore-agent-internal-token lore-mcp-auth-token
 done
 rendered_has "$rendered" "Utopia's cookie secret is generated, at 32 characters" \
   '.kind == "Secret" and .metadata.name == "utopia-oauth" and (.stringData["cookie-secret"] | length) == 32'
+rendered_has "$rendered" "Utopia's encryption key is generated as 64 hexadecimal characters (32 bytes)" \
+  '.kind == "Secret" and .metadata.name == "utopia-app" and (.stringData["secret-key"] | test("^[0-9a-f]{64}$"))'
+rendered_has "$rendered" "lore-api waits for the floor's api before it seeds the floor at boot" \
+  '.kind == "Deployment" and .metadata.name == "lore-api" and ([.spec.template.spec.initContainers[]?.name] | index("wait-for-floor") != null)'
 rendered_has "$rendered" "the gateway reads its own inbound token" \
   '.kind == "Deployment" and .metadata.name == "lore-mcp-gateway" and ([.spec.template.spec.containers[0].env[] | select(.name == "LORE_MCP_AUTH_TOKEN") | .valueFrom.secretKeyRef.name] == ["lore-mcp-auth-token"])'
-every_workload "$(render --set global.nodeSelector.pool=management)" \
-  "global.nodeSelector reaches every Lore workload" '.pod.nodeSelector.pool == "management"' "$lore_namespaces"
+pooled="$(render --set global.nodeSelector.pool=management)"
+every_workload "$pooled" "global.nodeSelector reaches every Deployment, StatefulSet, CronJob and Job of the three charts" \
+  '.pod.nodeSelector.pool == "management"'
+rendered_lacks "$pooled" "global.nodeSelector reaches every CloudNativePG Cluster" \
+  '.kind == "Cluster" and .spec.affinity.nodeSelector.pool != "management"'
+rendered_has "$pooled" "the bundled charts render a CloudNativePG Cluster to check" '.kind == "Cluster"'
 for namespace in lore-api lore-ui lore-stations lore-dgraph; do
   rendered_has "$rendered" "${namespace} is default-deny for ingress" \
     '.kind == "NetworkPolicy" and .metadata.name == "default-deny-ingress" and .metadata.namespace == "'"$namespace"'"'
+done
+
+for example in gke local; do
+  file="deploy/install/values.${example}.example.yaml"
+  filled_example="$WORK/values.${example}.filled.yaml"
+  sed 's/CHANGE-ME/render-check-value-0123456789abcdef/g' "$REPO/$file" >"$filled_example"
+  echo "[lore] assertions on ${file}"
+  example_rendered="$(helm template lore "$ARCHIVE" -n lore-floor -f "$filled_example" --set global.nodeSelector.pool=management)" \
+    || fail "helm template of ${ARCHIVE} with ${file} failed"
+  rendered_lacks "$example_rendered" "no ExternalSecret" '.kind == "ExternalSecret"'
+  rendered_text_lacks "$example_rendered" "no ingress controller annotation is needed" 'nginx.ingress.kubernetes.io'
+  every_workload "$example_rendered" "global.nodeSelector reaches every workload" '.pod.nodeSelector.pool == "management"'
+  if [[ "$example" == local ]]; then
+    rendered_lacks "$example_rendered" "a laptop trial has no TLS section on Lore's ingresses" \
+      '.kind == "Ingress" and (.metadata.namespace | test("^lore-(api|ui)$")) and (.spec | has("tls"))'
+  else
+    rendered_has "$example_rendered" "Lore's ingresses carry a TLS section" \
+      '.kind == "Ingress" and .metadata.name == "lore-ui" and (.spec | has("tls"))'
+  fi
+  raw_example_error="$(helm template lore "$ARCHIVE" -n lore-floor -f "$REPO/$file" 2>&1 >/dev/null || true)"
+  grep -q 'CHANGE-ME' <<<"$raw_example_error" && render_ok "the unedited ${file} is refused" || render_fail "the unedited ${file} was not refused"
 done
 
 echo "[lore] the packaged values pin the images by digest when the release gives them"

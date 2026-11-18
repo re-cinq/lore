@@ -18,7 +18,7 @@ secretNamespaces: [lore-api, lore-ui, lore-stations, lore-floor]
 # lore-stations when this chart creates them (also warned and audited at
 # restricted). Use the same value as global.podSecurity of lore-install. Empty:
 # no label.
-podSecurity: baseline
+podSecurity: restricted
 
 # Run both clusters on a pool of your choice. Each cluster's own nodeSelector
 # and tolerations win.
