@@ -26,7 +26,7 @@ graph stays the single source of truth and the UI never couples to storage.
 - **Method + path**: `GET /api/repos/:owner/:repo/trace/<kind>`
   (prefix `^/api/repos/[^/]+/[^/]+/trace/`).
   Implemented by the [route registration](../../../apps/lore-api/src/app/build-server.ts)
-  dispatching to the [`handleTraceRoute` handler](../../../apps/lore-api/src/transport/routes/trace/trace.ts#L34).
+  dispatching to the [`handleTraceRoute` handler](../../../apps/lore-api/src/transport/routes/trace/trace.ts#L35).
   The handler re-validates with `TRACE_RE`
   (`^/api/repos/([^/]+)/([^/]+)/trace/(specs|spec-summaries|adrs|adr-summaries|document|source|graph|ring)(?:\?(.*))?$`).
 - **Auth scope**: `read` (the default — no `SCOPE_OVERRIDES` entry covers
