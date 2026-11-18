@@ -25,6 +25,12 @@ concurrency:
 permissions:
   contents: read
 
+# lore-security only, never to be landed in re-cinq/lore: a private repository's
+# standard runner has 7 GB, where Node's default heap is about 2 GB and the
+# repo-wide eslint run needs more. The public repository's runner has 16 GB.
+env:
+  NODE_OPTIONS: --max-old-space-size=5120
+
 jobs:
   format:
     name: format
