@@ -504,6 +504,32 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
+  it("hands tdd-round the review's test-gaps.md as an optional file and tells it to close those before any other facet", () => {
+    const { stations, agent_definitions: agents } = pipelineOf(
+      "implementation-loop",
+    );
+    const prompt = agents!["loop-tdd-round"].settings.prompt;
+
+    expect({
+      roundNeed: needOf(stations["loop-tdd-round"], "test_gaps"),
+      reviewProduces: stations["loop-test-review"].produces.find(
+        (made) => made.name === "test_gaps",
+      ),
+      namesFile: prompt.includes("/workspace/test-gaps.md"),
+      closesFirst: prompt.includes("before any other facet"),
+    }).toEqual({
+      roundNeed: {
+        name: "test_gaps",
+        kind: "file",
+        path: "test-gaps.md",
+        optional: true,
+      },
+      reviewProduces: { name: "test_gaps", kind: "file", path: "test-gaps.md" },
+      namesFile: true,
+      closesFirst: true,
+    });
+  });
+
   it("walks spec-upkeep from detect-drift through detect-unlinked, update-specs, open-pr, await-ci and request-review to done", () => {
     const { line } = pipelineOf("spec-upkeep");
     const forward = line.edges
