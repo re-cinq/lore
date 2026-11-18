@@ -83,7 +83,7 @@ The `base_image` key is a new field in the `lore.repos.settings` JSONB column (`
   fetching the agent-definitions endpoint with the bearer token and is read-only. ([validated by resolves an agent by fetching the API with the bearer token @85103c26](libs/shared/src/outbound/project/agents/agent-defs-http.test.ts#L56), [validated by AgentDefsHttp exposes no create/update/delete @1456cc0d](libs/shared/src/outbound/project/agents/agent-defs-read-only.test.ts#L5))
 - **FR7 — Facade delegation.** `project.agentDefs` delegates resolve/list to the
   wired port, bound to the facade's repo; `project.agentDefsWriter` delegates
-  create/update/delete the same way. ([validated by delegates create/delete to the defs port with the bound repo @eeb6160e](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L63))
+  create/update/delete the same way. ([validated by delegates create/delete to the defs port with the bound repo @eeb6160e](libs/shared/src/outbound/project/agents/agent-defs.test.ts#L100))
 - **FR8 — Request validation + image gate.** The schema normalizes the body and
   flags a write that sets a non-empty `image` (two-key field), normalizing a full
   body onto null-for-absent fields, rejecting an over-ceiling timeout, keeping only
