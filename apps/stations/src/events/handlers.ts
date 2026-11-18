@@ -45,6 +45,7 @@ import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
 import { packPushHandlers, type PackPushDeps } from "./pack-push-handlers.js";
 import { packSyncAnswerLine } from "../work/pack-sync-tick/pack-sync-answer.js";
 import { addHandlers } from "./compose-handlers.js";
+import { specReviewResultHandlers } from "./spec-review-result-handlers.js";
 import { dropOverlayOverHttp } from "@re-cinq/lore-shared/project/lib/station-http.js";
 import { renameAgentVariants } from "../outbound/agent-variants.js";
 import { repoEventHandlers, type RepoEventDeps } from "./repo-handlers.js";
@@ -301,12 +302,10 @@ const runSweepFor =
 export function buildStationHandlers(): Map<string, EventHandler> {
   const handlers = new Map<string, EventHandler>();
 
-  const sweepBindings = Object.values(STATIONS).flatMap((mod) =>
-    eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
-  );
-
   // Composed like every other registration: two sweeps may answer one event, each its own half.
-  for (const { mod, eventName } of sweepBindings) {
+  for (const { mod, eventName } of Object.values(STATIONS).flatMap((mod) =>
+    eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
+  )) {
     addHandlers(handlers, new Map([[eventName, runSweepFor(mod, eventName)]]));
   }
 
@@ -322,6 +321,7 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   }
 
   addHandlers(handlers, loopProgressHandlers(loopProgressProductionDeps));
+  addHandlers(handlers, specReviewResultHandlers());
 
   return handlers;
 }

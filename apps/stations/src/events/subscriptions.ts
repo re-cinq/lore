@@ -14,6 +14,7 @@ import { LOOP_MERGE_EVENTS } from "./loop-merge-handlers.js";
 import { LOOP_PROGRESS_EVENTS } from "./loop-progress-handlers.js";
 import { LOOP_UPKEEP_EVENTS } from "./loop-upkeep-handlers.js";
 import { REPO_EVENTS } from "./repo-handlers.js";
+import { SPEC_REVIEW_RESULT_EVENTS } from "./spec-review-result-handlers.js";
 
 // One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
 export const STATIONS_SUBSCRIBER = "stations";
@@ -25,6 +26,7 @@ export function stationSubscriptions(
   const plain = [
     ...REPO_EVENTS,
     ...LOOP_PROGRESS_EVENTS,
+    ...SPEC_REVIEW_RESULT_EVENTS,
     ...floorEvents(env),
   ].map((eventName) => ({
     eventName,
