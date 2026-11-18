@@ -54,7 +54,7 @@ const QUERY_TRACE_INPUT = {
     .number()
     .optional()
     .describe(
-      "How many call-graph hops to walk for `callers_of`/`callees_of`. Defaults to 1.",
+      "How many call-graph hops to walk for `callers_of`/`callees_of`. Only 1 hop is supported; passing depth > 1 is refused with an error.",
     ),
   statement: z
     .string()

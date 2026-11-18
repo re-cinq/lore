@@ -114,17 +114,42 @@ async function serveTrace(
 
   enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
   const query = request.query as TraceQuery;
+  const { req } = request.raw;
+
+  refuseDeepDepth(kind, req.url);
 
   try {
     return h.response(await traceResult(request, kind, query));
   } catch (err) {
-    // Guard's refusal carries its status; only unexpected failure needs shaping.
     rethrowBoom(err);
 
     return h
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
+}
+
+/** Refuses depth > 1 for callers before the project is built, so the error is a 400, not a 500. */
+function refuseDeepDepth(kind: string, rawUrl = ""): void {
+  if (kind !== "callers") {
+    return;
+  }
+  const params = new URLSearchParams(rawQuery(rawUrl));
+  const depth = Number(params.get("depth") ?? "1");
+
+  enforceTrue(
+    Number.isInteger(depth) && depth === 1,
+    apiError(400, {
+      message: "only one hop is supported; depth > 1 is not yet walked",
+    }),
+    "only one hop is supported; depth > 1 is not yet walked",
+  );
+}
+
+function rawQuery(rawUrl: string): string {
+  const qmark = rawUrl.indexOf("?");
+
+  return qmark >= 0 ? rawUrl.slice(qmark + 1) : "";
 }
 
 /** The body for one {kind}: the no-path handlers shape their own, the rest need the ?path= the guard below demands. */
@@ -147,7 +172,7 @@ async function traceResult(
   return PATH_KINDS[kind](trace, filePath, query);
 }
 
-/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop: `depth` is not walked yet. A deployment with no graph answers with an empty list. */
+/** Callers (or, with `direction=callees`, callees) of a named symbol, over the CodeChunk.references edge the code projection writes. One hop only; depth > 1 is refused in serveTrace before this runs. A deployment with no graph answers with an empty list. */
 async function callersResult(trace: Trace, query: TraceQuery): Promise<object> {
   const symbol = query.symbol ?? "";
 
