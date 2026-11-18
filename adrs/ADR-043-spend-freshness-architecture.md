@@ -163,12 +163,12 @@ same export the sync reads.
   person's terraform apply or console visit can change. ([validated by [`gcp-cost-sync.test.ts@5bf3b1ae`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L6), [`gcp-cost-sync.test.ts@8e663bb4`](apps/stations/src/work/gcp-cost-sync/gcp-cost-sync.test.ts#L12))
 - Rows land in `pipeline.gcp_cost_daily` (migration 0060) through
   `PgGcpCost`, upsert-keyed on `(bucket_date, service)` — a re-synced bucket
-  replaces the stored totals, mirrored by the `InMemoryGcpCost` double. ([validated by [`cost.test.ts@3ed0b3d5`](libs/shared/src/outbound/project/cost/cost.test.ts#L104), [`cost.test.ts@d7add744`](libs/shared/src/outbound/project/cost/cost.test.ts#L123), [`cost.test.ts@35f51e06`](libs/shared/src/outbound/project/cost/cost.test.ts#L131), [`cost.test.ts@81e1eeb0`](libs/shared/src/outbound/project/cost/cost.test.ts#L141))
+  replaces the stored totals, mirrored by the `InMemoryGcpCost` double. ([validated by [`cost.test.ts@50f0aac2`](libs/shared/src/outbound/project/cost/cost.test.ts#L104), [`cost.test.ts@d7add744`](libs/shared/src/outbound/project/cost/cost.test.ts#L135), [`cost.test.ts@35f51e06`](libs/shared/src/outbound/project/cost/cost.test.ts#L143), [`cost.test.ts@81e1eeb0`](libs/shared/src/outbound/project/cost/cost.test.ts#L153))
 - `/api/analytics/spend-window` grew a `gcp` block under the same rules as
   the Anthropic `billed` block: interval-scoped net-of-credits totals,
   whole-table `as_of`/`billed_through` stamps, `available` decided by the
   stamp (a synced zero is not "never synced"), and `optionalTableRows`
-  degradation when the table has not been migrated. ([validated by [sums the GCP figures net of credits, since the invoice charges the net @b3732005](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L282), [`spend-window.test.ts@7eb1c51b`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L298), [`spend-window.test.ts@310b4c0d`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L311))
+  degradation when the table has not been migrated. ([validated by [sums the GCP figures net of credits, since the invoice charges the net @b3732005](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L282), [`spend-window.test.ts@7eb1c51b`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L299), [`spend-window.test.ts@310b4c0d`](apps/lore-api/src/transport/routes/analytics/spend-window.test.ts#L312))
 - The view renders a "Google Cloud (billed)" card (net total plus the day the
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays
