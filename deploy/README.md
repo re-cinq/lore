@@ -73,9 +73,9 @@ cluster runs, as recorded in `deploy/clusters/internal-cluster.values.yaml`.
 1. Wait until the `deploy(...)` pull requests of the build workflows for the
    commits you want have merged to `main`. Those values are what gets released.
 2. Open a pull request that sets the new version in `deploy/install/values.yaml`
-   (the four `tag:` values and `agentImage`) and in the `--version` of the
-   `helm pull` command of `docs/INSTALL.md` section 3.2 (and the other
-   commands of section 3 that name it). Check it with
+   (the four `tag:` values and `agentImage`) and in every `--version` of the
+   `lore-install` and `lore-databases` commands in `docs/install/*.md`. Check
+   it with
    `bash scripts/ci/check-install-pins.sh vX.Y.Z`.
 3. After it merges, tag the merge commit and push the tag:
    `git tag vX.Y.Z <merge commit> && git push origin vX.Y.Z`.
@@ -178,6 +178,27 @@ with the hook's Job in the tree.
 An ExternalSecret that cannot find its Secret Manager version leaves the new
 pod in `CreateContainerConfigError` while the old pod keeps serving;
 `kubectl -n <ns> describe externalsecret <name>` says which key is missing.
+
+## What only our own cluster has
+
+The install tutorials ([`docs/install`](../docs/install/README.md)) are for a cluster we do not run. What follows is ours.
+
+The floor and the agent subsystem are separate Argo CD applications here, in the namespaces `floor` and `ai-agents`, installed as [floor/docs/install.md](https://github.com/re-cinq/floor/blob/main/docs/install.md) describes. The `deploy/install` chart is not used. The Secrets that chart writes from its values are mirrored here by External Secrets (`platform.externalSecrets` in the values file, rendered by `chart/templates/externalsecrets.yaml`). Their Secret Manager names:
+
+| Secret Manager name | Kubernetes Secret |
+| ------------------- | ----------------- |
+| `lore-db-password` | `lore-api-db-password`, `lore-db-password` (lore-ui), `lore-stations-db-password` |
+| `lore-ingest-token`, `lore-agent-internal-token` | the Secrets of the same names, in `lore-api` and `lore-stations` |
+| `lore-github-app-*` | `github-app-credentials`, `lore-stations-github-app` |
+| `lore-webhook-secret`, `lore-github-oauth-*` | `lore-webhook-secret`, `lore-github-oauth` |
+| `lore-anthropic-api-key`, `lore-gemini-api-key` | `lore-anthropic-key`, `lore-stations-anthropic-key`, and the Gemini key |
+| `lore-floor-service-token`, `lore-floor-git-credential-token` | `floor-service-token`, `floor-git-credential-token` |
+| `lore-slack-*` | `lore-slack-credentials`, `lore-stations-slack` |
+| `lore-ghcr-pull-secret` | `ghcr-pull-secret` for the images that are not public on this cluster |
+
+Disaster recovery: the cluster's add-ons and cloud resources come back from re-cinq/infrastructure and Argo CD syncs the chart again. The Secret Manager containers keep their versions, so a rebuilt platform attaches to them with no re-seeding. Everything else is in the two Postgres databases and Dgraph, so back those up.
+
+lore-api's Cloud Trace exporter has no `roles/cloudtrace.agent` grant here, so traces are off ([#3905](https://github.com/re-cinq/lore/issues/3905)).
 
 ## What is not here
 

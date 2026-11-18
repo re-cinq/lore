@@ -77,7 +77,7 @@ lore-api/lore-mcp/stations/ui/lore-db subcharts under `charts/`); Argo CD on the
 internal cluster deploys it from `deploy/clusters/internal-cluster.values.yaml`.
 Every service has a `build-*.yml` workflow that builds its image and records the
 short SHA in that values file via `scripts/ci/bump-image-tag.sh`; chart values
-read `tag: latest` only as a never-used default. A `vX.Y.Z` tag on main runs `.github/workflows/release.yml`, which adds that tag to the images the values file names (`scripts/ci/release-images.sh`) and publishes the `lore-install` chart, with the lore-platform, floor and Utopia charts inside it, to `oci://ghcr.io/re-cinq/charts` (`scripts/ci/package-install-chart.sh`); see `deploy/README.md`.
+read `tag: latest` only as a never-used default. A `vX.Y.Z` tag on main runs `.github/workflows/release.yml`, which adds that tag to the images the values file names (`scripts/ci/release-images.sh`) and publishes the `lore-install` chart, with the lore-platform, floor and Utopia charts inside it, to `oci://ghcr.io/re-cinq/charts` (`scripts/ci/package-install-chart.sh`), with the `lore-databases` chart beside it; see `deploy/README.md`. **The install guide** is `docs/install/` (a README that picks the case, then `aks.md`, `gke.md` and `local.md`, one tutorial each); its `--version` lines are checked against the release by `scripts/ci/check-install-pins.sh`, and a release PR changes them with `deploy/install/values.yaml`.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
