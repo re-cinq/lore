@@ -14431,7 +14431,121 @@
           "engine": {
             "type": "string"
           },
-          "graph": {},
+          "graph": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "entry": {
+                    "type": "string"
+                  },
+                  "exit": {
+                    "type": "string"
+                  },
+                  "fail": {
+                    "type": "string"
+                  },
+                  "nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        },
+                        "station": {
+                          "type": ["string", "null"]
+                        },
+                        "station_inherited": {
+                          "type": "boolean"
+                        },
+                        "route": {
+                          "type": "string"
+                        },
+                        "prompt_ref": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "timeout_minutes": {
+                          "type": "number"
+                        },
+                        "required_tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "condition_ref": {
+                          "type": "string"
+                        },
+                        "job_ref": {
+                          "type": "string"
+                        },
+                        "continues": {
+                          "type": "object",
+                          "properties": {
+                            "node": {
+                              "type": "string"
+                            },
+                            "key": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["node", "key"],
+                          "additionalProperties": false
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type",
+                        "station",
+                        "station_inherited"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "edges": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "on": {
+                          "type": "string"
+                        },
+                        "iteration_max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["from", "to", "on"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["name", "entry", "exit", "nodes", "edges"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "type": "string"
           },
@@ -14533,7 +14647,121 @@
                 "engine": {
                   "type": "string"
                 },
-                "graph": {},
+                "graph": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "entry": {
+                          "type": "string"
+                        },
+                        "exit": {
+                          "type": "string"
+                        },
+                        "fail": {
+                          "type": "string"
+                        },
+                        "nodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "station": {
+                                "type": ["string", "null"]
+                              },
+                              "station_inherited": {
+                                "type": "boolean"
+                              },
+                              "route": {
+                                "type": "string"
+                              },
+                              "prompt_ref": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "timeout_minutes": {
+                                "type": "number"
+                              },
+                              "required_tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "condition_ref": {
+                                "type": "string"
+                              },
+                              "job_ref": {
+                                "type": "string"
+                              },
+                              "continues": {
+                                "type": "object",
+                                "properties": {
+                                  "node": {
+                                    "type": "string"
+                                  },
+                                  "key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["node", "key"],
+                                "additionalProperties": false
+                              },
+                              "description": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "station",
+                              "station_inherited"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "edges": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string"
+                              },
+                              "to": {
+                                "type": "string"
+                              },
+                              "on": {
+                                "type": "string"
+                              },
+                              "iteration_max": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["from", "to", "on"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["name", "entry", "exit", "nodes", "edges"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "status": {
                   "type": "string"
                 },
@@ -14654,8 +14882,122 @@
         "properties": {
           "line": {
             "type": "object",
-            "propertyNames": {
-              "type": "string"
+            "properties": {
+              "graph": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "entry": {
+                        "type": "string"
+                      },
+                      "exit": {
+                        "type": "string"
+                      },
+                      "fail": {
+                        "type": "string"
+                      },
+                      "nodes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "station": {
+                              "type": ["string", "null"]
+                            },
+                            "station_inherited": {
+                              "type": "boolean"
+                            },
+                            "route": {
+                              "type": "string"
+                            },
+                            "prompt_ref": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "timeout_minutes": {
+                              "type": "number"
+                            },
+                            "required_tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "condition_ref": {
+                              "type": "string"
+                            },
+                            "job_ref": {
+                              "type": "string"
+                            },
+                            "continues": {
+                              "type": "object",
+                              "properties": {
+                                "node": {
+                                  "type": "string"
+                                },
+                                "key": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["node", "key"],
+                              "additionalProperties": false
+                            },
+                            "description": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "station",
+                            "station_inherited"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "edges": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string"
+                            },
+                            "to": {
+                              "type": "string"
+                            },
+                            "on": {
+                              "type": "string"
+                            },
+                            "iteration_max": {
+                              "type": "number"
+                            }
+                          },
+                          "required": ["from", "to", "on"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["name", "entry", "exit", "nodes", "edges"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
             },
             "additionalProperties": {}
           },
@@ -16914,7 +17256,121 @@
                 "engine": {
                   "type": "string"
                 },
-                "graph": {},
+                "graph": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "entry": {
+                          "type": "string"
+                        },
+                        "exit": {
+                          "type": "string"
+                        },
+                        "fail": {
+                          "type": "string"
+                        },
+                        "nodes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "station": {
+                                "type": ["string", "null"]
+                              },
+                              "station_inherited": {
+                                "type": "boolean"
+                              },
+                              "route": {
+                                "type": "string"
+                              },
+                              "prompt_ref": {
+                                "type": "string"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "timeout_minutes": {
+                                "type": "number"
+                              },
+                              "required_tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "condition_ref": {
+                                "type": "string"
+                              },
+                              "job_ref": {
+                                "type": "string"
+                              },
+                              "continues": {
+                                "type": "object",
+                                "properties": {
+                                  "node": {
+                                    "type": "string"
+                                  },
+                                  "key": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["node", "key"],
+                                "additionalProperties": false
+                              },
+                              "description": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "station",
+                              "station_inherited"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "edges": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string"
+                              },
+                              "to": {
+                                "type": "string"
+                              },
+                              "on": {
+                                "type": "string"
+                              },
+                              "iteration_max": {
+                                "type": "number"
+                              }
+                            },
+                            "required": ["from", "to", "on"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["name", "entry", "exit", "nodes", "edges"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "status": {
                   "type": "string"
                 },
@@ -19167,7 +19623,127 @@
                           "engine": {
                             "type": "string"
                           },
-                          "graph": {},
+                          "graph": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "entry": {
+                                    "type": "string"
+                                  },
+                                  "exit": {
+                                    "type": "string"
+                                  },
+                                  "fail": {
+                                    "type": "string"
+                                  },
+                                  "nodes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "type": {
+                                          "type": "string"
+                                        },
+                                        "station": {
+                                          "type": ["string", "null"]
+                                        },
+                                        "station_inherited": {
+                                          "type": "boolean"
+                                        },
+                                        "route": {
+                                          "type": "string"
+                                        },
+                                        "prompt_ref": {
+                                          "type": "string"
+                                        },
+                                        "model": {
+                                          "type": "string"
+                                        },
+                                        "timeout_minutes": {
+                                          "type": "number"
+                                        },
+                                        "required_tags": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "condition_ref": {
+                                          "type": "string"
+                                        },
+                                        "job_ref": {
+                                          "type": "string"
+                                        },
+                                        "continues": {
+                                          "type": "object",
+                                          "properties": {
+                                            "node": {
+                                              "type": "string"
+                                            },
+                                            "key": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": ["node", "key"],
+                                          "additionalProperties": false
+                                        },
+                                        "description": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "type",
+                                        "station",
+                                        "station_inherited"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "edges": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "from": {
+                                          "type": "string"
+                                        },
+                                        "to": {
+                                          "type": "string"
+                                        },
+                                        "on": {
+                                          "type": "string"
+                                        },
+                                        "iteration_max": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["from", "to", "on"],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "entry",
+                                  "exit",
+                                  "nodes",
+                                  "edges"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "status": {
                             "type": "string"
                           },
@@ -22402,7 +22978,121 @@
                   "engine": {
                     "type": "string"
                   },
-                  "graph": {},
+                  "graph": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "entry": {
+                            "type": "string"
+                          },
+                          "exit": {
+                            "type": "string"
+                          },
+                          "fail": {
+                            "type": "string"
+                          },
+                          "nodes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "station": {
+                                  "type": ["string", "null"]
+                                },
+                                "station_inherited": {
+                                  "type": "boolean"
+                                },
+                                "route": {
+                                  "type": "string"
+                                },
+                                "prompt_ref": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "timeout_minutes": {
+                                  "type": "number"
+                                },
+                                "required_tags": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "condition_ref": {
+                                  "type": "string"
+                                },
+                                "job_ref": {
+                                  "type": "string"
+                                },
+                                "continues": {
+                                  "type": "object",
+                                  "properties": {
+                                    "node": {
+                                      "type": "string"
+                                    },
+                                    "key": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["node", "key"],
+                                  "additionalProperties": false
+                                },
+                                "description": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "type",
+                                "station",
+                                "station_inherited"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "edges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string"
+                                },
+                                "to": {
+                                  "type": "string"
+                                },
+                                "on": {
+                                  "type": "string"
+                                },
+                                "iteration_max": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["from", "to", "on"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": ["name", "entry", "exit", "nodes", "edges"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "status": {
                     "type": "string"
                   },
@@ -25759,11 +26449,556 @@
         ]
       },
       "TraceRead": {
-        "type": "object",
-        "propertyNames": {
-          "type": "string"
-        },
-        "additionalProperties": {}
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "specs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["specs"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "summaries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "draft",
+                                "in-progress",
+                                "shipped",
+                                "rejected",
+                                "retired"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["status", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "coverage": {
+                      "type": "object",
+                      "properties": {
+                        "testable": {
+                          "type": "number"
+                        },
+                        "covered": {
+                          "type": "number"
+                        },
+                        "untestable": {
+                          "type": "number"
+                        },
+                        "ratio": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "testable",
+                        "covered",
+                        "untestable",
+                        "ratio"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "filePath",
+                    "title",
+                    "description",
+                    "status",
+                    "coverage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["summaries"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "adrs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["adrs"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "summaries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "draft",
+                                "in-progress",
+                                "shipped",
+                                "rejected",
+                                "retired"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["status", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["filePath", "title", "description", "status"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["summaries"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "filePath": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "uid": {
+                      "type": "string"
+                    },
+                    "heading": {
+                      "type": "string"
+                    },
+                    "ordinal": {
+                      "type": "number"
+                    },
+                    "level": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["uid", "heading", "ordinal"],
+                  "additionalProperties": false
+                }
+              },
+              "statements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "uid": {
+                      "type": "string"
+                    },
+                    "ordinal": {
+                      "type": "number"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "testability": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["tested", "untested", "narrative"]
+                    },
+                    "sectionUid": {
+                      "type": "string"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": ["test", "code", "adr"]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "number"
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["kind", "label"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "drifted": {
+                      "type": "boolean"
+                    },
+                    "violated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["uid", "ordinal", "text", "state", "links"],
+                  "additionalProperties": false
+                }
+              },
+              "coverage": {
+                "type": "object",
+                "properties": {
+                  "testable": {
+                    "type": "number"
+                  },
+                  "covered": {
+                    "type": "number"
+                  },
+                  "untestable": {
+                    "type": "number"
+                  },
+                  "ratio": {
+                    "type": "number"
+                  }
+                },
+                "required": ["testable", "covered", "untestable", "ratio"],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "filePath",
+              "title",
+              "description",
+              "sections",
+              "statements",
+              "coverage"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["source"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "Feature",
+                        "Spec",
+                        "Section",
+                        "Statement",
+                        "AcceptanceCriterion",
+                        "TestChunk",
+                        "CodeChunk",
+                        "File",
+                        "ADR"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "type": "number"
+                    },
+                    "endLine": {
+                      "type": "number"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "type", "label"],
+                  "additionalProperties": false
+                }
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "in_feature",
+                        "in_spec",
+                        "in_section",
+                        "has_statement",
+                        "validated_by",
+                        "implemented_by",
+                        "covers",
+                        "decided_by"
+                      ]
+                    }
+                  },
+                  "required": ["source", "target", "kind"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["nodes", "links"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "uid": {
+                      "type": "string"
+                    },
+                    "heading": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "tested": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["uid", "heading", "total", "tested"],
+                  "additionalProperties": false
+                }
+              },
+              "statements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "uid": {
+                      "type": "string"
+                    },
+                    "sectionUid": {
+                      "type": "string"
+                    },
+                    "tested": {
+                      "type": "boolean"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["uid", "sectionUid", "tested", "text"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["sections", "statements"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "tests": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "testFile": {
+                      "type": "string"
+                    },
+                    "statement": {
+                      "type": "string"
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": ["main", "overlay"]
+                    },
+                    "ranges": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "additionalItems": false,
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    }
+                  },
+                  "required": ["testFile", "origin", "ranges"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["tests"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "failures": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "stationRunId": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "iteration": {
+                      "type": "number"
+                    },
+                    "failureClass": {
+                      "type": "string"
+                    },
+                    "failureDetail": {
+                      "type": "string"
+                    },
+                    "commit": {
+                      "type": "string"
+                    },
+                    "occurredAt": {
+                      "type": "string"
+                    },
+                    "resolvedByCommit": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "stationRunId",
+                    "nodeId",
+                    "iteration",
+                    "failureClass",
+                    "failureDetail",
+                    "commit",
+                    "occurredAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["failures"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "callers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "filePath": {
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "startLine": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["filePath", "symbol", "startLine"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["callers"],
+            "additionalProperties": false
+          }
+        ]
       },
       "UtopiaBackfillSummary": {
         "type": "object",

@@ -2,6 +2,10 @@
 
 import { z } from "zod";
 import type { AssemblyRunSummary } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import {
+  RunGraphSchema,
+  type RunGraph,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
 // A CROSS-TABLE read model (task PR + task Issue + summed cost + args pr_number), not a projection of pipeline.assembly_runs; snake_case keys since that's what deployed web-ui reads, deliberately apart from the AssemblyRun model.
 export const RunRowSchema = z.object({
@@ -14,7 +18,7 @@ export const RunRowSchema = z.object({
   subject_key: z.string().nullable(),
   /** Which engine walks the run: `floor` for one on the external floor, which the run page may read and watch but not re-run. */
   engine: z.string(),
-  graph: z.unknown().optional(),
+  graph: RunGraphSchema.nullable().optional(),
   status: z.string(),
   outcome: z.string().nullable(),
   reason: z.string().nullable(),
@@ -54,7 +58,7 @@ export function toRunRow(
 // graph itself may still be unresolved (predates clones AND blueprint gone).
 /** The same row plus the run's cloned graph, for a caller that draws the DAG. */
 export function toRunRowWithGraph(
-  run: AssemblyRunSummary & { graph?: unknown },
+  run: AssemblyRunSummary & { graph?: RunGraph | null },
   enrichment: RunEnrichment | undefined,
 ) {
   return runRow(run, enrichment, { graph: run.graph ?? null });
@@ -63,7 +67,7 @@ export function toRunRowWithGraph(
 function runRow(
   run: AssemblyRunSummary,
   enrichment: RunEnrichment | undefined,
-  graphField: Record<string, unknown>,
+  graphField: { graph?: RunGraph | null },
 ) {
   return {
     ...identity(run),
