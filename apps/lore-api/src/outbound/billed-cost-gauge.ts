@@ -15,15 +15,15 @@ export interface BilledCostRow {
 
 const CACHE_MS = 5 * 60_000;
 
-// Anthropic rows are per model; GCP and Azure rows are per service and reported NET of credits, as /spend does; the table's provider column is the vendor.
+// Anthropic rows are per model; GCP and Azure rows are per service and reported NET of credits (stored negative, so added), as /spend does; the table's provider column is the vendor.
 const BILLED_SQL = `SELECT 'anthropic' AS vendor, model AS item,
        COALESCE(SUM(cost_usd) FILTER (WHERE bucket_date = current_date), 0)::float8 AS day_usd,
        COALESCE(SUM(cost_usd) FILTER (WHERE bucket_date >= date_trunc('month', current_date)), 0)::float8 AS month_usd
   FROM pipeline.anthropic_cost_daily GROUP BY model
 UNION ALL
 SELECT provider, service,
-       COALESCE(SUM(cost_usd - credits_usd) FILTER (WHERE bucket_date = current_date), 0)::float8,
-       COALESCE(SUM(cost_usd - credits_usd) FILTER (WHERE bucket_date >= date_trunc('month', current_date)), 0)::float8
+       COALESCE(SUM(cost_usd + credits_usd) FILTER (WHERE bucket_date = current_date), 0)::float8,
+       COALESCE(SUM(cost_usd + credits_usd) FILTER (WHERE bucket_date >= date_trunc('month', current_date)), 0)::float8
   FROM pipeline.gcp_cost_daily GROUP BY provider, service`;
 
 /** One gauge point per vendor, item and window: two per row. */

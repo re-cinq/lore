@@ -132,7 +132,10 @@ function toCostRow(row: CostCell[], at: ColumnPositions): GcpCostDailyRow {
   };
 }
 
-function sumPerDayAndService(rows: GcpCostDailyRow[]): GcpCostDailyRow[] {
+/** Rows sharing a day and service, from one page or several, as one row with their costs added. */
+export function sumPerDayAndService(
+  rows: GcpCostDailyRow[],
+): GcpCostDailyRow[] {
   const summed = new Map<string, GcpCostDailyRow>();
 
   for (const row of rows) {

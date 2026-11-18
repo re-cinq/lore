@@ -166,4 +166,35 @@ describe("azureCostSyncJob", () => {
       ),
     );
   });
+
+  it("upserts one Storage row of 12.5 for 2026-11-01 when its 10 and 2.5 arrive on two pages", async () => {
+    const costs = new InMemoryGcpCost();
+    const { fetchFn } = fakeAzure([
+      {
+        properties: {
+          columns,
+          rows: [[10, 20261101, "Storage"]],
+          nextLink: "https://management.azure.com/next-page",
+        },
+      },
+      { properties: { columns, rows: [[2.5, 20261101, "Storage"]] } },
+    ]);
+
+    await azureCostSyncJob(costs, {
+      env: ENV,
+      fetchFn,
+      readFile: async () => "jwt",
+      now: NOW,
+    });
+
+    expect(costs.rows).toEqual([
+      {
+        provider: "azure",
+        bucketDate: "2026-11-01",
+        service: "Storage",
+        costUsd: 12.5,
+        creditsUsd: 0,
+      },
+    ]);
+  });
 });

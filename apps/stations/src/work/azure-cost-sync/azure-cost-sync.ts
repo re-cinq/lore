@@ -13,6 +13,7 @@ import {
   parseCostQueryResponse,
   readAzureCostConfig,
   type AzureCostConfig,
+  sumPerDayAndService,
 } from "./azure-billing.js";
 
 // Same trailing window as the GCP and Anthropic syncs, for the same reason: Azure restates late usage, and a re-pulled window self-heals through the upsert.
@@ -46,7 +47,9 @@ export async function azureCostSyncJob(
   }
 
   const token = await fetchAccessToken(config, io);
-  const rows = await queryAllPages(config.scope, token, io);
+  const rows = sumPerDayAndService(
+    await queryAllPages(config.scope, token, io),
+  );
 
   await Promise.all(rows.map((row) => costs.upsertGcpDaily(row)));
 
