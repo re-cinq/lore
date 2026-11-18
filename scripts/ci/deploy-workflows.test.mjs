@@ -67,6 +67,13 @@ test("the release workflow packages and pushes the lore-install chart with the s
   );
 });
 
+test("the release workflow pushes the lore-databases chart next to lore-install", () => {
+  assert.equal(
+    stepRuns(releaseJobs.chart, 'helm push "dist/lore-databases-${TAG#v}.tgz"'),
+    true,
+  );
+});
+
 test("the GitHub release waits for the lore-install chart push", () => {
   assert.deepEqual(releaseJobs.release.needs, ["images", "chart"]);
 });

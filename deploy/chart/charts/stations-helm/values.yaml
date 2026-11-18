@@ -7,14 +7,26 @@ namespace: lore-stations
 # shared lock first.
 replicaCount: 1
 
+# Rendered only above one replica.
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
+# Where the pods run. Empty: anywhere. Unset here, global.nodeSelector and
+# global.tolerations of the parent chart apply. The pod is always locked down
+# (non-root, read-only root, every capability dropped).
+nodeSelector: {}
+tolerations: []
+
+# The Google project of the GCP billing export. Empty leaves out the gcp-cost-sync
+# courier job, which has nothing to read without one.
+gcpProject: ""
+
 image:
   repository: ghcr.io/re-cinq/lore-stations
   tag: latest
-  pullPolicy: Always
+  digest: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets:
   - name: ghcr-pull-secret
@@ -131,8 +143,8 @@ anthropicAdminKeySecret:
   key: anthropic-admin-key
 
 # Optional Slack bot token for the stations that post to Slack (escalation
-# notify, the daily digest). Mirrored by the es_stations_slack ExternalSecret;
-# absent, those stations report the missing token instead of posting.
+# notify, the daily digest). Absent, those stations report the missing token
+# instead of posting.
 slackBotTokenSecret:
   name: lore-stations-slack
   key: bot-token
@@ -145,7 +157,7 @@ courier:
   # and a tag is mutable — `8.11.1` can be repointed at a different image without
   # anything in this repo changing. The tag is kept alongside the digest for
   # human legibility; the digest is what Kubernetes resolves.
-  image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+  image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
 courierJobs:
   # Was the Floor's memory_ttl CronJob (#1351): a single DELETE that had its own
   # pod built from the coordinator's image. Same hour, same work, two hops.
@@ -169,6 +181,7 @@ courierJobs:
   # Skips (never fails) until LORE_GCP_BILLING_PROJECT/_DATASET are set by
   # terraform (enable_gcp_billing_export) and the console-side export exists.
   - name: gcp-cost-sync
+    requires: gcpProject
     schedule: "0 8 * * *"
     path: /api/stations/gcp-cost-sync
   # The Azure counterpart of gcp-cost-sync, half an hour after it, writing the

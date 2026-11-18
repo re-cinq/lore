@@ -20,9 +20,11 @@ description: |
     lore-db-helm: {...}
     lore-stations: {...}
 
-  The umbrella's own templates render the namespaces, ExternalSecrets,
-  ingresses, the CNPG cluster CR and Dgraph. The cluster and its addons belong
-  to re-cinq/infrastructure.
+  The umbrella's own templates render the namespaces, ingresses, NetworkPolicies,
+  Dgraph, and, when the values ask for them, ExternalSecrets and the CNPG cluster
+  CR. A cluster with no secret store creates its Secrets itself: the
+  lore-install chart does, from its values. The cluster and its addons belong to
+  whoever runs the cluster.
 version: 0.1.0
 appVersion: "0.1.0"
 

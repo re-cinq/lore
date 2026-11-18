@@ -1,4 +1,5 @@
 {{- include "lore-install.checks" . -}}
+{{- $podSecurity := (.Values.global | default dict).podSecurity }}
 {{- range .Values.namespaces }}
 {{- if not (lookup "v1" "Namespace" "" .) }}
 ---
@@ -10,5 +11,11 @@ metadata:
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-30"
     helm.sh/resource-policy: keep
+  {{- with $podSecurity }}
+  labels:
+    pod-security.kubernetes.io/enforce: {{ . }}
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  {{- end }}
 {{- end }}
 {{- end }}

@@ -3,22 +3,38 @@ namespace: lore-api
 
 replicaCount: 1
 
+# Where the pods run. Empty: anywhere. Unset here, global.nodeSelector and
+# global.tolerations of the parent chart apply; set here, they win.
+nodeSelector: {}
+tolerations: []
+
+# The restricted pod profile: non-root user, no privilege escalation, every
+# capability dropped, the RuntimeDefault seccomp profile and a read-only root
+# filesystem with an emptyDir at /tmp. Off keeps the image's own user and a
+# writable root, which is what a cluster that predates it runs.
+hardened: false
+runAsUser: 1000
+
 # PodDisruptionBudget keeps at least one lore-api pod available during
 # Autopilot node consolidation. Without this, scale-down evictions
 # briefly take the API offline and local MCP clients silently fall
-# back to file mode (writes never reach Postgres).
+# back to file mode (writes never reach Postgres). Rendered only above one
+# replica: with one, minAvailable 1 would block every node drain.
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
 # GCP project of the `lore-api` GSA the pod's KSA impersonates for Vertex
-# embeddings (templates/serviceaccount.yaml). Set by terraform.
+# embeddings (templates/serviceaccount.yaml). Empty: the ServiceAccount carries
+# no Workload Identity annotation. Set by terraform.
 gcpProject: ""
 
 image:
   repository: ghcr.io/re-cinq/lore-api
   tag: latest
-  pullPolicy: Always
+  # sha256:... pins the image by content; the tag stays for the reader.
+  digest: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets:
   - name: ghcr-pull-secret
@@ -160,8 +176,8 @@ openaiKeySecret:
   key: api-key
 
 # The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
-# namespace-scoped, so this names the lore-api-namespace copy that the
-# es_mcp_anthropic ExternalSecret materialises; unset simply makes the job skip.
+# namespace-scoped, so this names the lore-api-namespace copy of the Secret;
+# unset simply makes the job skip.
 anthropicAdminKeySecret:
   name: lore-anthropic-key
   key: anthropic-admin-key

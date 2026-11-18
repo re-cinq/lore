@@ -15,13 +15,18 @@ spec:
       labels:
         app: {{ .Chart.Name }}
     spec:
+      serviceAccountName: {{ .Chart.Name }}
+      automountServiceAccountToken: false
+      {{- with (include "lore.podSettings" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       containers:
         - name: mcp
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -41,12 +46,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.ingestTokenSecret.name }}
                   key: {{ .Values.ingestTokenSecret.key }}
-            # Required Bearer on incoming MCP requests (v1: the same token pods send).
+            # Required Bearer on incoming MCP requests: what agent pods send. With
+            # mcpAuthTokenSecret unset it is the ingest token above, which hands
+            # every agent pod the admin token.
             - name: LORE_MCP_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.mcpAuthTokenSecret.name }}
+                  name: {{ .Values.mcpAuthTokenSecret.name }}
+                  key: {{ .Values.mcpAuthTokenSecret.key }}
+                  {{- else }}
                   name: {{ .Values.ingestTokenSecret.name }}
                   key: {{ .Values.ingestTokenSecret.key }}
+                  {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -59,5 +71,16 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.hardened }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+          {{- end }}

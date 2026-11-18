@@ -105,12 +105,15 @@ jobs:
       - name: Package the install chart
         env:
           TAG: ${{ github.ref_name }}
+          LORE_IMAGE_DIGESTS: ${{ needs.images.outputs.table }}
         run: bash scripts/ci/package-install-chart.sh "$TAG" dist
 
-      - name: Push the install chart
+      - name: Push the install chart and the databases chart
         env:
           TAG: ${{ github.ref_name }}
-        run: helm push "dist/lore-install-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
+        run: |
+          helm push "dist/lore-install-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
+          helm push "dist/lore-databases-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
 
   release:
     needs: [images, chart]
@@ -131,7 +134,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           TABLE: ${{ needs.images.outputs.table }}
         run: |
-          printf 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`, version `%s`.\n\n' "${TAG#v}" > notes.md
+          printf 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`, version `%s`. Databases chart: `oci://ghcr.io/re-cinq/charts/lore-databases`, same version.\n\n' "${TAG#v}" > notes.md
           printf 'Images, all at `%s`:\n\n%s\n' "$TAG" "$TABLE" >> notes.md
           previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)
           if [ -n "$previous" ]; then

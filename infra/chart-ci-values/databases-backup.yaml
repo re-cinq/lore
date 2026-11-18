@@ -1,0 +1,10 @@
+# Backup of the lore database to an object store, as CloudNativePG's barman
+# ObjectStore takes it. Azure Blob here; the same keys carry GCS or S3.
+lore:
+  backup:
+    schedule: "0 0 2 * * *"
+    retention: 7d
+    configuration:
+      destinationPath: https://acct.blob.core.windows.net/backups/lore-db
+      azureCredentials:
+        inheritFromAzureAD: true

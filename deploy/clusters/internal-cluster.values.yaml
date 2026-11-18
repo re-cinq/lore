@@ -10,6 +10,7 @@ platform:
   secretStore: gcp-secret-manager
   clusterIssuer: letsencrypt-prod
   ingressClassName: nginx-ingress
+  externalDns: true
   namespaces: [lore-api, lore-floor, lore-ui, lore-db, lore-stations, lore-dgraph]
   legacyWebhookHost: lore-webhook.gcp.re-cinq.com
   database:
@@ -304,6 +305,7 @@ lore-db-helm:
   ownershipReconciler: {enabled: true}
 # ---- Stations (lore-stations namespace)
 lore-stations:
+  gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-stations
     tag: "4acd241"

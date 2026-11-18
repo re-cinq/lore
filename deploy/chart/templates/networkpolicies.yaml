@@ -1,0 +1,82 @@
+{{- /*
+Opt in with platform.networkPolicies.enabled. Policies add up, so each
+namespace starts from deny-all for ingress and then opens exactly what the
+platform uses. Egress is not restricted here.
+*/ -}}
+{{- $np := .Values.platform.networkPolicies }}
+{{- if $np.enabled }}
+{{- $floor := $np.floorNamespace | default .Release.Namespace }}
+{{- $ingress := $np.ingressNamespace }}
+{{- $monitoring := $np.monitoringNamespace }}
+{{- $namespaces := list "lore-api" "lore-ui" "lore-stations" }}
+{{- if .Values.platform.dgraph }}{{ $namespaces = append $namespaces "lore-dgraph" }}{{ end }}
+{{- range $namespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+{{- end }}
+{{- /* app, namespace, the namespaces that may call it, its port, and its metrics port */ -}}
+{{- $services := list
+  (dict "app" "lore-api" "namespace" "lore-api" "port" 3000 "metrics" true "sameNamespace" true "from" (list $ingress "lore-ui" "lore-stations" $floor))
+  (dict "app" "lore-mcp-gateway" "namespace" "lore-api" "port" 8080 "metrics" true "from" (list $ingress $floor))
+  (dict "app" "lore-ui" "namespace" "lore-ui" "port" 3000 "from" (list $ingress))
+  (dict "app" "lore-stations" "namespace" "lore-stations" "port" 8080 "metrics" true "sameNamespace" true "from" (list "lore-api" $floor)) }}
+{{- range $services }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-{{ .app }}
+  namespace: {{ .namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: {{ .app }} }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .from }}
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ . }} }
+        {{- end }}
+        {{- if .sameNamespace }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: {{ .port }} }
+    {{- if .metrics }}
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $monitoring }} }
+      ports:
+        - { protocol: TCP, port: 9464 }
+    {{- end }}
+{{- end }}
+{{- if .Values.platform.dgraph }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lore-dgraph
+  namespace: lore-dgraph
+spec:
+  podSelector:
+    matchLabels: { app: lore-dgraph }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: lore-api }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: lore-stations }
+        - podSelector: {}
+      ports:
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 9080 }
+{{- end }}
+{{- end }}

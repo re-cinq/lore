@@ -26,13 +26,17 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: lore-stations
+      automountServiceAccountToken: false
+      {{- with (include "lore.scheduling" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       containers:
         - name: stations
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

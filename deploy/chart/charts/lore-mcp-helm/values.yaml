@@ -1,14 +1,20 @@
 # Deploy into the existing lore-api namespace so the gateway reuses that
-# namespace's lore-ingest-token + ghcr-pull-secret ExternalSecrets — no new
-# namespace/ExternalSecret needed.
+# namespace's lore-ingest-token Secret — no new namespace or Secret needed.
 namespace: lore-api
 
 replicaCount: 1
 
+# Where the pod runs and how it is locked down: see lore-api-helm/values.yaml.
+nodeSelector: {}
+tolerations: []
+hardened: false
+runAsUser: 1000
+
 image:
   repository: ghcr.io/re-cinq/lore-mcp
   tag: latest
-  pullPolicy: Always
+  digest: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets:
   - name: ghcr-pull-secret
@@ -49,8 +55,15 @@ env:
   LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
   LORE_TEAM: platform
 
-# The gateway proxies to lore-api with this token AND requires it as the incoming
-# Bearer (v1: agent pods present the same token via the lore-mcp-auth headers_secret).
+# The token the gateway proxies to lore-api with.
 ingestTokenSecret:
   name: lore-ingest-token
+  key: token
+
+# The Bearer the gateway requires on incoming requests, which agent pods present
+# through the lore-mcp-auth headers_secret. The gateway refuses to run
+# without one. Empty name: the ingest token above is required instead, so every
+# agent pod holds the admin token. A client install names its own Secret.
+mcpAuthTokenSecret:
+  name: ""
   key: token

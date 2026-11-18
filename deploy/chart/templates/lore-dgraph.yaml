@@ -1,5 +1,8 @@
 {{- if .Values.platform.dgraph }}
 {{- $g := .Values.platform.dgraph }}
+{{- $global := .Values.global | default dict }}
+{{- $nodeSelector := $g.nodeSelector | default $global.nodeSelector }}
+{{- $tolerations := $g.tolerations | default $global.tolerations }}
 ---
 apiVersion: v1
 kind: Service
@@ -32,19 +35,41 @@ spec:
         # One replica on one disk: the node autoscaler must not move it.
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
     spec:
+      serviceAccountName: lore-dgraph
+      automountServiceAccountToken: false
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Verified against dgraph/standalone v24.0.0: it runs as 1000 with every
+      # capability dropped and a read-only root, writing only to /dgraph and /tmp.
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: dgraph
           image: {{ $g.image }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - { name: http, containerPort: 8080 }
             - { name: grpc, containerPort: 9080 }
           volumeMounts:
             - { name: data, mountPath: /dgraph }
+            - { name: tmp, mountPath: /tmp }
           resources:
             {{- toYaml $g.resources | nindent 12 }}
           readinessProbe:
@@ -55,25 +80,19 @@ spec:
             httpGet: { path: /health, port: 8080 }
             initialDelaySeconds: 30
             periodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata: { name: data }
       spec:
         accessModes: [ReadWriteOnce]
-        storageClassName: {{ $g.storageClass }}
+        {{- with $g.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
         resources:
           requests:
             storage: {{ $g.storageSize }}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: lore-dgraph-alpha
-  namespace: lore-dgraph
-  labels: { app: lore-dgraph }
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels: { app: lore-dgraph }
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -104,12 +123,35 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      serviceAccountName: lore-dgraph
+      automountServiceAccountToken: false
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: apply-schema
-          image: alpine:3.20
+          image: {{ $g.schemaImage | default $.Values.platform.schemaImage }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # An image that already holds curl: the scripts run under its sh.
           command: ["/bin/sh", "-c"]
           args:
-            - apk add --no-cache bash curl >/dev/null && bash /schema/setup-memory-dgraph-schema.sh && bash /schema/setup-spec-trace-schema.sh
+            - sh /schema/setup-memory-dgraph-schema.sh && sh /schema/setup-spec-trace-schema.sh
           env:
             - name: DGRAPH_HTTP
               value: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080

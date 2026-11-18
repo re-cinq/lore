@@ -1,11 +1,26 @@
 # Defaults of the lore-install chart. A client copies values.azure.example.yaml
 # and fills it in; this file holds what is the same on every install.
 #
+# A value set to CHANGE-ME anywhere stops the install: replace every one.
+#
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
 #
 #   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 \
 #     -n lore-floor --create-namespace -f my-values.yaml
+
+# Placement and policy for every workload of the three charts.
+global:
+  # Run every controller on one pool, for example a management node pool:
+  #   nodeSelector: { pool: management }
+  #   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
+  # Agent run pods are the floor's and keep no scheduling rule.
+  nodeSelector: {}
+  tolerations: []
+  # The Pod Security Admission level enforced on lore-api, lore-ui, lore-stations
+  # and lore-dgraph; each is also warned and audited at restricted. Only
+  # namespaces this chart creates are labelled; label an existing one yourself.
+  podSecurity: baseline
 
 # Created before anything else. lore-floor is the release namespace and comes
 # from --create-namespace. A namespace that already exists is left alone.
@@ -14,21 +29,31 @@ namespaces: [lore-api, lore-ui, lore-stations]
 # Every Secret the three apps read, rendered into each namespace that needs it.
 # Set create to false when the client's vault provides Secrets with the names
 # in docs/INSTALL.md section 1.5.
+#
+# A token left empty is generated on the first install and kept after: an
+# upgrade reads the Secret that is there, so a rotation done with kubectl
+# survives. A token you set must be at least 32 characters.
 secrets:
   create: true
-  # A GitHub user and token with read:packages, for the ghcr.io/re-cinq/lore-* images.
+  # Only for images pulled from a private registry (a mirror). The images under
+  # ghcr.io/re-cinq are public. With a username, ghcr-pull-secret is rendered in
+  # each namespace; also set imagePullSecrets of each app below.
   ghcr:
     username: ""
     token: ""
-  # Password of the `lore` Postgres role.
+  # Both empty: the databases are the lore-databases chart's, which creates
+  # these Secrets, and this chart renders none. For a database of your own:
+  # the password of the `lore` Postgres role, and postgres://user:password@host:5432/floor
   loreDbPassword: ""
-  # postgres://user:password@host:5432/floor
   floorDbConnectionString: ""
   # openssl rand -hex 32, each. They only have to be the same everywhere, which
-  # this chart takes care of.
+  # this chart takes care of. ingestToken is the admin token of lore-api.
   ingestToken: ""
   internalToken: ""
   webhookSecret: ""
+  # What the MCP gateway requires from agent pods (lore-mcp-auth in agent-secrets
+  # is "Bearer " and this value). Agent pods do not hold the ingest token.
+  mcpAuthToken: ""
   floor:
     serviceToken: ""
     visitTokenSecret: ""
@@ -43,8 +68,9 @@ secrets:
     clientId: ""
     clientSecret: ""
   # Utopia (only read when utopia.enabled). Passwords of its two database
-  # roles, its encryption key, and the OAuth client people sign in with.
-  # cookieSecret is exactly 16, 24 or 32 characters: openssl rand -hex 16.
+  # roles, its encryption key and its cookie secret are generated when empty
+  # (cookieSecret is exactly 16, 24 or 32 characters). The OAuth client people
+  # sign in with is yours.
   utopia:
     dbPassword: ""
     appDbPassword: ""
@@ -107,7 +133,6 @@ floor:
 # lore-platform.lore-api.utopia.enabled to false.
 utopia:
   enabled: true
-  # Not public: pulled with ghcr-pull-secret, like the Lore images.
   image:
     repository: ghcr.io/re-cinq/utopia
     tag: 0.1.0-re.35
@@ -131,12 +156,20 @@ utopia:
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
 # the chart published for release v1.0.5 pins all five images (the four tags below and
 # agentImage) to v1.0.5, so an install does not depend on what `latest` is that
-# day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
-# ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
-# newer release, upgrade with its chart version (--version 1.1.0); do not
-# edit the tags by hand.
+# day. They are public, so no pull secret is set. To move to a newer release,
+# upgrade with its chart version (--version 1.1.0); do not edit the tags by hand.
+#
+# Every app is locked down (hardened: non-root, read-only root, no capabilities,
+# RuntimeDefault seccomp), and NetworkPolicies allow only the traffic the
+# platform uses; platform.networkPolicies names the namespaces of your ingress
+# controller (default traefik), your monitoring and the floor.
 lore-platform:
+  platform:
+    networkPolicies:
+      enabled: true
   lore-api:
+    hardened: true
+    imagePullSecrets: []
     # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     # Your own agents and assembly lines (a pack, docs/using-lore/pack-layout-reference.md):
@@ -159,10 +192,13 @@ lore-platform:
       # The image agent pods work in. Public.
       agentImage: ghcr.io/re-cinq/lore-agent:v1.0.5
   lore-ui:
+    hardened: true
+    imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-ui
       tag: "v1.0.5"
   lore-stations:
+    imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-stations
       tag: "v1.0.5"
@@ -171,6 +207,11 @@ lore-platform:
       # Must equal floor.api.baseUrl.
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
   lore-mcp-gateway:
+    hardened: true
+    imagePullSecrets: []
+    # The Secret this chart renders from secrets.mcpAuthToken.
+    mcpAuthTokenSecret:
+      name: lore-mcp-auth-token
     image:
       repository: ghcr.io/re-cinq/lore-mcp
       tag: "v1.0.5"

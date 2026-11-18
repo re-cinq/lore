@@ -1,0 +1,24 @@
+{{- /*
+Created when missing, kept on uninstall. A namespace this release created
+earlier is rendered again, so it stays part of the release and its labels can
+change. The release's own namespace is Helm's (--create-namespace).
+*/ -}}
+{{- $podSecurity := .Values.podSecurity }}
+{{- range (concat (list .Values.namespace) .Values.secretNamespaces | uniq) }}
+{{- $existing := lookup "v1" "Namespace" "" . }}
+{{- if and (ne . $.Release.Namespace) (or (not $existing) (eq ($existing.metadata.annotations | default dict | dig "meta.helm.sh/release-name" "") $.Release.Name)) }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- if and $podSecurity (has . (list "lore-api" "lore-ui" "lore-stations")) }}
+  labels:
+    pod-security.kubernetes.io/enforce: {{ $podSecurity }}
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  {{- end }}
+{{- end }}
+{{- end }}

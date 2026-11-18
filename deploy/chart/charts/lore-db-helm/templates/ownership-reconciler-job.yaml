@@ -37,9 +37,16 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: lore-db-ownership-reconciler
+      {{- with (include "lore.podSettings" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       containers:
         - name: reconciler
           image: {{ .Values.ownershipReconciler.image | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           command: ["/bin/sh", "-c"]
           env:
             - name: CLUSTER_NAME
@@ -50,6 +57,10 @@ spec:
               value: {{ .Values.ownershipReconciler.targetRole | quote }}
             - name: SCHEMAS
               value: {{ join " " .Values.ownershipReconciler.schemas | quote }}
+            {{- if .Values.hardened }}
+            - name: HOME
+              value: /tmp
+            {{- end }}
           args:
             - |
               set -eu
@@ -115,4 +126,12 @@ spec:
               echo "[reconciler] done"
           resources:
             {{- toYaml .Values.ownershipReconciler.resources | nindent 12 }}
+          {{- if .Values.hardened }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+          {{- end }}
 {{- end }}

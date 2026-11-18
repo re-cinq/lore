@@ -37,10 +37,19 @@ work as-is.
   Argo CD rolls it out. Several builds from one push each land their own
   commit; the script rebases and retries when a sibling got there first.
 
-Not deployed by this chart: the GKE cluster and its baseline (ingress
-controller, cert-manager, External Secrets, CloudNativePG), which
-re-cinq/infrastructure owns. The namespaces, ExternalSecrets, ingresses, the
-CNPG cluster and the Dgraph StatefulSet ship here.
+Not deployed by this chart: the cluster and its baseline (an ingress controller,
+cert-manager when `platform.clusterIssuer` is set, External Secrets when
+`platform.externalSecrets` is used, CloudNativePG when `platform.database` is
+used), which the cluster's owner provides; re-cinq/infrastructure does for our
+own. The namespaces, ingresses, NetworkPolicies and the Dgraph StatefulSet ship
+here, and the ExternalSecrets and CNPG cluster when asked for.
+
+Settings that default to today's behaviour so an existing cluster renders the
+same, and are switched on by `deploy/install/values.yaml`: `hardened` on each
+app subchart (non-root user, read-only root, dropped capabilities, seccomp),
+`platform.networkPolicies.enabled`, `platform.podSecurity`, and
+`lore-mcp-gateway.mcpAuthTokenSecret`. `global.nodeSelector` and
+`global.tolerations` place every workload; each subchart's own values win.
 
 ## Hook ordering
 

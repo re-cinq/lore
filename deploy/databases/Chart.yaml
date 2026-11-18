@@ -1,0 +1,11 @@
+apiVersion: v2
+name: lore-databases
+description: >-
+  The two PostgreSQL databases of a Lore install (lore-db for Lore, with
+  pgvector, and floor-db for the floor) as CloudNativePG clusters, with the
+  passwords generated once and the Secrets the lore-install chart reads. For a
+  cluster that has the CloudNativePG operator and no managed Postgres. Install
+  it before lore-install; the migration hooks of lore-install need the database
+  to exist, which is why it is a release of its own.
+type: application
+version: 0.1.0

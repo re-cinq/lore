@@ -1,4 +1,4 @@
-{{- if .Values.podDisruptionBudget.enabled }}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.replicaCount) 1) }}
 # An unannounced eviction mid-sweep loses that sweep's remaining work until the
 # next tick; the PDB makes Autopilot ask first.
 apiVersion: policy/v1

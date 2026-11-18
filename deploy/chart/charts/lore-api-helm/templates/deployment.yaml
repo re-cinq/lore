@@ -16,6 +16,10 @@ spec:
         app: lore-api
     spec:
       serviceAccountName: lore-api
+      automountServiceAccountToken: false
+      {{- with (include "lore.podSettings" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       # Plan edits are debounced in memory (planning-sync flushes them on
       # hapi's onPreStop), so give a rollout time to write the last keystrokes:
       # 45 seconds for that, after the 10 the preStop below waits.
@@ -26,7 +30,7 @@ spec:
       {{- end }}
       containers:
         - name: mcp
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # A pod being replaced keeps serving for 10 seconds before it is told
           # to stop. The ingress needs a moment to stop sending it requests;
@@ -199,5 +203,16 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.hardened }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+          {{- end }}

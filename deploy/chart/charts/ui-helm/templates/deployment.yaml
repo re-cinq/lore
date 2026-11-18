@@ -16,13 +16,17 @@ spec:
         app: lore-ui
     spec:
       serviceAccountName: lore-ui
+      automountServiceAccountToken: false
+      {{- with (include "lore.podSettings" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       containers:
         - name: ui
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -65,5 +69,20 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.hardened }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
+          {{- end }}

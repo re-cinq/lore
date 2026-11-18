@@ -8,23 +8,14 @@
 # docs/INSTALL.md section 3 walks through every step, including the one this
 # chart does not do: the model key the agents run with.
 #
-# Every CHANGE-ME must be replaced. This file then holds secrets: keep it out
-# of git.
+# Every CHANGE-ME must be replaced: the install stops while one is left. This
+# file then holds secrets: keep it out of git. Tokens and passwords that are
+# not listed here (ingest, internal, webhook, MCP, floor, Utopia's database and
+# keys) are generated on the first install and kept on every upgrade.
 
 secrets:
-  ghcr:
-    username: CHANGE-ME
-    token: CHANGE-ME
   loreDbPassword: CHANGE-ME
   floorDbConnectionString: postgres://floor:CHANGE-ME@CHANGE-ME.postgres.database.azure.com:5432/floor
-  # openssl rand -hex 32, a different one for each
-  ingestToken: CHANGE-ME
-  internalToken: CHANGE-ME
-  webhookSecret: CHANGE-ME
-  floor:
-    serviceToken: CHANGE-ME
-    visitTokenSecret: CHANGE-ME
-    gitCredentialToken: CHANGE-ME
   githubApp:
     appId: "000000"
     privateKey: |
@@ -43,13 +34,8 @@ secrets:
   # LORE_*_PROVIDER entries below.
   # anthropicApiKey: CHANGE-ME
   utopia:
-    dbPassword: CHANGE-ME
-    appDbPassword: CHANGE-ME
-    secretKey: CHANGE-ME
     oauthClientId: CHANGE-ME
     oauthClientSecret: CHANGE-ME
-    # openssl rand -hex 16
-    cookieSecret: CHANGE-ME
 
 utopia:
   hostname: utopia.example.com
@@ -62,22 +48,36 @@ utopia:
     # issuer: https://login.microsoftonline.com/<tenant id>/v2.0
     allowedDomains: CHANGE-ME
   ingress:
-    className: nginx
+    className: traefik
     clusterIssuer: letsencrypt-prod
+    # Utopia's chart defaults name two nginx annotations; null removes them.
+    # Behind your controller, Utopia needs request bodies up to 200 MB and
+    # WebSocket connections that stay open.
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: null
+      nginx.ingress.kubernetes.io/proxy-read-timeout: null
   data:
     storageClass: managed-csi
 
 lore-platform:
   platform:
+    # The cert-manager ClusterIssuer; leave empty to bring the TLS Secrets yourself.
     clusterIssuer: letsencrypt-prod
-    ingressClassName: nginx
+    # Your ingress controller's class. The ingresses below carry no
+    # controller-specific annotation. The controller must allow request bodies up
+    # to 25 MB on the API host (GitHub webhooks) and keep WebSocket connections
+    # on the UI host open (the live run page).
+    ingressClassName: traefik
+    networkPolicies:
+      # The namespace of your ingress controller.
+      ingressNamespace: traefik
     namespaces: [lore-dgraph]
     # Needs kube-prometheus-stack on the cluster. Turns on the ServiceMonitors and
     # the six Lore Grafana dashboards (ConfigMaps labelled grafana_dashboard: "1",
     # folder Lore, datasource uid "prometheus"). Leave false without it.
     monitoring: { enabled: false }
     dgraph:
-      image: dgraph/standalone:v24.0.0
+      image: dgraph/standalone:v24.0.0@sha256:e790caab0a81c95039fb6009d1c914a8c59e3ef02f33504b6110707601f0aa81
       storageClass: managed-csi
       storageSize: 50Gi
       resources:
@@ -89,10 +89,6 @@ lore-platform:
         host: lore-api.example.com
         service: lore-api
         port: 3000
-        annotations:
-          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-          nginx.ingress.kubernetes.io/proxy-body-size: 16m
       - name: lore-mcp
         namespace: lore-api
         host: lore-mcp.example.com
@@ -112,27 +108,13 @@ lore-platform:
         pathType: Exact
         service: lore-api
         port: 3000
-        annotations:
-          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-      - name: lore-webhook
-        namespace: lore-api
-        host: lore-events.example.com
-        service: lore-api
-        port: 3000
-        path: /api/events
-        pathType: Exact
-        certificate: lore-webhook
-        annotations:
-          nginx.ingress.kubernetes.io/proxy-body-size: 25m
-          nginx.ingress.kubernetes.io/rewrite-target: /api/webhook/github
 
   lore-api:
     env:
       LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
       LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
       LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
-      LORE_WEBHOOK_URL: https://lore-events.example.com/api/events
+      LORE_WEBHOOK_URL: https://lore-api.example.com/api/webhook/github
       LORE_API_URL: https://lore-api.example.com
       LORE_UI_URL: https://lore.example.com
       # Traces over OTLP/HTTP to a collector or the Azure Monitor OpenTelemetry endpoint. Unset, lore-api tries Cloud Trace, which is not there on Azure.
