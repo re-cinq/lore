@@ -103,4 +103,12 @@ describe("parseSettingsForm", () => {
 
     expect(parsed).toEqual([{ done_check: true }, { done_check: false }]);
   });
+
+  it("sets base_image when chosen, clears it to null when blank, and omits it when the field is absent", () => {
+    expect(
+      parseSettingsForm(form({ base_image: "node:20-alpine" })).base_image,
+    ).toBe("node:20-alpine");
+    expect(parseSettingsForm(form({ base_image: "" })).base_image).toBeNull();
+    expect("base_image" in parseSettingsForm(form({}))).toBe(false);
+  });
 });
