@@ -35,12 +35,22 @@ describe("startHttpGateway routing", () => {
   let server: Server | undefined;
 
   afterEach(async () => {
-    await new Promise((resolve) => server?.close(() => resolve(undefined)));
+    const running = server;
+
     server = undefined;
+    await new Promise((resolve) =>
+      running ? running.close(() => resolve(undefined)) : resolve(undefined),
+    );
   });
 
-  function start(opts: Parameters<typeof startHttpGateway>[0]): string {
-    server = startHttpGateway(opts);
+  const gatewayToken = "gateway-test-token";
+  const authed = { Authorization: `Bearer ${gatewayToken}` };
+
+  function start(
+    opts: Omit<Parameters<typeof startHttpGateway>[0], "authToken"> &
+      Partial<Pick<Parameters<typeof startHttpGateway>[0], "authToken">>,
+  ): string {
+    server = startHttpGateway({ authToken: gatewayToken, ...opts });
     const { port } = server.address() as AddressInfo;
 
     return `http://127.0.0.1:${port}`;
@@ -77,6 +87,45 @@ describe("startHttpGateway routing", () => {
     expect(res.status).toBe(404);
   });
 
+  it("refuses to start when the bearer token is an empty string", () => {
+    expect(() => startHttpGateway({ port: 0, authToken: "" })).toThrow(
+      new Error("LORE_MCP_AUTH_TOKEN must be set to run the MCP HTTP gateway"),
+    );
+  });
+
+  it("refuses to start when no bearer token is given", () => {
+    expect(() => startHttpGateway({ port: 0 })).toThrow(
+      new Error("LORE_MCP_AUTH_TOKEN must be set to run the MCP HTTP gateway"),
+    );
+  });
+
+  it("401s an /mcp request carrying a bearer token of another length", async () => {
+    const base = start({ port: 0 });
+    const res = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${gatewayToken}-and-more` },
+      signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("answers /healthz and /skills with no bearer token", async () => {
+    const base = start({ port: 0 });
+    const statuses = await Promise.all(
+      ["/healthz", "/skills/settings.json"].map(
+        async (path) =>
+          (
+            await fetch(`${base}${path}`, {
+              signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+            })
+          ).status,
+      ),
+    );
+
+    expect(statuses).toEqual([200, 200]);
+  });
+
   it("401s an /mcp request missing the configured bearer token", async () => {
     const base = start({ port: 0, authToken: "secret" });
     const res = await fetch(`${base}/mcp`, {
@@ -91,7 +140,7 @@ describe("startHttpGateway routing", () => {
     const base = start({ port: 0 });
     const res = await fetch(`${base}/mcp`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { ...authed, "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", method: "tools/list", id: 1 }),
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
@@ -105,6 +154,7 @@ describe("startHttpGateway routing", () => {
   it("400s a GET /mcp with no session id", async () => {
     const base = start({ port: 0 });
     const res = await fetch(`${base}/mcp`, {
+      headers: authed,
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
 
@@ -118,6 +168,7 @@ describe("startHttpGateway routing", () => {
     const base = start({ port: 0 });
     const res = await fetch(`${base}/mcp`, {
       method: "PUT",
+      headers: authed,
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
 
@@ -132,6 +183,7 @@ describe("startHttpGateway routing", () => {
     fetch(`${base}/mcp`, {
       method: "POST",
       headers: {
+        ...authed,
         "Content-Type": "application/json",
         Accept: "application/json, text/event-stream",
         ...headers,
@@ -176,7 +228,7 @@ describe("startHttpGateway routing", () => {
     for (const method of ["GET", "DELETE"]) {
       const res = await fetch(`${base}/mcp`, {
         method,
-        headers: { "mcp-session-id": "does-not-exist" },
+        headers: { ...authed, "mcp-session-id": "does-not-exist" },
         signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
       });
 
@@ -207,6 +259,7 @@ describe("startHttpGateway routing", () => {
     const init = await postMcp(base, initializeBody);
     const sessionId = init.headers.get("mcp-session-id") ?? "";
     const headers = {
+      ...authed,
       "mcp-session-id": sessionId,
       "mcp-protocol-version": "2025-03-26",
     };
@@ -234,7 +287,7 @@ describe("startHttpGateway routing", () => {
   it("400s a GET /mcp whose session id header is empty, as POST does", async () => {
     const base = start({ port: 0 });
     const res = await fetch(`${base}/mcp`, {
-      headers: { "mcp-session-id": "" },
+      headers: { ...authed, "mcp-session-id": "" },
       signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
     });
 

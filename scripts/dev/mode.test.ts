@@ -54,7 +54,7 @@ describe("resolveMode", () => {
 });
 
 describe("defaultsFor", () => {
-  it("returns the eight local keys for local mode", () => {
+  it("returns the nine local keys for local mode", () => {
     assert.deepEqual(defaultsFor(resolveMode({})), {
       LORE_DB_HOST: "localhost",
       LORE_DB_PORT: "5432",
@@ -64,6 +64,7 @@ describe("defaultsFor", () => {
       LORE_API_URL: "http://localhost:3001",
       LORE_UI_URL: "http://localhost:3000",
       LORE_INGEST_TOKEN: "lore-local-dev-token",
+      LORE_MCP_AUTH_TOKEN: "lore-local-dev-token",
     });
   });
 
