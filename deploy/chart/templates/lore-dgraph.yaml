@@ -5,6 +5,19 @@
 {{- $tolerations := $g.tolerations | default $global.tolerations }}
 {{- $podLabels := merge (dict) ($g.podLabels | default dict) ($global.podLabels | default dict) }}
 {{- $podAnnotations := merge (dict) ($g.podAnnotations | default dict) ($global.podAnnotations | default dict) }}
+{{- if ne (toString $g.podDisruptionBudget) "false" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lore-dgraph-alpha
+  namespace: lore-dgraph
+  labels: { app: lore-dgraph }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: lore-dgraph }
+{{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -230,6 +230,10 @@ lore-platform:
     # its NetworkPolicy lets only lore-api and lore-stations in. Storage is the
     # cluster's default class unless dgraph.storageClass is set.
     dgraph:
+      # One replica behind a budget of minAvailable 1 can never be evicted, so a node
+      # drain waits forever. Set true to hold the pod in place until a person moves it;
+      # the same switch is podDisruptionBudget.enabled on lore-api, lore-ui and lore-stations.
+      podDisruptionBudget: false
       image: dgraph/standalone:v24.0.0@sha256:e790caab0a81c95039fb6009d1c914a8c59e3ef02f33504b6110707601f0aa81
       storageSize: 50Gi
       # Dgraph sends usage reports and errors to Dgraph Inc. and Sentry unless off.
@@ -238,6 +242,8 @@ lore-platform:
         requests: { cpu: "1", memory: 4Gi }
         limits: { cpu: "4", memory: 16Gi }
   lore-api:
+    podDisruptionBudget:
+      enabled: false
     hardened: true
     imagePullSecrets: []
     env:
@@ -276,12 +282,16 @@ lore-platform:
       # The image agent pods work in. Public.
       agentImage: ghcr.io/re-cinq/lore-agent:v1.0.5
   lore-ui:
+    podDisruptionBudget:
+      enabled: false
     hardened: true
     imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-ui
       tag: "v1.0.5"
   lore-stations:
+    podDisruptionBudget:
+      enabled: false
     # The Azure cost sync skips itself without LORE_AZURE_COST_SCOPE, so it is
     # not scheduled here; values.aks.example.yaml schedules it (skipCourierJobs: []).
     skipCourierJobs: [azure-cost-sync]

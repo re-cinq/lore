@@ -173,9 +173,12 @@ every_workload "$(render --set lore-api.image.digest=$digest --set lore-ui.image
 	--set lore-stations.image.digest=$digest --set lore-mcp-gateway.image.digest=$digest)" \
 	"image.digest pins the four application images" \
 	'.kind != "Deployment" or (.pod.containers[0].image | endswith("@" + "'"$digest"'"))' '^(lore-api|lore-ui|lore-stations)$'
-rendered_lacks "$neutral" "no PodDisruptionBudget on a single replica" '.kind == "PodDisruptionBudget"'
-rendered_has "$(render --set lore-api.replicaCount=2)" "a PodDisruptionBudget returns with a second replica" \
+rendered_has "$neutral" "Dgraph keeps its PodDisruptionBudget by default" \
+	'.kind == "PodDisruptionBudget" and .metadata.name == "lore-dgraph-alpha"'
+rendered_has "$neutral" "lore-api keeps its PodDisruptionBudget by default" \
 	'.kind == "PodDisruptionBudget" and .metadata.name == "lore-api"'
+rendered_lacks "$installed" "the install renders no PodDisruptionBudget for a single replica" \
+	'.kind == "PodDisruptionBudget"'
 
 echo "network policies and pod security (opt in)"
 rendered_lacks "$neutral" "no NetworkPolicy beyond the agent egress rule by default" \
