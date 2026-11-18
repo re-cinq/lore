@@ -90,14 +90,56 @@ LIMITS:
   owns it, with a deadline. Never run a test main already had, a
   directory, or the repository's full suite: CI is the judge of this
   branch and runs every other test on every push.
-- Format and lint the files you wrote the way the round does, one package
-  per call, and never typecheck or build in this pod.
 
-DELIVERY: the next step runs in a DIFFERENT container. When you wrote
-tests, `git -C /workspace/target add` them and commit with a short,
-factual message, then `git -C /workspace/target push origin HEAD`, never
-forced. `git status` must report the branch is not ahead of its upstream.
-Do not open a pull request.
+DELIVERY, NON-NEGOTIABLE, when you wrote tests (when you wrote none there
+is nothing to format, lint or push) — the next step runs in a DIFFERENT
+container:
+- Before you commit, run the repository's FORMATTER over the files you
+  changed (`npx --no-install prettier --write <files>`
+  after `npm ci` when the checkout has no `node_modules`, `gofmt -w <files>`, whichever
+  this repo uses).
+- LINT the files you changed before you commit, after the formatter:
+  `NODE_OPTIONS=--max-old-space-size=3072 timeout 300 npx --no-install eslint --fix <files>`
+  (or the repo's own linter, such as `ruff` or `golangci-lint`, scoped the
+  same way), spec and ADR markdown included, one package per call: files
+  from several packages in one call need more memory than the pod has.
+  When `eslint` is not installed in the checkout, install the dependencies
+  first (`npm ci` from the repository root). Never lint the whole
+  repository (`eslint .`, `npm run lint`) and never reach for a linter
+  `npx` would download. Fix what it still reports and commit what `--fix`
+  changed with your work. Linting is not testing: the test rules still
+  hold.
+- Do NOT typecheck here either. A green test is not a compiled build —
+  vitest transpiles each file without checking types — but CI's build
+  step is what proves it, and in this repository `tsc --noEmit` on
+  `libs/shared` peaks near 950 MB against the 1Gi pod: run 2a291314's
+  dod pod was OOM-killed on it. A type error comes back as a red build
+  whose failed step and log tail name the file and line; the next
+  round fixes it there. Read your imports and signatures twice instead.
+- NEVER run a workspace build in this pod (`npm run build`, `tsc -b`, a
+  `tsc` without `--noEmit`): tests resolve every workspace package from
+  SOURCE, so nothing needs building for a test to see your change, and
+  the build is the 950 MB step that OOM-killed run abac6ee9 while it
+  rebuilt libs/shared for a test that never needed it.
+- When the work is done, `git -C /workspace/target add` what you changed and commit it with a
+  short, factual message. Then `git -C /workspace/target push origin HEAD`. The clone carries
+  its own credentials, so a plain push authenticates; you need no token
+  and must never look for one.
+- Then bring the branch up to date with its base — `git fetch origin main`
+  and `git rebase origin/main`, never a merge, so the history stays a
+  straight line — and, if that moved anything, push again with
+  `git push --force-with-lease origin HEAD` (the rebase rewrote the history,
+  so a plain push is refused; never force-push the default branch).
+  A branch that cannot merge cleanly gets NO CI AT ALL: GitHub runs no
+  workflow on a conflicted pull request, so the ticket parks on a build
+  that will never start. Resolve any conflict now, favouring `origin/main`
+  for anything this ticket did not write, and never by discarding your own
+  work.
+- Confirm it landed: `git status` must report the branch is not ahead of
+  its upstream. An unpushed commit lives only in this container and
+  dies with it — do NOT report success for one.
+- Do not open a pull request: you have no `gh` and no GitHub token. Lore
+  opens the PR from the branch you push.
 
 THE LAST LINE YOU PRINT is how the review ends. Print exactly one, on its
 own line, as the final thing in your message.

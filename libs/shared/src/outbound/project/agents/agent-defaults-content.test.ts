@@ -11,6 +11,7 @@ const LINTING_RECIPES: readonly string[] = [
   "loop-dod",
   "loop-tdd-round",
   "loop-fix-ci",
+  "loop-test-review",
   "loop-sync",
   "spec-draft",
   "spec-rework",

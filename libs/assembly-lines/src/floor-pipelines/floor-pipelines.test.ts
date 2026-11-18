@@ -488,6 +488,7 @@ describe("the floor pipelines shipped in this folder", () => {
       const edge = line.edges.find(
         (candidate) => candidate.from === from && candidate.on === on,
       );
+
       return { to: edge?.to, iteration_max: edge?.iteration_max };
     };
 
