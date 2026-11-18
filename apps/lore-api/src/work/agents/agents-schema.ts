@@ -140,7 +140,7 @@ export function configKeysOf(patch: Pick<AgentPatch, OwnedConfigKey>): {
 }
 
 // A patch must not invent values: zod 4 applies an inner .default() through .partial(), turning an omitted field into a silent write.
-const AgentPatchSchema = AgentInputSchema.partial().extend({
+export const AgentPatchSchema = AgentInputSchema.partial().extend({
   execution_mode: ExecutionMode.optional(),
   review_required: z.boolean().optional(),
 });

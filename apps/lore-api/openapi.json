@@ -385,12 +385,10 @@
                     ]
                   },
                   "execution_mode": {
-                    "default": "claude-code",
                     "type": "string",
                     "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
-                    "default": false,
                     "type": "boolean"
                   },
                   "pod_resources": {
@@ -530,7 +528,6 @@
                     "type": ["boolean", "null"]
                   }
                 },
-                "required": ["name"],
                 "additionalProperties": false
               }
             }
@@ -5829,12 +5826,10 @@
                     ]
                   },
                   "execution_mode": {
-                    "default": "claude-code",
                     "type": "string",
                     "enum": ["claude-code", "graph-ingest", "station"]
                   },
                   "review_required": {
-                    "default": false,
                     "type": "boolean"
                   },
                   "pod_resources": {
@@ -5974,7 +5969,6 @@
                     "type": ["boolean", "null"]
                   }
                 },
-                "required": ["name"],
                 "additionalProperties": false
               }
             }
