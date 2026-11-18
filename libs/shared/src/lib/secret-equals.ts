@@ -1,12 +1,11 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 // Timing-safe token comparison. Here rather than beside the bearer helper because `outbound` needs it too, which made an adapter import from `transport`.
 
-/** Constant-time string compare. */
-export function secretEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
+const sha256 = (value: string): Buffer =>
+  createHash("sha256").update(value).digest();
 
-  // timingSafeEqual throws on length mismatch; token length is not secret, only bytes.
-  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
+/** Constant-time string compare; digests of equal size are compared, so neither the bytes nor the length of the secret leak and unequal lengths never throw. */
+export function secretEquals(a: string, b: string): boolean {
+  return timingSafeEqual(sha256(a), sha256(b));
 }

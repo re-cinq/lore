@@ -10,12 +10,15 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
 import { handleSkillsRequest } from "./skills-registry.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
+import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
 import { reportGatewayVersion } from "../work/versions/report-gateway-version.js";
 
 export interface HttpGatewayOptions {
   port: number;
-  /** Required Bearer token; when unset, auth is disabled (local dev only). */
+  /** Required Bearer token for /mcp; the gateway refuses to start without one. */
   authToken?: string;
   serverMode?: ServerMode;
 }
@@ -109,7 +112,7 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
 
   server.listen(opts.port, () => {
     console.error(
-      `[lore] MCP HTTP gateway listening on :${opts.port} (mode=${opts.serverMode ?? "full"}, auth=${opts.authToken ? "on" : "off"})`,
+      `[lore] MCP HTTP gateway listening on :${opts.port} (mode=${opts.serverMode ?? "full"}, auth=on)`,
     );
   });
 
@@ -118,13 +121,20 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
 
 // The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, which is not part of MCP.
 function gatewayWiring(opts: HttpGatewayOptions): GatewayWiring {
+  const authToken = opts.authToken ?? "";
+
+  enforceTrue(
+    authToken,
+    Error,
+    "LORE_MCP_AUTH_TOKEN must be set to run the MCP HTTP gateway",
+  );
+
   return {
     skillsRoot:
       process.env.LORE_AGENT_SKILLS_DIR ??
       resolve(process.cwd(), "agent-skills"),
     authorized: (req: IncomingMessage): boolean =>
-      !opts.authToken ||
-      req.headers.authorization === `Bearer ${opts.authToken}`,
+      secretEquals(extractBearer(req.headers.authorization) ?? "", authToken),
   };
 }
 

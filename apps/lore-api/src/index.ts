@@ -7,6 +7,7 @@ import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pip
 import { Llm } from "@re-cinq/lore-shared";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
+import { enforceBootEnv } from "./app/boot-env.js";
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { seedFloor, migrateFloor, syncPackAtBoot } from "./app/seed-floor.js";
@@ -36,6 +37,7 @@ const state: { pool: Pool | null } = { pool: null };
 const getPool = () => state.pool;
 
 async function main() {
+  enforceBootEnv(process.env);
   await initOtel();
 
   const dbHost = process.env.LORE_DB_HOST;

@@ -45,5 +45,6 @@ export function defaultsFor(mode: Mode): Record<string, string> {
     LORE_API_URL: mode.apiUrl,
     LORE_UI_URL: "http://localhost:3000",
     LORE_INGEST_TOKEN: "lore-local-dev-token",
+    LORE_MCP_AUTH_TOKEN: "lore-local-dev-token",
   };
 }
