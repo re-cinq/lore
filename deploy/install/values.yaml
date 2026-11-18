@@ -183,8 +183,8 @@ utopia:
     allowedDomains: ""
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.36
-    digest: sha256:f7f77e0cdc0f44ddf7d1befe74dea3bb1825842a9ef882bc1e04756c9fdf73d2
+    tag: 0.1.0-re.37
+    digest: sha256:810aa58e56239e3a5d1d207d193be19901e6217acf8659726a184e9f9deaa13c
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
