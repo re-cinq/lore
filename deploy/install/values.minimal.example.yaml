@@ -1,0 +1,53 @@
+# The smallest Lore install: GitHub, a model key and hostnames, nothing else.
+# No Utopia, no Slack, no Google or Azure service, no secret store. Pull the
+# chart (`helm pull oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z
+# --untar`), copy this file, fill it in, then:
+#
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
+#     -n lore-floor --create-namespace -f my-values.yaml
+#
+# First: CloudNativePG, an ingress controller and the lore-databases chart.
+# Every CHANGE-ME must be replaced; the install stops while one is left. Tokens
+# and passwords not listed here are generated. To bring a Secret of your own
+# instead of a value, leave the value out and see deploy/install/README.md.
+#
+# What the install calls out to: GitHub, and the model key's API. Search is by
+# keywords until you add an embeddings key (see values.yaml, LORE_EMBEDDING_PROVIDER).
+
+secrets:
+  githubApp:
+    appId: "CHANGE-ME"
+    installationId: "CHANGE-ME"
+    privateKey: |
+      -----BEGIN RSA PRIVATE KEY-----
+      CHANGE-ME
+      -----END RSA PRIVATE KEY-----
+  githubOAuth:
+    clientId: CHANGE-ME
+    clientSecret: CHANGE-ME
+  anthropicApiKey: CHANGE-ME
+
+lore-platform:
+  platform:
+    ingressClassName: traefik
+    ingressTls: false   # true, with TLS Secrets of yours or platform.clusterIssuer, off a laptop
+    ingresses:
+      - { name: lore-api, namespace: lore-api, host: lore-api.example.com, service: lore-api, port: 3000 }
+      - { name: lore-mcp, namespace: lore-api, host: lore-mcp.example.com, service: lore-mcp-gateway, port: 8080 }
+      - { name: lore-ui, namespace: lore-ui, host: lore.example.com, service: lore-ui, port: 3000 }
+      # Prefix, not Exact: Traefik 3 ranks an Exact path below the UI's "/" prefix.
+      - { name: lore-ui-live, namespace: lore-api, host: lore.example.com, path: /api/ws, pathType: Prefix, service: lore-api, port: 3000 }
+  lore-api:
+    env:
+      LORE_WEBHOOK_URL: http://lore-api.example.com/api/webhook/github
+      LORE_API_URL: http://lore-api.example.com
+      LORE_UI_URL: http://lore.example.com
+      GITHUB_ORG: CHANGE-ME
+  lore-ui:
+    env:
+      GITHUB_APP_SLUG: CHANGE-ME
+      LORE_API_PUBLIC_URL: http://lore-api.example.com
+      LORE_WS_URL: ws://lore.example.com/api/ws
+  lore-stations:
+    env:
+      LORE_UI_URL: http://lore.example.com

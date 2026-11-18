@@ -1,0 +1,67 @@
+# Install before lore-install, in any namespace:
+#
+#   helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases \
+#     --version X.Y.Z -n lore-db --create-namespace
+#
+# Needs the CloudNativePG operator (and its barman cloud plugin for backups).
+# Nothing here names a cloud: storage class, backup target and scheduling are
+# values, and each is empty or off by default.
+
+# Where the two clusters run.
+namespace: lore-db
+
+# Namespaces the Secrets go into. Each is created when it is missing, so
+# this chart can come first.
+secretNamespaces: [lore-api, lore-ui, lore-stations, lore-floor]
+
+# The Pod Security Admission level to enforce on lore-api, lore-ui and
+# lore-stations when this chart creates them (also warned and audited at
+# restricted). Use the same value as global.podSecurity of lore-install. Empty:
+# no label.
+podSecurity: restricted
+
+# Run both clusters on a pool of your choice. Each cluster's own nodeSelector
+# and tolerations win.
+global:
+  nodeSelector: {}
+  tolerations: []
+
+# What both clusters have. A cluster below overrides any of it.
+defaults:
+  instances: 1
+  size: 20Gi
+  # Empty: the cluster's default storage class.
+  storageClass: ""
+  # PostgreSQL 16 with pgvector, by digest. The standard variant is the one that
+  # carries the extension.
+  image: ghcr.io/cloudnative-pg/postgresql:16.16-standard-bookworm@sha256:69b02d259c6fe5d0ef53fe67ecb000e9c0cee4d3b9e173b58bb13e722b17ba4e
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "2", memory: 2Gi }
+  nodeSelector: {}
+  tolerations: []
+  # Annotations of the cluster's ServiceAccount, for a workload identity that
+  # reaches the backup target (Azure: azure.workload.identity/client-id).
+  serviceAccountAnnotations: {}
+
+# Backup is off until `configuration` is set. It is the `configuration` of a
+# barman cloud ObjectStore (https://cloudnative-pg.io/plugin-barman-cloud/),
+# passed through as written, so Azure Blob, GCS and S3 all fit:
+#   backup:
+#     schedule: "0 0 2 * * *"      # six fields, seconds first
+#     retention: 30d
+#     configuration:
+#       destinationPath: https://<account>.blob.core.windows.net/<container>/lore-db
+#       azureCredentials: { inheritFromAzureAD: true }
+lore:
+  name: lore-db
+  # Database and owner role.
+  database: lore
+  owner: lore
+  backup: {}
+
+floor:
+  name: floor-db
+  database: floor
+  owner: floor
+  backup: {}

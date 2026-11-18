@@ -1,0 +1,56 @@
+# A trial of Lore on one laptop with kind (docs/install/local.md). No TLS, no
+# DNS: *.localtest.me resolves to 127.0.0.1, and kind maps host port 80 to
+# Traefik. Pull the chart, copy this file, then:
+#
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
+#     -n lore-floor --create-namespace -f my-values.yaml
+#
+# First: CloudNativePG, Traefik and the lore-databases chart. The GitHub and
+# model credentials are yours; with dummies the install runs but sign-in,
+# webhooks and model calls do not. Every CHANGE-ME must be replaced.
+# Utopia (the knowledge graph) is off; values.aks.example.yaml shows how to turn it on.
+
+secrets:
+  githubApp:
+    appId: "CHANGE-ME"
+    installationId: "CHANGE-ME"
+    privateKey: |
+      -----BEGIN RSA PRIVATE KEY-----
+      CHANGE-ME
+      -----END RSA PRIVATE KEY-----
+  githubOAuth:
+    clientId: CHANGE-ME
+    clientSecret: CHANGE-ME
+  anthropicApiKey: CHANGE-ME
+
+lore-platform:
+  platform:
+    ingressClassName: traefik
+    ingressTls: false
+    dgraph:
+      storageSize: 2Gi
+      resources:
+        requests: { cpu: 100m, memory: 1Gi }
+        limits: { memory: 4Gi }
+    ingresses:
+      - { name: lore-api, namespace: lore-api, host: lore-api.localtest.me, service: lore-api, port: 3000 }
+      - { name: lore-mcp, namespace: lore-api, host: lore-mcp.localtest.me, service: lore-mcp-gateway, port: 8080 }
+      - { name: lore-ui, namespace: lore-ui, host: lore.localtest.me, service: lore-ui, port: 3000 }
+      # Prefix, not Exact: Traefik 3 ranks an Exact path below the UI's "/" prefix.
+      - { name: lore-ui-live, namespace: lore-api, host: lore.localtest.me, path: /api/ws, pathType: Prefix, service: lore-api, port: 3000 }
+  lore-api:
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+    env:
+      LORE_WEBHOOK_URL: http://lore-api.localtest.me/api/webhook/github
+      LORE_API_URL: http://lore-api.localtest.me
+      LORE_UI_URL: http://lore.localtest.me
+      GITHUB_ORG: CHANGE-ME
+  lore-ui:
+    env:
+      GITHUB_APP_SLUG: CHANGE-ME
+      LORE_API_PUBLIC_URL: http://lore-api.localtest.me
+      LORE_WS_URL: ws://lore.localtest.me/api/ws
+  lore-stations:
+    env:
+      LORE_UI_URL: http://lore.localtest.me

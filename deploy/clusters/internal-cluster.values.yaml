@@ -4,12 +4,12 @@
 # the build workflows.
 
 platform:
-  gcpProject: re-cinq-internal
   # Secrets live in re-cinq-internal's Secret Manager (re-cinq/infrastructure,
   # projects/internal/secrets.tf), read through the default store.
   secretStore: gcp-secret-manager
   clusterIssuer: letsencrypt-prod
   ingressClassName: nginx-ingress
+  externalDns: true
   namespaces: [lore-api, lore-floor, lore-ui, lore-db, lore-stations, lore-dgraph]
   legacyWebhookHost: lore-webhook.gcp.re-cinq.com
   database:
@@ -216,7 +216,12 @@ platform:
   monitoring: {enabled: true}
 lore-api:
   replicaCount: 1
-  gcpProject: re-cinq-internal
+  # Workload Identity: the `lore-api` Google service account holds
+  # roles/aiplatform.user for Vertex embeddings (re-cinq/infrastructure,
+  # projects/internal/lore.tf).
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-api
     tag: "4acd241"
@@ -275,6 +280,9 @@ lore-mcp-gateway:
     tag: "4acd241"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: lore-ui@re-cinq-internal.iam.gserviceaccount.com
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
@@ -304,6 +312,7 @@ lore-db-helm:
   ownershipReconciler: {enabled: true}
 # ---- Stations (lore-stations namespace)
 lore-stations:
+  gcpProject: re-cinq-internal
   image:
     repository: ghcr.io/re-cinq/lore-stations
     tag: "4acd241"

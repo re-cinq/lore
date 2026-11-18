@@ -1,5 +1,8 @@
-# Defaults of the lore-install chart. A client copies values.azure.example.yaml
+# Defaults of the lore-install chart. A client copies the example for their cluster
+# (values.aks.example.yaml, values.gke.example.yaml, values.local.example.yaml)
 # and fills it in; this file holds what is the same on every install.
+#
+# A value set to CHANGE-ME anywhere stops the install: replace every one.
 #
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
@@ -7,67 +10,125 @@
 #   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.0.5 \
 #     -n lore-floor --create-namespace -f my-values.yaml
 
+# Placement and policy for every workload of the three charts.
+global:
+  # Run every controller on one pool, for example a management node pool:
+  #   nodeSelector: { pool: management }
+  #   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
+  # Agent run pods are the floor's and keep no scheduling rule.
+  nodeSelector: {}
+  tolerations: []
+  # The Pod Security Admission level enforced on lore-api, lore-ui, lore-stations
+  # and lore-dgraph; each is also warned and audited at restricted. Only
+  # namespaces this chart creates are labelled; label an existing one yourself.
+  podSecurity: restricted
+  # Labels and annotations on every pod. Identity is only that: a label on the
+  # pod and an annotation on the ServiceAccount of the workload that needs one
+  # (podLabels, podAnnotations, serviceAccount.annotations under each app below,
+  # which win over these). Nothing in the chart knows a cloud.
+  podLabels: {}
+  podAnnotations: {}
+  # One identity provider: any OpenID Connect issuer. Utopia reads it through
+  # utopia.oidc below (repeat the same two values there until Utopia reads
+  # global.oidc itself); Lore does not use it yet, and will read the same block.
+  # Required only while utopia.enabled is true.
+  oidc:
+    issuer: ""          # Microsoft Entra ID: https://login.microsoftonline.com/<tenant id>/v2.0
+    allowedDomains: ""  # email domains that may sign in, comma separated
 # Created before anything else. lore-floor is the release namespace and comes
 # from --create-namespace. A namespace that already exists is left alone.
 namespaces: [lore-api, lore-ui, lore-stations]
 
-# Every Secret the three apps read, rendered into each namespace that needs it.
-# Set create to false when the client's vault provides Secrets with the names
-# in docs/INSTALL.md section 1.5.
+# ---- Secrets ------------------------------------------------------------------
+# One rule for every group below. Set its values and this chart writes the
+# Secret. Leave them empty and the Secret is yours: create it with the name,
+# namespace and keys in the table of deploy/install/README.md (kubectl, your
+# vault operator, whatever you use) and this chart never touches it. Where a
+# group is required and its Secret is not there either, the install stops and
+# names the Secret and its keys. (helm template cannot read the cluster, so it
+# skips that check and renders no Secret for an empty group.)
+#
+# Tokens are never your problem: a token left empty is generated on the first
+# install and kept after, and an upgrade reads the Secret that is there, so a
+# rotation done with kubectl survives. A token you set must be at least 32
+# characters. A Secret this chart wrote carries the label
+# lore-install.re-cinq.com/managed; one without it is treated as yours.
+#
+# Only GitHub is mandatory: githubApp and githubOAuth. Utopia, Slack, Google and
+# Azure are off until you switch them on.
 secrets:
+  # false: this chart writes no Secret at all; every Secret of the table is yours.
   create: true
-  # A GitHub user and token with read:packages, for the ghcr.io/re-cinq/lore-* images.
+  # Only for images pulled from a private registry (a mirror). The images under
+  # ghcr.io/re-cinq are public. With a username, ghcr-pull-secret is rendered in
+  # each namespace; also set imagePullSecrets of each app below.
   ghcr:
     username: ""
     token: ""
-  # Password of the `lore` Postgres role.
+  # Both empty: the databases are the lore-databases chart's, which creates
+  # these Secrets, and this chart renders none. For a database of your own:
+  # the password of the `lore` Postgres role, and postgres://user:password@host:5432/floor
   loreDbPassword: ""
-  # postgres://user:password@host:5432/floor
   floorDbConnectionString: ""
   # openssl rand -hex 32, each. They only have to be the same everywhere, which
-  # this chart takes care of.
+  # this chart takes care of. ingestToken is the admin token of lore-api.
   ingestToken: ""
   internalToken: ""
   webhookSecret: ""
+  # What the MCP gateway requires from agent pods (lore-mcp-auth in agent-secrets
+  # is "Bearer " and this value). Agent pods do not hold the ingest token.
+  mcpAuthToken: ""
   floor:
     serviceToken: ""
     visitTokenSecret: ""
     gitCredentialToken: ""
-  # The GitHub App Lore acts as.
+  # REQUIRED. The GitHub App Lore acts as. Secret github-app-credentials in
+  # lore-api and lore-ui, lore-stations-github-app in lore-stations.
   githubApp:
     appId: ""
     privateKey: ""
     installationId: ""
-  # The GitHub OAuth App people sign in to the UI with.
+  # REQUIRED. The GitHub OAuth App people sign in to the UI with. Secret
+  # lore-github-oauth in lore-api.
   githubOAuth:
     clientId: ""
     clientSecret: ""
+  # The OpenID Connect client Utopia signs people in with (Microsoft Entra ID,
+  # Google, Keycloak, ...), required only when utopia.enabled. Written to
+  # utopia-oauth, keys client-id and client-secret. The issuer is global.oidc.
+  # Lore itself does not use this block yet.
+  oidc:
+    clientId: ""
+    clientSecret: ""
   # Utopia (only read when utopia.enabled). Passwords of its two database
-  # roles, its encryption key, and the OAuth client people sign in with.
-  # cookieSecret is exactly 16, 24 or 32 characters: openssl rand -hex 16.
+  # roles, its encryption key and its cookie secret are generated when empty
+  # (cookieSecret is exactly 16, 24 or 32 characters; secretKey is 32 bytes as
+  # 64 hexadecimal characters or base64: openssl rand -hex 32).
   utopia:
     dbPassword: ""
     appDbPassword: ""
     secretKey: ""
-    oauthClientId: ""
-    oauthClientSecret: ""
     cookieSecret: ""
-  # Optional: the model key Lore's own jobs use (not the agents' key).
+  # Optional: the model key Lore's own jobs use (not the agents' key). Secrets
+  # lore-anthropic-key (key anthropic-api-key) in lore-api, and
+  # lore-stations-anthropic-key in lore-stations.
   anthropicApiKey: ""
   # Optional: the key of an OpenAI-compatible API (OpenAI, Microsoft Foundry) for
-  # Lore's own model calls and embeddings. See values.azure.example.yaml for the
-  # env entries that select it.
+  # Lore's own model calls and embeddings. See values.aks.example.yaml for the
+  # env entries that select it. Secrets lore-openai-key (key api-key) in
+  # lore-api, lore-stations-openai-key in lore-stations.
   openaiApiKey: ""
-  # Optional: the Slack app.
+  # Optional: the Slack app. Both or neither. Secret lore-slack-credentials in
+  # lore-api, lore-stations-slack (key bot-token) in lore-stations.
   slack:
     signingSecret: ""
     botToken: ""
 
 # ---- The floor, with the agent subsystem it bundles ---------------------------
 # Any value of the floor chart can be set here:
-#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.5
+#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.6
 floor:
-  version: "0.5.5"
+  version: "0.5.6"
   # The agent subsystem: controller and CRDs. Agents run in the release namespace.
   subsystem:
     enabled: true
@@ -79,6 +140,12 @@ floor:
   postgres:
     existingSecret: floor-postgres
     secretKey: connectionString
+  # Only Lore's own apps call the floor's api (lore-api and lore-stations), plus
+  # the floor's own cluster agent and agent pods, which the chart admits itself.
+  # Everything else is refused.
+  apiNetworkPolicy:
+    enabled: true
+    allowedNamespaces: [lore-api, lore-stations]
   agentNetworkPolicy:
     # The one in-cluster door agent pods need beyond the floor: Lore's MCP
     # gateway and skills registry.
@@ -103,19 +170,35 @@ floor:
 # CloudNativePG operator on the cluster. Any value of the Utopia chart can be
 # set here (re-cinq/utopia, deploy/chart/values.yaml).
 #
-# To leave Utopia out, set BOTH utopia.enabled and
-# lore-platform.lore-api.utopia.enabled to false.
+# OFF by default: a Lore install needs only GitHub. To turn it on set BOTH
+# utopia.enabled and lore-platform.lore-api.utopia.enabled to true, global.oidc,
+# utopia.oidc (the same two values) and secrets.oidc, as the AKS and GKE
+# examples do.
 utopia:
-  enabled: true
-  # Not public: pulled with ghcr-pull-secret, like the Lore images.
+  enabled: false
+  # Repeats global.oidc until Utopia reads the shared block; the install stops
+  # when the two differ.
+  oidc:
+    issuer: ""
+    allowedDomains: ""
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.35
-    digest: sha256:737e04c76ca0cfdf061cf68acb9626d59c098502e0962590312127bd8f76fa6c
+    tag: 0.1.0-re.37
+    digest: sha256:810aa58e56239e3a5d1d207d193be19901e6217acf8659726a184e9f9deaa13c
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
+  # The image is public: no pull secret. Utopia's chart honours global.nodeSelector
+  # and global.tolerations, sets no cloud-specific annotation of its own, and
+  # signs people in with the OpenID Connect issuer of your values file.
+  googleDrive:
+    enabled: false
+  ingress:
+    annotations: {}
   network:
+    # The namespace of your ingress controller; keep it equal to
+    # lore-platform.platform.networkPolicies.ingressNamespace.
+    ingressControllerNamespace: traefik
     # lore-api is the one in-cluster caller.
     allowFrom:
       - namespace: lore-api
@@ -131,12 +214,52 @@ utopia:
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
 # the chart published for release v1.0.5 pins all five images (the four tags below and
 # agentImage) to v1.0.5, so an install does not depend on what `latest` is that
-# day. lore-api, lore-mcp and lore-ui are not public: they are pulled with
-# ghcr-pull-secret, which this chart renders from secrets.ghcr. To move to a
-# newer release, upgrade with its chart version (--version 1.1.0); do not
-# edit the tags by hand.
+# day. They are public, so no pull secret is set. To move to a newer release,
+# upgrade with its chart version (--version 1.1.0); do not edit the tags by hand.
+#
+# Every app is locked down (hardened: non-root, read-only root, no capabilities,
+# RuntimeDefault seccomp), and NetworkPolicies allow only the traffic the
+# platform uses; platform.networkPolicies names the namespaces of your ingress
+# controller (default traefik), your monitoring and the floor.
 lore-platform:
+  platform:
+    networkPolicies:
+      enabled: true
+    namespaces: [lore-dgraph]
+    # Dgraph, the memory and trace graph. It has no authentication of its own;
+    # its NetworkPolicy lets only lore-api and lore-stations in. Storage is the
+    # cluster's default class unless dgraph.storageClass is set.
+    dgraph:
+      # One replica behind a budget of minAvailable 1 can never be evicted, so a node
+      # drain waits forever. Set true to hold the pod in place until a person moves it;
+      # the same switch is podDisruptionBudget.enabled on lore-api, lore-ui and lore-stations.
+      podDisruptionBudget: false
+      image: dgraph/standalone:v24.0.0@sha256:e790caab0a81c95039fb6009d1c914a8c59e3ef02f33504b6110707601f0aa81
+      storageSize: 50Gi
+      # Dgraph sends usage reports and errors to Dgraph Inc. and Sentry unless off.
+      telemetry: false
+      resources:
+        requests: { cpu: "1", memory: 4Gi }
+        limits: { cpu: "4", memory: 16Gi }
   lore-api:
+    podDisruptionBudget:
+      enabled: false
+    hardened: true
+    imagePullSecrets: []
+    env:
+      LORE_DGRAPH_HTTP: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+      LORE_MCP_URL: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
+      # Nothing leaves the cluster except to GitHub and the model you name.
+      # Traces: lore-api sends them to Google Cloud Trace unless told otherwise.
+      # Set OTEL_EXPORTER_OTLP_ENDPOINT (and LORE_TRACE_EXPORTER: otlp) for a
+      # collector of yours.
+      LORE_TRACE_EXPORTER: none
+      # Embeddings (search by meaning): Vertex AI is the application's default.
+      # `openai` with no OPENAI_API_KEY makes no call at all and search falls
+      # back to keywords, so lore-api reports "degraded" on /healthz (HTTP 200).
+      # For vectors set secrets.openaiApiKey and OPENAI_BASE_URL / LORE_EMBEDDING_MODEL
+      # (any OpenAI-compatible API, 768 dimensions), as values.aks.example.yaml does.
+      LORE_EMBEDDING_PROVIDER: openai
     # A self-hosted GitHub Enterprise Server: set its bare host name in lore-api,
     # lore-ui and lore-stations, e.g. env: { GITHUB_HOST: ghe.example.com }.
     # Your own agents and assembly lines (a pack, docs/using-lore/pack-layout-reference.md):
@@ -148,7 +271,7 @@ lore-platform:
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
-      enabled: true
+      enabled: false
       # Utopia's Service is named utopia, in the release namespace.
       apiUrl: http://utopia.lore-floor.svc.cluster.local
     floor:
@@ -159,10 +282,22 @@ lore-platform:
       # The image agent pods work in. Public.
       agentImage: ghcr.io/re-cinq/lore-agent:v1.0.5
   lore-ui:
+    podDisruptionBudget:
+      enabled: false
+    hardened: true
+    imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-ui
       tag: "v1.0.5"
   lore-stations:
+    podDisruptionBudget:
+      enabled: false
+    # The Azure cost sync skips itself without LORE_AZURE_COST_SCOPE, so it is
+    # not scheduled here; values.aks.example.yaml schedules it (skipCourierJobs: []).
+    skipCourierJobs: [azure-cost-sync]
+    env:
+      LORE_EMBEDDING_PROVIDER: openai   # see lore-api above
+    imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-stations
       tag: "v1.0.5"
@@ -171,6 +306,11 @@ lore-platform:
       # Must equal floor.api.baseUrl.
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
   lore-mcp-gateway:
+    hardened: true
+    imagePullSecrets: []
+    # The Secret this chart renders from secrets.mcpAuthToken.
+    mcpAuthTokenSecret:
+      name: lore-mcp-auth-token
     image:
       repository: ghcr.io/re-cinq/lore-mcp
       tag: "v1.0.5"

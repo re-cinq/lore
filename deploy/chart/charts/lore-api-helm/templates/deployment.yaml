@@ -14,8 +14,19 @@ spec:
     metadata:
       labels:
         app: lore-api
+        {{- with (include "lore.podLabels" . | trim) }}
+        {{- . | nindent 8 }}
+        {{- end }}
+      {{- with (include "lore.podAnnotations" . | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: lore-api
+      automountServiceAccountToken: false
+      {{- with (include "lore.podSettings" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       # Plan edits are debounced in memory (planning-sync flushes them on
       # hapi's onPreStop), so give a rollout time to write the last keystrokes:
       # 45 seconds for that, after the 10 the preStop below waits.
@@ -24,9 +35,43 @@ spec:
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
+      {{- if .Values.floor.enabled }}
+      # lore-api puts its pipelines and agent definitions to the floor once, at
+      # boot, and does not try again. On a first install the floor's api is
+      # still waiting for its own migration, so wait for it here (at most five
+      # minutes: a floor out of reach must not stop the deploy).
+      initContainers:
+        - name: wait-for-floor
+          image: {{ include "lore.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - node
+            - -e
+            - |
+              const url = process.env.FLOOR_API_URL + "/readyz";
+              const giveUpAt = Date.now() + 300000;
+              (async () => {
+                while (Date.now() < giveUpAt) {
+                  try {
+                    if ((await fetch(url, { signal: AbortSignal.timeout(3000) })).ok) return;
+                  } catch {}
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                }
+                console.log("the floor is not ready; starting anyway");
+              })();
+          env:
+            - name: FLOOR_API_URL
+              value: {{ .Values.floor.apiUrl | quote }}
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 128Mi }
+      {{- end }}
       containers:
         - name: mcp
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # A pod being replaced keeps serving for 10 seconds before it is told
           # to stop. The ingress needs a moment to stop sending it requests;
@@ -199,5 +244,16 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
+          {{- with (include "lore.containerSecurityContext" . | trim) }}
+          {{- . | nindent 10 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.hardened }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+          {{- end }}

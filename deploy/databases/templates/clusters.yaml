@@ -1,0 +1,88 @@
+{{- range $key := list "lore" "floor" }}
+{{- $cluster := include "lore-databases.cluster" (dict "root" $ "cluster" $key) | fromJson }}
+{{- $own := index $.Values $key }}
+{{- $global := $.Values.global | default dict }}
+{{- $nodeSelector := $cluster.nodeSelector | default $global.nodeSelector }}
+{{- $tolerations := $cluster.tolerations | default $global.tolerations }}
+{{- $backup := $own.backup | default dict }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $own.name }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  instances: {{ $cluster.instances }}
+  imageName: {{ $cluster.image }}
+  bootstrap:
+    initdb:
+      database: {{ $own.database }}
+      owner: {{ $own.owner }}
+      secret: { name: {{ $own.name }}-credentials }
+      {{- if eq $key "lore" }}
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector
+      {{- end }}
+  storage:
+    size: {{ $cluster.size }}
+    {{- with $cluster.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  resources:
+    {{- toYaml $cluster.resources | nindent 4 }}
+  {{- if or $nodeSelector $tolerations }}
+  affinity:
+    {{- with $nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- with $cluster.serviceAccountAnnotations }}
+  serviceAccountTemplate:
+    metadata:
+      annotations:
+        {{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- if eq $key "lore" }}
+  postgresql:
+    shared_preload_libraries: [vector]
+  {{- end }}
+  {{- if $backup.configuration }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ $own.name }}-backup
+  {{- end }}
+{{- if $backup.configuration }}
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $own.name }}-backup
+  namespace: {{ $.Values.namespace }}
+spec:
+  configuration:
+    {{- toYaml $backup.configuration | nindent 4 }}
+  {{- with $backup.retention }}
+  retentionPolicy: {{ . }}
+  {{- end }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ $own.name }}-daily
+  namespace: {{ $.Values.namespace }}
+spec:
+  schedule: {{ required (printf "%s.backup.schedule is required with a backup configuration" $key) $backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster: { name: {{ $own.name }} }
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}
+{{- end }}

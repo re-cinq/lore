@@ -15,7 +15,7 @@ dependencies:
     version: 0.1.0
     repository: file://../chart
   - name: floor
-    version: 0.5.5
+    version: 0.5.6
     repository: oci://ghcr.io/re-cinq/charts
   # Utopia's chart is not published to a registry. The release script
   # (scripts/ci/package-install-chart.sh) reads it from the git tag of the

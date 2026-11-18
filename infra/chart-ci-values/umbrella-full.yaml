@@ -1,0 +1,23 @@
+# CI fixture for scripts/check-lore-platform-render.sh: a cloud-neutral install
+# with Dgraph, two ingresses and a namespace, and none of the cluster-specific
+# values (no Google project, no cluster issuer, no ingress class, no secret
+# store, no storage class). What it renders is what a client cluster gets.
+platform:
+  namespaces: [lore-dgraph]
+  dgraph:
+    image: dgraph/standalone:v24.0.0
+    storageSize: 10Gi
+    resources:
+      requests: { cpu: 100m, memory: 512Mi }
+      limits: { cpu: "1", memory: 2Gi }
+  ingresses:
+    - name: lore-api
+      namespace: lore-api
+      host: lore-api.example.com
+      service: lore-api
+      port: 3000
+    - name: lore-ui
+      namespace: lore-ui
+      host: lore.example.com
+      service: lore-ui
+      port: 3000

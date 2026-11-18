@@ -3,8 +3,32 @@ namespace: lore-ui
 
 replicaCount: 1
 
+# Where the pods run. Empty: anywhere. Unset here, global.nodeSelector and
+# global.tolerations of the parent chart apply; set here, they win.
+nodeSelector: {}
+
+# Identity as plain labels and annotations, whatever the cluster binds them to
+# (a workload identity label on the pod and an annotation on the ServiceAccount,
+# a service mesh, a cost label). podLabels / podAnnotations here win over
+# global.podLabels / global.podAnnotations of the parent chart; none is set by
+# default. Example, Azure Workload Identity:
+#   podLabels: { azure.workload.identity/use: "true" }
+#   serviceAccount: { annotations: { azure.workload.identity/client-id: <client id> } }
+podLabels: {}
+podAnnotations: {}
+serviceAccount:
+  annotations: {}
+tolerations: []
+
+# The restricted pod profile: non-root user, no privilege escalation, every
+# capability dropped, the RuntimeDefault seccomp profile and a read-only root
+# filesystem with an emptyDir at /tmp. Off keeps the image's own user and a
+# writable root, which is what a cluster that predates it runs.
+hardened: false
+runAsUser: 1000
+
 # PodDisruptionBudget keeps at least one UI pod available during
-# Autopilot node consolidation.
+# Autopilot node consolidation. Rendered only above one replica.
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
@@ -12,7 +36,8 @@ podDisruptionBudget:
 image:
   repository: ghcr.io/re-cinq/lore-ui
   tag: latest
-  pullPolicy: Always
+  digest: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets:
   - name: ghcr-pull-secret
@@ -51,11 +76,15 @@ env:
 # uses.
 migrations:
   enabled: true
-  image: ghcr.io/cloudnative-pg/postgresql:16-bookworm
+  # Only psql is used. Pinned by digest; the standard variant carries pgvector.
+  image: ghcr.io/cloudnative-pg/postgresql:16.16-standard-bookworm@sha256:69b02d259c6fe5d0ef53fe67ecb000e9c0cee4d3b9e173b58bb13e722b17ba4e
   user: lore
   # Team schemas (each with a chunks table) the baseline creates on a database
   # that has none. A repo whose team has no schema of its own uses org_shared.
   teamSchemas: org_shared
+  # Annotations of the migrate Job's ServiceAccount (it talks to Postgres only).
+  serviceAccount:
+    annotations: {}
 
 dbPasswordSecret:
   name: lore-db-password

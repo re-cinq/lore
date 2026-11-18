@@ -5,6 +5,13 @@ namespace: lore-db
 # lore-db-helm — operational add-ons for the CNPG lore-db cluster.
 # --------------------------------------------------------------------
 
+# Where the reconciler Job runs: global.nodeSelector and global.tolerations
+# apply unless set here. hardened: see lore-api-helm/values.yaml.
+nodeSelector: {}
+tolerations: []
+hardened: false
+runAsUser: 1000
+
 cluster:
   # CNPG Cluster name (used by label selector to find the primary pod).
   name: lore-db
@@ -12,6 +19,10 @@ cluster:
   container: postgres
 
 ownershipReconciler:
+  podLabels: {}
+  podAnnotations: {}
+  serviceAccount:
+    annotations: {}
   # Disable to skip the pre-install/pre-upgrade hook (e.g. for an
   # offline cluster where you'd run it manually).
   enabled: true
@@ -20,7 +31,7 @@ ownershipReconciler:
   # Note: bitnami/kubectl tags <1.31.6 were removed from Docker Hub
   # in late 2024 ("Bitnami Legacy" reshuffle), so we use the
   # alpine/k8s image which is maintained and stable on Docker Hub.
-  image: alpine/k8s:1.31.6
+  image: alpine/k8s:1.31.6@sha256:8dd7bfd8e055b0d0d808540f8417807eadc1f6a5cf389922cee92f4180645186
   # Schemas whose ownership the reconciler should hand to `lore`. Keep
   # this list narrow — every entry runs ALTER SCHEMA + ALTER on every
   # relation in it as `postgres`. `pipeline` is the original case

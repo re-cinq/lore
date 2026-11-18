@@ -14,9 +14,13 @@ spec:
     metadata:
       labels:
         app: lore-stations
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
+        {{- with (include "lore.podLabels" . | trim) }}
+        {{- . | nindent 8 }}
         {{- end }}
+      {{- with (include "lore.podAnnotations" . | trim) }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -26,13 +30,17 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: lore-stations
+      automountServiceAccountToken: false
+      {{- with (include "lore.scheduling" . | trim) }}
+      {{- . | nindent 6 }}
+      {{- end }}
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- end }}
       containers:
         - name: stations
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "lore.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

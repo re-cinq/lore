@@ -1,7 +1,14 @@
+{{- $podSecurity := .Values.platform.podSecurity | default ((.Values.global | default dict).podSecurity) }}
 {{- range .Values.platform.namespaces }}
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ . }}
+  {{- if and $podSecurity (has . (list "lore-api" "lore-ui" "lore-stations" "lore-dgraph")) }}
+  labels:
+    pod-security.kubernetes.io/enforce: {{ $podSecurity }}
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  {{- end }}
 {{- end }}

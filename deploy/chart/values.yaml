@@ -22,20 +22,56 @@ lore-db-helm:
 # Platform objects the applications need on a cluster: namespaces, secrets,
 # ingresses, the database and the graph store. Empty by default; a cluster's
 # file under ../clusters/ fills them. database and dgraph render only when set.
+#
+# global.nodeSelector and global.tolerations (set on the parent chart or here)
+# place every Lore workload. A subchart's own nodeSelector or tolerations win.
+# global.podSecurity is the platform.podSecurity default.
+# global.podLabels and global.podAnnotations go on every pod template; each
+# subchart's own podLabels / podAnnotations / serviceAccount.annotations add to
+# or win over them. This is the one way to bind a workload identity (a label on
+# the pod and an annotation on the ServiceAccount), whatever the cloud.
 platform:
-  gcpProject: ""
-  secretStore: gcp-secret-manager
-  clusterIssuer: letsencrypt-prod
-  ingressClassName: nginx-ingress
+  # The ClusterSecretStore the ExternalSecrets below read from. Only needed when
+  # externalSecrets is not empty; a cluster that creates its Secrets some other
+  # way leaves both empty.
+  secretStore: ""
+  # false: the ingresses carry no tls section (plain HTTP, for a trial on a laptop).
+  ingressTls: true
+  # cert-manager ClusterIssuer that issues the ingresses' TLS Secrets. Empty:
+  # no cert-manager annotation, the Secrets come from elsewhere.
+  clusterIssuer: ""
+  # Empty: the cluster's default ingress class.
+  ingressClassName: ""
+  # true: an external-dns annotation with each ingress's host.
+  externalDns: false
   namespaces: []
   legacyWebhookHost: ""
   externalSecrets: []
   ingresses: []
+  # The image the Dgraph schema Job runs: any image with curl and a POSIX sh.
+  schemaImage: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+  # The Pod Security Admission level enforced on lore-api, lore-ui, lore-stations
+  # and lore-dgraph (always warned and audited at restricted). Empty: no label.
+  podSecurity: ""
+  # Default-deny ingress in those four namespaces, then what each workload needs:
+  # the ingress controller to the three public services, the Lore services to
+  # one another, the floor's namespace (the release namespace unless set) to
+  # lore-api, lore-stations and the MCP gateway, and the monitoring namespace to
+  # the metrics ports. Off: no policy, which is today's behaviour.
+  networkPolicies:
+    enabled: false
+    ingressNamespace: traefik
+    monitoringNamespace: monitoring
+    floorNamespace: ""
   # database.restore.host: another CNPG primary to be born from, as its
   # streaming_replica user with the TLS client certificate in secrets
   # legacy-db-replication (tls.crt, tls.key) and legacy-db-ca (ca.crt) in
   # the lore-db namespace. replica keeps streaming until set to false.
   database: null
+  # image, storageSize, resources; optional storageClass (empty: the cluster's
+  # default), nodeSelector, tolerations, schemaImage, podLabels, podAnnotations,
+  # serviceAccount.annotations, and telemetry (false switches off Dgraph's usage
+  # reports and Sentry; unset leaves Dgraph's defaults).
   dgraph: null
   # ServiceMonitors and Grafana dashboards, for a cluster that runs the
   # Prometheus operator (re-cinq/infrastructure, docs/deploying.md).

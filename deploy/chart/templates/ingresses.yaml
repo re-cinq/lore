@@ -1,24 +1,38 @@
-{{- /* One public hostname per entry; TLS from cert-manager, DNS from external-dns. */ -}}
+{{- /*
+One public hostname per entry. Plain networking.k8s.io/v1 Ingress: no annotation
+of any controller is needed. With platform.clusterIssuer set, cert-manager issues
+the TLS secret; with platform.externalDns, external-dns publishes the host.
+Whatever else a controller wants goes in the entry's annotations.
+platform.ingressTls false renders no tls section: plain HTTP, for a laptop trial.
+*/ -}}
 {{- range .Values.platform.ingresses }}
+{{- $annotations := dict }}
+{{- if and $.Values.platform.clusterIssuer (not .certificate) }}
+{{- $_ := set $annotations "cert-manager.io/cluster-issuer" $.Values.platform.clusterIssuer }}
+{{- end }}
+{{- if $.Values.platform.externalDns }}
+{{- $_ := set $annotations "external-dns.alpha.kubernetes.io/hostname" .host }}
+{{- end }}
+{{- $_ := mergeOverwrite $annotations (.annotations | default dict) }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .name }}
   namespace: {{ .namespace }}
+  {{- with $annotations }}
   annotations:
-    {{- if not .certificate }}
-    cert-manager.io/cluster-issuer: {{ $.Values.platform.clusterIssuer }}
-    {{- end }}
-    external-dns.alpha.kubernetes.io/hostname: {{ .host }}
-    {{- with .annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
-  ingressClassName: {{ $.Values.platform.ingressClassName }}
+  {{- with $.Values.platform.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if ne (toString $.Values.platform.ingressTls) "false" }}
   tls:
     - hosts: [{{ .host }}]
       secretName: {{ .tlsSecret | default (printf "%s-tls" .name) }}
+  {{- end }}
   rules:
     - host: {{ .host }}
       http:
@@ -34,8 +48,8 @@ spec:
 {{- if .certificate }}
 ---
 # Issued ahead of the ingress on purpose: an ingress that arrives with no
-# certificate serves nginx's default one until issuance, and GitHub does not
-# redeliver what fails TLS.
+# certificate serves the controller's default one until issuance, and GitHub
+# does not redeliver what fails TLS.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -46,6 +60,6 @@ spec:
   dnsNames: [{{ .host }}]
   issuerRef:
     kind: ClusterIssuer
-    name: {{ $.Values.platform.clusterIssuer }}
+    name: {{ required "platform.clusterIssuer is required for an ingress with a certificate" $.Values.platform.clusterIssuer }}
 {{- end }}
 {{- end }}

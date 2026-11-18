@@ -57,16 +57,22 @@ function walkFiles(dir: string): string[] {
 const repoRoot = findRepoRoot(import.meta.url);
 const chartsDir = path.join(repoRoot, "deploy/chart/charts");
 const workflowsDir = path.join(repoRoot, ".github/workflows");
+const clusterValues = path.join(
+  repoRoot,
+  "deploy/clusters/internal-cluster.values.yaml",
+);
 
 describe("Workload Identity binding, no long-lived key material (infra charts)", () => {
   const chartFiles = walkFiles(chartsDir);
 
-  it("at least one chart annotates a KSA with iam.gke.io/gcp-service-account", () => {
-    const annotated = chartFiles.filter((file) =>
-      read(file).includes("iam.gke.io/gcp-service-account"),
-    );
+  it("our GKE cluster's values annotate lore-api, lore-ui and lore-stations with iam.gke.io/gcp-service-account", () => {
+    const annotated = [
+      ...read(clusterValues).matchAll(
+        /iam\.gke\.io\/gcp-service-account: (lore-[a-z]+)@/g,
+      ),
+    ].map(([, account]) => account);
 
-    expect(annotated.length).toBeGreaterThan(0);
+    expect(annotated).toEqual(["lore-api", "lore-ui", "lore-stations"]);
   });
 
   it("no chart embeds a PEM private key or a credentials.json reference", () => {
@@ -106,17 +112,19 @@ describe("Dgraph's one pod survives node consolidation (deploy/chart)", () => {
       manifests.find((doc) => /kind: PodDisruptionBudget/.test(doc)) ?? "";
     const statefulSet =
       manifests.find((doc) => /kind: StatefulSet/.test(doc)) ?? "";
-    const [, podLabels] =
-      /template:\s*\n\s*metadata:\s*\n\s*labels: (\{[^}]*\})/.exec(
+    const [, podApp] =
+      /template:\s*\n\s*metadata:\s*\n\s*labels:\s*\n\s*app: ([a-z-]+)/.exec(
         statefulSet,
-      ) ?? ["", "no pod labels found"];
-    const [, selected] = /selector:\s*\n\s*matchLabels: (\{[^}]*\})/.exec(
-      budget,
-    ) ?? ["", "no selector found"];
+      ) ?? ["", "no pod label found"];
+    const [, selectedApp] =
+      /selector:\s*\n\s*matchLabels: \{ app: ([a-z-]+) \}/.exec(budget) ?? [
+        "",
+        "no selector found",
+      ];
 
     expect({
       minAvailable: /minAvailable: 1\b/.test(budget),
-      selected,
-    }).toEqual({ minAvailable: true, selected: podLabels });
+      selectedApp,
+    }).toEqual({ minAvailable: true, selectedApp: podApp });
   });
 });
