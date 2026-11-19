@@ -44,7 +44,9 @@ A run of the ingest client makes many requests (it reads the ingest state, posts
 - **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's.
 - **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes.
 - **FR-152**: lore-api fetches the key set from the configured issuer and from nowhere else.
-- **FR-153**: An identity token signed with a key id lore-api does not hold triggers one fetch of the key set.
+- **FR-153**: An identity token signed with a key id lore-api does not hold triggers a fetch of the key set, unless one was made in the last minute.
+- **FR-350**: At most one fetch of the key set is in flight, and a token that needs the key set meanwhile waits for that fetch.
+- **FR-351**: For one minute after a fetch, a token whose key id is unknown is refused without another fetch.
 - **FR-218**: An identity token whose key id is still unknown after that fetch is refused.
 - **FR-154**: An identity token is refused when its key cannot be confirmed because the key set could not be fetched.
 - **FR-155**: A kept key set has a maximum age, after which lore-api fetches it again before it accepts a token.
@@ -84,6 +86,8 @@ A test report is a write of that repository's test results. It runs on the defau
 - **FR-316**: The `ingest` job of the installed workflow asks GitHub for an identity token in its own step, with this install's address as its audience, and sends it on its one request.
 - **FR-317**: Lore's instruction for `lore-tests.yml` tells its author to grant the job `id-token: write` and `contents: read` and not to read `LORE_INGEST_TOKEN`.
 - **FR-318**: The trace-impact workflow Lore installs is granted `id-token: write` beside the permissions it has today (`contents: read`, `checks: write`, `pull-requests: write`), and does not read `LORE_INGEST_TOKEN`.
+- **FR-369**: Each step of the trace-impact workflow that calls Lore asks GitHub for an identity token, with this install's address as its audience, immediately before its request.
+- **FR-370**: A step of that workflow whose request is answered `401` asks for a new identity token and sends the request once more.
 - **FR-319**: Every command of the client that calls lore-api (`docs --post`, `--post`, `links`) gets its credential the way FR-268 to FR-271 say when Actions offers the identity-token request URL.
 - **FR-320**: Where Actions offers no request URL, the client reads the repository's stored CI token of FR-078 from its environment.
 - **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token.
@@ -136,18 +140,48 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 
 ### Stations, laptops and the editor
 
-- **FR-100**: The stations service and its scheduled jobs authenticate with a named system token that carries only the scopes their jobs use.
+- **FR-100**: The stations service and its scheduled jobs authenticate to lore-api with a named system token of a kind of its own (`LORE_STATION_TOKEN`, which the stations code already prefers to `LORE_INGEST_TOKEN`).
+- **FR-344**: lore-api accepts the stations token only on the routes of a list a test holds, each with the scope that route declares.
+- **FR-345**: That list starts as the routes the stations service calls today: the plan routes under `/api/plans`, `/api/pack/sync`, `/api/session-summary`, `/api/context`, `/api/versions`, `/api/utopia/memory`, `/api/repos/{owner}/{repo}/webhook/ensure` and `/api/repos/{owner}/{repo}/utopia/` with `tracker`, `releases`, `commits` and `backfill`.
+- **FR-346**: lore-api refuses the stations token on every route outside that list.
+- **FR-347**: A test fails when code of the stations service calls a lore-api route that is not on the list, so a job that needs another route adds it in the same change.
+- **FR-348**: The courier CronJobs authenticate to the stations service's `/api/stations/{name}` routes with the stations token, in place of `LORE_INGEST_TOKEN` (`apps/stations/src/transport/server.ts`).
+- **FR-349**: In a rendered install, the Secret that holds the stations token is read only by the stations Deployment and by the CronJobs named `<chart>-courier-<job>`, and the check of the rendered chart (`scripts/check-lore-platform-render.sh`) fails otherwise.
 - **FR-101**: The stations token can be replaced without changing any other credential.
 - **FR-102**: The local MCP server signs a person in with the App's device flow and holds a session for that person.
 - **FR-103**: The VS Code extension signs a person in with the App's device flow and holds a session for that person.
+- **FR-352**: lore-api tells a client that holds no credential whether device-flow sign-in is on, at a route this spec introduces (`GET /api/auth/device/available`).
+- **FR-353**: Against an install that says it is on, the local MCP server sends its session and does not read `lore.ingest-token` from git config or `LORE_INGEST_TOKEN` from its environment.
+- **FR-354**: Against such an install, the VS Code extension sends its session and reads neither its `lore.token` setting nor `lore.ingest-token` from git config (`resolveCredentials` in `apps/vscode-extension/src/extension.ts`).
+- **FR-355**: Against such an install, a client that holds no session and finds a legacy token asks the person to sign in and does not send the legacy token.
+- **FR-356**: After a successful device-flow sign-in, the client removes `lore.ingest-token` from the global git config.
+- **FR-357**: After a successful device-flow sign-in, the VS Code extension clears its `lore.token` setting.
+- **FR-358**: `scripts/install.sh` no longer writes `lore.ingest-token` to git config and no longer tells the person to read the Secret `lore-ingest-token` from the cluster.
+- **FR-359**: `scripts/lore-doctor.sh` and `scripts/lore-status-cache.sh` use the person's session and no longer read `lore.ingest-token`.
+- **FR-360**: The README's setup steps no longer tell a developer to copy the token into git config.
+- **FR-361**: Sign-out in a client deletes the session it stored and ends it in lore-api.
+- **FR-362**: Against an install that does not say device-flow sign-in is on, a client goes on using the legacy token.
 
 ### Webhook secrets
 
 - **FR-110**: Each repository's webhook has a signing secret of its own, in place of the one `LORE_WEBHOOK_SECRET` for all.
 - **FR-115**: A repository's webhook secret is stored encrypted, against the repository's GitHub numeric id.
+- **FR-371**: The reconciliation job and onboarding store a repository's own secret before they change its webhook on GitHub.
+- **FR-372**: A retry of a webhook move uses the secret already stored for that repository and never generates another.
+- **FR-373**: A repository's row is marked as moved for its webhook (FR-248) only after lore-api has verified a delivery signed with that repository's own secret; the job asks GitHub to send the webhook a ping for it.
+- **FR-374**: For a repository that has a stored secret and is not marked moved, lore-api accepts a delivery signed with either the shared secret or the repository's own.
+- **FR-375**: A webhook move interrupted at any point is finished by the job's next run, and no delivery is refused in between.
 - **FR-111**: The first Step 4 release accepts a delivery signed with either the shared secret or the repository's own.
 - **FR-112**: After a rollback to the first Step 4 release, a delivery from a repository already moved to its own secret is still accepted.
 - **FR-113**: Once no webhook uses the shared secret, a delivery signed with it is refused.
+
+A webhook move has three steps, and GitHub never shows a webhook's secret back, so the only proof that GitHub holds the new one is a delivery signed with it. What holds at each point where the move can stop:
+
+| Stopped after | The webhook on GitHub signs with | lore-api accepts | The next run |
+| --- | --- | --- | --- |
+| the secret is stored | the shared secret | both | changes the webhook with the stored secret |
+| the webhook is changed | the repository's own | both | asks for a ping and verifies it |
+| a signed delivery is verified and the row is marked | the repository's own | the repository's own, once every repository is moved (FR-254) | changes nothing |
 
 ### Onboarding from the first Step 4 release
 
@@ -191,6 +225,13 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-253**: On an install whose GitHub host does not put `repository_id` and `repository_owner_id` in the identity token, the job replaces the repository secret `LORE_INGEST_TOKEN` with the repository's stored CI token of FR-078 and opens no identity-token pull request.
 - **FR-254**: lore-api refuses deliveries signed with the shared webhook secret (FR-113) only when every onboarded repository's row records its webhook moved.
 - **FR-255**: lore-api reports the shared admin token ready for withdrawal (FR-124) only when every onboarded repository's row records its workflow moved and its secret deleted, or replaced (FR-308).
+- **FR-363**: lore-api serves a report of the move to an administrator, at a route this spec introduces (`GET /api/admin/repository-moves`), with one row for each onboarded repository.
+- **FR-364**: A row is keyed by the repository's GitHub numeric id and carries its current name.
+- **FR-365**: A row carries the three states of FR-248 to FR-250, or FR-308 in place of the last.
+- **FR-366**: A row names each of the conditions FR-321 to FR-324 that does not hold for the repository.
+- **FR-367**: A row carries the time of the repository's last request made with the shared token.
+- **FR-368**: A row carries the error of the last step that failed for the repository.
+- **FR-376**: The install guide's withdrawal step (FR-163) points the operator to that report.
 
 ### The shared admin token
 
@@ -204,7 +245,9 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-123**: An operator mints an emergency token with a command inside the cluster.
 - **FR-127**: An emergency token names the operator who minted it.
 - **FR-128**: An emergency token carries an expiry.
+- **FR-378**: An emergency token minted with no lifetime named expires four hours after its minting.
 - **FR-195**: The command that mints an emergency token mints none without an expiry.
+- **FR-377**: The command that mints an emergency token refuses a lifetime longer than 24 hours.
 - **FR-129**: The minting of an emergency token is written to the audit log.
 
 ### What operators can see
@@ -227,6 +270,10 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **SC-020**: A repository onboarded after the first Step 4 release never holds the shared admin token and its webhook never uses the shared secret.
 - **SC-024**: A repository whose own workflow still reads `LORE_INGEST_TOKEN` keeps the secret and is shown as not moved, and its CI goes on working.
 - **SC-025**: A repository's stored CI token is refused on every route outside its list, for its own repository too.
+- **SC-027**: The stations token is refused on a route no stations job calls, and no workload other than the stations service and its scheduled jobs holds it.
+- **SC-028**: After a developer signs in from the terminal or the editor, no copy of the shared admin token is left in their git config or editor settings, and their calls reach Lore as themselves.
+- **SC-029**: An operator can read, for each repository, whether it is moved and what still holds it back.
+- **SC-030**: A webhook move stopped at any step and run again ends with the repository on its own secret and no delivery refused.
 
 ## Assumptions
 
@@ -235,9 +282,10 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - An agent that holds no GitHub token at all is a later option and not part of this spec; that agents keep an installation token for one repository is FR-184.
 - The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are a spec of their own, written before this step starts.
 - A workflow Lore did not install cannot be changed by Lore. Such a repository keeps its secret until its owners change the workflow, and the shared admin token cannot be withdrawn before then.
+- An emergency token lasts 4 hours by default and 24 hours at most (FR-128, FR-377). Proposed 2026-11-19; the owner has not confirmed the numbers.
+- The stations service's calls to lore-api were listed by searching `apps/stations` for lore-api paths. A call made only through a shared library function may be missing from FR-345; the test of FR-347 is what finds it.
 
 ## Open Questions
 
 - **GitHub Enterprise Server** — Choices: use the device flow and the Actions identity token there, or fall back to the stored per-repository CI token and a browser sign-in. Both have to be confirmed on a real server of the versions installers run.
-- **The longest life of an emergency token (FR-128)** — ADR-054 says "within hours". Choices: one fixed maximum, or a maximum the installer sets.
 - **The maximum age of a kept key set (FR-155)** — Choices: what the issuer's own cache headers say, or one fixed age.

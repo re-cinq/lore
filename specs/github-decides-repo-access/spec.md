@@ -90,6 +90,10 @@ Step 1 is the repository guard: every lore-api route that names a repository in 
 - **FR-028**: A sign-in whose token answer from GitHub carries no refresh token is refused and creates no session.
 - **FR-012**: Sign-in admits only a person GitHub reports as an active member of the configured organisation.
 - **FR-013**: lore-api stores the person's access token and refresh token encrypted with AES-256-GCM in a table keyed by the session's row in `pipeline.api_tokens`.
+- **FR-327**: Sign-in stores the person's GitHub numeric user id on the session's row in `pipeline.api_tokens` (the session columns of `deploy/chart/charts/ui-helm/migrations/0121_user_sessions.sql` hold a login and no id today).
+- **FR-328**: `pipeline.api_tokens` has an index on that id.
+- **FR-329**: Every operation on "every session of a person" (FR-018, FR-027, FR-237, FR-049) selects the sessions by that id, and never by login.
+- **FR-330**: Every revocation of "every token a person minted" (FR-238, FR-048) selects the tokens by their maker's id of FR-044, and never by login.
 - **FR-025**: The key that encrypts the stored tokens is read from a Secret that holds nothing else.
 - **FR-220**: The row that holds a session's stored tokens also holds the access token's expiry.
 - **FR-221**: The same row holds the refresh token's expiry.
@@ -104,6 +108,10 @@ Step 1 is the repository guard: every lore-api route that names a repository in 
 - **FR-229**: The next request of that session after such a failure tries the refresh again.
 - **FR-022**: A sign-out that arrives while a refresh of the same session is in flight leaves no stored token for that session.
 - **FR-023**: A revocation event that arrives while a refresh of that person's session is in flight leaves no stored token for that session.
+- **FR-338**: Sign-out takes the lock on the session's token row that a refresh takes (FR-223).
+- **FR-339**: The handling of a revocation event takes that same lock for each session of the person.
+- **FR-340**: Under that lock, sign-out and revocation delete the stored tokens and mark the session ended in one transaction.
+- **FR-341**: A refresh that gets the lock after a sign-out or a revocation finds the session ended and does not call GitHub.
 - **FR-015**: A session marked ended is never refreshed.
 - **FR-016**: A refresh whose outcome is unknown ends the session.
 - **FR-017**: Sign-out (`/api/auth/logout`) deletes the session's stored tokens.
@@ -139,7 +147,11 @@ Step 1 is the repository guard: every lore-api route that names a repository in 
 - **FR-294**: When a person's session calls `POST /api/repos/{owner}/{repo}/issues/{number}/sub-issues`, the sub-issue is linked on GitHub with that person's token.
 - **FR-295**: When a person's session calls `PATCH /api/repos/{owner}/{repo}/issues/{number}`, the issue is changed on GitHub with that person's token.
 - **FR-296**: When a person onboards a repository through `POST /api/onboard`, the files that request commits to the repository are committed with that person's token.
-- **FR-297**: The same routes, called with a token that is not a person's session, make their change as the App, for the token's one repository.
+- **FR-297**: The same routes, called with a credential that the second spec binds to one repository (a repository's stored CI token, a visit's token), make their change as the App, for that credential's one repository.
+- **FR-337**: Until Step 4, the same routes called with a wide service token or a token a person minted make their change as the App, on the repository the request names, as they do today.
+
+A token a person minted is not bound to a repository and is not that person's session, so FR-337 lets it change any repository through the App. That is the known gap of the decision that every member stays an administrator (FR-036), as it stands today; it is not a new grant, and Step 4 does not close it either.
+
 - **FR-298**: The web UI opens the pull request that fixes an installed workflow through lore-api, at a route this spec introduces (`POST /api/repos/{owner}/{repo}/github/workflow-fix`), and no longer on GitHub with the App's key (`apps/web-ui/src/lib/github-workflow-pr.ts`).
 - **FR-299**: lore-api opens that pull request on GitHub with the signed-in person's token.
 - **FR-311**: A test fails when the handler of a request made with a person's session reaches a GitHub write through the App's client (`getOctokit` in `apps/lore-api/src/outbound/github-client.ts`, or the App-authenticated project).
@@ -219,10 +231,18 @@ The live socket (`apps/lore-api/src/work/assembly-line-station/live-socket.ts`) 
 
 #### The upgrade and the rollback
 
+The release being replaced knows nothing of the new mode, so nothing in the database can make it stop writing sessions. The upgrade and a rollback from it are therefore done with lore-api stopped. The cost is a short outage of lore-api at that one upgrade, and at a rollback from it. lore-api already runs one replica while plans are live in it (ADR-047), so a rollout without an outage was not on offer.
+
 - **FR-060**: The upgrade ends every session that existed before it.
 - **FR-061**: The upgrade revokes every token minted before it.
+- **FR-332**: For the release that introduces Step 3, the chart runs the upgrade's cleanup (FR-060, FR-061) in a job that first scales the lore-api Deployment to zero.
+- **FR-333**: That job starts its cleanup only when no lore-api pod is running.
+- **FR-334**: That job fails, and ends no session and revokes no token, when a lore-api pod is still running after its wait.
+- **FR-335**: No lore-api pod of the incoming release starts before that job has finished.
 - **FR-062**: A minted token carries a mark of the kind of release that made it.
-- **FR-063**: The rollback step runs before the older release serves a request.
+- **FR-063**: The rollback step is a command of the upgrade's release that the operator runs before installing the older release; it scales the lore-api Deployment to zero and starts its cleanup only when no lore-api pod is running.
+- **FR-336**: The rollback step fails, and changes nothing, when a lore-api pod is still running after its wait.
+- **FR-343**: The install guide's rollback procedure installs the older release only after the rollback step has finished.
 - **FR-067**: The rollback step ends every session.
 - **FR-068**: The rollback step revokes every token minted since the upgrade.
 - **FR-069**: The rollback step deletes every stored GitHub token.
@@ -239,7 +259,7 @@ The live socket (`apps/lore-api/src/work/assembly-line-station/live-socket.ts`) 
 
 ### Step 4: callers that are not people
 
-Step 4 gives every caller that is not a person a credential for its one job: a repository's CI, an agent run, the stations service, a laptop, a webhook. It has its own spec, [`specs/machine-callers-own-credentials/spec.md`](../machine-callers-own-credentials/spec.md), which builds on this one: it uses the repository's GitHub numeric id of FR-050, the person's id that sign-in stores, and the person's level of FR-007. Steps 2 and 3 ship without it.
+Step 4 gives every caller that is not a person a credential for its one job: a repository's CI, an agent run, the stations service, a laptop, a webhook. It has its own spec, [`specs/machine-callers-own-credentials/spec.md`](../machine-callers-own-credentials/spec.md), which builds on this one: it uses the repository's GitHub numeric id of FR-050, the person's id that sign-in stores (FR-327), and the person's level of FR-007. Steps 2 and 3 ship without it.
 
 lore-api has no route that merges a pull request at a person's request today; the stations service merges. A route that is added for it falls under FR-290.
 
@@ -253,6 +273,7 @@ lore-api has no route that merges a pull request at a person's request today; th
 - **SC-005**: Five minutes after a person is removed from the organisation, no request of theirs is served: their next request is refused and ends every session they have, a session left unused is refused at its first use, and a token they minted is refused at its next use, including one left unused since before they were removed.
 - **SC-006**: After the upgrade, no session and no minted token from before it is accepted.
 - **SC-007**: After a rollback, no session, no token minted since the upgrade and no stored GitHub token remains, and people sign in through the OAuth App again.
+- **SC-026**: A sign-in that reaches a lore-api pod of the outgoing release during the upgrade leaves no session after it, because no such pod runs while the cleanup does.
 - **SC-011**: A person who can access more than a thousand repositories of the installation sees all of them.
 - **SC-016**: A session whose access token has expired keeps working without a new sign-in while its refresh token is valid, and ends when GitHub refuses the refresh token.
 - **SC-018**: A person who cannot read a repository gets none of its rows from a route that takes the repository in a query or whose answer spans repositories.
@@ -267,6 +288,8 @@ lore-api has no route that merges a pull request at a person's request today; th
 - Steps 2 and 3 ship without Step 4.
 - An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The new mode does not switch on without it (FR-143).
 - At the upgrade everyone signs in again and every token minted through Lore is minted again. Decided 2026-11-19.
+- lore-api is stopped for the Step 3 upgrade and for a rollback from it, for as long as the cleanup takes (FR-332 to FR-336).
+- No session without a GitHub numeric id exists after the upgrade, because the upgrade ends every session (FR-060) and sign-in stores the id from then on (FR-327).
 - Five minutes of staleness on reads is accepted. Decided 2026-11-19.
 - A session ends when GitHub refuses its refresh token, and is kept when GitHub could not be asked (FR-226 to FR-229). Proposed 2026-11-19; the owner has not confirmed it.
 - No scheduled job rechecks membership: a removed member is found at their next request (FR-236 to FR-240).
