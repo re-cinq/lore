@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { text } from "node:stream/consumers";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
@@ -136,4 +139,88 @@ test("a Rust source packet containing its inline test module asks for separate r
 
   assert.equal(status, 1);
   assert.match(report.reason, /src\/lib\.rs/);
+});
+
+test("the shadow launcher uploads separate packets and starts one line without a checkout", async (t) => {
+  const uploads = new Map();
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    const body = JSON.parse(await text(request));
+
+    requests.push(request.url);
+    response.setHeader("Content-Type", "application/json");
+
+    if (request.url.endsWith("/blobs")) {
+      uploads.set(
+        body.mode,
+        body.files.map(({ path }) => path),
+      );
+      response.end(JSON.stringify({ hash: body.mode }));
+
+      return;
+    }
+    response.end(JSON.stringify({ run: { id: "shadow-run" } }));
+    requests.push(body);
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const revision = "1".repeat(40);
+  const child = spawn(
+    process.execPath,
+    [runner, "--shadow-revision", revision],
+    {
+      env: {
+        ...process.env,
+        FLOOR_API_URL: `http://127.0.0.1:${server.address().port}`,
+        FLOOR_SERVICE_TOKEN: "test-token",
+      },
+    },
+  );
+
+  child.stdin.end(
+    JSON.stringify({
+      files: [
+        { path: "queue.ts", role: "code", before: "25", after: "50" },
+        { path: "queue.test.ts", role: "test", before: "25", after: "25" },
+        { path: "spec.md", role: "code", before: "a", after: "b" },
+      ],
+    }),
+  );
+  const [output, stderr, [exit]] = await Promise.all([
+    text(child.stdout),
+    text(child.stderr),
+    once(child, "close"),
+  ]);
+
+  assert.equal(exit, 0, stderr || output);
+  assert.deepEqual(JSON.parse(output), {
+    status: "shadow_started",
+    runId: "shadow-run",
+    revision,
+  });
+  assert.deepEqual(Object.fromEntries(uploads), {
+    code: ["queue.ts"],
+    tests: ["queue.test.ts"],
+    "test challenge": ["queue.ts", "queue.test.ts"],
+  });
+  const start = requests.at(-1);
+
+  assert.equal(requests.at(-2), "/assembly-lines/code-review-shadow/start");
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(start.startItems).map(([name, { kind, ref }]) => [
+        name,
+        [kind, ref],
+      ]),
+    ),
+    {
+      revision: ["value", revision],
+      code_evidence: ["file", "code"],
+      test_evidence: ["file", "tests"],
+      challenge_evidence: ["file", "test challenge"],
+    },
+  );
+  assert.deepEqual(Object.keys(start), ["startItems"]);
 });

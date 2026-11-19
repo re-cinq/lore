@@ -1,0 +1,60 @@
+line:
+  id: code-review-shadow
+  entry: read-code
+  exit: done
+  fail: failed
+  args:
+    revision: { kind: value }
+    code_evidence: { kind: file }
+    test_evidence: { kind: file }
+    challenge_evidence: { kind: file }
+  nodes:
+    - id: read-code
+      station: shadow-read-code
+    - id: read-tests
+      station: shadow-read-tests
+    - id: challenge-tests
+      station: shadow-challenge-tests
+    - id: done
+    - id: failed
+  edges:
+    - { from: read-code, to: read-tests, on: success }
+    - { from: read-tests, to: challenge-tests, on: success }
+    - { from: challenge-tests, to: done, on: success }
+    - { from: read-code, to: failed, on: failed }
+    - { from: read-tests, to: failed, on: failed }
+    - { from: challenge-tests, to: failed, on: failed }
+stations:
+  shadow-read-code:
+    description: Describes the changed behavior from implementation evidence.
+    kind: agent
+    agent_definition: shadow-review-reader
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: code_evidence, kind: file, path: evidence.json }
+    produces:
+      - { name: code_reading, kind: file, from: output }
+  shadow-read-tests:
+    description: Describes the assertions and mocks from test evidence.
+    kind: agent
+    agent_definition: shadow-review-reader
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: test_evidence, kind: file, path: evidence.json }
+    produces:
+      - { name: test_reading, kind: file, from: output }
+  shadow-challenge-tests:
+    description: Identifies behavior the supplied tests would let through.
+    kind: agent
+    agent_definition: shadow-review-reader
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: challenge_evidence, kind: file, path: evidence.json }
+    produces:
+      - { name: test_challenge, kind: file, from: output }

@@ -104,8 +104,33 @@ const ONBOARD_AGENT_NEEDS = [
   { name: "ticket", kind: "file", path: "ticket.md" },
 ];
 
+describe("the hosted review rehearsal", () => {
+  it("gives each reader one evidence file and a fresh conversation, then retains three separate artifacts", () => {
+    const pipeline = pipelineOf("code-review-shadow");
+    const readers = [
+      ["shadow-read-code", "code_evidence", "code_reading"],
+      ["shadow-read-tests", "test_evidence", "test_reading"],
+      ["shadow-challenge-tests", "challenge_evidence", "test_challenge"],
+    ];
+
+    expect(Object.keys(pipeline.stations)).toEqual(readers.map(([id]) => id));
+    expect(readers.map(([id]) => pipeline.stations[id])).toMatchObject(
+      readers.map(([, input, output]) => ({
+        kind: "agent",
+        conversation: "new",
+        needs: [{ name: input, kind: "file", path: "evidence.json" }],
+        produces: [{ name: output, kind: "file", from: "output" }],
+      })),
+    );
+    expect({ start: pipeline.line.start, fail: pipeline.line.fail }).toEqual({
+      start: undefined,
+      fail: "failed",
+    });
+  });
+});
+
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("ships exactly the pipelines auto-merge, code-review, code-review-recheck, code-review-reply, code-review-shadow, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -113,6 +138,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "code-review-shadow",
       "daily-digest",
       "feature-planning",
       "implementation-loop",

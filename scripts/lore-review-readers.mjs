@@ -5,9 +5,12 @@ import { join } from "node:path";
 import { text } from "node:stream/consumers";
 import { parseArgs } from "node:util";
 import { z } from "zod";
+import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { fileItem, valueItem } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
 
 const modes = ["code", "tests", "test challenge"];
+const shadowInputs = ["code_evidence", "test_evidence", "challenge_evidence"];
 const snapshot = z.object({
   files: z.array(
     z.object({
@@ -42,6 +45,26 @@ function packetFor(mode, files) {
   }
 
   return { mode, files: selected };
+}
+
+async function startShadow(revision, packets) {
+  if (!/^[0-9a-f]{40}$/.test(revision)) {
+    throw new Error("Use the full GitHub commit SHA for --shadow-revision");
+  }
+  const floor = floorClientFrom(process.env);
+  const blobs = await Promise.all(
+    packets.map((packet) =>
+      floor.blobs.put(Buffer.from(JSON.stringify(packet)), "application/json"),
+    ),
+  );
+  const startItems = { revision: valueItem(revision) };
+
+  for (const [index, name] of shadowInputs.entries()) {
+    startItems[name] = fileItem(blobs[index].hash);
+  }
+  const { run } = await floor.lines.start("code-review-shadow", { startItems });
+
+  return { status: "shadow_started", runId: run.id, revision };
 }
 
 function invokeReader(args, packet, cwd) {
@@ -82,7 +105,8 @@ function invokeReader(args, packet, cwd) {
   });
 }
 
-async function readPass(mode, snapshotFiles, instructions, options) {
+async function readPass(packet, instructions, options) {
+  const { mode } = packet;
   const cwd = await mkdtemp(join(tmpdir(), "lore-reader-"));
 
   try {
@@ -118,11 +142,7 @@ async function readPass(mode, snapshotFiles, instructions, options) {
         args.push("--effort", options["reader-effort"]);
       }
     }
-    const stdout = await invokeReader(
-      args,
-      packetFor(mode, snapshotFiles),
-      cwd,
-    );
+    const stdout = await invokeReader(args, packet, cwd);
     const result = JSON.parse(stdout);
 
     if (result.subtype !== "success" || result.is_error !== false) {
@@ -137,11 +157,12 @@ async function readPass(mode, snapshotFiles, instructions, options) {
   }
 }
 
-try {
+async function run() {
   const { values } = parseArgs({
     options: {
       "reader-model": { type: "string" },
       "reader-effort": { type: "string" },
+      "shadow-revision": { type: "string" },
     },
   });
   const { files } = snapshot.parse(JSON.parse(await text(process.stdin)));
@@ -165,11 +186,23 @@ try {
       );
     }
   }
+  const packets = modes.map((mode) => packetFor(mode, files));
+
+  if (values["shadow-revision"] !== undefined) {
+    if (values["reader-model"] || values["reader-effort"]) {
+      throw new Error("Hosted reader models are configured on the floor");
+    }
+    console.log(
+      JSON.stringify(await startShadow(values["shadow-revision"], packets)),
+    );
+
+    return;
+  }
   const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
   const skillFile = join(configDir, "skills", "lore-review-files", "SKILL.md");
   const instructions = await readFile(skillFile, "utf8");
   const readings = await Promise.all(
-    modes.map((mode) => readPass(mode, files, instructions, values)),
+    packets.map((packet) => readPass(packet, instructions, values)),
   );
   const complete = readings.every((reading) => reading.status === "complete");
 
@@ -180,6 +213,10 @@ try {
     }),
   );
   process.exitCode = complete ? 0 : 1;
+}
+
+try {
+  await run();
 } catch (error) {
   console.log(JSON.stringify({ status: "incomplete", reason: error.message }));
   process.exitCode = 1;

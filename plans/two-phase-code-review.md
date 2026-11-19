@@ -24,7 +24,7 @@ A focused check on merged PR #4951 used two fresh Codex processes. Given only th
 
 ## Shared skills and local reviews
 
-The first implementation slice adds the catalogue skills and the local reader runner. The hosted line, editable PR summary and rollout decision are pending under #4972. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
+The local command and the manual hosted rehearsal share one evidence filter. The GitHub summary, automatic review stages and rollout decision are tracked in #4972. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
 
 The organisation skill catalogue is the shared source for the hosted harness and local developers. Lore’s gateway serves catalogue skills to agents, and the local MCP server syncs enabled skills into Claude Code. [Skill catalogue](../libs/shared/src/agent-defaults/skills) · [Gateway](../apps/mcp-server/src/transport/skills-registry.ts) · [Local sync](../apps/mcp-server/src/transport/skills-sync.ts)
 
@@ -40,6 +40,16 @@ Capture the local change once so all five passes review the same snapshot. Each 
 - **Recheck the current commit.** On a new push, update the same comment to show the new head and review status. A delayed result for an older head cannot change the new summary, resolve its threads, or approve it. A retried update or an ambiguous response after creating the comment must recover the existing Lore-owned comment. An incomplete run shows which pass is missing and cannot authorize auto-merge.
 
 ## Delivery and proof
+
+### Manual hosted rehearsal
+
+With `code-review-shadow` installed on a test floor, set `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` for that floor. Use a local snapshot prepared for the three readers and put the reviewed commit’s full SHA in `revision`.
+
+```sh
+node scripts/lore-review-readers.mjs --shadow-revision "$revision" < "$snapshot"
+```
+
+The command uploads three evidence blobs and returns the run ID. In the assembly run, inspect `code_reading`, `test_reading` and `test_challenge`. Run the same snapshot locally and compare evidence and findings. The manual run uses the configured floor model and has no pull request, Git checkout, GitHub check or publishing station. Its results are inputs for the pilot.
 
 | Slice | Observable acceptance case |
 | --- | --- |
