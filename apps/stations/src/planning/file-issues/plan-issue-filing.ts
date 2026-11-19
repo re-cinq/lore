@@ -82,8 +82,9 @@ export async function filePlanIssues(
   project: StationProject,
   work: ProceedWork,
   context: FilingContext,
+  known?: PlanIssues,
 ): Promise<number> {
-  const existing = await existingPlanIssues(project, context.planId);
+  const existing = known ?? (await existingPlanIssues(project, context.planId));
 
   await completeImplementedTasks(project, existing, context);
 

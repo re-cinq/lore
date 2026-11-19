@@ -54,7 +54,7 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       const { input, project } = await filingOf(deps, brief, decomposition);
 
       const result = await (verified
-        ? verifiedIssues(input, project, tools)
+        ? verifiedIssues(input, project, tools, brief.needs)
         : runIssuesStation(input, { project }));
 
       await saveStoryOnSourcePlan(deps, brief.needs.source_plan_id, result);
@@ -139,8 +139,10 @@ async function verifiedIssues(
   input: StationInput,
   project: NonNullable<IssuesStationDeps["project"]>,
   tools: Tools,
+  needs: Brief["needs"],
 ): Promise<NodeResult> {
-  const result = await runVerifiedIssuesStation(input, project);
+  const verified = await coverageArtifact(needs, tools);
+  const result = await runVerifiedIssuesStation(input, project, verified);
 
   await tools.produce(
     "ticketing_result",
@@ -148,6 +150,15 @@ async function verifiedIssues(
   );
 
   return result;
+}
+
+async function coverageArtifact(needs: Brief["needs"], tools: Tools) {
+  if (!needs.verified_decomposition || !needs.deduped_decomposition) {
+    return undefined;
+  }
+  const verified = await tools.read("verified_decomposition");
+
+  return parseDecomposition(parseModelJson(verified.toString("utf8")));
 }
 
 async function stationInputOf(
