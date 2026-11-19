@@ -147,7 +147,16 @@ function scene(
       project: async () => project as never,
       savePlanStory: async () => undefined,
     })(
-      { ...brief, needs: { ...needs, verified_decomposition: "verified" } },
+      {
+        ...brief,
+        needs: {
+          ...needs,
+          verified_decomposition: "verified",
+          ...(artifacts.deduped_decomposition
+            ? { deduped_decomposition: "deduped" }
+            : {}),
+        },
+      },
       tools,
     );
   const coverage = () =>
@@ -279,6 +288,43 @@ describe("verified spec ticket flow", () => {
       ),
       pinned: true,
     });
+  });
+
+  it("keeps issue 101 open when a second filing drops its own T001 as a duplicate", async () => {
+    const run = scene(decomposition("missing"), { [PATH]: SPEC });
+
+    await run.verify();
+    await run.file();
+    run.artifacts.deduped_decomposition = JSON.stringify({
+      ...JSON.parse(run.artifacts.verified_decomposition),
+      stories: [],
+    });
+
+    expect(await run.file()).toEqual({ outcome: "success" });
+    expect(run.filed).toMatchObject([
+      { number: 100, body: expect.stringContaining("#101 T001") },
+      { number: 101, state: "open" },
+    ]);
+    expect(run.closed).toEqual([]);
+  });
+
+  it("counts 2 of 2 statements on the open story when another issue holds the only task", async () => {
+    const run = scene(decomposition("missing"), { [PATH]: SPEC });
+
+    await run.verify();
+    run.artifacts.deduped_decomposition = JSON.stringify({
+      ...JSON.parse(run.artifacts.verified_decomposition),
+      stories: [],
+    });
+
+    expect(await run.file()).toEqual({ outcome: "success" });
+    expect(run.filed).toMatchObject([
+      {
+        title: "User story: Widget",
+        state: "open",
+        body: expect.stringContaining("2 of 2 testable spec statements"),
+      },
+    ]);
   });
 
   it("files the full message-list task when the repository has no implementation", async () => {

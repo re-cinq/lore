@@ -1,3 +1,4 @@
+import type { PlanIssues } from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import {
   parseDecomposition,
@@ -17,6 +18,7 @@ import {
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import { filingContext, specOfRun } from "../../planning/file-issues/issues.js";
 import {
+  existingPlanIssues,
   filePlanIssues,
   type FilingContext,
   type StationProject,
@@ -26,14 +28,12 @@ import {
 export async function runVerifiedIssuesStation(
   input: StationInput,
   project: StationProject,
+  verified?: DecompositionResult,
 ): Promise<NodeResult> {
-  const { actionable, context } = await prepareFiling(input, project);
-  const planTitle = input.params.plan_title;
-  const work = context.nothingRemaining
-    ? emptyWork(planTitle)
-    : decideIssueWork(actionable, await project.issues.listLabels(), {
-        planTitle,
-      });
+  const existing = await existingPlanIssues(project, input.params.filing_key);
+  const tasks = filingTasks(input, existing, verified);
+  const context = await prepareFiling(input, project, tasks);
+  const work = await tasksToIssues(project, tasks, context);
 
   if (work.outcome === "changes_requested") {
     return {
@@ -41,26 +41,84 @@ export async function runVerifiedIssuesStation(
       extras: { "Lore-Issues-Objection": work.objection },
     };
   }
-  const number = await filePlanIssues(project, work, context);
+  const number = await filePlanIssues(project, work, context, existing);
 
   return filingResult(number, work, context);
 }
 
-async function prepareFiling(input: StationInput, project: StationProject) {
-  const original = parseDecomposition(
+interface FilingTasks {
+  original: DecompositionResult;
+  actionable: DecompositionResult;
+  filing: DecompositionResult;
+}
+
+function filingTasks(
+  input: StationInput,
+  existing: PlanIssues,
+  verified?: DecompositionResult,
+): FilingTasks {
+  const deduped = parseDecomposition(
     parseModelJson(input.params.feature_decomposition),
   );
+  const original = verified ?? deduped;
   const actionable = actionableDecomposition(original, input.params.spec_path);
-  const spec = await specOfRun(project, input, original);
-  const context = filingContext(input, actionable, { uiUrl: undefined, spec });
+  const filing = verified
+    ? tasksForFiling(actionable, deduped, existing.tasks)
+    : actionable;
+
+  return { original, actionable, filing };
+}
+
+async function tasksToIssues(
+  project: StationProject,
+  { filing, actionable }: FilingTasks,
+  context: FilingContext,
+) {
+  const { input, nothingRemaining } = context;
+  const planTitle = input.params.plan_title;
+  const heldByOtherTickets =
+    filing.stories.length === 0 && actionable.stories.length > 0;
+
+  return nothingRemaining || heldByOtherTickets
+    ? emptyWork(planTitle)
+    : decideIssueWork(filing, await project.issues.listLabels(), { planTitle });
+}
+
+// Reconcile against the same owned issues the writer will update or close.
+function tasksForFiling(
+  verified: DecompositionResult,
+  deduped: DecompositionResult,
+  owned: PlanIssues["tasks"],
+): DecompositionResult {
+  const fileable = deduped.stories.flatMap((story) => story.tasks);
+  const kept = new Map(fileable.map((task) => [task.id, task]));
+  const stories = verified.stories.map((story) => {
+    const retained = story.tasks.filter(
+      (task) => kept.has(task.id) || owned.has(task.id),
+    );
+    const tasks = retained.map((task) => kept.get(task.id) ?? task);
+
+    return { ...story, tasks };
+  });
 
   return {
-    actionable,
-    context: {
-      ...context,
-      ...completionContext(input, original),
-      ...coverageContext(context, actionable, original),
-    },
+    ...verified,
+    stories: stories.filter((story) => story.tasks.length > 0),
+  };
+}
+
+async function prepareFiling(
+  input: StationInput,
+  project: StationProject,
+  { original, actionable, filing }: FilingTasks,
+) {
+  const spec = await specOfRun(project, input, original);
+  const context = filingContext(input, filing, { uiUrl: undefined, spec });
+
+  return {
+    ...context,
+    ...completionContext(input, original),
+    ...coverageContext(context, actionable, original),
   };
 }
 

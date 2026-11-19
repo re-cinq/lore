@@ -2276,6 +2276,14 @@ it("routes rejected implementation evidence back three times, gives filing the d
       stations["spec-tickets-decompose"],
       "implementation_report",
     ),
+    reloadAfterFiling: line.edges.find(
+      (edge) =>
+        edge.from === "issue-coverage" && edge.on === "changes_requested",
+    ),
+    filingCoverage: needOf(
+      stations["spec-tickets-issues"],
+      "verified_decomposition",
+    ),
     filing: needOf(stations["spec-tickets-issues"], "deduped_decomposition"),
     coverage: needOf(
       stations["spec-tickets-coverage"],
@@ -2294,6 +2302,8 @@ it("routes rejected implementation evidence back three times, gives filing the d
       { from: "verify-implementation", to: "failed", on: "failed" },
     ],
     correction: { name: "implementation_report", optional: true },
+    reloadAfterFiling: { to: "load-tickets", iteration_max: 3 },
+    filingCoverage: { name: "verified_decomposition" },
     filing: { name: "deduped_decomposition" },
     coverage: { name: "verified_decomposition" },
     summary: [{ name: "ticketing_result", kind: "file" }],

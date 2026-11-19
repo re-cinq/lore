@@ -93,9 +93,9 @@ line:
     - from: issue-coverage
       to: done
       on: success
-    # Statements no task names go back to decompose, and only those.
+    # Reload the tasks just filed so the next round recognizes its own issues.
     - from: issue-coverage
-      to: decompose
+      to: load-tickets
       on: changes_requested
       iteration_max: 3
     - from: issue-coverage
@@ -235,6 +235,8 @@ stations:
         path: target
         access: read
       - name: deduped_decomposition
+        kind: file
+      - name: verified_decomposition
         kind: file
       - name: spec_path
         kind: value
