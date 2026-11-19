@@ -53,7 +53,7 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 
 - **FR-001**: Every lore-api route that names a repository, in its path as `{owner}/{repo}` or in its payload, declares the level it needs beside its `bearerScope`.
 - **FR-164**: A test lists every route lore-api registers that names a repository and fails when one declares no level.
-- **FR-165**: The same test holds the list of `admin` routes below and fails when a route outside it declares `admin` or a route in it declares less.
+- **FR-165**: The same test holds the list of `admin` routes below (FR-004, FR-166 to FR-171, FR-196 to FR-203) and fails when a route outside it declares `admin` or a route in it declares less.
 - **FR-007**: The repository guard (`registerRepoGuard`) answers a person `403` when the level GitHub reports for them on the repository is below the level the route declares.
 - **FR-008**: In Step 2 the guard learns a person's level by asking GitHub, as the App, about that person.
 - **FR-009**: From Step 3 the guard learns a person's level by asking GitHub with that person's own token.
@@ -66,6 +66,15 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-169**: `POST /api/repos/{owner}/{repo}/utopia/backfill` needs `admin`.
 - **FR-170**: `POST /api/repos/{owner}/{repo}/utopia/reset` needs `admin`.
 - **FR-171**: `POST /api/repos/{owner}/{repo}/utopia/commits` needs `admin`.
+- **FR-196**: `POST /api/repos/{owner}/{repo}/utopia/memory` needs `admin`.
+- **FR-197**: `POST /api/repos/{owner}/{repo}/utopia/releases` needs `admin`.
+- **FR-198**: `POST /api/repos/{owner}/{repo}/utopia/tracker` needs `admin`.
+- **FR-199**: `PUT /api/repos/{owner}/{repo}/loops/{key}` needs `admin`.
+- **FR-200**: `DELETE /api/repos/{owner}/{repo}/loops/{key}/pause` needs `admin`.
+- **FR-201**: `POST /api/repos/{owner}/{repo}/agent-definitions` needs `admin`.
+- **FR-202**: `PUT /api/repos/{owner}/{repo}/agent-definitions/{name}` needs `admin`.
+- **FR-203**: `DELETE /api/repos/{owner}/{repo}/agent-definitions/{name}` needs `admin`.
+- **FR-204**: The test of FR-164 builds its list from the routes lore-api registers, so a route made by a factory (`utopiaWalkRoute`, the loops routes) is in it under its own path.
 - **FR-005**: A `write` or `admin` route asks GitHub at the time of the request and never answers from a cached level.
 - **FR-006**: lore-api has no route that returns a webhook signing secret: `GET /api/repos/{owner}/{repo}/webhook/secret` is removed.
 
@@ -96,8 +105,9 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 #### What a person sees and does
 
 - **FR-030**: `GET /api/repos` shows a person only repositories returned by `GET /user/installations/{installation_id}/repositories` asked with that person's token.
-- **FR-172**: The list of repositories available to onboard shows a person only repositories of that same answer.
-- **FR-173**: Search results show a person only what belongs to a repository of that same answer.
+- **FR-172**: `GET /api/repos/available`, the list of repositories available to onboard, shows a person only repositories of that same answer.
+- **FR-173**: `GET /api/search-context` shows a person only results that belong to a repository of that same answer.
+- **FR-205**: `GET /api/memory-search` shows a person only results that belong to a repository of that same answer.
 - **FR-174**: `GET /api/inbox` shows a person only items of a repository of that same answer.
 - **FR-038**: lore-api reads that list to its last page, with no cap on the number of repositories.
 - **FR-039**: A refresh replaces the kept list only when every page of it was read.
@@ -105,14 +115,17 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-031**: Every read of what Lore has stored about a repository is refused for a person whose list does not contain that repository.
 - **FR-032**: A person's repository list is kept per session for at most five minutes.
 - **FR-033**: When the list is older than five minutes and GitHub gives no fresh answer, reads are refused and are not served from the old list.
-- **FR-034**: When a person onboards a repository, lore-api sets the repository's secret and variable and creates its webhook on GitHub with that person's token.
+- **FR-034**: When a person onboards a repository through `POST /api/onboard`, lore-api sets the repository secret `LORE_INGEST_TOKEN` on GitHub with that person's token.
+- **FR-206**: In the same onboarding, lore-api sets the repository variable `LORE_INGEST_URL` on GitHub with that person's token.
+- **FR-207**: In the same onboarding, lore-api creates the repository's webhook on GitHub with that person's token.
 - **FR-175**: When a person opens a pull request through lore-api at the moment of the request, it is opened on GitHub with that person's token.
 - **FR-176**: When a person merges a pull request through lore-api, it is merged on GitHub with that person's token.
 - **FR-177**: When a person files an issue through lore-api, it is filed on GitHub with that person's token.
 - **FR-035**: On a repository route, GitHub's answer decides for a person, whatever scope their session carries.
 - **FR-036**: A signed-in member can use the organisation-wide routes.
 - **FR-037**: The web UI's workload holds no GitHub credential.
-- **FR-141**: What the web UI shows from GitHub, lore-api reads with the signed-in person's token.
+- **FR-141**: What the web UI reads from GitHub today with the App's key (`apps/web-ui/src/lib/github.ts`: a file, the README, a repository's details, a pull request's details) it asks lore-api for. lore-api has no routes for these reads today; Step 3 introduces them.
+- **FR-216**: lore-api makes those reads on GitHub with the signed-in person's token.
 
 #### Membership and minted tokens
 
@@ -142,13 +155,16 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-144**: Until that answer, lore-api ends no session and revokes no minted token.
 - **FR-145**: Until that answer, lore-api goes on serving in the old mode.
 - **FR-064**: At start, lore-api refuses to run in the new mode when a setting the values file must carry for it is missing.
-- **FR-065**: lore-api reads the App's permissions and webhook through GitHub's API and writes a warning to its log for each one that is missing.
+- **FR-065**: lore-api reads the App's permissions through GitHub's API (`GET /app`) and writes a warning to its log for each required permission that is missing.
+- **FR-208**: lore-api reads the App's webhook configuration through GitHub's API (`GET /app/hook/config`) and writes a warning to its log when no webhook address is set.
 - **FR-146**: The settings page shows each App permission or webhook setting that lore-api found missing.
-- **FR-066**: The install guide (`docs/github-setup.md`) carries a checklist of the App's settings that lore-api cannot read back, and the checklist names the callback URL.
+- **FR-066**: The install guide (`docs/github-setup.md`) carries a checklist of the App's settings that lore-api cannot read back.
+- **FR-217**: The checklist names the callback URL.
 - **FR-179**: The checklist names the client secret.
 - **FR-180**: The checklist names the device flow.
 - **FR-181**: The checklist names expiring user tokens.
-- **FR-182**: The checklist names the App's webhook address and its signing secret.
+- **FR-182**: The checklist names the App's webhook address.
+- **FR-209**: The checklist names the App webhook's signing secret.
 - **FR-183**: The checklist names the organisation permission Members (read) and its approval by an owner.
 
 #### The upgrade and the rollback
@@ -172,7 +188,8 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's.
 - **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes.
 - **FR-152**: lore-api fetches the key set from the configured issuer and from nowhere else.
-- **FR-153**: An identity token signed with a key id lore-api does not hold triggers one fetch of the key set, and is refused when the id is still unknown after it.
+- **FR-153**: An identity token signed with a key id lore-api does not hold triggers one fetch of the key set.
+- **FR-218**: An identity token whose key id is still unknown after that fetch is refused.
 - **FR-154**: An identity token is refused when its key cannot be confirmed because the key set could not be fetched.
 - **FR-155**: A kept key set has a maximum age, after which lore-api fetches it again before it accepts a token.
 - **FR-071**: An identity token whose audience is not this install's own address is refused.
@@ -193,7 +210,15 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 
 - **FR-080**: A run started by a person records that person's GitHub numeric id.
 - **FR-160**: A run records its repository's GitHub numeric id.
-- **FR-081**: Each time the floor asks `POST /api/floor/git-credential` for a run's GitHub credential, lore-api asks GitHub, as the App, for the starter's level on the repository and mints an installation token only when it is `write` or above.
+- **FR-081**: Each time the floor asks `POST /api/floor/git-credential` for the GitHub credential of a run a person started, lore-api asks GitHub, as the App, for that person's level on the repository, and mints the access the station asks for only when the level is `write` or above.
+- **FR-082**: When that person's level is below `write`, lore-api issues no credential and the run is cancelled.
+- **FR-210**: For a run started by an event, the person of FR-081 and FR-082 is the event's author: when the author's level is `write` or above, the run gets the access its station asks for.
+- **FR-211**: For a run started by an event whose author's level is below `write`, in a repository whose setting of FR-090 is on, `POST /api/floor/git-credential` issues a `read` token whatever access the station asks for.
+- **FR-212**: A run of FR-211 is not cancelled because its author lacks `write`.
+- **FR-213**: An event author that is missing, or that cannot be resolved to a GitHub numeric user id, is treated as below `write`.
+- **FR-214**: For a run started by a schedule, no person is asked about, and `POST /api/floor/git-credential` issues the access the station asks for, for the run's one repository.
+- **FR-215**: A run records how it was started: a person, an event with its author, or a schedule.
+- **FR-219**: `POST /api/floor/git-credential` refuses a run that records none of them.
 - **FR-184**: Every GitHub installation token lore-api issues for a run, however the run started, names exactly one repository, the run's, by its GitHub numeric id.
 - **FR-185**: A credential request that names no repository is refused, and is never answered with a token for the whole installation.
 - **FR-186**: A token issued for `read` access carries contents and metadata read and nothing else (`podPermissions`).
@@ -202,7 +227,6 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-189**: No GitHub credential is issued for a visit that has ended.
 - **FR-190**: After a token is minted, lore-api reads the run's state again, and when the run has ended or been cancelled meanwhile it revokes the token and does not return it.
 - **FR-191**: A token minted while the run's cancellation was in progress is among the tokens the cancellation revokes.
-- **FR-082**: A run whose starter no longer has `write` is cancelled.
 - **FR-083**: When a run ends or is cancelled, lore-api revokes every installation token it minted for it.
 - **FR-084**: A run goes on after its starter signs out.
 - **FR-085**: The MCP gateway accepts from an agent pod only the token the floor signed for that visit.
@@ -216,13 +240,13 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-161**: lore-api refuses a visit's token on every organisation-wide route.
 - **FR-162**: lore-api refuses a call made with a visit's token that acts on a run other than its own.
 
-The gateway token of FR-085 to FR-162 is a credential for Lore. The installation token of FR-081 to FR-191 is a credential for GitHub. They are two tokens with two sets of rules. The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are deferred to a spec of their own, to be written before Step 4 starts. What each token may do is stated above and is not deferred.
+The gateway token of FR-085 to FR-162 is a credential for Lore. The installation token of FR-081 to FR-191 and FR-210 to FR-215 is a credential for GitHub. They are two tokens with two sets of rules. The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are deferred to a spec of their own, to be written before Step 4 starts. What each token may do is stated above and is not deferred.
 
 #### Runs Lore starts itself
 
 - **FR-090**: A pull request from an author without `write` starts a review only when the repository's setting for it is on.
 - **FR-094**: That setting is off by default.
-- **FR-091**: A run started by an event whose author has no `write` gets a read-only GitHub token.
+- **FR-091**: The GitHub token of a run started by an event whose author has no `write` is the `read` token of FR-211.
 - **FR-095**: The gateway offers such a run no tool that writes in Lore.
 - **FR-092**: The findings of such a run are posted as a comment, never as an approving review or a passing check.
 - **FR-093**: A scheduled job authenticates with the stations token.

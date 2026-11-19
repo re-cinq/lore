@@ -81,7 +81,7 @@ A token that is not a person's has no GitHub identity to honour. Each such calle
 
 - **Whether a run starts.** Each repository says whether a pull request from someone without `write` starts a review at all; the default is no.
 - **What the run may do.** A run started by an event is trusted only as far as the person behind the event. Without `write`, the agent gets a read-only token and no tool that writes, in GitHub or in Lore, and Lore posts its findings as a comment, never as an approval or a passing check.
-- A scheduled job runs as the stations token with a fixed list of operations.
+- A scheduled job runs as the stations token with a fixed list of operations. A run a schedule starts has no person behind it, so it gets the GitHub access its station asks for, for its one repository.
 
 **The Actions identity token.** lore-api accepts it only when all of these hold:
 
