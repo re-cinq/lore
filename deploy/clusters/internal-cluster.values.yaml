@@ -224,7 +224,7 @@ lore-api:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "7146a92"
+    tag: "e1eca01"
   env:
     LORE_PACK_REPO: re-cinq/lore-assembly-lines
     # Evals on Gemini under the pod's Google identity; gemini-2.5-pro judged a
