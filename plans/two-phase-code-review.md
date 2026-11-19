@@ -4,6 +4,8 @@
 
 A PR author gets two things from Lore. Early in the review they see, in two sentences, what a reader thinks their code actually does. At the end they see one verdict answering two questions. Does the solution deliver the intended behavior across the paths it affects? Which tests would catch it doing the wrong thing?
 
+The first historical replay caught an undisclosed status change and a missing refusal test, missed a confirmed parser defect, and produced unsupported blockers. The pilot recommendation is shadow mode while the opening comment and blocking criteria are calibrated. [Replay results and sample GitHub comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
+
 Today one agent reads the diff, ticket, conventions and CI, then hands a verdict to the poster. An implementation-loop station already looks for missing refusal tests on loop-authored work. Its questions are reusable. The PR reviewer has a different job and a read-only checkout, including on PRs written by people. [Current review contract](../specs/auto-review-loop/spec.md) · [Review line](../libs/assembly-lines/src/floor-pipelines/code-review.yaml) · [Implementation-loop benchmark](../docs/building-lore/test-review-bench-2026-11-19.md)
 
 ## Phase 1. Read the solution, then compare it with intent
