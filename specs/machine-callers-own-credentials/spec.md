@@ -1,0 +1,243 @@
+# Feature Specification: Callers that are not people have their own credentials
+
+| Field     | Value |
+| --------- | ----- |
+| Feature   | Callers that are not people have their own credentials |
+| Branch    | machine-callers-own-credentials |
+| Status    | Draft |
+| Created   | 2026-11-19 |
+| Owner     | Platform Engineering |
+| Builds on | [ADR-054](../../adrs/ADR-054-github-decides-who-can-open-a-repository.md), [`specs/github-decides-repo-access/spec.md`](../github-decides-repo-access/spec.md) |
+
+A caller that is not a person has no GitHub identity to honour, so each gets a credential that can do its one job and nothing else, and none of them is the shared admin token. This spec states Step 4 of [ADR-054](../../adrs/ADR-054-github-decides-who-can-open-a-repository.md) as requirements a test can prove. Steps 1 to 3, which are about people, are [`specs/github-decides-repo-access/spec.md`](../github-decides-repo-access/spec.md), called the first spec below. Requirement numbers are unique across the two specs.
+
+## Problem Statement
+
+The value of `lore-ingest-token` is every scope with no expiry and no owner, and lore-api accepts it from its environment without a database row. The MCP gateway, the stations service and its scheduled jobs, every onboarded repository's CI, every developer's laptop and the VS Code extension hold it. One signing secret verifies every repository's webhook. ADR-054 has the full account and the reasons; this spec repeats neither.
+
+## User Scenarios
+
+### User Story 1 - One leaked machine credential opens one repository (Priority: P1)
+
+A repository's CI, an agent run and a repository's webhook each hold a credential that works for that repository only. The token that opens the whole install is gone.
+
+**Why this priority**: one token with every scope sits in every repository's secrets, in the gateway and on laptops today.
+
+**Independent Test**: use one repository's CI credential and one run's gateway credential against another repository.
+
+### User Story 2 - An existing install moves without a break (Priority: P1)
+
+An operator upgrades an install that has onboarded repositories. Lore moves each repository's webhook and workflows to their own credentials, shows which are not moved yet, and the shared token is withdrawn only when nothing uses it. A rollback at any point leaves CI and webhooks working.
+
+**Why this priority**: every onboarded repository holds the shared token today, and a cut-over that breaks ingest would be noticed late.
+
+**Independent Test**: upgrade an install with two onboarded repositories, one of which has a workflow of its own that reads the secret; run the reconciliation job; roll back; upgrade again.
+
+## Requirements
+
+This step takes two releases so that a rollback works. The first only adds: lore-api accepts both the old and the new credentials. Repositories are moved once that release is the one a rollback returns to. "The first Step 4 release" is that first release. A level is GitHub's permission on a repository, as in the first spec. The requirements for an agent run's GitHub credential are here and not in the first spec because ADR-054's order of work builds them in Step 4.
+
+### A repository's CI
+
+A run of the ingest client makes many requests (it reads the ingest state, posts each kind of document in parts, and retries), and it can last longer than one identity token. So a token is not single-use: it is good for its own short life, which GitHub sets in minutes, and only for the ingest routes of its one repository. Sending it again gives its holder nothing the workflow does not already do.
+
+- **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's.
+- **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes.
+- **FR-152**: lore-api fetches the key set from the configured issuer and from nowhere else.
+- **FR-153**: An identity token signed with a key id lore-api does not hold triggers one fetch of the key set.
+- **FR-218**: An identity token whose key id is still unknown after that fetch is refused.
+- **FR-154**: An identity token is refused when its key cannot be confirmed because the key set could not be fetched.
+- **FR-155**: A kept key set has a maximum age, after which lore-api fetches it again before it accepts a token.
+- **FR-071**: An identity token whose audience is not this install's own address is refused.
+- **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused.
+- **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository.
+- **FR-156**: An accepted identity token from a run on the repository's default branch allows `POST /api/repos/{owner}/{repo}/ingest` and `GET /api/repos/{owner}/{repo}/ingest-state` of the repository it names, and no other repository.
+- **FR-312**: An accepted identity token from a run on the repository's default branch allows `POST /api/ingest`, the route the installed workflow's `ingest` job posts to, only when the `repo` in the payload is the repository the token names.
+- **FR-313**: `POST /api/ingest` made with an identity token whose repository is not the payload's `repo` is refused.
+- **FR-267**: An identity token is accepted for as long as it is valid, so the same token can be sent on more than one request of a run.
+- **FR-075**: An identity token is accepted whichever workflow file of the repository ran, and what it allows follows from the ref it ran on (FR-156, FR-312, FR-157, FR-287).
+- **FR-157**: An identity token from a run on a ref other than the repository's default branch is refused on the ingest routes of FR-156 and FR-312.
+- **FR-287**: An accepted identity token from a run on any ref of the repository allows `GET /api/repos/{owner}/{repo}/impact/base` and `POST /api/repos/{owner}/{repo}/impact` of the repository it names, and `POST /api/spec-links/parse`, and no other route.
+- **FR-076**: An identity token from a pull request of a fork is refused.
+- **FR-077**: lore-api issues no longer-lived credential in exchange for an identity token.
+- **FR-268**: The ingest client (`apps/lore-code-trace`) asks GitHub for the identity token itself, at the request URL and with the request token that Actions gives a job with `id-token: write`.
+- **FR-269**: The ingest client asks for that token with this install's address as its audience.
+- **FR-270**: The ingest client asks for a new identity token when the one it holds is less than a minute from its expiry.
+- **FR-271**: The ingest client asks for a new identity token, and sends the request once more, when lore-api answers a request `401`.
+- **FR-272**: The installed workflow passes no identity token to a step in an environment variable.
+- **FR-078**: Where the identity token cannot be used, a repository's CI holds a stored token of a kind of its own in `pipeline.api_tokens` (beside `service` and `user`), bound to that repository's GitHub numeric id.
+- **FR-314**: A repository's stored CI token is accepted on the routes an identity token is (`POST /api/ingest` with its own repository in the payload, `POST /api/repos/{owner}/{repo}/ingest`, `GET /api/repos/{owner}/{repo}/ingest-state`, `GET /api/repos/{owner}/{repo}/impact/base`, `POST /api/repos/{owner}/{repo}/impact`, `POST /api/spec-links/parse`). It carries no ref, so it is not split by branch.
+- **FR-315**: A repository's stored CI token is refused on every other route, whatever scope that route declares.
+- **FR-158**: A repository's stored CI token is refused for any other repository.
+What calls Lore from a repository's CI today, each with the admin token from the repository secret `LORE_INGEST_TOKEN`:
+
+| Caller | Where it is defined | Runs on | Routes it calls |
+| --- | --- | --- | --- |
+| The `ingest` job | the workflow Lore installs (`libs/shared/src/work/ingest-workflow.ts`) | push to the default branch | `POST /api/ingest` |
+| The `graph` job (`lore-code-trace docs --post`) | the same workflow | push to the default branch | `GET .../ingest-state`, `POST .../ingest` |
+| The test report (`lore-code-trace --post`) | `.github/workflows/lore-tests.yml`, written by an agent from Lore's instruction (`libs/shared/src/lib/lore-tests-instruction.ts`) | push to the default branch, a schedule, a manual run | `GET .../ingest-state`, `POST .../ingest` |
+| Trace impact | the workflow Lore installs (`libs/shared/src/work/trace-impact-workflow.ts`) | a pull request | `GET .../impact/base`, `POST .../impact` |
+| The spec-link check (`lore-code-trace links`) | a workflow of the repository's own | a pull request | `POST /api/spec-links/parse` |
+
+A test report is a write of that repository's test results. It runs on the default branch, so it falls under the default-branch rule of FR-156, and a manual run on another branch is refused like any ingest from one. The binary itself is fetched from `/dist/lore-code-trace/...`, which needs no credential.
+
+- **FR-316**: The `ingest` job of the installed workflow asks GitHub for an identity token in its own step, with this install's address as its audience, and sends it on its one request.
+- **FR-317**: Lore's instruction for `lore-tests.yml` tells its author to grant the job `id-token: write` and `contents: read` and not to read `LORE_INGEST_TOKEN`.
+- **FR-318**: The trace-impact workflow Lore installs is granted `id-token: write` beside the permissions it has today (`contents: read`, `checks: write`, `pull-requests: write`), and does not read `LORE_INGEST_TOKEN`.
+- **FR-319**: Every command of the client that calls lore-api (`docs --post`, `--post`, `links`) gets its credential the way FR-268 to FR-271 say when Actions offers the identity-token request URL.
+- **FR-320**: Where Actions offers no request URL, the client reads the repository's stored CI token of FR-078 from its environment.
+- **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token.
+- **FR-159**: After a rollback to the first Step 4 release, a workflow already moved to the identity token still ingests.
+
+### Agent runs
+
+- **FR-080**: A run started by a person records that person's GitHub numeric id (the id sign-in stores, first spec).
+- **FR-160**: A run records its repository's GitHub numeric id.
+- **FR-081**: Each time the floor asks `POST /api/floor/git-credential` for the GitHub credential of a run a person started, lore-api asks GitHub, as the App, for that person's level on the repository, and mints the access the station asks for only when the level is `write` or above.
+- **FR-082**: When that person's level is below `write`, lore-api issues no credential and the run is cancelled.
+- **FR-210**: For a run started by an event, the person of FR-081 and FR-082 is the event's author: when the author's level is `write` or above, the run gets the access its station asks for.
+- **FR-211**: For a run started by an event whose author's level is below `write`, in a repository whose setting of FR-090 is on, `POST /api/floor/git-credential` issues a `read` token whatever access the station asks for.
+- **FR-212**: A run of FR-211 is not cancelled because its author lacks `write`.
+- **FR-213**: An event author that is missing, or that cannot be resolved to a GitHub numeric user id, is treated as below `write`.
+- **FR-214**: For a run started by a schedule, no person is asked about, and `POST /api/floor/git-credential` issues the access the station asks for, for the run's one repository.
+- **FR-215**: A run records how it was started: a person, an event with its author, or a schedule.
+- **FR-219**: `POST /api/floor/git-credential` refuses a run that records none of them.
+- **FR-184**: Every GitHub installation token lore-api issues for a run, however the run started, names exactly one repository, the run's, by its GitHub numeric id.
+- **FR-185**: A credential request that names no repository is refused, and is never answered with a token for the whole installation.
+- **FR-186**: A token issued for `read` access carries contents and metadata read and nothing else (`podPermissions`).
+- **FR-187**: A token issued for `write` access carries contents, pull requests, issues and workflows write, metadata read, and nothing else.
+- **FR-188**: No GitHub credential is issued for a run that is not active.
+- **FR-189**: No GitHub credential is issued for a visit that has ended.
+- **FR-190**: After a token is minted, lore-api reads the run's state again, and when the run has ended or been cancelled meanwhile it revokes the token and does not return it.
+- **FR-191**: A token minted while the run's cancellation was in progress is among the tokens the cancellation revokes.
+- **FR-083**: When a run ends or is cancelled, lore-api revokes every installation token it minted for it.
+- **FR-084**: A run goes on after its starter signs out.
+- **FR-085**: The MCP gateway accepts from an agent pod only the token the floor signed for that visit.
+- **FR-192**: The gateway verifies a visit's token with the floor's public key and holds no key that can sign one.
+- **FR-086**: lore-api verifies a visit's token the gateway forwards, with the same public key.
+- **FR-193**: lore-api applies the repository guard to a visit's token, so an agent's call for a repository other than its run's is refused.
+- **FR-087**: A visit's token is refused after the visit ends.
+- **FR-088**: A visit's token carries the scopes it may use.
+- **FR-194**: The gateway refuses a tool that needs a scope the visit's token does not carry, also for the token's own repository.
+- **FR-089**: An agent's visit token carries only the scopes for reading and writing Lore's context of its run's repository.
+- **FR-161**: lore-api refuses a visit's token on every organisation-wide route.
+- **FR-162**: lore-api refuses a call made with a visit's token that acts on a run other than its own.
+
+The gateway token of FR-085 to FR-162 is a credential for Lore. The installation token of FR-081 to FR-191 and FR-210 to FR-215 is a credential for GitHub. They are two tokens with two sets of rules. The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are deferred to a spec of their own, to be written before Step 4 starts. What each token may do is stated above and is not deferred.
+
+### Runs Lore starts itself
+
+- **FR-090**: A pull request from an author without `write` starts a review only when the repository's setting for it is on.
+- **FR-094**: That setting is off by default.
+- **FR-091**: The GitHub token of a run started by an event whose author has no `write` is the `read` token of FR-211.
+- **FR-095**: The gateway offers such a run no tool that writes in Lore.
+- **FR-092**: The findings of such a run are posted as a comment, never as an approving review or a passing check.
+- **FR-093**: A scheduled job authenticates with the stations token.
+
+### Stations, laptops and the editor
+
+- **FR-100**: The stations service and its scheduled jobs authenticate with a named system token that carries only the scopes their jobs use.
+- **FR-101**: The stations token can be replaced without changing any other credential.
+- **FR-102**: The local MCP server signs a person in with the App's device flow and holds a session for that person.
+- **FR-103**: The VS Code extension signs a person in with the App's device flow and holds a session for that person.
+
+### Webhook secrets
+
+- **FR-110**: Each repository's webhook has a signing secret of its own, in place of the one `LORE_WEBHOOK_SECRET` for all.
+- **FR-115**: A repository's webhook secret is stored encrypted, against the repository's GitHub numeric id.
+- **FR-111**: The first Step 4 release accepts a delivery signed with either the shared secret or the repository's own.
+- **FR-112**: After a rollback to the first Step 4 release, a delivery from a repository already moved to its own secret is still accepted.
+- **FR-113**: Once no webhook uses the shared secret, a delivery signed with it is refused.
+
+### Onboarding from the first Step 4 release
+
+Until the first Step 4 release, onboarding is as it is today, with the person's token from Step 3 (FR-034, FR-206, FR-207 of the first spec). From that release on, a newly onboarded repository starts where the reconciliation job below leaves an existing one.
+
+- **FR-273**: From the first Step 4 release, on a GitHub host whose identity token carries `repository_id` and `repository_owner_id`, onboarding commits the workflow that asks for the identity token (FR-245, FR-246, FR-282).
+- **FR-274**: On such a host, onboarding sets no repository secret `LORE_INGEST_TOKEN`.
+- **FR-275**: From the first Step 4 release, onboarding creates the repository's webhook with that repository's own signing secret (FR-110).
+- **FR-276**: On such a host, onboarding records the repository's row as moved for its webhook, its workflow and its secret (FR-248 to FR-250).
+- **FR-277**: On a GitHub host without those claims, onboarding sets the repository secret `LORE_INGEST_TOKEN` to the repository's stored CI token of FR-078.
+- **FR-306**: On such a host, onboarding records the repository's row as moved for its webhook (FR-248) and as holding its own token in place of the shared one (FR-308).
+- **FR-307**: Onboarding a repository again leaves those records as they are and replaces nothing that is already the repository's own.
+- **FR-278**: From the first Step 4 release, onboarding never sets a repository secret to the shared admin token's value.
+
+### Moving existing repositories
+
+Nothing in lore-api or the stations service opens the pull request that changes an installed workflow today: lore-api writes the workflow at onboarding (`libs/shared/src/work/onboard/onboard-scaffold.ts`, from the template in `libs/shared/src/work/ingest-workflow.ts`) and only the web UI opens a later fix. The move is a stations job this spec introduces.
+
+- **FR-241**: A reconciliation job of the stations service visits every onboarded repository.
+- **FR-242**: The job starts only once the first Step 4 release is the release a rollback returns to.
+- **FR-243**: A run of the job over a repository it has already moved changes nothing.
+- **FR-244**: The job sets the repository's webhook on GitHub to that repository's own signing secret, through `ensureLoreWebhook`.
+- **FR-245**: The job opens a pull request that changes the installed workflow (`.github/workflows/lore-ingest.yml`) to ask for the identity token (FR-316 for the `ingest` job, FR-268 for the `graph` job).
+- **FR-289**: Where the repository has the trace-impact workflow Lore installs (`.github/workflows/lore-trace-impact.yml`), the same pull request changes it to ask for the identity token.
+- **FR-246**: The workflow of that pull request does not read `LORE_INGEST_TOKEN`.
+- **FR-281**: In that workflow the `ingest` job is granted `id-token: write` and `contents: read`, and no other permission.
+- **FR-282**: In that workflow the `graph` job is granted `id-token: write` and `contents: read`, and no other permission.
+- **FR-247**: The job deletes the repository secret `LORE_INGEST_TOKEN` only when all four of FR-321 to FR-324 hold for that repository.
+- **FR-321**: The pull request of FR-245 is merged.
+- **FR-322**: A scan of the workflow files on the repository's default branch finds no reference to `LORE_INGEST_TOKEN`; this is how a workflow Lore did not install, such as `lore-tests.yml` or the repository's own spec-link check, keeps the secret until it is changed.
+- **FR-323**: lore-api has accepted a request with an identity token from that repository on `POST /api/ingest` or on `POST /api/repos/{owner}/{repo}/ingest`.
+- **FR-324**: The log of FR-120 shows no request about that repository made with the shared token for one complete release.
+- **FR-325**: A repository for which one of the four does not hold keeps its secret and is counted as not moved (FR-256).
+- **FR-326**: The log of FR-120 records, for each use of the shared token, the repository the request concerns.
+- **FR-248**: The repository's row in `lore.repos` records that its webhook is moved.
+- **FR-249**: The repository's row records that its workflow is moved.
+- **FR-250**: The repository's row records that its `LORE_INGEST_TOKEN` secret is deleted.
+- **FR-308**: On a host of FR-253, the repository's row records instead that the secret holds the repository's own token.
+- **FR-251**: A step that fails for a repository is tried again on the job's next run.
+- **FR-252**: A step that fails for one repository does not stop the job for the others.
+- **FR-253**: On an install whose GitHub host does not put `repository_id` and `repository_owner_id` in the identity token, the job replaces the repository secret `LORE_INGEST_TOKEN` with the repository's stored CI token of FR-078 and opens no identity-token pull request.
+- **FR-254**: lore-api refuses deliveries signed with the shared webhook secret (FR-113) only when every onboarded repository's row records its webhook moved.
+- **FR-255**: lore-api reports the shared admin token ready for withdrawal (FR-124) only when every onboarded repository's row records its workflow moved and its secret deleted, or replaced (FR-308).
+
+### The shared admin token
+
+- **FR-120**: lore-api logs every use of the token it reads from its environment (`LORE_INGEST_TOKEN`), with the caller.
+- **FR-124**: lore-api reports the shared admin token ready for withdrawal only when that log covers one complete release with no use.
+- **FR-125**: A use by a caller the log cannot name keeps the token reported as not ready.
+- **FR-126**: A part of that release without the log keeps the token reported as not ready.
+- **FR-163**: The install guide's withdrawal step tells the operator to withdraw the token only when lore-api reports it ready.
+- **FR-121**: After the withdrawal, lore-api accepts no token from its environment.
+- **FR-122**: No workload of a rendered install holds the shared admin token.
+- **FR-123**: An operator mints an emergency token with a command inside the cluster.
+- **FR-127**: An emergency token names the operator who minted it.
+- **FR-128**: An emergency token carries an expiry.
+- **FR-195**: The command that mints an emergency token mints none without an expiry.
+- **FR-129**: The minting of an emergency token is written to the audit log.
+
+### What operators can see
+
+- **FR-132**: lore-api exports a count of refused identity tokens.
+- **FR-134**: lore-api exports a count of uses of the shared admin token by caller.
+- **FR-135**: lore-api exports the number of repositories still on the shared webhook secret.
+- **FR-256**: lore-api exports the number of repositories whose workflow is not yet moved.
+
+## Success Criteria
+
+- **SC-008**: A workflow's credential for one repository is refused for another, and so is an agent's.
+- **SC-015**: No GitHub token issued to a run reaches a second repository, and none outlives the run's cancellation.
+- **SC-009**: A pull request from an author without `write` starts nothing by default and never yields an approval.
+- **SC-010**: Nothing in a rendered install holds the shared admin token.
+- **SC-012**: An agent's credential is refused on every organisation-wide route.
+- **SC-013**: The shared admin token is not reported ready for withdrawal while any caller still uses it or any repository is not yet moved.
+- **SC-017**: After the reconciliation job has finished, every onboarded repository's webhook has its own secret and no repository holds the secret `LORE_INGEST_TOKEN` with the shared admin token's value.
+- **SC-019**: A workflow moved to the identity token completes an ingest run that makes many requests and lasts longer than one identity token.
+- **SC-020**: A repository onboarded after the first Step 4 release never holds the shared admin token and its webhook never uses the shared secret.
+- **SC-024**: A repository whose own workflow still reads `LORE_INGEST_TOKEN` keeps the secret and is shown as not moved, and its CI goes on working.
+- **SC-025**: A repository's stored CI token is refused on every route outside its list, for its own repository too.
+
+## Assumptions
+
+- Steps 1 to 3 of the first spec are in place: repositories and people are recorded by GitHub numeric id, and a person's level is asked from GitHub.
+- Step 4 takes two releases, and repositories are moved between them.
+- An agent that holds no GitHub token at all is a later option and not part of this spec; that agents keep an installation token for one repository is FR-184.
+- The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are a spec of their own, written before this step starts.
+- A workflow Lore did not install cannot be changed by Lore. Such a repository keeps its secret until its owners change the workflow, and the shared admin token cannot be withdrawn before then.
+
+## Open Questions
+
+- **GitHub Enterprise Server** — Choices: use the device flow and the Actions identity token there, or fall back to the stored per-repository CI token and a browser sign-in. Both have to be confirmed on a real server of the versions installers run.
+- **The longest life of an emergency token (FR-128)** — ADR-054 says "within hours". Choices: one fixed maximum, or a maximum the installer sets.
+- **The maximum age of a kept key set (FR-155)** — Choices: what the issuer's own cache headers say, or one fixed age.
