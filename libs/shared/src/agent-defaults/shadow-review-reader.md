@@ -23,6 +23,11 @@ reading or `incomplete` if material evidence is missing. The other fields
 are arrays of strings. Cite locations in the evidence strings. For code,
 use exactly two reading strings with one neutral sentence each.
 
-Finish with `LORE_NODE_RESULT: {"outcome":"success"}` for a complete
-reading, or `LORE_NODE_RESULT: {"outcome":"failed"}` for an incomplete
-reading or an unavailable skill or packet.
+After the JSON object, write the result marker on its own final line as
+plain text. Keep it outside the JSON and any Markdown formatting.
+
+For a complete reading:
+LORE_NODE_RESULT: {"outcome":"success"}
+
+For an incomplete reading or an unavailable skill or packet:
+LORE_NODE_RESULT: {"outcome":"failed"}
