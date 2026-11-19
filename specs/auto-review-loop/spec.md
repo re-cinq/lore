@@ -15,6 +15,20 @@ Lore reviews every open pull request of a repository that has `auto_review` on, 
 
 A pull request waits for a person to review it. Until someone gets to it, nothing checks the change against the spec, the conventions or the code around it. A pull request an agent opened waits the same way as a person's.
 
+## Proposed five-pass review
+
+For automatic and manual reviews and rechecks, the PR author should be able to see what Lore understood, what the tests prove, and which finding warrants a change. The following contract is proposed for the shadow pilot. The validated behavior below describes the deployed line. [Tracking issue #4972](https://github.com/re-cinq/lore/issues/4972) · [Delivery plan and replay criteria](../../plans/two-phase-code-review.md)
+
+| Pass | Evidence the reviewer receives | What the author learns |
+| --- | --- | --- |
+| 1. Code | Implementation, configuration and relevant unchanged consumers. Exclude tests, Markdown, issue and PR context, and prior reviews. | Exactly two neutral sentences describe the behavior and its important conditions. A documentation-only change gets an explicit statement that there is no implementation to assess. |
+| 2. Tests | Tests, assertions, fixtures and doubles, including relevant existing coverage. Exclude production code, Markdown, issue and PR context, and other readings. | Which outcomes the assertions establish, with a reference to each material test and the boundary any mock replaces. |
+| 3. Intent | The two recorded readings, the issue text and comments, and the PR title, body, conversation and inline threads, including replies. Exclude Lore’s review summary as evidence of intent. | Which observable outcome conflicts with an agreed decision. Verify discrepancies against the relevant code or assertion. If discussion leaves scope unresolved, ask the author. |
+| 4. Test gaps | Code, unchanged consumers, tests and fixtures. Exclude specs, issue and PR discussion, and all other pass outputs. | What materially wrong behavior could still pass? A blocking gap names a supported input or caller, the consequence, why existing tests would pass, and the smallest assertion that distinguishes the outcomes. |
+| 5. Product promises | Existing specs and agreed decisions first, then the recorded readings and findings. Consult specific code or tests to verify a product judgment. | Whose workflow changes, which shipped promise it breaks or preserves, and whether it advances the intended design. A verified broken promise can block. A deferred goal or unresolved product question alone is advisory. |
+
+Pass 1 opens one editable Lore summary per PR. Later passes, manual reruns and new pushes update that same comment and preserve human replies. A completed review produces one formal verdict for the reviewed head through the existing review and check. An incomplete review names the missing pass. Only a complete current-head review can authorize approval. [Floor execution](../external-floor/spec.md#proposed-five-pass-review-execution)
+
 ## Background
 
 This spec began in 2026-04 as the Floor watcher's review-and-fix loop for Lore's own pull requests. The watcher created a review task for each pull request it opened and read `APPROVED` or `CHANGES_REQUESTED` from the review agent's stdout. On changes requested it created an `implementation` fix task carrying the feedback, for at most two rounds, and then handed the pull request to a person.
