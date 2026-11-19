@@ -1,4 +1,4 @@
-// Opens (or finds) the one pull request an onboarding produces and records it on the repository, which is what the onboard guard and the merge-check sweep read. A branch with nothing on it is a setup that is already current: no pull request, and the run ends there.
+// Opens (or finds) the one pull request an onboarding produces and records it on the repository, which is what the onboard guard and the merge-check sweep read. A branch with nothing on it is a setup that is already current: no pull request, the repository counts as onboarded (no merge will ever say so, and the implementation loop picks only onboarded repos), and the run ends there.
 
 import {
   defineStation,
@@ -9,6 +9,7 @@ import {
 import { prFooter } from "@re-cinq/lore-shared";
 import { parseGitRef } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { errorMessage } from "@re-cinq/lore-shared/lib/error-classify.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   ensurePull,
   type PullOpener,
@@ -19,11 +20,18 @@ import { settings } from "../../outbound/queues.js";
 export interface OpenOnboardPrDeps {
   pulls(repo: string): Promise<PullOpener>;
   recordOnboardingPr(repo: string, url: string): Promise<void>;
+  markOnboarded(repo: string): Promise<void>;
 }
 
 const productionDeps: OpenOnboardPrDeps = {
   pulls: async (repo) => (await projectFor(repo)).pulls,
   recordOnboardingPr: (repo, url) => settings().setOnboardingPrUrl(repo, url),
+  markOnboarded: async (repo) => {
+    const record = await settings().record(repo);
+
+    enforceTrue(record, Error, `no lore.repos row for ${repo}`);
+    await settings().markOnboardingMergedById(record.id);
+  },
 };
 
 const WHY =
@@ -60,9 +68,12 @@ export function openOnboardPrHandle(deps: OpenOnboardPrDeps): Handle {
     try {
       return await opened(deps, onboarding);
     } catch (err) {
-      return NOTHING_TO_OPEN.test(errorMessage(err))
-        ? ALREADY_CURRENT
-        : { outcome: "failed", error: errorMessage(err) };
+      if (!NOTHING_TO_OPEN.test(errorMessage(err))) {
+        return { outcome: "failed", error: errorMessage(err) };
+      }
+      await deps.markOnboarded(onboarding.repo);
+
+      return ALREADY_CURRENT;
     }
   };
 }
