@@ -4,6 +4,8 @@
 
 The earlier two-phase replay caught a missing refusal test and an unrelated status change, but missed a confirmed parser defect and produced unsupported blockers. Use those cases for calibration. The five-pass design still needs its own full replay and shadow pilot. [Historical results and example comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
 
+The rollout is tracked in [issue #4972](https://github.com/re-cinq/lore/issues/4972). The owning specs cover [review behavior](../specs/auto-review-loop/spec.md#proposed-five-pass-review), [floor execution](../specs/external-floor/spec.md#proposed-five-pass-review-execution) and [shared and local skills](../specs/org-skills/spec.md#proposed-code-review-skills).
+
 ## What each reviewer sees and produces
 
 | Pass | Inputs | Contribution to the review |
@@ -47,3 +49,5 @@ Capture the local change once so all five passes review the same snapshot. Each 
 | **6. Shadow pilot and rollout decision** | Exercise automatic reviews, manual reviews and rechecks through the effective pack. During shadow evaluation, record the proposed verdict alongside the current line’s decision. Verify one comment across phases and pushes, preserved human replies and rejection of stale writes. [Review starter](../libs/shared/src/work/review/floor-review-start.ts) · [Final posting station](../apps/stations/src/code-review/post-review/station.ts) · [Internal pack configuration](../deploy/clusters/internal-cluster.values.yaml) |
 
 For the pilot, freeze prompts before a maintainer selects fresh cases. Include a sanitized delegated-auth change with an unchanged consumer, a missing refusal test without a dangling citation, a mixed PR, an agreed scope reduction, and a clean refactor. Replay each three times against the single-pass baseline. Score whether each reviewer found the designated behavior and justified its severity. Record false blockers, duplicate findings, time and cost. The proposed release threshold is detection of every designated critical regression and material test gap in each repeat, with zero blockers on the clean controls. Keep enforcement in shadow mode if it misses that threshold.
+
+In the same replay, compare two five-pass configurations. Run passes 1 and 2 with a lighter model at low reasoning effort in one configuration. Keep prompts, evidence, and the model and effort for passes 3–5 identical across both. Record the effective settings, elapsed time and usage per pass. Check whether the lighter code reader follows the unchanged caller and the lighter test reader identifies the mocked boundary, even if a later pass recovers a miss. Adopt the lighter settings for those passes only if their readings preserve that evidence and the run meets the release threshold above.
