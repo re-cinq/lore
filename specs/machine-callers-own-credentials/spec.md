@@ -91,8 +91,16 @@ A test report is a write of that repository's test results. It runs on the defau
 - **FR-318**: The trace-impact workflow Lore installs is granted `id-token: write` beside the permissions it has today (`contents: read`, `checks: write`, `pull-requests: write`), and does not read `LORE_INGEST_TOKEN`.
 - **FR-369**: Each step of the trace-impact workflow that calls Lore asks GitHub for an identity token, with this install's address as its audience, immediately before its request.
 - **FR-370**: A step of that workflow whose request is answered `401` asks for a new identity token and sends the request once more.
-- **FR-319**: Every command of the client that calls lore-api (`docs --post`, `--post`, `links`) gets its credential the way FR-268 to FR-271 say when Actions offers the identity-token request URL.
-- **FR-320**: Where Actions offers no request URL, the client reads the repository's stored CI token of FR-078 from its environment.
+- **FR-445**: An install setting (`LORE_CI_IDENTITY_TOKENS` under `lore-platform.lore-api.env`, `true` or `false`) says whether the GitHub host's identity tokens carry `repository_id` and `repository_owner_id`.
+- **FR-446**: With that setting unset and `GITHUB_HOST` unset, the install is treated as `true`.
+- **FR-447**: With that setting unset and `GITHUB_HOST` set, lore-api does not start from the first Step 4 release on.
+- **FR-448**: Onboarding sets the repository's Actions variable `LORE_CI_AUTH` to `identity` on an install set to `true` and to `token` on an install set to `false`.
+- **FR-449**: The reconciliation job of FR-241 sets the same variable on every repository it visits.
+- **FR-450**: The workflows Lore installs pass `vars.LORE_CI_AUTH` to each step that calls Lore.
+- **FR-319**: Every command of the client that calls lore-api (`docs --post`, `--post`, `links`) gets its credential the way FR-268 to FR-271 say when `LORE_CI_AUTH` is `identity`.
+- **FR-320**: When `LORE_CI_AUTH` is `token`, the client reads the repository's stored CI token of FR-078 from its environment, even when Actions offers the identity-token request URL.
+- **FR-451**: The client never chooses its credential by whether Actions offers the request URL.
+- **FR-452**: When `LORE_CI_AUTH` is not set, the repository has not been moved, and the client reads `LORE_INGEST_TOKEN` as it does today.
 - **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token.
 - **FR-159**: After a rollback to the first Step 4 release, a workflow already moved to the identity token still ingests.
 
@@ -115,9 +123,27 @@ A test report is a write of that repository's test results. It runs on the defau
 - **FR-187**: A token issued for `write` access carries contents, pull requests, issues and workflows write, metadata read, and nothing else.
 - **FR-188**: No GitHub credential is issued for a run that is not active.
 - **FR-189**: No GitHub credential is issued for a visit that has ended.
-- **FR-190**: After a token is minted, lore-api reads the run's state again, and when the run has ended or been cancelled meanwhile it revokes the token and does not return it.
+- **FR-190**: After a token is minted, lore-api reads the run's state again, and when the run has ended or been cancelled meanwhile it marks the token's row for revocation (FR-455) and does not return the token.
 - **FR-191**: A token minted while the run's cancellation was in progress is among the tokens the cancellation revokes.
-- **FR-083**: When a run ends or is cancelled, lore-api revokes every installation token it minted for it.
+- **FR-083**: When a run ends or is cancelled, every installation token lore-api minted for it is revoked at GitHub or has expired; none is left that nobody is revoking.
+- **FR-453**: Before it hands an installation token to the floor, lore-api stores it, encrypted with the key that encrypts people's stored tokens (FR-025 of the first spec), in a row of a table of its own with the token's run, visit and expiry.
+- **FR-454**: lore-api sets that row to handed over in the transaction of FR-190's second read, and returns the token only after that transaction has committed.
+- **FR-455**: The transaction in which lore-api records a run's end or cancellation marks every row of that run for revocation.
+- **FR-456**: A worker in lore-api, which minted the token and holds the key, revokes each marked token at GitHub (`DELETE /installation/token`, sent with that token).
+- **FR-457**: A revocation GitHub does not confirm is tried again until GitHub confirms it or the token's expiry has passed.
+- **FR-458**: When GitHub confirms a revocation, the row's stored token is deleted.
+- **FR-459**: A row whose token's expiry has passed has its stored token deleted, whatever its state.
+- **FR-460**: After lore-api restarts, the worker goes on from the rows the table holds; nothing about a revocation is kept only in memory.
+
+A minted installation token is in one of these states, and moves only along these lines:
+
+| State | Entered when | Left for |
+| --- | --- | --- |
+| minted | the row is stored, before the second read of the run's state (FR-453) | handed over, when the run is still active (FR-454); marked, when it is not (FR-190) |
+| handed over | the second read found the run active (FR-454) | marked, when the run ends or is cancelled (FR-455); expired, when its hour passes first (FR-459) |
+| marked | the run ended or was cancelled, or the second read found it so (FR-455, FR-190) | revoked, when GitHub confirms (FR-458); expired, when its hour passes first (FR-459) |
+| revoked | GitHub confirmed the revocation (FR-458) | nothing; the stored token is deleted |
+| expired | the token's expiry passed (FR-459) | nothing; the stored token is deleted |
 - **FR-084**: A run goes on after its starter signs out.
 - **FR-085**: The MCP gateway accepts from an agent pod only the token the floor signed for that visit.
 - **FR-192**: The gateway verifies a visit's token with the floor's public key and holds no key that can sign one.
@@ -160,6 +186,7 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **FR-418**: A signed-in person confirms the code on that page, which calls a route this spec introduces (`POST /api/auth/pairings/confirm`) with their session.
 - **FR-419**: A confirmation is accepted only from a session that passes the membership check of FR-236 of the first spec.
 - **FR-420**: The client asks a route this spec introduces (`POST /api/auth/pairings/claim`) with its secret and, once the pairing is confirmed, receives a session for the person who confirmed it.
+- **FR-467**: `POST /api/auth/pairings/claim` creates the session under the person's lock of the first spec (FR-388), and only when the generation recorded on the confirming session equals the person's generation (FR-434 to FR-437 of the first spec); the new session records that generation.
 - **FR-421**: A pairing that is not confirmed within ten minutes of its creation is refused at both routes.
 - **FR-422**: A pairing yields one session: a second claim with the same secret is refused.
 - **FR-423**: The session of a pairing is a person's session, and every rule of the first spec for a person's session holds for it (levels, the five-minute membership and repository answers, the ending of every session of a person).
@@ -219,11 +246,11 @@ A webhook move has three steps, and GitHub never shows a webhook's secret back, 
 
 Until the first Step 4 release, onboarding is as it is today, with the person's token from Step 3 (FR-034, FR-206, FR-207 of the first spec). From that release on, a newly onboarded repository starts where the reconciliation job below leaves an existing one.
 
-- **FR-273**: From the first Step 4 release, on a GitHub host whose identity token carries `repository_id` and `repository_owner_id`, onboarding commits the workflow that asks for the identity token (FR-245, FR-246, FR-282).
+- **FR-273**: From the first Step 4 release, on an install set to `true` in FR-445, onboarding commits the workflow that asks for the identity token (FR-245, FR-246, FR-282).
 - **FR-274**: On such a host, onboarding sets no repository secret `LORE_INGEST_TOKEN`.
 - **FR-275**: From the first Step 4 release, onboarding creates the repository's webhook with that repository's own signing secret (FR-110).
 - **FR-276**: On such a host, onboarding records the repository's row as moved for its webhook, its workflow and its secret (FR-248 to FR-250).
-- **FR-277**: On a GitHub host without those claims, onboarding sets the repository secret `LORE_INGEST_TOKEN` to the repository's stored CI token of FR-078.
+- **FR-277**: On an install set to `false` in FR-445, onboarding sets the repository secret `LORE_INGEST_TOKEN` to the repository's stored CI token of FR-078.
 - **FR-306**: On such a host, onboarding records the repository's row as moved for its webhook (FR-248) and as holding its own token in place of the shared one (FR-308).
 - **FR-307**: Onboarding a repository again leaves those records as they are and replaces nothing that is already the repository's own.
 - **FR-278**: From the first Step 4 release, onboarding never sets a repository secret to the shared admin token's value.
@@ -241,12 +268,17 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-246**: The workflow of that pull request does not read `LORE_INGEST_TOKEN`.
 - **FR-281**: In that workflow the `ingest` job is granted `id-token: write` and `contents: read`, and no other permission.
 - **FR-282**: In that workflow the `graph` job is granted `id-token: write` and `contents: read`, and no other permission.
-- **FR-247**: The job deletes the repository secret `LORE_INGEST_TOKEN` only when all four of FR-321 to FR-324 hold for that repository.
+- **FR-247**: The job deletes the repository secret `LORE_INGEST_TOKEN` only when FR-321, FR-461, FR-323, FR-463 and FR-324 all hold for that repository.
 - **FR-321**: The pull request of FR-245 is merged.
-- **FR-322**: A scan of the workflow files on the repository's default branch finds no reference to `LORE_INGEST_TOKEN`; this is how a workflow Lore did not install, such as `lore-tests.yml` or the repository's own spec-link check, keeps the secret until it is changed.
-- **FR-323**: lore-api has accepted a request with an identity token from that repository on `POST /api/ingest` or on `POST /api/repos/{owner}/{repo}/ingest`.
+- **FR-322**: The job lists every workflow file on the repository's default branch that calls Lore: a file that names `LORE_INGEST_TOKEN`, `LORE_INGEST_URL` or `LORE_API_URL`, or that runs `lore-code-trace`. This finds a workflow Lore did not install, such as `lore-tests.yml` or the repository's own spec-link check.
+- **FR-461**: None of the listed files names `LORE_INGEST_TOKEN`.
+- **FR-462**: lore-api records each accepted identity-token request in a table of its own, with the repository's id, the workflow file its `workflow_ref` names and the time, and keeps only the latest row for each repository and file.
+- **FR-323**: For each listed file, that table holds an accepted request from that file that is later than the file's last change on the default branch.
+- **FR-463**: No listed file blocks the repository: a file blocks when it calls Lore through a reusable workflow kept in another repository, or when the job cannot read it as a workflow, until an administrator acknowledges the repository (FR-464).
+- **FR-464**: An administrator acknowledges a repository at a route this spec introduces (`POST /api/admin/repository-moves/{repository_id}/acknowledge`), and from then on the files that blocked it count as proven for FR-323.
+- **FR-465**: The acknowledgement records who gave it and when, and the report of FR-363 shows both.
 - **FR-324**: No row of FR-120 from the last 30 days names that repository.
-- **FR-325**: A repository for which one of the four does not hold keeps its secret and is counted as not moved (FR-256).
+- **FR-325**: A repository for which one of the conditions of FR-247 does not hold keeps its secret and is counted as not moved (FR-256).
 - **FR-326**: The row of FR-120 names the repository the request concerns, where the request names one.
 - **FR-248**: The repository's row in `lore.repos` records that its webhook is moved.
 - **FR-249**: The repository's row records that its workflow is moved.
@@ -254,13 +286,14 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-308**: On a host of FR-253, the repository's row records instead that the secret holds the repository's own token.
 - **FR-251**: A step that fails for a repository is tried again on the job's next run.
 - **FR-252**: A step that fails for one repository does not stop the job for the others.
-- **FR-253**: On an install whose GitHub host does not put `repository_id` and `repository_owner_id` in the identity token, the job replaces the repository secret `LORE_INGEST_TOKEN` with the repository's stored CI token of FR-078 and opens no identity-token pull request.
+- **FR-253**: On an install set to `false` in FR-445, the job replaces the repository secret `LORE_INGEST_TOKEN` with the repository's stored CI token of FR-078 and opens no identity-token pull request.
 - **FR-254**: lore-api refuses deliveries signed with the shared webhook secret (FR-113) only when every onboarded repository's row records its webhook moved.
 - **FR-255**: lore-api reports the shared admin token ready for withdrawal (FR-124) only when every onboarded repository's row records its workflow moved and its secret deleted, or replaced (FR-308).
 - **FR-363**: lore-api serves a report of the move to an administrator, at a route this spec introduces (`GET /api/admin/repository-moves`), with one row for each onboarded repository.
 - **FR-364**: A row is keyed by the repository's GitHub numeric id and carries its current name.
 - **FR-365**: A row carries the three states of FR-248 to FR-250, or FR-308 in place of the last.
-- **FR-366**: A row names each of the conditions FR-321 to FR-324 that does not hold for the repository.
+- **FR-366**: A row names each of the conditions of FR-247 that does not hold for the repository.
+- **FR-466**: A row names each listed workflow file that has no accepted request of FR-323 or that blocks under FR-463.
 - **FR-367**: A row carries the time of the repository's last request made with the shared token.
 - **FR-368**: A row carries the error of the last step that failed for the repository.
 - **FR-376**: The install guide's withdrawal step (FR-163) points the operator to that report.
@@ -294,7 +327,7 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 ## Success Criteria
 
 - **SC-008**: A workflow's credential for one repository is refused for another, and so is an agent's.
-- **SC-015**: No GitHub token issued to a run reaches a second repository, and none outlives the run's cancellation.
+- **SC-015**: No GitHub token issued to a run reaches a second repository, and after the run's cancellation each is revoked at GitHub or expired, a failed revocation and a restart of lore-api included.
 - **SC-009**: A pull request from an author without `write` starts nothing by default and never yields an approval.
 - **SC-010**: Nothing in a rendered install holds the shared admin token.
 - **SC-012**: An agent's credential is refused on every organisation-wide route.
