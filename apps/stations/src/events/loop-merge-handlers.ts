@@ -23,16 +23,22 @@ export function loopMergeHandlers(
 
 function onPullRequestClosed(deps: LoopMergeDeps): EventHandler {
   return async (params) => {
-    const { repo, branch, merged } = params as {
+    const { repo, branch, merged, body } = params as {
       repo?: string;
       branch?: string;
       merged?: boolean;
+      body?: string | null;
     };
 
     if (!repo || !branch || !merged) {
       return;
     }
-    const outcome = await settleMergedLoopTicket(deps.settle, repo, branch);
+    const outcome = await settleMergedLoopTicket(
+      deps.settle,
+      repo,
+      branch,
+      body,
+    );
 
     console.log(`[stations] loop-merge: ${repo} ${branch}: ${outcome}`);
   };

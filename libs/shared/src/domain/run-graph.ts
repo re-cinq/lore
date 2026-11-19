@@ -1,5 +1,39 @@
 // AssemblyRun's cloned blueprint graph (specs/6-dark-factory FR6.38) — not the loader's AssemblyLine type (libs/shared can't import libs/assembly-lines); Station resolved at clone time, not on read, to avoid silent misrouting (FR6.26/FR6.31).
 
+import { z } from "zod";
+
+export const RunGraphNodeSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  station: z.string().nullable(),
+  station_inherited: z.boolean(),
+  route: z.string().optional(),
+  prompt_ref: z.string().optional(),
+  model: z.string().optional(),
+  timeout_minutes: z.number().optional(),
+  required_tags: z.array(z.string()).optional(),
+  condition_ref: z.string().optional(),
+  job_ref: z.string().optional(),
+  continues: z.object({ node: z.string(), key: z.string() }).optional(),
+  description: z.string().optional(),
+}) satisfies z.ZodType<RunGraphNode>;
+
+export const RunGraphEdgeSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  on: z.string(),
+  iteration_max: z.number().optional(),
+}) satisfies z.ZodType<RunGraphEdge>;
+
+export const RunGraphSchema = z.object({
+  name: z.string(),
+  entry: z.string(),
+  exit: z.string(),
+  fail: z.string().optional(),
+  nodes: z.array(RunGraphNodeSchema),
+  edges: z.array(RunGraphEdgeSchema),
+}) satisfies z.ZodType<RunGraph>;
+
 /** One node of a cloned graph. */
 export interface RunGraphNode {
   id: string;

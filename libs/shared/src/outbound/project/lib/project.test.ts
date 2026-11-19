@@ -63,6 +63,48 @@ describe("Project wiring", () => {
     );
   });
 
+  it("wires settings into agentDefs so resolve and list receive the repo's base_image", async () => {
+    const seen: Array<{
+      repo: string;
+      name: string;
+      baseImage?: string | null;
+    }> = [];
+    const ports = new Map<string, unknown>([
+      [
+        "agentDefs",
+        {
+          resolve: async (
+            repo: string,
+            name: string,
+            baseImage?: string | null,
+          ) => {
+            seen.push({ repo, name, baseImage });
+
+            return null;
+          },
+          list: async () => [],
+        },
+      ],
+      [
+        "settings",
+        {
+          rawSettings: async () => ({ base_image: "ghcr.io/re-cinq/base:1" }),
+        },
+      ],
+    ]);
+    const project = new Project("re-cinq/lore", ports, {});
+
+    await project.agentDefs.resolve("loop-tdd");
+
+    expect(seen).toEqual([
+      {
+        repo: "re-cinq/lore",
+        name: "loop-tdd",
+        baseImage: "ghcr.io/re-cinq/base:1",
+      },
+    ]);
+  });
+
   it("starts an assembly line through the wired pg port with the repo filled in", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const project = await createProject(

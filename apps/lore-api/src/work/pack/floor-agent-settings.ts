@@ -16,7 +16,7 @@ export function floorSettingsOf(settings: FloorAgentSettings): AgentSettings {
   };
 }
 
-function floorPricesOf(prices: PackPrices): FloorPrices {
+export function floorPricesOf(prices: PackPrices): FloorPrices {
   return Object.fromEntries(
     Object.entries(prices).map(([model, price]) => [
       model,

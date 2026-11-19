@@ -12,6 +12,7 @@ export function parseSettingsForm(formData: FormData) {
     digest: parseDigestBlock(formData),
     auto_merge: minAgeBlock(formData),
     implementation_loop: doneCheckBlock(formData),
+    base_image: baseImageField(formData),
   };
 
   const trustLevel = formData.get("trust_level") as string;
@@ -21,6 +22,15 @@ export function parseSettingsForm(formData: FormData) {
   }
 
   return withoutUndefined(updates);
+}
+
+/** A chosen base image sets the key, an empty selection clears it to null, and a form without the control leaves it undefined. */
+function baseImageField(formData: FormData): string | null | undefined {
+  if (!formData.has("base_image")) {
+    return undefined;
+  }
+
+  return ((formData.get("base_image") as string) || "").trim() || null;
 }
 
 /** The auto-merge loop's one setting; a blank or not-whole number of hours leaves the stored one alone. The loop's on/off switch lives on the Loops tab, and lore-api merges this block into the stored one. */

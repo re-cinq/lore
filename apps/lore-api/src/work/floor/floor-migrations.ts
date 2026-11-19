@@ -8,6 +8,7 @@ import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { skillsSourceWrite } from "../agents/skills-source.js";
+import { floorPricesOf } from "../pack/floor-agent-settings.js";
 import { withEnvironment, type SeedFailure } from "./seed-floor-pipelines.js";
 
 export interface FloorMigrationApi {
@@ -17,6 +18,8 @@ export interface FloorMigrationApi {
   updateTimeout(agent: string, file: string): Promise<void>;
   /** Writes the `config.skills` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor, with the skills source when it has none. */
   updateSkills(agent: string, file: string): Promise<void>;
+  /** Writes the `model` and `prices` of libs/shared/src/agent-defaults/<file> as the agent's org default on the floor; a file with no prices drops the floor's. */
+  updateModel(agent: string, file: string): Promise<void>;
   /** Merges the `config.env` of libs/shared/src/agent-defaults/<file>, its ${NAME} placeholders filled from the environment, into the agent's org default on the floor. */
   updateEnv(agent: string, file: string): Promise<void>;
 }
@@ -133,6 +136,23 @@ export function floorApiFor(
   const shipped = shippedFloorAgents();
 
   return {
+    ...settingsApiFor(agentDefs, shipped),
+    updateSkills: async (agent, file) =>
+      await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
+    updateModel: async (agent, file) =>
+      await agentDefs.updateOrgModel(agent, ...modelOf(shipped, file)),
+    updateEnv: async (agent, file) =>
+      await updateOrgEnv(agentDefs, agent, filledEnvOf(shipped, file, env)),
+  };
+}
+
+type ShippedAgents = ReturnType<typeof shippedFloorAgents>;
+
+function settingsApiFor(
+  agentDefs: FloorAgentDefs,
+  shipped: ShippedAgents,
+): Pick<FloorMigrationApi, "updatePrompt" | "updateTimeout"> {
+  return {
     updatePrompt: async (agent, file) => {
       await agentDefs.updateOrg(agent, { prompt: promptOf(shipped, file) });
     },
@@ -141,14 +161,8 @@ export function floorApiFor(
         timeout_minutes: timeoutOf(shipped, file),
       });
     },
-    updateSkills: async (agent, file) =>
-      await updateOrgSkills(agentDefs, agent, skillsOf(shipped, file)),
-    updateEnv: async (agent, file) =>
-      await updateOrgEnv(agentDefs, agent, filledEnvOf(shipped, file, env)),
   };
 }
-
-type ShippedAgents = ReturnType<typeof shippedFloorAgents>;
 
 function promptOf(shipped: ShippedAgents, file: string): string {
   const prompt = shipped.get(path.basename(file, ".md"))?.prompt;
@@ -156,6 +170,24 @@ function promptOf(shipped: ShippedAgents, file: string): string {
   enforceTrue(prompt, Error, `no shipped agent file ${file} has a prompt`);
 
   return prompt;
+}
+
+function modelOf(
+  shipped: ShippedAgents,
+  file: string,
+): [string, ReturnType<typeof floorPricesOf> | null] {
+  const settings = shipped.get(path.basename(file, ".md"));
+
+  enforceTrue(
+    settings?.model,
+    Error,
+    `no shipped agent file ${file} has a model`,
+  );
+
+  return [
+    settings.model,
+    settings.prices ? floorPricesOf(settings.prices) : null,
+  ];
 }
 
 function timeoutOf(shipped: ShippedAgents, file: string): number {

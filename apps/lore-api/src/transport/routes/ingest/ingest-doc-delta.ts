@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectPruneCandidates } from "@re-cinq/lore-shared";
 import type { IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { mirrorQuietly } from "../../../work/utopia/mirror-quietly.js";
@@ -160,19 +161,49 @@ async function projectFiles(
   delta: DocDelta,
 ): Promise<number> {
   let projected = 0;
+  const failedFiles: string[] = [];
 
   for (const file of delta.files ?? []) {
+    const result = await projectOneFile(project, repo, file, delta);
+
+    if (result === null) {
+      failedFiles.push(file.path);
+      continue;
+    }
+    projected += result ? 1 : 0;
+  }
+  const failMsg = `${failedFiles.length} file(s) failed to project: ${failedFiles.join(", ")}`;
+
+  enforceTrue(failedFiles.length === 0, Error, failMsg);
+
+  return projected;
+}
+
+/** Projects one file; returns projected boolean or null on failure (logs the error). */
+async function projectOneFile(
+  project: IngestDeltaDeps["projectSpec"],
+  repo: string,
+  file: { path: string; content: string },
+  delta: DocDelta,
+): Promise<boolean | null> {
+  try {
     const outcome = await project(repo, file.path, file.content, {
       force: delta.force ?? false,
       commit: delta.commit,
     });
 
-    if (outcome.projected) {
-      projected += 1;
-    }
-  }
+    return outcome.projected;
+  } catch (err) {
+    console.error(
+      `[ingest-delta] ${delta.kind} ${repo} :: ${file.path} failed to project: ${errorReason(err)}`,
+    );
 
-  return projected;
+    return null;
+  }
+}
+
+function errorReason(err: unknown): string {
+  return err instanceof Error ? (err.stack ?? err.message) : String(err);
 }
 
 /** The graph docs a full ingest no longer names. The shared fuse refuses a set that looks like a bad tree read (more than 2 docs AND more than half of what the graph holds) unless the delta is forced, and a refusal prunes nothing rather than failing an ingest whose files did land. */

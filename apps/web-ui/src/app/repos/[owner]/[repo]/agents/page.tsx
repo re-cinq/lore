@@ -1,11 +1,14 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
+import { getRepo } from "@/lib/api/repos";
 import { getAgentActivity } from "@/lib/api/tasks";
 import { classifyAgent } from "@/lib/agent-classify";
-import { fetchAgentUsage, listAgents } from "@/lib/agents-api";
+import { fetchAgentUsage, listAgents, listOrgAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
+import { SubmitButton } from "@/components/SubmitButton";
 import AgentList from "./AgentList";
-import { removeAgentOverrideAction } from "./actions";
+import BaseImageSelector from "./BaseImageSelector";
+import { removeAgentOverrideAction, saveBaseImageAction } from "./actions";
 import styles from "./agents.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -16,6 +19,8 @@ type RepoAgentQueryRow =
 interface DefinitionsSectionProps {
   fullName: string;
   agents: Awaited<ReturnType<typeof listAgents>>;
+  baseImage: string | null;
+  orgImages: Record<string, string | null>;
   usage: Awaited<ReturnType<typeof fetchAgentUsage>>;
 }
 
@@ -26,40 +31,103 @@ export default async function RepoAgents({
 }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-
-  const [agents, usage] = await Promise.all([
-    listAgents(fullName),
-    fetchAgentUsage(),
-  ]);
+  const definitions = await loadDefinitionsData(fullName);
 
   return (
     <div>
-      <DefinitionsSection fullName={fullName} agents={agents} usage={usage} />
+      <DefinitionsSection {...definitions} />
       <SessionsSection activity={await repoActivity(fullName)} />
     </div>
   );
 }
 
+async function loadDefinitionsData(
+  fullName: string,
+): Promise<DefinitionsSectionProps> {
+  const [agents, orgAgents, usage, baseImage] = await Promise.all([
+    listAgents(fullName),
+    listOrgAgents(),
+    fetchAgentUsage(),
+    repoBaseImage(fullName),
+  ]);
+  const orgImages = Object.fromEntries(
+    orgAgents.map((agent) => [agent.name, agent.image]),
+  );
+
+  return { fullName, agents, baseImage, orgImages, usage };
+}
+
 /** The recipes each task type runs FROM — config, not a run — which is the distinction the Sessions section below it depends on. Org defaults are shown already overlaid with this repo's overrides, so what is listed is what a dispatch will actually resolve. */
-async function DefinitionsSection(props: DefinitionsSectionProps) {
-  const { fullName, agents, usage } = props;
+function DefinitionsSection(props: DefinitionsSectionProps) {
+  const { fullName, agents, baseImage, orgImages, usage } = props;
 
   return (
     <section className={styles.section}>
       <DefinitionsHead fullName={fullName} count={agents.length} />
-      <p className={styles.sectionDesc}>
-        The model, timeout, prompt and execution image each task type runs from
-        — config, not a run. Org defaults overlaid with this repo&apos;s
-        overrides.
-      </p>
+      <DefinitionsIntro fullName={fullName} baseImage={baseImage} />
       <AgentList
         base={`/repos/${fullName}`}
         agents={agents}
+        baseImage={baseImage}
+        orgImages={orgImages}
         usage={usage}
         remove={removeAgentOverrideAction.bind(null, fullName)}
       />
     </section>
   );
+}
+
+function DefinitionsIntro({
+  fullName,
+  baseImage,
+}: {
+  fullName: string;
+  baseImage: string | null;
+}) {
+  return (
+    <>
+      <p className={styles.sectionDesc}>
+        The model, timeout, prompt and execution image each task type runs from
+        — config, not a run. Org defaults overlaid with this repo&apos;s
+        overrides.
+      </p>
+      <BaseImageControl fullName={fullName} baseImage={baseImage} />
+    </>
+  );
+}
+
+function BaseImageControl({
+  fullName,
+  baseImage,
+}: {
+  fullName: string;
+  baseImage: string | null;
+}) {
+  return (
+    <form
+      action={saveBaseImageAction.bind(null, fullName)}
+      className={styles.baseImageForm}
+    >
+      <label htmlFor="setting-base_image">Base Execution Image</label>
+      <BaseImageSelector value={baseImage} />
+      <SubmitButton className="btn-secondary" pendingLabel="Saving…">
+        Save base image
+      </SubmitButton>
+    </form>
+  );
+}
+
+async function repoBaseImage(fullName: string): Promise<string | null> {
+  const result = await getRepo(fullName);
+
+  if (result.status !== "ok") {
+    return null;
+  }
+
+  const baseImage = (result.data.settings as { base_image?: unknown } | null)
+    ?.base_image;
+
+  return typeof baseImage === "string" && baseImage ? baseImage : null;
 }
 
 /** The section's own heading, count and the one action it offers. */

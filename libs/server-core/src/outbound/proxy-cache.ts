@@ -7,6 +7,7 @@ import {
   existsSync,
   readdirSync,
   unlinkSync,
+  lstatSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
@@ -53,10 +54,36 @@ export function isCacheEnabled(): boolean {
 }
 
 function loadConfig(): CacheConfig {
-  return {
-    ...DEFAULT_CONFIG,
-    ...readJson<Partial<CacheConfig>>(join(baseDir(), "config.json"), {}),
-  };
+  const raw = readJson<Partial<CacheConfig>>(
+    join(baseDir(), "config.json"),
+    {},
+  );
+
+  return { ...DEFAULT_CONFIG, ...validatedConfigFields(raw) };
+}
+
+function validatedConfigFields(
+  raw: Partial<CacheConfig>,
+): Partial<CacheConfig> {
+  const v: Partial<CacheConfig> = {};
+
+  if (typeof raw.enabled === "boolean") {
+    v.enabled = raw.enabled;
+  }
+
+  if (typeof raw.max_entries === "number") {
+    v.max_entries = raw.max_entries;
+  }
+
+  if (
+    raw.ttl_overrides != null &&
+    typeof raw.ttl_overrides === "object" &&
+    !Array.isArray(raw.ttl_overrides)
+  ) {
+    v.ttl_overrides = raw.ttl_overrides;
+  }
+
+  return v;
 }
 
 function readJson<T>(filePath: string, fallback: T): T {
@@ -127,9 +154,30 @@ export function readFresh(
 }
 
 function readEntry(policy: ReadCachePolicy): CacheEntry | null {
-  return readJson<CacheEntry | null>(
+  const raw = readJson<CacheEntry | null>(
     entryPath(policy.tool, buildKey(policy.tool, policy.args, policy.repo)),
     null,
+  );
+
+  return isCacheEntry(raw) ? raw : null;
+}
+
+const STRING_ENTRY_FIELDS: (keyof CacheEntry)[] = [
+  "tool",
+  "repo",
+  "body",
+  "storedAt",
+];
+
+function isCacheEntry(value: unknown): value is CacheEntry {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const e = value as Record<string, unknown>;
+
+  return (
+    STRING_ENTRY_FIELDS.every((k) => typeof e[k] === "string") &&
+    typeof e.ttlSeconds === "number"
   );
 }
 
@@ -196,6 +244,14 @@ function effectiveTtl(policy: ReadCachePolicy): number {
 // 0600: cached read bodies can contain org memory/context; keep them owner-only.
 function writeJson(filePath: string, value: unknown): void {
   ensureDir(dirname(filePath));
+
+  try {
+    if (lstatSync(filePath).isSymbolicLink()) {
+      return;
+    }
+  } catch {
+    // file does not exist — proceed normally
+  }
   writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", {
     encoding: "utf-8",
     mode: 0o600,

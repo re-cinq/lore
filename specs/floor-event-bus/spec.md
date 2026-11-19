@@ -23,7 +23,7 @@ The bus was built for the event loop and handler registry inside Lore's own Floo
 
 - FR2. The webhook route answers 401 and writes nothing for a delivery whose signature is missing or does not match `LORE_WEBHOOK_SECRET`. ([validated by answers 401 naming the signature header for a delivery that carries no signature and no bearer token @6c7c0684](apps/lore-api/src/transport/routes/webhooks/webhook-github.test.ts#L98), [validated by answers 401 and writes nothing for a signature that does not match the secret @8b0b4f4c](apps/lore-api/src/transport/routes/webhooks/webhook-github.test.ts#L109))
 
-- FR3. A GitHub delivery of a type `mapGitHubEvent` does not handle produces no event. ([validated by returns nothing for an unhandled event type @8c2ea347](libs/shared/src/outbound/project/events/github-map.test.ts#L525))
+- FR3. A GitHub delivery of a type `mapGitHubEvent` does not handle produces no event. ([validated by returns nothing for an unhandled event type @8c2ea347](libs/shared/src/outbound/project/events/github-map.test.ts#L528))
 
 - FR4. The webhook route inserts through the reporter's synchronous path, so a failed write reaches the route as an error and GitHub redelivers. ([validated by delivers straight to the event sink without queueing, so a caller can answer 202 @b9923f74](libs/shared/src/outbound/project/events/event-proxy.test.ts#L70), [validated by propagates the sink's failure, so an ingress route still answers 500 and the sender redelivers @a2f0925b](libs/shared/src/outbound/project/events/event-proxy.test.ts#L80), [validated by inserts straight through to the local queue, so an ingress route still sees the failure @d7fdfee0](libs/shared/src/outbound/project/events/select-event-reporter.test.ts#L6))
 

@@ -134,7 +134,7 @@ export async function withReadCache(
   const result = await doProxy();
 
   if (result.ok) {
-    storeWhenCacheable(policy, result.body, cacheIf);
+    storeSafely(policy, result.body, cacheIf);
 
     return result;
   }
@@ -171,6 +171,18 @@ function serveFresh({
     ok: true,
     body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
   };
+}
+
+function storeSafely(
+  policy: ReadCachePolicy,
+  body: string,
+  cacheIf?: (body: string) => boolean,
+): void {
+  try {
+    storeWhenCacheable(policy, body, cacheIf);
+  } catch {
+    // cache fault — derived data, never authority
+  }
 }
 
 function storeWhenCacheable(

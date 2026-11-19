@@ -3,6 +3,65 @@
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage, AgentUsageRef } from "@/lib/agents-api";
 
+/** Extends the API definition with the optional resolution layer or inherited_fields the list endpoint may include. */
+export type AgentWithLayer = AgentDefinition & {
+  inherited_fields?: string[];
+  image_resolution_layer?:
+    "agent-override" | "repo-base" | "org-default" | null;
+};
+
+export type ImageResolutionLayer =
+  "agent-override" | "repo-base" | "org-default";
+
+export interface EffectiveImage {
+  image: string;
+  layer: ImageResolutionLayer;
+}
+
+/** Resolves the three-layer execution image (agent-override -> repo-base -> org-default) for display in the Agents tab. */
+export function resolveEffectiveImage(
+  agent: AgentWithLayer,
+  baseImage: string | null,
+  orgImages?: Record<string, string | null>,
+): EffectiveImage | null {
+  if (agent.image_resolution_layer && agent.image) {
+    return { image: agent.image, layer: agent.image_resolution_layer };
+  }
+
+  if (hasAgentImageOverride(agent, orgImages)) {
+    return { image: agent.image!, layer: "agent-override" };
+  }
+
+  if (baseImage) {
+    return { image: baseImage, layer: "repo-base" };
+  }
+
+  return agent.image ? { image: agent.image, layer: "org-default" } : null;
+}
+
+function hasAgentImageOverride(
+  agent: AgentWithLayer,
+  orgImages?: Record<string, string | null>,
+): boolean {
+  if (!isOverriddenWithImage(agent)) {
+    return false;
+  }
+
+  return orgImages?.[agent.name] === undefined
+    ? true
+    : agent.image !== orgImages[agent.name];
+}
+
+function isOverriddenWithImage(agent: AgentWithLayer): boolean {
+  const isProject = Boolean(agent.project_id);
+
+  return (
+    isProject &&
+    Boolean(agent.image) &&
+    !agent.inherited_fields?.includes("image")
+  );
+}
+
 /** The two cells derived from usage. A null `usage` means the endpoint was unreachable, NOT that the definition is unused — each helper renders that as unknown rather than as a claim nothing references it. */
 export function rowCells(agent: AgentDefinition, usage: AgentUsage | null) {
   const refs = usage === null ? null : usage.refs;

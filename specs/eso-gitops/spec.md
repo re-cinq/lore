@@ -230,7 +230,7 @@ line in an amendment — tracked separately.
 Terraform no longer proves a secret has a value, so `scripts/infra/seed-secrets.sh`
 (seeds a fresh environment, `--check` fails on an empty container) and
 `scripts/infra/check-secrets.sh` (fails when a consuming pod predates the version
-it should be holding) carry that guarantee instead.
+it should be holding) carry that guarantee instead. ([validated by A multi-line GitHub App PEM is stored whole and cannot become values for subsequent secrets @823794ba](../../scripts/infra/seed-secrets.acceptance.test.mjs#L52), [validated by Empty required containers fail the check; existing enabled versions remain untouched @426469ab](../../scripts/infra/seed-secrets.acceptance.test.mjs#L121))
 
 ## Out of Scope
 

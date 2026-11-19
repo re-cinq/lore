@@ -54,6 +54,10 @@ export const SKILL_REVISIONS: SkillRevision[] = [
       "ubiquitous-language",
     ],
   },
+  {
+    version: "skills/0003_tdd_loop_refusal_review",
+    names: ["tdd-loop"],
+  },
 ];
 
 const RECORDED_VERSIONS_SQL =

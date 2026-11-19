@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ColumnMap } from "../../lib/row.js";
-import type { RunGraph } from "../run-graph.js";
+import { RunGraphSchema } from "../run-graph.js";
 
 /** One execution of an AssemblyLine; repo is owner/repo string; graph is the blueprint clone this run executes (see ADR-024). */
 
@@ -23,7 +23,7 @@ export const AssemblyRunSchema = z.object({
   outcome: z.string().nullable(),
   reason: z.string().nullable(),
   blueprintHash: z.string().nullable(),
-  graph: z.custom<RunGraph>().nullable(),
+  graph: RunGraphSchema.nullable(),
   resumedFromRunId: z.string().nullable(),
   resumedFromNodeId: z.string().nullable(),
   inheritedNodeCount: z.number(),

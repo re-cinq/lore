@@ -3333,7 +3333,36 @@ export interface components {
       branch: string | null;
       subject_key: string | null;
       engine: string;
-      graph?: unknown;
+      graph?: {
+        name: string;
+        entry: string;
+        exit: string;
+        fail?: string;
+        nodes: {
+          id: string;
+          type: string;
+          station: string | null;
+          station_inherited: boolean;
+          route?: string;
+          prompt_ref?: string;
+          model?: string;
+          timeout_minutes?: number;
+          required_tags?: string[];
+          condition_ref?: string;
+          job_ref?: string;
+          continues?: {
+            node: string;
+            key: string;
+          };
+          description?: string;
+        }[];
+        edges: {
+          from: string;
+          to: string;
+          on: string;
+          iteration_max?: number;
+        }[];
+      } | null;
       status: string;
       outcome: string | null;
       reason: string | null;
@@ -3359,7 +3388,36 @@ export interface components {
         branch: string | null;
         subject_key: string | null;
         engine: string;
-        graph?: unknown;
+        graph?: {
+          name: string;
+          entry: string;
+          exit: string;
+          fail?: string;
+          nodes: {
+            id: string;
+            type: string;
+            station: string | null;
+            station_inherited: boolean;
+            route?: string;
+            prompt_ref?: string;
+            model?: string;
+            timeout_minutes?: number;
+            required_tags?: string[];
+            condition_ref?: string;
+            job_ref?: string;
+            continues?: {
+              node: string;
+              key: string;
+            };
+            description?: string;
+          }[];
+          edges: {
+            from: string;
+            to: string;
+            on: string;
+            iteration_max?: number;
+          }[];
+        } | null;
         status: string;
         outcome: string | null;
         reason: string | null;
@@ -3388,6 +3446,37 @@ export interface components {
     };
     AssemblyRunRead: {
       line: {
+        graph?: {
+          name: string;
+          entry: string;
+          exit: string;
+          fail?: string;
+          nodes: {
+            id: string;
+            type: string;
+            station: string | null;
+            station_inherited: boolean;
+            route?: string;
+            prompt_ref?: string;
+            model?: string;
+            timeout_minutes?: number;
+            required_tags?: string[];
+            condition_ref?: string;
+            job_ref?: string;
+            continues?: {
+              node: string;
+              key: string;
+            };
+            description?: string;
+          }[];
+          edges: {
+            from: string;
+            to: string;
+            on: string;
+            iteration_max?: number;
+          }[];
+        } | null;
+      } & {
         [key: string]: unknown;
       };
       definitionKnown: boolean;
@@ -3950,7 +4039,36 @@ export interface components {
         branch: string | null;
         subject_key: string | null;
         engine: string;
-        graph?: unknown;
+        graph?: {
+          name: string;
+          entry: string;
+          exit: string;
+          fail?: string;
+          nodes: {
+            id: string;
+            type: string;
+            station: string | null;
+            station_inherited: boolean;
+            route?: string;
+            prompt_ref?: string;
+            model?: string;
+            timeout_minutes?: number;
+            required_tags?: string[];
+            condition_ref?: string;
+            job_ref?: string;
+            continues?: {
+              node: string;
+              key: string;
+            };
+            description?: string;
+          }[];
+          edges: {
+            from: string;
+            to: string;
+            on: string;
+            iteration_max?: number;
+          }[];
+        } | null;
         status: string;
         outcome: string | null;
         reason: string | null;
@@ -4560,7 +4678,36 @@ export interface components {
                   branch: string | null;
                   subject_key: string | null;
                   engine: string;
-                  graph?: unknown;
+                  graph?: {
+                    name: string;
+                    entry: string;
+                    exit: string;
+                    fail?: string;
+                    nodes: {
+                      id: string;
+                      type: string;
+                      station: string | null;
+                      station_inherited: boolean;
+                      route?: string;
+                      prompt_ref?: string;
+                      model?: string;
+                      timeout_minutes?: number;
+                      required_tags?: string[];
+                      condition_ref?: string;
+                      job_ref?: string;
+                      continues?: {
+                        node: string;
+                        key: string;
+                      };
+                      description?: string;
+                    }[];
+                    edges: {
+                      from: string;
+                      to: string;
+                      on: string;
+                      iteration_max?: number;
+                    }[];
+                  } | null;
                   status: string;
                   outcome: string | null;
                   reason: string | null;
@@ -5527,7 +5674,36 @@ export interface components {
             branch: string | null;
             subject_key: string | null;
             engine: string;
-            graph?: unknown;
+            graph?: {
+              name: string;
+              entry: string;
+              exit: string;
+              fail?: string;
+              nodes: {
+                id: string;
+                type: string;
+                station: string | null;
+                station_inherited: boolean;
+                route?: string;
+                prompt_ref?: string;
+                model?: string;
+                timeout_minutes?: number;
+                required_tags?: string[];
+                condition_ref?: string;
+                job_ref?: string;
+                continues?: {
+                  node: string;
+                  key: string;
+                };
+                description?: string;
+              }[];
+              edges: {
+                from: string;
+                to: string;
+                on: string;
+                iteration_max?: number;
+              }[];
+            } | null;
             status: string;
             outcome: string | null;
             reason: string | null;
@@ -6367,9 +6543,162 @@ export interface components {
           scopes: string[];
           expires_at: string | null;
         };
-    TraceRead: {
-      [key: string]: unknown;
-    };
+    TraceRead:
+      | {
+          specs: string[];
+        }
+      | {
+          summaries: {
+            filePath: string;
+            title: string;
+            description: string;
+            status: {
+              /** @enum {string} */
+              status:
+                "draft" | "in-progress" | "shipped" | "rejected" | "retired";
+              label: string;
+            } | null;
+            coverage: {
+              testable: number;
+              covered: number;
+              untestable: number;
+              ratio: number;
+            };
+          }[];
+        }
+      | {
+          adrs: string[];
+        }
+      | {
+          summaries: {
+            filePath: string;
+            title: string;
+            description: string;
+            status: {
+              /** @enum {string} */
+              status:
+                "draft" | "in-progress" | "shipped" | "rejected" | "retired";
+              label: string;
+            } | null;
+          }[];
+        }
+      | {
+          filePath: string;
+          title: string;
+          description: string;
+          sections: {
+            uid: string;
+            heading: string;
+            ordinal: number;
+            level?: number;
+          }[];
+          statements: {
+            uid: string;
+            ordinal: number;
+            text: string;
+            kind?: string;
+            testability?: string;
+            /** @enum {string} */
+            state: "tested" | "untested" | "narrative";
+            sectionUid?: string;
+            links: {
+              /** @enum {string} */
+              kind: "test" | "code" | "adr";
+              label: string;
+              path?: string;
+              line?: number;
+              detail?: string;
+            }[];
+            drifted?: boolean;
+            violated?: boolean;
+          }[];
+          coverage: {
+            testable: number;
+            covered: number;
+            untestable: number;
+            ratio: number;
+          };
+        }
+      | {
+          source: string | null;
+        }
+      | {
+          nodes: {
+            id: string;
+            /** @enum {string} */
+            type:
+              | "Feature"
+              | "Spec"
+              | "Section"
+              | "Statement"
+              | "AcceptanceCriterion"
+              | "TestChunk"
+              | "CodeChunk"
+              | "File"
+              | "ADR";
+            label: string;
+            path?: string;
+            line?: number;
+            endLine?: number;
+            detail?: string;
+          }[];
+          links: {
+            source: string;
+            target: string;
+            /** @enum {string} */
+            kind:
+              | "in_feature"
+              | "in_spec"
+              | "in_section"
+              | "has_statement"
+              | "validated_by"
+              | "implemented_by"
+              | "covers"
+              | "decided_by";
+          }[];
+        }
+      | {
+          sections: {
+            uid: string;
+            heading: string;
+            total: number;
+            tested: number;
+          }[];
+          statements: {
+            uid: string;
+            sectionUid: string;
+            tested: boolean;
+            text: string;
+          }[];
+        }
+      | {
+          tests: {
+            testFile: string;
+            statement?: string;
+            /** @enum {string} */
+            origin: "main" | "overlay";
+            ranges: [number, number][];
+          }[];
+        }
+      | {
+          failures: {
+            stationRunId: string;
+            nodeId: string;
+            iteration: number;
+            failureClass: string;
+            failureDetail: string;
+            commit: string;
+            occurredAt: string;
+            resolvedByCommit?: string;
+          }[];
+        }
+      | {
+          callers: {
+            filePath: string;
+            symbol: string;
+            startLine: number;
+          }[];
+        };
     UtopiaBackfillSummary: {
       commit: string;
       documents: number;
@@ -6834,17 +7163,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
+          name?: string;
           model?: string | null;
           timeout_minutes?: number | null;
           prompt?: string | null;
           image?: string | null;
-          /**
-           * @default claude-code
-           * @enum {string}
-           */
+          /** @enum {string} */
           execution_mode?: "claude-code" | "graph-ingest" | "station";
-          /** @default false */
           review_required?: boolean;
           pod_resources?: {
             requests?: {
@@ -9316,17 +9641,13 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          name: string;
+          name?: string;
           model?: string | null;
           timeout_minutes?: number | null;
           prompt?: string | null;
           image?: string | null;
-          /**
-           * @default claude-code
-           * @enum {string}
-           */
+          /** @enum {string} */
           execution_mode?: "claude-code" | "graph-ingest" | "station";
-          /** @default false */
           review_required?: boolean;
           pod_resources?: {
             requests?: {

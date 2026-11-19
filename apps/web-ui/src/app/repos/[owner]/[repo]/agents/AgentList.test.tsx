@@ -267,4 +267,34 @@ describe("AgentList", () => {
 
     expect(getByTestId("mode-def-validate").textContent).toEqual("station");
   });
+
+  it("displays the effective image and its resolution layer (org-default, repo-base, agent-override) on a repo's Agents tab", () => {
+    const orgWithImage: AgentDefinition = { ...org, image: "ubuntu:22.04" };
+    const projectWithImage: AgentDefinition = {
+      ...project,
+      image: "node:22-alpine",
+    };
+    const { getByText } = render(
+      <AgentList
+        base={base}
+        baseImage="node:20-alpine"
+        orgImages={{ general: "ubuntu:22.04", review: "ubuntu:22.04" }}
+        agents={[orgWithImage, projectWithImage]}
+      />,
+    );
+
+    expect(getByText("node:20-alpine")).toBeInTheDocument();
+    expect(getByText("repo-base")).toBeInTheDocument();
+    expect(getByText("node:22-alpine")).toBeInTheDocument();
+  });
+
+  it("labels an inherited agent's image as org-default when no repo base image is set", () => {
+    const orgWithImage: AgentDefinition = { ...org, image: "ubuntu:22.04" };
+    const { getByText } = render(
+      <AgentList base={base} agents={[orgWithImage]} />,
+    );
+
+    expect(getByText("ubuntu:22.04")).toBeInTheDocument();
+    expect(getByText("org-default")).toBeInTheDocument();
+  });
 });

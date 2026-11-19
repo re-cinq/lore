@@ -2,7 +2,7 @@
 # The onboard line's `onboard-author` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: true
 execution_mode: claude-code
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 30
 config:

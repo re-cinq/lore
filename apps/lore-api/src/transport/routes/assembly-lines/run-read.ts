@@ -6,6 +6,7 @@ import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   describeStationRun,
+  RunGraphSchema,
   type RunGraph,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type {
@@ -19,7 +20,9 @@ import { bearerScope } from "../../http/bearer-scope.js";
 
 // The ENRICHED run read (FR6.40a): each node joined to what the run's OWN graph says (FR6.38, cloned when the run started); graph facts are null for a run that predates clones, since the definition it was loaded from by name is deleted.
 const RunReadSchema = z.object({
-  line: z.record(z.string(), z.unknown()),
+  line: z
+    .object({ graph: RunGraphSchema.nullable().optional() })
+    .catchall(z.unknown()),
   definitionKnown: z.boolean(),
   nodes: z.array(z.record(z.string(), z.unknown())),
 });

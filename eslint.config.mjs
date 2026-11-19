@@ -512,7 +512,14 @@ export default tseslint.config(
       // nothing on screen says the first one is running. Promote to error once
       // those five own their pending state.
       "re-lint/no-unguarded-async-button": "warn",
+      "re-lint/no-credential-env": "error",
     },
+  },
+
+  // The one web-ui module that owns a credential: the GitHub App private key.
+  {
+    files: ["apps/web-ui/src/lib/github-client.ts"],
+    rules: { "re-lint/no-credential-env": "off" },
   },
 
   // Tooling/config TS not covered by any package tsconfig (root config, scripts,
@@ -603,6 +610,23 @@ export default tseslint.config(
       // tests that measure an age pin the clock with fake timers over Date
       // only, so setTimeout and promises stay real.
       "re-lint/no-nondeterministic-tests": "error",
+      // re-lint 1.15.0's test rules, warnings until each queue is drained.
+      // An assertion of shape (toHaveLength, toBeDefined, .length) passes with
+      // the wrong value; a refusal asserted as "not 200" passes for a crash; a
+      // guard mocked to say yes and never no hides a route that stops asking
+      // it; a fetch stub that never fails hides a reader that fails soft.
+      "re-lint/no-weak-assertion": "warn",
+      "re-lint/no-vague-refusal-assertion": "warn",
+      "re-lint/no-stub-answers-everything": "warn",
+      "re-lint/no-guard-mock-always-allows": [
+        "warn",
+        {
+          guards: [
+            { module: "@/lib/user-repo-access" },
+            { module: "./user-repo-access" },
+          ],
+        },
+      ],
       // A describe callback is one function holding every test, so per-function
       // line/callback budgets are meaningless here. Per-it bodies stay covered
       // by complexity and the nesting rules.
@@ -725,5 +749,21 @@ export default tseslint.config(
   {
     files: NO_STRANDED_DOC_COMMENT_BASELINE,
     rules: { "lore/no-stranded-doc-comment": "warn" },
+  },
+
+  // A route, server action or MCP tool must have a test that refuses, and a
+  // refusal test must show nothing was written. Warnings until the queue of
+  // existing files is drained.
+  {
+    files: [
+      "apps/web-ui/src/app/**/route.test.ts",
+      "apps/web-ui/src/app/**/actions.test.ts",
+      "apps/lore-api/src/transport/routes/**/*.test.ts",
+      "apps/mcp-server/src/transport/tools/**/*.test.ts",
+    ],
+    rules: {
+      "re-lint/require-refusal-test": "warn",
+      "re-lint/refusal-asserts-no-side-effect": "warn",
+    },
   },
 );

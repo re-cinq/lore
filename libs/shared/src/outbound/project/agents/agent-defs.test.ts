@@ -60,6 +60,43 @@ describe("AgentDefs", () => {
     expect(calls).toContainEqual({ method: "list", args: ["re-cinq/re-plan"] });
   });
 
+  it("passes the repo's base_image from settings into resolve and list", async () => {
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    const defs: AgentDefsWritePort = {
+      ...recordingDefs(calls),
+      resolve: async (repo, name, baseImage) => {
+        calls.push({ method: "resolve", args: [repo, name, baseImage] });
+
+        return null;
+      },
+      list: async (repo, baseImage) => {
+        calls.push({ method: "list", args: [repo, baseImage] });
+
+        return [];
+      },
+    };
+    const agentDefs = new AgentDefs("re-cinq/re-plan", defs, {
+      rawSettings: async (repo) =>
+        repo === "re-cinq/re-plan"
+          ? { base_image: "ghcr.io/re-cinq/base:latest" }
+          : null,
+    });
+
+    await agentDefs.resolve("general");
+    await agentDefs.list();
+
+    expect(calls).toEqual([
+      {
+        method: "resolve",
+        args: ["re-cinq/re-plan", "general", "ghcr.io/re-cinq/base:latest"],
+      },
+      {
+        method: "list",
+        args: ["re-cinq/re-plan", "ghcr.io/re-cinq/base:latest"],
+      },
+    ]);
+  });
+
   it("delegates create/delete to the defs port with the bound repo", async () => {
     const calls: Array<{ method: string; args: unknown[] }> = [];
     const defs = recordingDefs(calls);

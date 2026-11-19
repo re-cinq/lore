@@ -7,13 +7,13 @@ import type {
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../../lib/enforce.js";
 import { githubHost } from "../../../domain/github-host.js";
-import { skillsSourceWith } from "../../../domain/agents/skills-source.js";
 import type {
   AgentDefinition,
   AgentDefinitionInput,
   AgentDefsWritePort,
   ConfigWrite,
 } from "./agent-defs-port.js";
+import { skillsSourceToStore } from "./agent-defs-skills-source.js";
 
 type Variant = Partial<AgentSettings>;
 type Patch = Partial<AgentDefinitionInput>;
@@ -43,17 +43,24 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     private readonly host: string = githubHost(),
   ) {}
 
-  async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
+  async resolve(
+    repo: string,
+    name: string,
+    baseImage?: string | null,
+  ): Promise<AgentDefinition | null> {
     const row = await this.definitions.get(name);
 
-    return row ? resolvedFor(name, row.body, repo) : null;
+    return row ? resolvedFor(name, row.body, repo, baseImage) : null;
   }
 
-  async list(repo: string): Promise<AgentDefinition[]> {
+  async list(
+    repo: string,
+    baseImage?: string | null,
+  ): Promise<AgentDefinition[]> {
     const rows = await this.definitions.list();
 
     return rows
-      .map((row) => resolvedFor(row.id, row.body, repo))
+      .map((row) => resolvedFor(row.id, row.body, repo, baseImage))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -103,6 +110,22 @@ export class FloorAgentDefs implements AgentDefsWritePort {
     await this.putChecked(name, next);
 
     return resolvedFor(name, next, null);
+  }
+
+  /** The org default's model with the prices the floor costs it at, together: a model the prices do not name is costed at nothing. No prices drops the key. */
+  async updateOrgModel(
+    name: string,
+    model: string,
+    prices: AgentSettings["prices"] | null,
+  ): Promise<void> {
+    const body = await this.bodyOf(name);
+    const settings = withField(
+      withField(body.settings, "model", model),
+      "prices",
+      prices,
+    );
+
+    await this.putChecked(name, { ...body, settings });
   }
 
   /** A renamed repository's overrides follow it: each definition with a variant under `from` gets a version with it under `to`, unless `to` already has one. Answers the definitions moved. */
@@ -160,6 +183,7 @@ function resolvedFor(
   name: string,
   body: AgentDefinitionBody,
   repo: string | null,
+  baseImage?: string | null,
 ): AgentDefinition {
   const entry = repo === null ? undefined : variantEntry(body, repo);
   const merged = mergedSettings(body.settings, entry?.variant);
@@ -169,12 +193,29 @@ function resolvedFor(
     model: orNull(merged.model),
     timeout_minutes: orNull(merged.timeoutMinutes),
     prompt: orNull(merged.prompt),
-    image: orNull(merged.image),
+    image: imageFor(entry?.variant, merged, baseImage),
     execution_mode: "claude-code",
     review_required: false,
     project_id: orNull(entry?.key),
     config: orNull(merged.config) as AgentDefinition["config"],
   };
+}
+
+/** Three-layer resolution: per-agent variant override → repo base image → org default. */
+function imageFor(
+  variant: Variant | undefined,
+  merged: Variant,
+  baseImage: string | null | undefined,
+): string | null {
+  if (variant?.image !== undefined) {
+    return orNull(merged.image);
+  }
+
+  if (baseImage != null) {
+    return baseImage;
+  }
+
+  return orNull(merged.image);
 }
 
 function orNull<Value>(value: Value | undefined): Value | null {
@@ -295,31 +336,6 @@ function withSkillsSource(
   write: ConfigWrite,
 ): Record<string, unknown> {
   return withField(config, "skills_source", skillsSourceToStore(config, write));
-}
-
-/** The source this write stores, or undefined to leave the stored one alone: the adjusting flag rewrites the known source, and a write that adds skills seeds one when none is known. */
-function skillsSourceToStore(
-  config: Record<string, unknown>,
-  write: ConfigWrite,
-): string | undefined {
-  const known = config.skills_source ?? write.inheritedConfig?.skills_source;
-  const source = known ?? write.skillsSource;
-  const { adjustSkillModels: adjust } = write;
-
-  if (typeof source !== "string") {
-    return undefined;
-  }
-
-  return adjust === undefined
-    ? seededSkillsSource(source, { known: Boolean(known), write })
-    : skillsSourceWith(source, { adjust });
-}
-
-function seededSkillsSource(
-  source: string,
-  { known, write }: { known: boolean; write: ConfigWrite },
-): string | undefined {
-  return !known && write.skills?.length ? source : undefined;
 }
 
 function renamedVariant(

@@ -3,7 +3,7 @@
 | Field     | Value                                                            |
 |-----------|------------------------------------------------------------------|
 | Feature   | A plan opens at once                                             |
-| Status    | Implemented                                                      |
+| Status    | In Progress                                                      |
 | Created   | 2026-11-04                                                       |
 | Owner     | Platform Engineering                                             |
 | Builds on | [specs/7-feature-planning](../7-feature-planning/spec.md)        |
