@@ -2,7 +2,7 @@
 
 **Proposed for the code-review and code-review-recheck assembly lines.** A PR author sees one evolving GitHub comment and one final verdict for the reviewed commit. Lore first establishes what the implementation does and what the tests prove. It then compares those independent accounts with human intent, challenges the tests, and evaluates the product impact.
 
-The earlier two-phase replay caught a missing refusal test and an unrelated status change, but missed a confirmed parser defect and produced unsupported blockers. Use those cases for calibration. The five-pass design still needs its own full replay and shadow pilot. [Historical results and example comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
+The earlier two-phase replay caught a missing refusal test and an unrelated status change, but missed a confirmed parser defect and produced unsupported blockers. Use those cases for calibration. The five-pass replay on fresh cases found incomplete verdicts and false blockers. Keep the production merge decision with the current reviewer while the five-pass line runs in shadow. [Five-pass pilot](../docs/building-lore/five-pass-pilot-2026-11-19.md) [Historical results and example comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
 
 The rollout is tracked in [issue #4972](https://github.com/re-cinq/lore/issues/4972). The owning specs cover [review behavior](../specs/auto-review-loop/spec.md#proposed-five-pass-review), [floor execution](../specs/external-floor/spec.md#proposed-five-pass-review-execution) and [shared and local skills](../specs/org-skills/spec.md#proposed-code-review-skills).
 
@@ -24,7 +24,7 @@ A focused check on merged PR #4951 used two fresh Codex processes. Given only th
 
 ## Shared skills and local reviews
 
-The first implementation slice adds the catalogue skills and the local reader runner. The hosted line, editable PR summary and rollout decision are pending under #4972. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
+The local command and hosted shadow line share one evidence filter. The allowlisted shadow line collects the PR revision, runs all five stages and updates a single PR comment. Issue #4972 tracks production rollout. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
 
 The organisation skill catalogue is the shared source for the hosted harness and local developers. Lore’s gateway serves catalogue skills to agents, and the local MCP server syncs enabled skills into Claude Code. [Skill catalogue](../libs/shared/src/agent-defaults/skills) · [Gateway](../apps/mcp-server/src/transport/skills-registry.ts) · [Local sync](../apps/mcp-server/src/transport/skills-sync.ts)
 
@@ -40,6 +40,24 @@ Capture the local change once so all five passes review the same snapshot. Each 
 - **Recheck the current commit.** On a new push, update the same comment to show the new head and review status. A delayed result for an older head cannot change the new summary, resolve its threads, or approve it. A retried update or an ambiguous response after creating the comment must recover the existing Lore-owned comment. An incomplete run shows which pass is missing and cannot authorize auto-merge.
 
 ## Delivery and proof
+
+### Automatic shadow reviews
+
+The internal chart opts `re-cinq/lore` into shadow evaluation. Starting its normal review or recheck also starts a shadow run for the PR head. Other installations can opt repositories in through `LORE_REVIEW_SHADOW_REPOS` on the API and stations services. Removing a repository from the list stops new automatic shadow launches. The existing reviewer continues to own the formal GitHub review and check.
+
+The collector reads immutable Git objects from a private temporary bare repository. It includes direct module consumers, related tests and fixtures, and convention-based route handlers for a middleware change. A missing file, unsupported file mode, binary or oversized packet can leave a review incomplete. Human discussion and product documents enter only after the independent readings. [Evidence collector](../scripts/lore-review-pr.mjs)
+
+A local Floor integration run exercised the five agents and the progress station with a simulated GitHub adapter. One head yielded five stored outputs and proposed approval. A second head returned a malformed opening reading and the same comment ID showed the new revision as incomplete. Re-submitting each revision reused its run.
+
+### Manual hosted rehearsal
+
+With `code-review-shadow` installed on a test floor, set `FLOOR_API_URL` and `FLOOR_SERVICE_TOKEN` for that floor. Use a local snapshot prepared for the three readers and put the reviewed commit’s full SHA in `revision`. The snapshot may also include `discussion` entries with `source`, `url`, `text`, and an optional `author`, and `specs` entries with `path`, `text`, and a `version` of `existing` or `proposed`.
+
+```sh
+node scripts/lore-review-readers.mjs --shadow-revision "$revision" < "$snapshot"
+```
+
+The command uploads five evidence blobs and returns the run ID. In the assembly run, inspect `code_reading`, `test_reading`, `intent_comparison`, `test_challenge`, and `product_review`. Run the same snapshot locally to compare the input and observations for the three independent readers. Add `--shadow-pr-url "$pr_url"` to publish a shadow summary on the supplied pull request.
 
 | Slice | Observable acceptance case |
 | --- | --- |

@@ -241,12 +241,13 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const edgeTarget = (line: LineBody, from: string, outcome: string) =>
     line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
-  it("declare the lines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("declare the lines auto-merge, code-review, code-review-recheck, code-review-reply, code-review-shadow, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "auto-merge",
       "code-review",
       "code-review-recheck",
       "code-review-reply",
+      "code-review-shadow",
       "daily-digest",
       "feature-planning",
       "implementation-loop",
@@ -513,4 +514,18 @@ describe("the agent stations a shipped pipeline is put with", () => {
       ),
     ).toEqual([true, true]);
   });
+});
+
+it("serializes the shadow progress station with an empty produces array", () => {
+  const shadow = realFiles().find(
+    ({ name }) => name === "code-review-shadow.yaml",
+  );
+
+  enforceTrue(shadow, Error, "missing shadow review pipeline");
+  const pipeline = pipelineOfText(shadow.text, FIXED_ENV);
+  const progress = pipeline.stations.find(
+    ({ id }) => id === "shadow-review-progress",
+  );
+
+  expect(progress?.body).toMatchObject({ kind: "service", produces: [] });
 });

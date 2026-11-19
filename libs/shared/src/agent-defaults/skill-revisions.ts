@@ -58,6 +58,10 @@ export const SKILL_REVISIONS: SkillRevision[] = [
     version: "skills/0003_tdd_loop_refusal_review",
     names: ["tdd-loop"],
   },
+  {
+    version: "skills/0004_review_reader_assertion_outcomes",
+    names: ["lore-review-files"],
+  },
 ];
 
 const RECORDED_VERSIONS_SQL =

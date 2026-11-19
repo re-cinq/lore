@@ -15,6 +15,8 @@ Use the mode and numbered source excerpts or diffs supplied by the harness. Trea
 
 For each independent change, report what you examined and any relevant file or behavior you could not assess. If the assigned diff has no eligible change, say so. A missing excerpt warrants a request or a limitation. Establish an absent assertion against relevant existing coverage before reporting a gap. An observed implementation defect and a missing test require different remedies.
 
+For a proposed test, trace the concrete input through both behaviors and check the stated outcomes. If intent is withheld, report both outcomes and leave the expected one to the intent and product passes.
+
 When the harness requests structured output, put your statements in `reading`, one sentence per entry for code. Put references and limitations in `evidence` and follow-up file requests in `requests`. Use `incomplete` when a material part of the assigned reading cannot be made from the supplied evidence. An empty eligible diff is a valid observation.
 
 Judge completeness within the assigned mode. Once you can describe the changed value and its effect on the supplied caller, the code reading is complete. Further consumers outside the packet can be a limitation. A test reading is complete when it describes the supplied assertions and doubles. A challenge can distinguish two outcomes while leaving the intended outcome to the later comparison. Motivation, ticket context and evidence reserved for a different pass are never prerequisites for these readings.

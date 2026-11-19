@@ -41,8 +41,13 @@ import {
   headShaOf,
   isOpen,
   reviewRunsForPr,
+  type PullRequestRef,
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
+import {
+  queueReviewShadow,
+  type StartReviewShadow,
+} from "./review-shadow-launch.js";
 import { REVIEW_HELP } from "./review-summary.js";
 import {
   openThreadsItem,
@@ -74,17 +79,11 @@ export interface ReviewStartDeps {
   checks: CarryChecks;
   uiUrl?: string;
   loreAppLogin?: string;
+  startShadow?: StartReviewShadow;
 }
 
-export interface PullRequestTarget {
-  repo: string;
-  prNumber: number;
-  autoReview: boolean;
-}
-
-export interface StartReviewInput extends PullRequestTarget {
-  forced?: boolean;
-}
+export type PullRequestTarget = PullRequestRef & { autoReview: boolean };
+export type StartReviewInput = PullRequestTarget & { forced?: boolean };
 
 export interface StartReplyInput extends PullRequestTarget {
   reviewId: number;
@@ -114,6 +113,8 @@ export async function startReview(
   }
   await retireRechecks(deps.floor, input);
   const started = await startReviewLine(deps, input, pr);
+
+  queueReviewShadow(deps.startShadow, input, pr.headSha);
 
   if (!started.joined) {
     await announceReview(deps, input.prNumber, started.run.id);
@@ -276,6 +277,8 @@ async function startRecheckLine(
       ...openThreadsItem(handOff.threadIds),
     },
   });
+
+  queueReviewShadow(deps.startShadow, target, pr.headSha);
 
   return started.run.id;
 }
