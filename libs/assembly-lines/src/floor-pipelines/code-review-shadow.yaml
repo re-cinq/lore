@@ -4,7 +4,7 @@ line:
   exit: done
   fail: failed
   args:
-    revision: { kind: value }
+    revision: { kind: value, subject: true }
     code_evidence: { kind: file }
     test_evidence: { kind: file }
     challenge_evidence: { kind: file }
