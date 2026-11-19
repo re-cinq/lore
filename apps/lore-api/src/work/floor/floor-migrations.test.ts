@@ -40,6 +40,7 @@ function deps(
       updateTimeout: () => Promise.resolve(),
       updateSkills: () => Promise.resolve(),
       updateEnv: () => Promise.resolve(),
+      updateModel: () => Promise.resolve(),
     },
     markApplied: (version) => {
       marked.push(version);
@@ -107,7 +108,7 @@ describe("runFloorMigrations", () => {
 });
 
 describe("readFloorMigrations", () => {
-  it("names floor/0001 to floor/0013, whose every prompt, timeout, skills list and env comes from a shipped agent file", async () => {
+  it("names floor/0001 to floor/0015, whose every prompt, timeout, skills list, env and model comes from a shipped agent file", async () => {
     const shipped = shippedFloorAgents();
     const written = await everyWrite();
 
@@ -132,6 +133,8 @@ describe("readFloorMigrations", () => {
         "floor/0012_spec_tickets_decompose_scoped_tasks",
         "floor/0013_ticket_agents_search_first",
         "floor/0014_commit_author_from_settings",
+        "floor/0015_models_from_loop_bench",
+        "floor/0016_round_closes_test_gaps_first",
       ],
       unshipped: [],
     });
@@ -295,6 +298,42 @@ describe("floor/0014_commit_author_from_settings", () => {
   });
 });
 
+describe("floor/0015_models_from_loop_bench", () => {
+  it("writes the shipped model of the thirteen agents loop-bench picked, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0015_models_from_loop_bench");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
+      [
+        "loop-tdd-round",
+        "spec-upkeep-update-specs",
+        "onboard-author",
+        "loop-fix-ci",
+        "loop-sync",
+        "onboard-fix-ci",
+        "spec-upkeep-fix-ci",
+        "loop-dod",
+        "spec-qa-generate",
+        "spec-qa-answer",
+        "spec-qa-recheck",
+        "spec-draft",
+        "spec-tickets-decompose",
+      ].map((agent) => `model ${agent}`),
+    );
+  });
+});
+
+describe("floor/0016_round_closes_test_gaps_first", () => {
+  it("writes the shipped prompt of loop-tdd-round, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0016_round_closes_test_gaps_first",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt loop-tdd-round",
+    ]);
+  });
+});
+
 describe("updateSkills", () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -377,6 +416,71 @@ describe("updateSkills", () => {
   });
 });
 
+describe("updateModel", () => {
+  const saved = {
+    settings: {
+      model: "gemini-4-argon",
+      prompt: "Fix the build.",
+      image: "ghcr.io/re-cinq/agent:1",
+      timeoutMinutes: 45,
+      prices: {
+        "gemini-4-argon": { inputPerMillion: 2, outputPerMillion: 10 },
+      },
+      config: { skills: ["lore-context"] },
+    },
+    variants: { "github.com/re-cinq/lore": { timeoutMinutes: 60 } },
+  };
+
+  async function updated(agent: string, body: typeof saved) {
+    const floor = new InMemoryAgentDefinitions();
+
+    await floor.put(agent, body);
+    await floorApiFor(new FloorAgentDefs(floor)).updateModel(
+      agent,
+      `${agent}.md`,
+    );
+
+    return (await floor.get(agent))?.body;
+  }
+
+  it("writes loop-fix-ci's shipped gemini-4-carbon and its prices, and keeps the prompt, image, config and every repo's variant", async () => {
+    expect(await updated("loop-fix-ci", saved)).toEqual({
+      ...saved,
+      settings: {
+        ...saved.settings,
+        model: "gemini-4-carbon",
+        prices: {
+          "gemini-4-carbon": {
+            inputPerMillion: 4,
+            outputPerMillion: 20,
+            cacheReadPerMillion: 0.4,
+          },
+        },
+      },
+    });
+  });
+
+  it("writes loop-tdd-round's shipped claude-sonnet-5-5 and drops the prices it ships none of", async () => {
+    const { prices: _dropped, ...settings } = {
+      ...saved.settings,
+      model: "claude-sonnet-5-5",
+    };
+
+    expect(await updated("loop-tdd-round", saved)).toEqual({
+      ...saved,
+      settings,
+    });
+  });
+
+  it("throws no shipped agent file ghost.md has a model for an agent no file ships", async () => {
+    const api = floorApiFor(new FloorAgentDefs(new InMemoryAgentDefinitions()));
+
+    await expect(api.updateModel("ghost", "ghost.md")).rejects.toThrow(
+      new Error("no shipped agent file ghost.md has a model"),
+    );
+  });
+});
+
 describe("updateEnv", () => {
   const author = {
     LORE_COMMIT_AUTHOR_NAME: "Acme Bot",
@@ -445,7 +549,7 @@ describe("updateEnv", () => {
 });
 
 interface Write {
-  field: "prompt" | "timeout_minutes" | "skills" | "env";
+  field: "prompt" | "timeout_minutes" | "skills" | "env" | "model";
   agent: string;
   file: string;
 }
@@ -479,6 +583,7 @@ async function everyWrite(only?: string) {
       updateTimeout: record("timeout_minutes"),
       updateSkills: record("skills"),
       updateEnv: record("env"),
+      updateModel: record("model"),
     });
   }
 

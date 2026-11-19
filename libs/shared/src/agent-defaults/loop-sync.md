@@ -2,14 +2,14 @@
 # The implementation-loop line's `loop-sync` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-model: gemini-3.1-pro-preview
+model: gemini-4-carbon
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 20
 prices:
-  gemini-3.1-pro-preview:
-    input_per_million: 2
-    output_per_million: 12
-    cache_read_per_million: 0.2
+  gemini-4-carbon:
+    input_per_million: 4
+    output_per_million: 20
+    cache_read_per_million: 0.4
 config:
   max_turns: 60
   pod_resources:

@@ -2,13 +2,22 @@ import type { CSSProperties } from "react";
 import type { AgentDefinition } from "@/lib/agents-mirror";
 import type { AgentUsage } from "@/lib/agents-api";
 import ActionsCell, { type RemoveOverride } from "./ActionsCell";
-import { rowCells } from "./agent-row-cells";
+import {
+  resolveEffectiveImage,
+  rowCells,
+  type AgentWithLayer,
+  type EffectiveImage,
+} from "./agent-row-cells";
 import styles from "./agents.module.css";
 
 interface AgentListProps {
   /** Repo base path for Edit links; null renders org-catalog (/agents). */
   base: string | null;
-  agents: AgentDefinition[];
+  agents: AgentWithLayer[];
+  /** Repo-level base image from lore.repos.settings.base_image, when on a repo's Agents tab. */
+  baseImage?: string | null;
+  /** Org-default image per agent name, so a repo variant overriding another field can still be distinguished from an agent image override. */
+  orgImages?: Record<string, string | null>;
   /** Blueprint refs; null when endpoint unreachable (renders unknown). */
   usage?: AgentUsage | null;
   /** With base null: link to global org editor (/agents/edit/[name]). */
@@ -19,7 +28,7 @@ interface AgentListProps {
 
 /** Agent definitions table; org vs project labeling (editing on dedicated pages). */
 export default function AgentList(props: AgentListProps) {
-  const { base, agents, usage = null, orgEditable = false, remove } = props;
+  const { base, agents, orgEditable = false } = props;
 
   return (
     <div>
@@ -27,13 +36,7 @@ export default function AgentList(props: AgentListProps) {
       {agents.length === 0 ? (
         <EmptyDefinitions />
       ) : (
-        <AgentTable
-          base={base}
-          agents={agents}
-          usage={usage}
-          showEdit={base !== null || orgEditable}
-          remove={base === null ? undefined : remove}
-        />
+        <AgentTable {...props} showEdit={base !== null || orgEditable} />
       )}
     </div>
   );
@@ -74,7 +77,7 @@ function ScopeHint({
 
 interface AgentTableProps extends Pick<
   AgentListProps,
-  "base" | "agents" | "usage" | "remove"
+  "base" | "agents" | "baseImage" | "orgImages" | "usage" | "remove"
 > {
   showEdit: boolean;
 }
@@ -131,13 +134,17 @@ function TableHead({ showEdit }: { showEdit: boolean }) {
 }
 
 /** One row per resolved definition, in the order the caller resolved them. */
-function AgentRows({ base, agents, usage, showEdit, remove }: AgentTableProps) {
+function AgentRows(props: AgentTableProps) {
+  const { base, agents, usage, showEdit } = props;
+  const remove = base === null ? undefined : props.remove;
+
   return (
     <tbody>
       {agents.map((agent) => (
         <AgentRow
           key={agent.name}
           agent={agent}
+          effectiveImage={rowEffectiveImage(agent, props)}
           usage={usage ?? null}
           editHref={showEdit ? editHref(base, agent.name) : null}
           remove={remove}
@@ -147,20 +154,31 @@ function AgentRows({ base, agents, usage, showEdit, remove }: AgentTableProps) {
   );
 }
 
+function rowEffectiveImage(
+  agent: AgentWithLayer,
+  { base, baseImage = null, orgImages }: AgentTableProps,
+): EffectiveImage | null {
+  return base === null
+    ? null
+    : resolveEffectiveImage(agent, baseImage, orgImages);
+}
+
 interface AgentRowProps {
-  agent: AgentDefinition;
+  agent: AgentWithLayer;
+  effectiveImage: EffectiveImage | null;
   usage: AgentUsage | null;
   editHref: string | null;
   remove?: RemoveOverride;
 }
 
-function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
+function AgentRow(props: AgentRowProps) {
+  const { agent, effectiveImage, usage, editHref, remove } = props;
   const { use, mode } = rowCells(agent, usage);
   const isProject = agent.project_id != null && agent.project_id !== "";
 
   return (
     <tr>
-      <td className={styles.name}>{agent.name}</td>
+      <NameCell name={agent.name} effectiveImage={effectiveImage} />
       <AgentConfigCells agent={agent} mode={mode} isProject={isProject} />
       <UsageCell name={agent.name} cell={use} />
       <ActionsCell
@@ -171,6 +189,21 @@ function AgentRow({ agent, usage, editHref, remove }: AgentRowProps) {
         remove={remove}
       />
     </tr>
+  );
+}
+
+function NameCell({
+  name,
+  effectiveImage,
+}: {
+  name: string;
+  effectiveImage: EffectiveImage | null;
+}) {
+  return (
+    <td className={styles.name}>
+      {name}
+      <EffectiveImageLabel effectiveImage={effectiveImage} />
+    </td>
   );
 }
 
@@ -216,6 +249,24 @@ function UsageCell({
     <td className={className} data-testid={`usage-${name}`}>
       {cell.text}
     </td>
+  );
+}
+
+/** Shows the effective execution image and its resolution layer beneath the agent name, when resolved. */
+function EffectiveImageLabel({
+  effectiveImage,
+}: {
+  effectiveImage: EffectiveImage | null;
+}) {
+  if (!effectiveImage) {
+    return null;
+  }
+
+  return (
+    <span className={styles.imageLabel}>
+      <span>{effectiveImage.image}</span>
+      <span className={styles.imageLayer}>{effectiveImage.layer}</span>
+    </span>
   );
 }
 

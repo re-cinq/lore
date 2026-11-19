@@ -80,31 +80,7 @@ done
 # both pre-exist in the cluster but not in a fresh container. Create them first.
 log "Ensuring roles, pgvector extension, and team chunk schemas..."
 pg "$SUPERUSER" -v ON_ERROR_STOP=1 -f - >/dev/null < "$BASELINE_DIR/01_extension.sql"
-pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
--- The `lore` schema. On GKE it pre-exists (setup-db.sh), and on a dev container
--- that has been through this script before it survives — which is why the GRANT
--- further down never failed locally. On a genuinely EMPTY database it does not
--- exist yet and that GRANT is the first thing to touch it, so create it here.
--- Found by running this script against a fresh database for the first time.
-CREATE SCHEMA IF NOT EXISTS lore;
-
-DO $$ BEGIN
-  -- The setup-*.sh scripts connect as `postgres` by name (their kubectl calls
-  -- hardcode `-U postgres`, matching the cluster). A CI service container has no
-  -- such role, so create it rather than rewrite five scripts' invocations —
-  -- making the environment match what they already expect is the smaller change,
-  -- and it keeps those scripts byte-identical between CI and the cluster.
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres') THEN
-    CREATE ROLE postgres SUPERUSER LOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
-    CREATE ROLE lore LOGIN PASSWORD 'lore';
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore_ui') THEN
-    CREATE ROLE lore_ui LOGIN PASSWORD 'lore';
-  END IF;
-END $$;
-SQL
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 -f - >/dev/null < "$DIR/setup-local-roles.sql"
 pg "$SUPERUSER" -v ON_ERROR_STOP=1 --single-transaction -v team_schemas="$TEAM_SCHEMAS" -f - >/dev/null < "$BASELINE_DIR/07_team_chunks.sql"
 
 # Over tcp the shimmed `psql -U postgres` authenticates for real, and the role
@@ -164,34 +140,7 @@ done
 # 0003 (ALTER pipeline.job_runs, created by setup-agent-schema.sh) would fail
 # with "must be owner". Reconcile here, idempotently, via the local socket as
 # postgres (not a network superuser) so the local chain matches the cluster.
-pg "$SUPERUSER" -v ON_ERROR_STOP=1 -v team_schemas="$TEAM_SCHEMAS" >/dev/null <<'SQL'
-SELECT set_config('lore.team_schemas', :'team_schemas', false);
-GRANT CREATE ON DATABASE lore TO lore;
-GRANT CREATE, USAGE ON SCHEMA lore TO lore;
--- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.plans)
--- granted by migrations; it needs schema USAGE too. In
--- the cluster lore_ui already has it; mirror that locally.
-GRANT USAGE ON SCHEMA lore TO lore_ui;
-ALTER TABLE IF EXISTS lore.schema_migrations OWNER TO lore;
-
-DO $$
-DECLARE r record;
-BEGIN
-  FOR r IN
-    SELECT n.nspname, c.relname, c.relkind
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-    WHERE (n.nspname IN ('lore', 'pipeline', 'memory') OR n.nspname = ANY (string_to_array(current_setting('lore.team_schemas'), ',')))
-      AND c.relkind IN ('r','S','v','m')
-  LOOP
-    IF    r.relkind = 'r' THEN EXECUTE format('ALTER TABLE %I.%I OWNER TO lore', r.nspname, r.relname);
-    ELSIF r.relkind = 'S' THEN EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO lore', r.nspname, r.relname);
-    ELSIF r.relkind = 'v' THEN EXECUTE format('ALTER VIEW %I.%I OWNER TO lore', r.nspname, r.relname);
-    ELSIF r.relkind = 'm' THEN EXECUTE format('ALTER MATERIALIZED VIEW %I.%I OWNER TO lore', r.nspname, r.relname);
-    END IF;
-  END LOOP;
-END $$;
-SQL
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 -v team_schemas="$TEAM_SCHEMAS" -f - >/dev/null < "$DIR/setup-local-ownership.sql"
 
 # Baseline check and incremental migrations: the SAME script the GKE Helm hook
 # runs (ui-helm/files/migrate.sh), as the same role ('lore'), tracked in

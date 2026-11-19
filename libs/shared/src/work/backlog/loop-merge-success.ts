@@ -4,6 +4,7 @@ import { recordLoopTicket } from "../../outbound/otel/metrics.js";
 import { startValueOf } from "../../outbound/floor/run-start-items.js";
 import { LOOP_LINE, FLOOR_BACKLOG_SUBJECT } from "./floor-loop.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
+import { linkedIssueNumber } from "../../domain/pr-body.js";
 import type { TaskTransitionDeps } from "./task-transition-deps.js";
 import type { RunView, RunPage } from "@re-cinq/floor-client";
 
@@ -53,6 +54,7 @@ export async function settleMergedLoopTicket(
   deps: MergeSuccessDeps,
   repo: string,
   branch: string,
+  prBody?: string | null,
 ): Promise<string> {
   const issueNumber = issueNumberFromLoopBranch(branch);
 
@@ -70,29 +72,55 @@ export async function settleMergedLoopTicket(
   }
   await cancelOpenRun(deps.floor(), repo, task.id);
 
-  return markMerged(deps, repo, issueNumber, task);
+  return markMerged(deps, repo, issueNumber, { task, prBody });
 }
 
 async function markMerged(
   deps: MergeSuccessDeps,
   repo: string,
   issueNumber: number,
-  task: LoopTask,
+  opts: { task: LoopTask; prBody?: string | null },
 ): Promise<string> {
+  const { task, prBody } = opts;
   const won = await deps.tasks.setStatusIf(task.id, task.status, "merged");
 
   if (!won) {
     return "lost the status race";
   }
+  await recordTaskMerged(deps, repo, task);
 
+  if (!isPartialLorePr(prBody)) {
+    await settleIssue(deps, repo, issueNumber);
+  }
+  await deps.emitTick(repo);
+
+  return `settled task ${task.id} as merged`;
+}
+
+async function recordTaskMerged(
+  deps: MergeSuccessDeps,
+  repo: string,
+  task: LoopTask,
+): Promise<void> {
   await deps.tasks.recordEvent(task.id, task.status, "merged", {
     settled_by: "pr-merged",
   });
   recordLoopTicket(repo, "merged");
-  await settleIssue(deps, repo, issueNumber);
-  await deps.emitTick(repo);
+}
 
-  return `settled task ${task.id} as merged`;
+const HAS_LORE_TASK = /^Lore-Task:/im;
+
+/** Returns true when the PR body is a Lore-authored PR whose footer uses `Refs #N` (partial coverage) rather than `Closes #N`. */
+function isPartialLorePr(prBody?: string | null): boolean {
+  if (!prBody) {
+    return false;
+  }
+
+  if (!HAS_LORE_TASK.test(prBody)) {
+    return false;
+  }
+
+  return linkedIssueNumber(prBody) === null;
 }
 
 async function cancelOpenRun(

@@ -16,8 +16,11 @@ export async function approveOrRefuse(
   } catch (err) {
     const problem = toProblem(err);
 
-    throw apiError(problem.status, { problems: problem.problems ?? [] })(
-      problem.detail,
-    );
+    const problems = (problem.problems ?? []).map((p) => ({
+      ...p,
+      detail: p.message,
+    }));
+
+    throw apiError(problem.status, { problems })(problem.detail);
   }
 }

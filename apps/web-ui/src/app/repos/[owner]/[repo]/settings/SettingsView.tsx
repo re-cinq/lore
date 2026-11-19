@@ -7,6 +7,7 @@ import { type SettingsNavItem } from "@/components/SettingsLayout";
 import { SettingsCard } from "@/components/SettingsCard";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
+import BaseImageSelector from "../agents/BaseImageSelector";
 
 export type RepoSettingsShape = NonNullable<
   components["schemas"]["Repo"]["settings"]
@@ -116,7 +117,21 @@ function GeneralFields({ team, settings }: GeneralFieldsProps) {
       {GENERAL_FIELDS.map((field) => (
         <TextField key={field.name} {...field} value={values[field.name]} />
       ))}
+      <BaseImageField settings={settings} />
     </SettingsCard>
+  );
+}
+
+function BaseImageField({ settings }: { settings: RepoSettingsShape }) {
+  const baseImage =
+    (settings as RepoSettingsShape & { base_image?: string | null })
+      .base_image ?? null;
+
+  return (
+    <div className={styles.field}>
+      <label htmlFor="setting-base_image">Base image</label>
+      <BaseImageSelector value={baseImage} />
+    </div>
   );
 }
 

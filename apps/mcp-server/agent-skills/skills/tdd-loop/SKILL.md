@@ -36,6 +36,33 @@ did not run is not a red bar, it is a guess.
 If a behaviour would not change the code under test at all, say so and write nothing.
 A test that forces no change is not worth writing.
 
+### The refusals a change owes
+
+Happy paths get written; refusals get forgotten, and a missing refusal is how a route
+ends up answering a caller it should not. When the facet you were handed adds or alters
+an **entry point** — an HTTP route, a server action, a tool, a CLI command, a queue or
+event handler, a function other packages call — the facets it owes include, where each
+applies:
+
+1. A caller with no credential, and one with a made-up credential, is refused.
+2. A real caller asking for something outside what they may open (another repository,
+   another person's item) is refused.
+3. Input that is missing, malformed, the wrong type, oversized, or a path that climbs
+   out is refused.
+4. An upstream that errors, times out or answers something that is not its answer makes
+   the code refuse. It never lets the caller through.
+5. A write passes the same checks as the read beside it, and writes nothing on a refusal.
+
+Still one test a round: take the most serious one that is missing, a caller who must be
+refused before malformed input, and report the others as leftovers so the next rounds
+take them. A refusal test must fail when the check is removed; a test that mocks the
+very check it claims to cover proves nothing. Refuse before you judge the request: a
+`400` for a bad parameter, answered before the caller was checked, hides a missing check
+behind a validation error.
+
+When the task names a list of missing tests (the loop hands a round `test-gaps.md` after
+its tests were reviewed), that list comes before any other facet.
+
 ### No mocks, no stubs
 
 Design every test to exercise pure logic with real values — value in, value out, not
