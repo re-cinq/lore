@@ -2,14 +2,14 @@
 # The implementation-loop line's `loop-dod` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-model: gemini-3.1-pro-preview
+model: gemini-4-hydrogen
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 60
 prices:
-  gemini-3.1-pro-preview:
-    input_per_million: 2
-    output_per_million: 12
-    cache_read_per_million: 0.2
+  gemini-4-hydrogen:
+    input_per_million: 1.5
+    output_per_million: 7.5
+    cache_read_per_million: 0.15
 config:
   env:
     GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}
