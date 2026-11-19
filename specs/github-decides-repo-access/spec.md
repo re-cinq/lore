@@ -239,10 +239,11 @@ A run of the ingest client makes many requests (it reads the ingest state, posts
 - **FR-071**: An identity token whose audience is not this install's own address is refused.
 - **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused.
 - **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository.
-- **FR-156**: An accepted identity token allows the ingest routes of the repository it names, and no other route and no other repository.
+- **FR-156**: An accepted identity token from a run on the repository's default branch allows the ingest routes of the repository it names (`POST /api/repos/{owner}/{repo}/ingest` and the ingest-state read beside it), and no other repository.
 - **FR-267**: An identity token is accepted for as long as it is valid, so the same token can be sent on more than one request of a run.
-- **FR-075**: An identity token is accepted only when its `workflow_ref` names the workflow Lore installed.
-- **FR-157**: An identity token from a ref other than the repository's default branch is refused.
+- **FR-075**: An identity token is accepted whichever workflow file of the repository ran, and what it allows follows from the ref it ran on (FR-156, FR-157, FR-287).
+- **FR-157**: An identity token from a run on a ref other than the repository's default branch is refused on the ingest routes.
+- **FR-287**: An accepted identity token from a run on any ref of the repository allows `GET /api/repos/{owner}/{repo}/impact/base` and `POST /api/repos/{owner}/{repo}/impact` of the repository it names, and `POST /api/spec-links/parse`, and no other route.
 - **FR-076**: An identity token from a pull request of a fork is refused.
 - **FR-077**: lore-api issues no longer-lived credential in exchange for an identity token.
 - **FR-268**: The ingest client (`apps/lore-code-trace`) asks GitHub for the identity token itself, at the request URL and with the request token that Actions gives a job with `id-token: write`.
@@ -335,6 +336,7 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-243**: A run of the job over a repository it has already moved changes nothing.
 - **FR-244**: The job sets the repository's webhook on GitHub to that repository's own signing secret, through `ensureLoreWebhook`.
 - **FR-245**: The job opens a pull request that changes the installed workflow (`.github/workflows/lore-ingest.yml`) to ask for the identity token.
+- **FR-289**: Where the repository has the trace-impact workflow Lore installs (`.github/workflows/lore-trace-impact.yml`), the same pull request changes it to ask for the identity token.
 - **FR-246**: The workflow of that pull request does not read `LORE_INGEST_TOKEN`.
 - **FR-281**: In that workflow the `ingest` job is granted `id-token: write` and `contents: read`, and no other permission.
 - **FR-282**: In that workflow the `graph` job is granted `id-token: write` and `contents: read`, and no other permission.
