@@ -2,8 +2,8 @@
 # The implementation-loop line's `loop-tdd-round` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-# On Sonnet while gemini-cli's streams stall for 10 minutes a request (run 4aba1706); back to Gemini once they don't.
-model: claude-sonnet-4-6
+# Sonnet 5.5 since 2026-11-18: on loop-bench (5 tickets, 55 runs) its code passed the checks in 85% of runs at $0.85 a working result, Sonnet 4.6 49% at $7.69.
+model: claude-sonnet-5-5
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 60
 config:

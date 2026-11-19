@@ -1,8 +1,13 @@
 ---
 # The spec-upkeep line's `spec-upkeep-fix-ci` agent: the whole definition the floor is seeded with, settings here and the prompt below.
-model: claude-sonnet-4-6
+model: gemini-4-carbon
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 30
+prices:
+  gemini-4-carbon:
+    input_per_million: 4
+    output_per_million: 20
+    cache_read_per_million: 0.4
 config:
   pod_resources:
     requests:

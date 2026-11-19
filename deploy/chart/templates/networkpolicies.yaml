@@ -21,6 +21,35 @@ spec:
   podSelector: {}
   policyTypes: [Ingress]
 {{- end }}
+{{- /*
+cert-manager answers an HTTP-01 challenge from a short-lived pod it starts in the
+namespace of the Ingress, on port 8089. Without this rule the deny-all above
+keeps the ingress controller from it and no certificate is ever issued.
+*/ -}}
+{{- if .Values.platform.clusterIssuer }}
+{{- $solverNamespaces := list }}
+{{- range .Values.platform.ingresses }}
+{{- if has .namespace $namespaces }}{{ $solverNamespaces = append $solverNamespaces .namespace }}{{ end }}
+{{- end }}
+{{- range ($solverNamespaces | uniq) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-http01-solver
+  namespace: {{ . }}
+spec:
+  podSelector:
+    matchLabels: { acme.cert-manager.io/http01-solver: "true" }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $ingress }} }
+      ports:
+        - { protocol: TCP, port: 8089 }
+{{- end }}
+{{- end }}
 {{- /* app, namespace, the namespaces that may call it, its port, and its metrics port */ -}}
 {{- $services := list
   (dict "app" "lore-api" "namespace" "lore-api" "port" 3000 "metrics" true "sameNamespace" true "from" (list $ingress "lore-ui" "lore-stations" $floor))

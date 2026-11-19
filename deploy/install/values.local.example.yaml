@@ -8,7 +8,8 @@
 # First: CloudNativePG, Traefik and the lore-databases chart. The GitHub and
 # model credentials are yours; with dummies the install runs but sign-in,
 # webhooks and model calls do not. Every CHANGE-ME must be replaced.
-# Utopia (the knowledge graph) is off; values.aks.example.yaml shows how to turn it on.
+# Utopia (the knowledge graph) is off here. The AKS and GKE examples have it on
+# and show the values it needs.
 
 secrets:
   githubApp:
