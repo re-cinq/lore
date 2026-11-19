@@ -51,7 +51,7 @@ The requirements of this step are FR-9.20 and FR-9.21 of `specs/4-ux-repo-onboar
 
 ### Step 2: levels
 
-- **FR-001**: Every lore-api route that names a repository declares the level it needs, and the repository guard answers a person `403` when the level GitHub reports for them on that repository is below it.
+- **FR-001**: Every lore-api route that names a repository declares the level it needs, and the repository guard answers a person `403` when the level GitHub reports for them on that repository is below it. In step 2 lore-api asks as the App about the person; from step 3 it asks with the person's own token.
 - **FR-002**: A route that only shows a repository's data needs `read`.
 - **FR-003**: A route that commits, creates a branch, opens or merges a pull request, files an issue or starts a run needs `write`.
 - **FR-004**: Onboarding and re-onboarding a repository, the repository's settings in Lore and its auto-merge setting need `admin`.
