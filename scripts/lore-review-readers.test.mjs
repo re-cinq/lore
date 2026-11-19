@@ -141,7 +141,7 @@ test("a Rust source packet containing its inline test module asks for separate r
   assert.match(report.reason, /src\/lib\.rs/);
 });
 
-test("the shadow launcher uploads separate packets and starts one line without a checkout", async (t) => {
+test("the shadow launcher isolates the three readings from discussion and specs", async (t) => {
   const uploads = new Map();
   const requests = [];
   const server = createServer(async (request, response) => {
@@ -151,10 +151,7 @@ test("the shadow launcher uploads separate packets and starts one line without a
     response.setHeader("Content-Type", "application/json");
 
     if (request.url.endsWith("/blobs")) {
-      uploads.set(
-        body.mode,
-        body.files.map(({ path }) => path),
-      );
+      uploads.set(body.mode, body);
       response.end(JSON.stringify({ hash: body.mode }));
 
       return;
@@ -167,14 +164,35 @@ test("the shadow launcher uploads separate packets and starts one line without a
   await once(server, "listening");
   t.after(() => server.close());
   const revision = "1".repeat(40);
+  const prUrl = "https://ghe.example.com/re-cinq/lore/pull/4972";
+  const discussion = [
+    {
+      source: "issue_comment",
+      url: "https://github.com/re-cinq/lore/issues/4972#issuecomment-1",
+      author: "maintainer",
+      text: "Defer setting a configurable queue size.",
+    },
+  ];
+  const specs = [
+    { path: "spec.md", text: "The queue takes 25 items." },
+    { path: "spec.md", text: "The queue takes 50 items.", version: "proposed" },
+  ];
+  const documents = [
+    {
+      path: "agents/queue.md",
+      before: "Ask for the queue size.",
+      after: "Pick the queue size.",
+    },
+  ];
   const child = spawn(
     process.execPath,
-    [runner, "--shadow-revision", revision],
+    [runner, "--shadow-revision", revision, "--shadow-pr-url", prUrl],
     {
       env: {
         ...process.env,
         FLOOR_API_URL: `http://127.0.0.1:${server.address().port}`,
         FLOOR_SERVICE_TOKEN: "test-token",
+        GITHUB_HOST: "ghe.example.com",
       },
     },
   );
@@ -186,6 +204,9 @@ test("the shadow launcher uploads separate packets and starts one line without a
         { path: "queue.test.ts", role: "test", before: "25", after: "25" },
         { path: "spec.md", role: "code", before: "a", after: "b" },
       ],
+      discussion,
+      specs,
+      documents,
     }),
   );
   const [output, stderr, [exit]] = await Promise.all([
@@ -201,9 +222,27 @@ test("the shadow launcher uploads separate packets and starts one line without a
     revision,
   });
   assert.deepEqual(Object.fromEntries(uploads), {
-    code: ["queue.ts"],
-    tests: ["queue.test.ts"],
-    "test challenge": ["queue.ts", "queue.test.ts"],
+    code: {
+      mode: "code",
+      files: [{ path: "queue.ts", before: "25", after: "50" }],
+    },
+    tests: {
+      mode: "tests",
+      files: [{ path: "queue.test.ts", unchanged: "25" }],
+    },
+    "test challenge": {
+      mode: "test challenge",
+      files: [
+        { path: "queue.ts", before: "25", after: "50" },
+        { path: "queue.test.ts", unchanged: "25" },
+      ],
+    },
+    intent: { mode: "intent", discussion },
+    product: {
+      mode: "product",
+      specs: [{ ...specs[0], version: "existing" }, specs[1]],
+      documents,
+    },
   });
   const start = requests.at(-1);
 
@@ -216,11 +255,175 @@ test("the shadow launcher uploads separate packets and starts one line without a
       ]),
     ),
     {
+      review_key: ["value", `${prUrl}@${revision}`],
       revision: ["value", revision],
+      pr_url: ["value", prUrl],
       code_evidence: ["file", "code"],
       test_evidence: ["file", "tests"],
       challenge_evidence: ["file", "test challenge"],
+      intent_evidence: ["file", "intent"],
+      product_evidence: ["file", "product"],
     },
   );
-  assert.deepEqual(Object.keys(start), ["startItems"]);
+  assert.deepEqual(Object.keys(start), ["repo", "startItems"]);
+  assert.equal(start.repo, "ghe.example.com/re-cinq/lore");
+});
+
+test("an automatic run reuses the prior settled run for the same PR and revision", async (t) => {
+  const revision = "1".repeat(40);
+  const prUrl = "https://github.com/re-cinq/lore/pull/4972";
+  const requests = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url, "http://localhost");
+
+    requests.push([
+      request.method,
+      url.pathname,
+      Object.fromEntries(url.searchParams),
+    ]);
+    response.setHeader("Content-Type", "application/json");
+    response.end(
+      JSON.stringify({
+        items: [
+          {
+            id: "previous-run",
+            finishedAt: "2026-11-19T10:30:00Z",
+            startItems: { automatic: { ref: "true" } },
+          },
+        ],
+        nextCursor: null,
+      }),
+    );
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const child = spawn(
+    process.execPath,
+    [
+      runner,
+      "--shadow-revision",
+      revision,
+      "--shadow-pr-url",
+      prUrl,
+      "--automatic",
+    ],
+    {
+      env: {
+        ...process.env,
+        FLOOR_API_URL: `http://127.0.0.1:${server.address().port}`,
+        FLOOR_SERVICE_TOKEN: "test-token",
+        GITHUB_HOST: "github.com",
+      },
+    },
+  );
+
+  child.stdin.end(JSON.stringify({ files: [] }));
+  const [output, stderr, [exit]] = await Promise.all([
+    text(child.stdout),
+    text(child.stderr),
+    once(child, "close"),
+  ]);
+
+  assert.equal(exit, 0, stderr || output);
+  assert.deepEqual(JSON.parse(output), {
+    status: "shadow_started",
+    runId: "previous-run",
+    revision,
+  });
+  assert.deepEqual(requests, [
+    [
+      "GET",
+      "/assembly-runs",
+      {
+        line: "code-review-shadow",
+        repo: "github.com/re-cinq/lore",
+        subject: `review_key:${prUrl}@${revision}`,
+      },
+    ],
+  ]);
+});
+
+test("a preparation failure opens the incomplete publication node without using stdin", async (t) => {
+  const revision = "2".repeat(40);
+  const prUrl = "https://github.com/re-cinq/lore/pull/4972";
+  const requests = [];
+  const server = createServer(async (request, response) => {
+    const body = JSON.parse(await text(request));
+
+    requests.push({ path: request.url, body });
+    response.setHeader("Content-Type", "application/json");
+    response.end(
+      JSON.stringify(
+        request.url.endsWith("/blobs")
+          ? { hash: "empty" }
+          : { run: { id: "incomplete-run" } },
+      ),
+    );
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+  const child = spawn(
+    process.execPath,
+    [
+      runner,
+      "--shadow-revision",
+      revision,
+      "--shadow-pr-url",
+      prUrl,
+      "--shadow-incomplete",
+    ],
+    {
+      env: {
+        ...process.env,
+        FLOOR_API_URL: "http://127.0.0.1:" + server.address().port,
+        FLOOR_SERVICE_TOKEN: "test-token",
+        GITHUB_HOST: "github.com",
+      },
+    },
+  );
+
+  child.stdin.end();
+  const [output, stderr, [exit]] = await Promise.all([
+    text(child.stdout),
+    text(child.stderr),
+    once(child, "close"),
+  ]);
+
+  assert.equal(exit, 0, stderr || output);
+  assert.deepEqual(JSON.parse(output), {
+    status: "shadow_started",
+    runId: "incomplete-run",
+    revision,
+  });
+  const start = requests[1]?.body;
+
+  assert.deepEqual(
+    requests.map(({ path }) => path),
+    ["/blobs", "/assembly-lines/code-review-shadow/start"],
+  );
+  assert.deepEqual(requests[0]?.body, {});
+  assert.equal(start?.entry, "publish-incomplete");
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(start?.startItems ?? {}).map(([name, item]) => [
+        name,
+        item.ref,
+      ]),
+    ),
+    {
+      review_key: prUrl + "@" + revision,
+      revision,
+      pr_url: prUrl,
+      preparation_failed: "true",
+      code_evidence: "empty",
+      test_evidence: "empty",
+      challenge_evidence: "empty",
+      intent_evidence: "empty",
+      product_evidence: "empty",
+    },
+  );
 });

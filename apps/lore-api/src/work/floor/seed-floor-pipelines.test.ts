@@ -515,3 +515,17 @@ describe("the agent stations a shipped pipeline is put with", () => {
     ).toEqual([true, true]);
   });
 });
+
+it("serializes the shadow progress station with an empty produces array", () => {
+  const shadow = realFiles().find(
+    ({ name }) => name === "code-review-shadow.yaml",
+  );
+
+  enforceTrue(shadow, Error, "missing shadow review pipeline");
+  const pipeline = pipelineOfText(shadow.text, FIXED_ENV);
+  const progress = pipeline.stations.find(
+    ({ id }) => id === "shadow-review-progress",
+  );
+
+  expect(progress?.body).toMatchObject({ kind: "service", produces: [] });
+});

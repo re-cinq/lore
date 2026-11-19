@@ -113,11 +113,11 @@ describe("the hosted review rehearsal", () => {
       ["shadow-challenge-tests", "challenge_evidence", "test_challenge"],
     ];
 
-    expect(Object.keys(pipeline.stations)).toEqual(readers.map(([id]) => id));
     expect(readers.map(([id]) => pipeline.stations[id])).toMatchObject(
       readers.map(([, input, output]) => ({
         kind: "agent",
         conversation: "new",
+        result_required: true,
         needs: [{ name: input, kind: "file", path: "evidence.json" }],
         produces: [{ name: output, kind: "file", from: "output" }],
       })),
@@ -2310,5 +2310,64 @@ it("sends a write pod that failed to the assemble join, and never back to write,
   }).toEqual({
     onFailed: [{ from: "write", to: "assemble", on: "failed" }],
     intoWrite: [{ from: "split-sections", to: "write", on: "success" }],
+  });
+});
+
+describe("the later passes of the hosted review rehearsal", () => {
+  it("compares recorded readings with intent and reviews product direction after the independent challenge", () => {
+    const { line, stations } = pipelineOf("code-review-shadow");
+    const intent = stations["shadow-compare-intent"];
+    const product = stations["shadow-review-product"];
+    const forward = line.edges.filter(({ on }) => on === "success");
+
+    expect({
+      reviewKey: line.args["review_key"],
+      readerDefinitions: [
+        stations["shadow-read-code"]?.agent_definition,
+        stations["shadow-read-tests"]?.agent_definition,
+        stations["shadow-challenge-tests"]?.agent_definition,
+      ],
+      intent: intent?.needs.map(({ name }) => name),
+      product: product?.needs.map(({ name }) => name),
+      forward: forward.map(({ from, to }) => `${from}>${to}`),
+      failed: line.edges.filter(
+        ({ from, on }) => from === "publish-incomplete" && on === "always",
+      ),
+    }).toEqual({
+      reviewKey: { kind: "value", subject: true },
+      readerDefinitions: [
+        "shadow-review-reader",
+        "shadow-review-reader",
+        "shadow-review-challenge",
+      ],
+      intent: [
+        "intent_evidence",
+        "code_reading",
+        "test_reading",
+        "challenge_evidence",
+      ],
+      product: [
+        "product_evidence",
+        "intent_evidence",
+        "code_reading",
+        "test_reading",
+        "intent_comparison",
+        "test_challenge",
+        "challenge_evidence",
+      ],
+      forward: [
+        "read-code>publish-code",
+        "publish-code>read-tests",
+        "read-tests>publish-tests",
+        "publish-tests>compare-intent",
+        "compare-intent>publish-intent",
+        "publish-intent>challenge-tests",
+        "challenge-tests>publish-challenge",
+        "publish-challenge>review-product",
+        "review-product>publish-product",
+        "publish-product>done",
+      ],
+      failed: [{ from: "publish-incomplete", to: "failed", on: "always" }],
+    });
   });
 });

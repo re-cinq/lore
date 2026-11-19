@@ -6,11 +6,23 @@ import { text } from "node:stream/consumers";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { fileItem, valueItem } from "@re-cinq/lore-shared/floor/floor-items.js";
+import {
+  fileItem,
+  floorRepoOf,
+  parsePullRequestUrl,
+  pullRequestUrl,
+  valueItem,
+} from "@re-cinq/lore-shared/floor/floor-items.js";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
 
 const modes = ["code", "tests", "test challenge"];
-const shadowInputs = ["code_evidence", "test_evidence", "challenge_evidence"];
+const shadowEvidence = [
+  "code_evidence",
+  "test_evidence",
+  "challenge_evidence",
+  "intent_evidence",
+  "product_evidence",
+];
 const snapshot = z.object({
   files: z.array(
     z.object({
@@ -20,6 +32,40 @@ const snapshot = z.object({
       after: z.string().nullable(),
     }),
   ),
+  discussion: z
+    .array(
+      z.object({
+        source: z.enum([
+          "pull_request",
+          "issue",
+          "issue_comment",
+          "pull_request_comment",
+          "review_thread",
+        ]),
+        url: z.url(),
+        author: z.string().optional(),
+        text: z.string(),
+      }),
+    )
+    .default([]),
+  specs: z
+    .array(
+      z.object({
+        path: z.string().min(1),
+        text: z.string(),
+        version: z.enum(["existing", "proposed"]).default("existing"),
+      }),
+    )
+    .default([]),
+  documents: z
+    .array(
+      z.object({
+        path: z.string().min(1),
+        before: z.string().nullable(),
+        after: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 
 function packetFor(mode, files) {
@@ -47,24 +93,100 @@ function packetFor(mode, files) {
   return { mode, files: selected };
 }
 
-async function startShadow(revision, packets) {
+async function previousAutomaticRun(floor, repo, reviewKey, preparationFailed) {
+  let cursor;
+
+  do {
+    const page = await floor.runs.list(
+      { repo, line: "code-review-shadow", subject: `review_key:${reviewKey}` },
+      { cursor },
+    );
+    const prior = page.items.find(
+      ({ startItems }) =>
+        startItems.automatic?.ref === "true" &&
+        (preparationFailed || startItems.preparation_failed?.ref !== "true"),
+    );
+
+    if (prior) {
+      return prior;
+    }
+    cursor = page.nextCursor;
+  } while (cursor);
+
+  return null;
+}
+
+async function startShadow(revision, requestedPrUrl, automatic, evidence) {
   if (!/^[0-9a-f]{40}$/.test(revision)) {
     throw new Error("Use the full GitHub commit SHA for --shadow-revision");
   }
+  const target =
+    requestedPrUrl === undefined
+      ? undefined
+      : parsePullRequestUrl(requestedPrUrl);
+  const repo = target && floorRepoOf(target.repo);
+  const prUrl =
+    target && pullRequestUrl(target.repo.toLowerCase(), target.prNumber);
+  const reviewKey = prUrl === undefined ? revision : `${prUrl}@${revision}`;
   const floor = floorClientFrom(process.env);
-  const blobs = await Promise.all(
-    packets.map((packet) =>
-      floor.blobs.put(Buffer.from(JSON.stringify(packet)), "application/json"),
-    ),
-  );
-  const startItems = { revision: valueItem(revision) };
+  const preparationFailed = evidence === undefined;
 
-  for (const [index, name] of shadowInputs.entries()) {
-    startItems[name] = fileItem(blobs[index].hash);
+  if (automatic) {
+    const prior = await previousAutomaticRun(
+      floor,
+      repo,
+      reviewKey,
+      preparationFailed,
+    );
+
+    if (prior) {
+      return { status: "shadow_started", runId: prior.id, revision };
+    }
   }
-  const { run } = await floor.lines.start("code-review-shadow", { startItems });
+  const files = await shadowFiles(floor, evidence);
+  const startItems = {
+    review_key: valueItem(reviewKey),
+    revision: valueItem(revision),
+    ...(prUrl === undefined ? {} : { pr_url: valueItem(prUrl) }),
+    ...(automatic ? { automatic: valueItem("true") } : {}),
+    ...(preparationFailed ? { preparation_failed: valueItem("true") } : {}),
+    ...files,
+  };
+  const { run } = await floor.lines.start("code-review-shadow", {
+    ...(repo === undefined ? {} : { repo }),
+    ...(preparationFailed ? { entry: "publish-incomplete" } : {}),
+    startItems,
+  });
 
   return { status: "shadow_started", runId: run.id, revision };
+}
+
+async function shadowFiles(floor, evidence) {
+  const upload = async (packet) => {
+    const { hash } = await floor.blobs.put(
+      Buffer.from(JSON.stringify(packet)),
+      "application/json",
+    );
+
+    return fileItem(hash);
+  };
+
+  if (evidence === undefined) {
+    const placeholder = await upload({});
+
+    return Object.fromEntries(
+      shadowEvidence.map((name) => [name, placeholder]),
+    );
+  }
+
+  return Object.fromEntries(
+    await Promise.all(
+      shadowEvidence.map(async (name, index) => [
+        name,
+        await upload(evidence[index]),
+      ]),
+    ),
+  );
 }
 
 function invokeReader(args, packet, cwd) {
@@ -163,9 +285,31 @@ async function run() {
       "reader-model": { type: "string" },
       "reader-effort": { type: "string" },
       "shadow-revision": { type: "string" },
+      "shadow-pr-url": { type: "string" },
+      "shadow-incomplete": { type: "boolean" },
+      automatic: { type: "boolean" },
     },
   });
-  const { files } = snapshot.parse(JSON.parse(await text(process.stdin)));
+  const revision = values["shadow-revision"];
+  const prUrl = values["shadow-pr-url"];
+  const incomplete = values["shadow-incomplete"];
+
+  if ((values.automatic || incomplete) && (!revision || !prUrl)) {
+    throw new Error(
+      `${incomplete ? "--shadow-incomplete" : "--automatic"} requires --shadow-revision and --shadow-pr-url`,
+    );
+  }
+
+  if (incomplete) {
+    console.log(
+      JSON.stringify(await startShadow(revision, prUrl, values.automatic)),
+    );
+
+    return;
+  }
+  const { files, discussion, specs, documents } = snapshot.parse(
+    JSON.parse(await text(process.stdin)),
+  );
 
   for (const file of files) {
     if (file.role === "test" || isTestFile(file.path)) {
@@ -188,15 +332,29 @@ async function run() {
   }
   const packets = modes.map((mode) => packetFor(mode, files));
 
-  if (values["shadow-revision"] !== undefined) {
+  if (revision !== undefined) {
     if (values["reader-model"] || values["reader-effort"]) {
       throw new Error("Hosted reader models are configured on the floor");
     }
     console.log(
-      JSON.stringify(await startShadow(values["shadow-revision"], packets)),
+      JSON.stringify(
+        await startShadow(revision, prUrl, values.automatic, [
+          ...packets,
+          { mode: "intent", discussion },
+          {
+            mode: "product",
+            specs,
+            ...(documents?.length ? { documents } : {}),
+          },
+        ]),
+      ),
     );
 
     return;
+  }
+
+  if (prUrl !== undefined) {
+    throw new Error("--shadow-pr-url requires --shadow-revision");
   }
   const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
   const skillFile = join(configDir, "skills", "lore-review-files", "SKILL.md");

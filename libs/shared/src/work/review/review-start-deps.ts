@@ -8,6 +8,8 @@ import type {
 } from "./floor-review-start.js";
 import type { CarryChecks } from "./carry-approval.js";
 
+import { launchReviewShadow } from "./review-shadow-launch.js";
+
 export interface ReviewProject {
   pulls: ReviewPulls;
   issues: ReviewIssues;
@@ -24,5 +26,6 @@ export async function reviewStartDeps(
     checks: project.repo,
     uiUrl: process.env.LORE_UI_URL,
     loreAppLogin: await loreAppLogin(),
+    startShadow: launchReviewShadow,
   };
 }
