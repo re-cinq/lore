@@ -57,13 +57,13 @@ and `global.podAnnotations` for all of them). The examples show Azure Workload I
 GKE service account annotation.
 
 `global.oidc` (`issuer`, `allowedDomains`) and `secrets.oidc` (`clientId`, `clientSecret`) are
-one OpenID Connect client, Microsoft Entra ID or any other issuer. Utopia reads it today through
-`utopia.oidc`, which must repeat `global.oidc` until Utopia reads the shared block; Lore does not
-use it yet. Both are required only when `utopia.enabled` is true.
+one OpenID Connect client, Microsoft Entra ID or any other issuer, for signing in to Utopia.
+`utopia.oidc` must repeat the two values of `global.oidc`, and the install stops when they differ.
+Both are required only when `utopia.enabled` is true.
 
 ## Other settings
 
-- A pack, your own agents and assembly lines: set `LORE_PACK_REPO` and `LORE_PACK_REF` under `lore-platform.lore-api.env` and `lore-platform.lore-stations.env` ([pack layout reference](../../docs/using-lore/pack-layout-reference.md)).
+- A pack, your own agents and assembly lines: set `LORE_PACK_REPO` and `LORE_PACK_REF` under `lore-platform.lore-api.env` and `lore-platform.lore-stations.env` ([pack layout reference](https://github.com/re-cinq/lore/blob/main/docs/using-lore/pack-layout-reference.md)).
 - Metrics: `lore-platform.platform.monitoring.enabled: true` renders the ServiceMonitors and the Grafana dashboards, and needs kube-prometheus-stack on the cluster.
 - Slack: `secrets.slack.signingSecret` and `secrets.slack.botToken`, both or neither.
 - A Claude Code OAuth token for agents instead of an API key: `floor.clusterAgent.modelSecretKeys: claude=CLAUDE_CODE_OAUTH_TOKEN`.

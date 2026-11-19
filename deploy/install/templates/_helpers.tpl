@@ -4,7 +4,7 @@ namespace, so both are fixed.
 */}}
 {{- define "lore-install.checks" -}}
 {{- if or (ne .Release.Name "lore") (ne .Release.Namespace "lore-floor") -}}
-{{- fail "install as: helm upgrade --install lore deploy/install -n lore-floor --create-namespace -f <values>" -}}
+{{- fail "the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor --create-namespace -f <values>" -}}
 {{- end -}}
 {{- include "lore-install.noPlaceholders" (dict "path" "" "values" .Values) -}}
 {{- if .Values.utopia.enabled -}}
@@ -42,7 +42,9 @@ metadata:
 type: {{ .type | default "Opaque" }}
 stringData:
   {{- range $key, $value := .data }}
-  {{ $key }}: {{ $value | toString | quote }}
+  {{- /* An unquoted number in a values file (appId: 1234567) is a float to Helm,
+         which would print it as 1.234567e+06. */}}
+  {{ $key }}: {{ ternary ($value | int64 | toString) ($value | toString) (kindIs "float64" $value) | quote }}
   {{- end }}
 {{- end -}}
 
@@ -79,14 +81,19 @@ done outside Helm survives an upgrade; a generated one; else the install stops.
 {{- end -}}
 {{- end -}}
 
-{{/* Fails when any value of the release still holds a CHANGE-ME placeholder. Takes: path and values. */}}
+{{/*
+Fails when any value of the release still holds a CHANGE-ME placeholder, inside
+lists too (the ingress hosts are a list). Takes: path and values, a map or a list.
+*/}}
 {{- define "lore-install.noPlaceholders" -}}
 {{- $path := .path -}}
 {{- range $key, $value := .values -}}
-{{- if kindIs "map" $value -}}
-{{- include "lore-install.noPlaceholders" (dict "path" (printf "%s%s." $path $key) "values" $value) -}}
+{{- /* Helm copies `global` into every subchart's values; report it once, at the top. */ -}}
+{{- if and $path (eq (toString $key) "global") -}}
+{{- else if or (kindIs "map" $value) (kindIs "slice" $value) -}}
+{{- include "lore-install.noPlaceholders" (dict "path" (printf "%s%v." $path $key) "values" $value) -}}
 {{- else if and (kindIs "string" $value) (contains "CHANGE-ME" $value) -}}
-{{- fail (printf "%s%s still holds the placeholder CHANGE-ME" $path $key) -}}
+{{- fail (printf "%s%v still holds the placeholder CHANGE-ME" $path $key) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

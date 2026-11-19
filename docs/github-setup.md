@@ -4,7 +4,7 @@ Lore needs two things from GitHub before it is installed, and a GitHub organizat
 
 | What | Who creates it | What Lore uses it for |
 | ---- | -------------- | --------------------- |
-| [A GitHub App](#1-the-github-app) | an owner of the client's organization | reading and writing repositories, issues and pull requests as Lore |
+| [A GitHub App](#1-the-github-app) | an owner of your GitHub organization | reading and writing repositories, issues and pull requests as Lore |
 | [A GitHub OAuth App](#2-the-oauth-app-for-sign-in) | the same owner | signing people in to the web UI |
 
 Optional, later: [a second App that approves pull requests](#3-optional-the-reviewer-app).
@@ -63,7 +63,7 @@ Then:
 1. **Create the App.** Its settings page shows the **App ID**.
 2. **Generate a private key** (on the same page, under "Private keys"). GitHub downloads a `.pem` file. It is shown once.
 3. **Install the App** on the organization ("Install App" in the left menu), on all repositories or on the ones Lore should work in.
-4. **Read the installation ID.** After installing, the browser is on `https://github.com/organizations/<org>/settings/installations/<number>`. The number is the installation ID.
+4. **Read the installation ID.** After installing, GitHub sends the browser to the Setup URL with `?installation_id=<number>` in the address. Before Lore is installed that page does not load, which is expected; the number is the installation ID. You can also read it later: **Organization settings → GitHub Apps → Configure** on the App opens `…/settings/installations/<number>`.
 
 What you now have, and where it goes in `my-values.yaml`:
 
@@ -75,7 +75,7 @@ What you now have, and where it goes in `my-values.yaml`:
 | Slug | `lore-platform.lore-ui.env.GITHUB_APP_SLUG` |
 | Organization name | `lore-platform.lore-api.env.GITHUB_ORG` |
 
-Quote the two IDs in the values file (`"123456"`), so they are read as text.
+The two IDs are numbers. Write them with or without quotes.
 
 ## 2. The OAuth App for sign-in
 
@@ -121,7 +121,7 @@ Create it like the App in section 1, named `lore-reviewer`, with the webhook off
 | Metadata | Read-only |
 | Pull requests | Read and write |
 
-Install it on the same repositories. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
+Install it on the same repositories. Its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
 
 ## GitHub Enterprise Server
 
