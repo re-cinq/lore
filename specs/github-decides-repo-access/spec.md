@@ -27,11 +27,11 @@ A member of the organisation signs in and sees the repositories GitHub says they
 
 ### User Story 2 - A person who leaves the organisation loses Lore (Priority: P1)
 
-An owner removes a member from the GitHub organisation. Within five minutes that person's sessions have ended, and a token they minted earlier is refused when it is next used.
+An owner removes a member from the GitHub organisation. No request of that person is served on a membership answer older than five minutes: their next request after that finds them removed, is refused, and ends all their sessions and revokes the tokens they minted. A session or a token nobody uses is ended at its next use or by its own expiry, and is never honoured.
 
 **Why this priority**: a session lasts up to 30 days today and a minted token for ever.
 
-**Independent Test**: remove a signed-in member who holds a minted token, wait five minutes, and use the session and the token.
+**Independent Test**: remove a signed-in member who holds a minted token and a second, unused session; wait five minutes; use the first session, then the token, then the unused session.
 
 ### User Story 3 - One leaked machine credential opens one repository (Priority: P2)
 
@@ -89,7 +89,17 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-012**: Sign-in admits only a person GitHub reports as an active member of the configured organisation.
 - **FR-013**: lore-api stores the person's access token and refresh token encrypted with AES-256-GCM in a table keyed by the session's row in `pipeline.api_tokens`.
 - **FR-025**: The key that encrypts the stored tokens is read from a Secret that holds nothing else.
+- **FR-220**: The row that holds a session's stored tokens also holds the access token's expiry.
+- **FR-221**: The same row holds the refresh token's expiry.
+- **FR-222**: Before lore-api calls GitHub with a person's token, it refreshes that token when the stored access-token expiry is less than five minutes away.
+- **FR-223**: A refresh takes the lock on the session's token row before it calls GitHub's refresh endpoint.
+- **FR-224**: A refresh replaces both stored tokens and both stored expiries in one transaction.
+- **FR-225**: A request that finds the token row locked by a refresh waits for it and uses the token it stored, and starts no refresh of its own.
 - **FR-014**: Two refreshes of one session at once leave exactly one valid token pair.
+- **FR-226**: When GitHub answers a refresh that the refresh token is invalid, expired or revoked, the session is ended and the person signs in again.
+- **FR-227**: When GitHub cannot be reached for a refresh, or answers it with a 5xx, the request is refused with the answer FR-033 gives when access cannot be checked.
+- **FR-228**: After a refresh that failed in the way of FR-227, the session and its stored tokens are kept.
+- **FR-229**: The next request of that session after such a failure tries the refresh again.
 - **FR-022**: A sign-out that arrives while a refresh of the same session is in flight leaves no stored token for that session.
 - **FR-023**: A revocation event that arrives while a refresh of that person's session is in flight leaves no stored token for that session.
 - **FR-015**: A session marked ended is never refreshed.
@@ -124,14 +134,25 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-035**: On a repository route, GitHub's answer decides for a person, whatever scope their session carries.
 - **FR-036**: A signed-in member can use the organisation-wide routes.
 - **FR-037**: The web UI's workload holds no GitHub credential.
-- **FR-141**: What the web UI reads from GitHub today with the App's key (`apps/web-ui/src/lib/github.ts`: a file, the README, a repository's details, a pull request's details) it asks lore-api for. lore-api has no routes for these reads today; Step 3 introduces them.
-- **FR-216**: lore-api makes those reads on GitHub with the signed-in person's token.
+- **FR-141**: The web UI reads a repository file through lore-api, at a route this spec introduces (`GET /api/repos/{owner}/{repo}/github/file`), and no longer from GitHub with the App's key (`apps/web-ui/src/lib/github.ts`).
+- **FR-216**: lore-api makes that file read on GitHub with the signed-in person's token.
+- **FR-230**: The web UI reads a repository's README through lore-api, at a route this spec introduces (`GET /api/repos/{owner}/{repo}/github/readme`).
+- **FR-231**: lore-api makes that README read on GitHub with the signed-in person's token.
+- **FR-232**: The web UI reads a repository's details through lore-api, at a route this spec introduces (`GET /api/repos/{owner}/{repo}/github/details`).
+- **FR-233**: lore-api makes that details read on GitHub with the signed-in person's token.
+- **FR-234**: The web UI reads a pull request's details through lore-api, at a route this spec introduces (`GET /api/repos/{owner}/{repo}/github/pulls/{number}`).
+- **FR-235**: lore-api makes that pull-request read on GitHub with the signed-in person's token.
 
 #### Membership and minted tokens
 
 - **FR-040**: lore-api asks GitHub whether the person is still an active member of the organisation whenever it refreshes their repository list.
-- **FR-041**: A person GitHub no longer reports as an active member has every session ended.
-- **FR-042**: When the membership answer is older than five minutes and GitHub gives no fresh one, the organisation-wide routes are refused.
+- **FR-236**: No request of a person's session is served on a membership answer older than five minutes: lore-api asks GitHub first.
+- **FR-041**: A request of a person GitHub no longer reports as an active member is refused.
+- **FR-237**: That finding ends every session of the person, the ones not in use included.
+- **FR-238**: That finding revokes every token the person minted.
+- **FR-239**: A session left unused since before its person was removed is refused at its first request afterwards, however long it was idle; no scheduled job looks at it before then.
+- **FR-042**: When the membership answer is older than five minutes and GitHub gives no fresh one, the request is refused.
+- **FR-240**: A membership question GitHub does not answer ends no session and revokes no token.
 - **FR-043**: A membership question that GitHub refuses for want of permission admits nobody.
 - **FR-142**: A membership question that GitHub refuses for want of permission is answered to the person as a fault of the install, with an error other than the one a non-member gets.
 - **FR-044**: A token minted by a person through `POST /api/tokens` records that person's GitHub numeric id in `pipeline.api_tokens`.
@@ -266,6 +287,26 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **FR-112**: After a rollback to the first Step 4 release, a delivery from a repository already moved to its own secret is still accepted.
 - **FR-113**: Once no webhook uses the shared secret, a delivery signed with it is refused.
 
+#### Moving existing repositories
+
+Nothing in lore-api or the stations service opens the pull request that changes an installed workflow today: lore-api writes the workflow at onboarding (`libs/shared/src/work/onboard/onboard-scaffold.ts`, from the template in `libs/shared/src/work/ingest-workflow.ts`) and only the web UI opens a later fix. The move is a stations job this spec introduces.
+
+- **FR-241**: A reconciliation job of the stations service visits every onboarded repository.
+- **FR-242**: The job starts only once the first Step 4 release is the release a rollback returns to.
+- **FR-243**: A run of the job over a repository it has already moved changes nothing.
+- **FR-244**: The job sets the repository's webhook on GitHub to that repository's own signing secret, through `ensureLoreWebhook`.
+- **FR-245**: The job opens a pull request that changes the installed workflow (`.github/workflows/lore-ingest.yml`) to ask for the identity token, with `permissions: id-token: write`.
+- **FR-246**: The workflow of that pull request does not read `LORE_INGEST_TOKEN`.
+- **FR-247**: The job deletes the repository secret `LORE_INGEST_TOKEN` only after that pull request is merged and lore-api has accepted an ingest with an identity token from that repository.
+- **FR-248**: The repository's row in `lore.repos` records that its webhook is moved.
+- **FR-249**: The repository's row records that its workflow is moved.
+- **FR-250**: The repository's row records that its `LORE_INGEST_TOKEN` secret is deleted.
+- **FR-251**: A step that fails for a repository is tried again on the job's next run.
+- **FR-252**: A step that fails for one repository does not stop the job for the others.
+- **FR-253**: On an install whose GitHub host does not put `repository_id` and `repository_owner_id` in the identity token, the job replaces the repository secret `LORE_INGEST_TOKEN` with the repository's stored ingest token of FR-078 and opens no identity-token pull request.
+- **FR-254**: lore-api refuses deliveries signed with the shared webhook secret (FR-113) only when every onboarded repository's row records its webhook moved.
+- **FR-255**: lore-api reports the shared admin token ready for withdrawal (FR-124) only when every onboarded repository's row records its workflow moved and its secret deleted, or replaced as in FR-253.
+
 #### The shared admin token
 
 - **FR-120**: lore-api logs every use of the token it reads from its environment (`LORE_INGEST_TOKEN`), with the caller.
@@ -289,6 +330,7 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **FR-133**: lore-api exports a count of failed revocation events.
 - **FR-134**: lore-api exports a count of uses of the shared admin token by caller.
 - **FR-135**: lore-api exports the number of repositories still on the shared webhook secret.
+- **FR-256**: lore-api exports the number of repositories whose workflow is not yet moved.
 
 ## Success Criteria
 
@@ -297,7 +339,7 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **SC-002**: A person without `admin` on a repository cannot onboard it.
 - **SC-003**: A removed grant refuses the person's next write and, after five minutes at most, every read.
 - **SC-004**: A member who is no repository's administrator still opens the organisation-wide pages, and a non-member cannot sign in.
-- **SC-005**: A person removed from the organisation has their sessions ended within five minutes, and a token they minted is refused at its next use, including one left unused since before they were removed.
+- **SC-005**: Five minutes after a person is removed from the organisation, no request of theirs is served: their next request is refused and ends every session they have, a session left unused is refused at its first use, and a token they minted is refused at its next use, including one left unused since before they were removed.
 - **SC-006**: After the upgrade, no session and no minted token from before it is accepted.
 - **SC-007**: After a rollback, no session, no token minted since the upgrade and no stored GitHub token remains, and people sign in through the OAuth App again.
 - **SC-008**: A workflow's credential for one repository is refused for another, and so is an agent's.
@@ -306,7 +348,9 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **SC-010**: Nothing in a rendered install holds the shared admin token.
 - **SC-011**: A person who can access more than a thousand repositories of the installation sees all of them.
 - **SC-012**: An agent's credential is refused on every organisation-wide route.
-- **SC-013**: The shared admin token is not reported ready for withdrawal while any caller still uses it.
+- **SC-013**: The shared admin token is not reported ready for withdrawal while any caller still uses it or any repository is not yet moved.
+- **SC-016**: A session whose access token has expired keeps working without a new sign-in while its refresh token is valid, and ends when GitHub refuses the refresh token.
+- **SC-017**: After the reconciliation job has finished, every onboarded repository's webhook has its own secret and no repository holds the secret `LORE_INGEST_TOKEN` with the shared admin token's value.
 
 ## Assumptions
 
@@ -316,13 +360,14 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The new mode does not switch on without it (FR-143).
 - At the upgrade everyone signs in again and every token minted through Lore is minted again. Decided 2026-11-19.
 - Five minutes of staleness on reads is accepted. Decided 2026-11-19.
+- A session ends when GitHub refuses its refresh token, and is kept when GitHub could not be asked (FR-226 to FR-229). Proposed 2026-11-19; the owner has not confirmed it.
+- No scheduled job rechecks membership: a removed member is found at their next request (FR-236 to FR-240).
 - An agent that holds no GitHub token at all is a later option and not part of this spec; that agents keep an installation token for one repository is FR-184.
 - Every signed-in member keeps the organisation-wide routes for now. Decided 2026-11-19.
 
 ## Open Questions
 
 - **GitHub Enterprise Server** — Choices: use the device flow and the Actions identity token there, or fall back to the stored per-repository token and a browser sign-in. Both have to be confirmed on a real server of the versions installers run.
-- **A session whose refresh fails** — Choices: the session ends, or it falls back to read-only until the person signs in again.
 - **The encryption key of FR-025** — Choices: generated by the chart like the other tokens, or required from the installer.
 - **The longest life of an emergency token (FR-128)** — ADR-054 says "within hours". Choices: one fixed maximum, or a maximum the installer sets.
 - **The maximum age of a kept key set (FR-155)** — Choices: what the issuer's own cache headers say, or one fixed age.
