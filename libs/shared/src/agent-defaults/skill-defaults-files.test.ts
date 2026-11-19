@@ -29,6 +29,8 @@ const SHIPPED_SKILL_NAMES = [
   "improve-codebase-architecture",
   "legacy-add-tests",
   "legacy-find-missing-tests",
+  "lore-review",
+  "lore-review-files",
   "mutation-testing",
   "observability",
   "prototype-api",
@@ -95,7 +97,7 @@ const UNSHIPPED_PLAIN_WORD_SKILL_NAMES = [
 describe("loadSkillDefaults", () => {
   const skills = loadSkillDefaults();
 
-  it("returns the 29 shipped skill names sorted", () => {
+  it("returns the shipped skill names sorted", () => {
     expect(skills.map((skill) => skill.name)).toEqual(SHIPPED_SKILL_NAMES);
   });
 
@@ -208,6 +210,8 @@ const RECINQ_ORIGINAL_SKILLS = [
   "check-tests",
   "legacy-add-tests",
   "legacy-find-missing-tests",
+  "lore-review",
+  "lore-review-files",
   "prototype-api",
   "prototype-architecture",
   "prototype-data-model",
