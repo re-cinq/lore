@@ -47,7 +47,7 @@ A level is GitHub's permission on a repository: `read`, `write` or `admin`. An o
 
 ### Step 1: the guard
 
-Step 1 is the repository guard: every lore-api route that names a repository asks whether the caller can open it. Its requirements and its code are in [pull request 2 of the security mirror](https://github.com/re-cinq/lore-security/pull/2), commit `8233835ab`, which adds two statements to `specs/4-ux-repo-onboarding/spec.md` (one question in lore-api for whether a person can open a repository; every route with `{owner}/{repo}` in its path asks it). That commit is not an ancestor of this branch. Work on Step 2 is blocked until it is merged, and this paragraph then becomes a link to those two statements.
+Step 1 is the repository guard: every lore-api route that names a repository asks whether the caller can open it. Its requirements are FR-9.20 and FR-9.21 of [`specs/4-ux-repo-onboarding/spec.md`](../4-ux-repo-onboarding/spec.md), and this spec adds none for it. Work on Step 2 does not start until Step 1 is merged.
 
 ### Step 2: levels
 
@@ -286,7 +286,7 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 
 ## Assumptions
 
-- Step 1 lands with pull request 2 of the security mirror (commit `8233835ab`) before any step here.
+- Step 1 (FR-9.20 and FR-9.21 of `specs/4-ux-repo-onboarding/spec.md`) is merged before any step here.
 - Before Step 3 is built, it is confirmed on a real installation that a user token of the App can set a repository secret and a repository variable and create a webhook. If it cannot, work on Step 3 stops and ADR-054 is amended; this spec names no other credential for those calls.
 - Steps 2 and 3 can ship without Step 4; Step 4 takes two releases.
 - An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The new mode does not switch on without it (FR-143).
