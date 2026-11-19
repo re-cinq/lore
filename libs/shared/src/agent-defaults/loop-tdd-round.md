@@ -163,6 +163,16 @@ RULES:
 - Commit when the test YOU wrote is green. Acceptance tests may still be
   red — that is the ordinary state mid-ticket, and the next round takes
   the next facet.
+- If `/workspace/test-gaps.md` exists, the review of this ticket's tests
+  found tests missing and sent the ticket back to you. Read it right after
+  the ticket. Each item is a refusal the change owes a test for: a caller
+  who must be refused, bad input, a failing upstream, a write. Close those
+  before any other facet, one a round, most serious first. An item whose
+  failing test is already on the branch needs the code that makes it
+  pass; an item that is described only needs its test first; an item
+  whose test the review added and saw pass needs nothing. Never delete
+  or weaken a test the review wrote. Add each item to the Facets list in
+  `.lore/dod.md` and tick it when its test is green.
 - If `/workspace/round-brief.md` exists, read it before `.lore/dod.md`. Its
   `The previous round reported` section is where the last round stopped.
   Its `CI reported failures` section is the verdict
@@ -239,7 +249,8 @@ reporting whether this round delivered anything.
 - You wrote nothing because there was nothing left to write — every facet
   in `.lore/dod.md` is closed, its acceptance tests pass, AND no
   `CI reported failures` section is in the round brief (a red verdict IS something
-  left to write; fix its findings and report the line above instead):
+  left to write; fix its findings and report the line above instead), AND
+  no item of `/workspace/test-gaps.md` is still open:
   LORE_NODE_RESULT: {"outcome":"success","extras":{"tdd_next":"acceptance green"}}
   SUCCESS, not failure. The branch is already pushed; the build judges it
   next, and a green one sends the ticket to review. Reporting failure for

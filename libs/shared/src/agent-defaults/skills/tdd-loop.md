@@ -37,6 +37,24 @@ Brainstorm a short list of behaviors for the goal. Rules:
   `legacy-find-missing-tests` coverage-gap table (convert gap rows into items).
 Show the list. No test code yet.
 
+## Step 1b — Refusal review of the list (read-only reviewer)
+Spawn `Agent(Explore)` with `model: sonnet`, the goal, the seeded list, and the entry
+points the goal touches (routes, server actions, tools, CLI commands, public functions).
+It answers this checklist for EACH entry point with exactly one of
+`tested by <item>` / `missing` / `does not apply: <reason>`:
+
+1. A caller with no credential, and one with a made-up credential, is refused.
+2. A real caller asking for something outside what they may open (another repo,
+   another person's item) is refused.
+3. Input that is missing, malformed, the wrong type, oversized, or a path that climbs
+   out (`../`) is refused.
+4. An upstream that errors, times out, or answers something that is not its answer
+   makes the code refuse. It never lets the caller through.
+5. A write passes the same checks as the read beside it, and writes nothing on a refusal.
+
+The reviewer writes no code and edits no file. Add every `missing` to the list as a
+thorn tagged `refusal`. Keep every `does not apply` with its reason for the report.
+
 ## Step 2 — Loop until the goal is met / the list is exhausted
 For each cycle:
 
@@ -95,11 +113,20 @@ i. Cross off the item. Append any newly-discovered behaviors/refactors to the li
 j. Collect the architect's `future_improvements` into a running, de-duplicated
    backlog — out-of-scope smells for later, never acted on this run.
 
+z. REFUSAL SWEEP (once, after the list is exhausted). Spawn the Step 1b reviewer once
+   more, this time with the test files written this session instead of the list. A
+   test counts only if it would fail were the check removed. Every `missing` goes back
+   on the list as a `refusal` thorn and the loop continues. The loop is not finished
+   while a `refusal` thorn is open. A reviewer miss costs one missing test; everything
+   it finds becomes a test that runs without it.
+
 ## Step 3 — Report
 - Cycles completed and files changed.
 - Final suite status.
 - The latest four-rules Verdict (if the quality signal was run), as advisory context.
 - The remaining test list.
+- The refusal checklist per entry point: the test that covers each line, and every
+  `does not apply` with its reason, so a person can disagree.
 - The aggregated Future Improvements backlog (location + smell + suggested fix per
   item) for future sessions.
 

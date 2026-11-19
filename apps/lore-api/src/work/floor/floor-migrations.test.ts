@@ -132,6 +132,7 @@ describe("readFloorMigrations", () => {
         "floor/0012_spec_tickets_decompose_scoped_tasks",
         "floor/0013_ticket_agents_search_first",
         "floor/0014_commit_author_from_settings",
+        "floor/0016_round_closes_test_gaps_first",
       ],
       unshipped: [],
     });
@@ -292,6 +293,18 @@ describe("floor/0014_commit_author_from_settings", () => {
         "spec-rework",
       ].flatMap((agent) => [`prompt ${agent}`, `env ${agent}`]),
     );
+  });
+});
+
+describe("floor/0016_round_closes_test_gaps_first", () => {
+  it("writes the shipped prompt of loop-tdd-round, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0016_round_closes_test_gaps_first",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt loop-tdd-round",
+    ]);
   });
 });
 
