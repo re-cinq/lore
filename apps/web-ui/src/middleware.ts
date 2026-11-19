@@ -9,7 +9,31 @@ import { SESSION_COOKIE } from "./lib/session-cookie-options";
 const REPO_PATH = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/;
 
 // A request goes on only with a session lore-api knows: a missing cookie, or one whose token lore-api refuses, goes to sign in. Pages and routes that read GitHub themselves never ask lore-api, so the cookie's presence alone must not let a request through.
-export default async function middleware(req: NextRequest) {
+export default function middleware(req: NextRequest) {
+  return isPublic(req) ? NextResponse.next() : withSession(req);
+}
+
+const READ = ["GET", "HEAD"];
+
+/** What anyone may ask for without a session, each by its own method. */
+const PUBLIC = new Map<string, readonly string[]>([
+  ["/auth/signin", READ],
+  ["/auth/error", READ],
+  ["/auth/start", READ],
+  ["/auth/callback", READ],
+  ["/auth/signout", ["POST"]],
+  ["/api/auth/session", READ],
+  ["/api/version", READ],
+]);
+
+/** A page is public only to read. Next runs a Server Action whatever page it is posted to, so a POST to the sign-in page, or any request that names an action, needs a session like the page the action belongs to. */
+function isPublic(req: NextRequest): boolean {
+  const methods = PUBLIC.get(req.nextUrl.pathname) ?? [];
+
+  return methods.includes(req.method) && !req.headers.has("next-action");
+}
+
+async function withSession(req: NextRequest): Promise<NextResponse> {
   const cookie = req.cookies.get(SESSION_COOKIE);
   const token = cookie?.value;
 
@@ -40,7 +64,10 @@ async function repoCanonicalRedirect(
     return null;
   }
 
-  const result = await getRepo(`${match[1]}/${match[2]}`, { token });
+  const result = await getRepo(`${match[1]}/${match[2]}`, {
+    token,
+    timeoutMs: SESSION_DEADLINE_MS,
+  });
   const fullName = result.status === "ok" ? result.data.full_name : null;
 
   return canonicalRepoRedirect(pathname, search, fullName);
@@ -49,9 +76,11 @@ async function repoCanonicalRedirect(
 /** A hung lore-api must not hold every request of the UI. */
 const SESSION_DEADLINE_MS = 10_000;
 
+/** A read is sent on as it is (307). Anything else is answered 303, which a client follows with a GET, so a refused POST and the action it carries are never replayed at the sign-in page. */
 function toSignIn(req: NextRequest): NextResponse {
   return NextResponse.redirect(
     new URL(signInPath(req), requestOrigin(req.headers)),
+    READ.includes(req.method) ? 307 : 303,
   );
 }
 
@@ -85,7 +114,7 @@ function signInPath(req: NextRequest): string {
 
 export const config = {
   matcher: [
-    // Sign-in, the session and version probes, Next's own assets and the named public files. Nothing is let through for the way its path ends: a repository page may end in ".png".
-    "/((?!auth(?:/|$)|api/auth(?:/|$)|api/version$|_next/static/|_next/image(?:/|$)|favicon\\.ico$|robots\\.txt$|icon\\.svg$|lore-logo(?:-dark)?\\.svg$).*)",
+    // Only Next's own assets and the named public files skip the middleware; sign-in and the probes are let through inside it, by method. Nothing is let through for the way its path ends: a repository page may end in ".png".
+    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|robots\\.txt$|icon\\.svg$|lore-logo(?:-dark)?\\.svg$).*)",
   ],
 };
