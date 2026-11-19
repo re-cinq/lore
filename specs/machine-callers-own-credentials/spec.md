@@ -49,7 +49,10 @@ A run of the ingest client makes many requests (it reads the ingest state, posts
 - **FR-351**: For one minute after a fetch, a token whose key id is unknown is refused without another fetch.
 - **FR-218**: An identity token whose key id is still unknown after that fetch is refused.
 - **FR-154**: An identity token is refused when its key cannot be confirmed because the key set could not be fetched.
-- **FR-155**: A kept key set has a maximum age, after which lore-api fetches it again before it accepts a token.
+- **FR-155**: A kept key set is used for at most one hour after it was fetched.
+- **FR-408**: The issuer's cache headers can shorten that hour and never lengthen it.
+- **FR-409**: When the issuer's answer carries no cache header, or one that cannot be read, the key set is kept for one hour.
+- **FR-410**: A token signed by a key of a set older than that is not accepted until the set has been fetched again.
 - **FR-071**: An identity token whose audience is not this install's own address is refused.
 - **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused.
 - **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository.
@@ -148,19 +151,48 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **FR-348**: The courier CronJobs authenticate to the stations service's `/api/stations/{name}` routes with the stations token, in place of `LORE_INGEST_TOKEN` (`apps/stations/src/transport/server.ts`).
 - **FR-349**: In a rendered install, the Secret that holds the stations token is read only by the stations Deployment and by the CronJobs named `<chart>-courier-<job>`, and the check of the rendered chart (`scripts/check-lore-platform-render.sh`) fails otherwise.
 - **FR-101**: The stations token can be replaced without changing any other credential.
-- **FR-102**: The local MCP server signs a person in with the App's device flow and holds a session for that person.
-- **FR-103**: The VS Code extension signs a person in with the App's device flow and holds a session for that person.
-- **FR-352**: lore-api tells a client that holds no credential whether device-flow sign-in is on, at a route this spec introduces (`GET /api/auth/device/available`).
+- **FR-102**: The local MCP server signs a person in through a pairing with lore-api and holds a session for that person.
+- **FR-103**: The VS Code extension signs a person in through a pairing with lore-api and holds a session for that person.
+- **FR-416**: lore-api answers a client that holds no credential, at a route this spec introduces (`POST /api/auth/pairings`), with a short code for the person and a secret the client keeps.
+- **FR-426**: lore-api stores a hash of a pairing's secret, and not the secret.
+- **FR-417**: The client shows the person the code and a link to the web UI's pairing page, which this spec introduces (`/auth/pair`).
+- **FR-427**: The pairing page shows the kind of client that asked and when it asked, before the person confirms.
+- **FR-418**: A signed-in person confirms the code on that page, which calls a route this spec introduces (`POST /api/auth/pairings/confirm`) with their session.
+- **FR-419**: A confirmation is accepted only from a session that passes the membership check of FR-236 of the first spec.
+- **FR-420**: The client asks a route this spec introduces (`POST /api/auth/pairings/claim`) with its secret and, once the pairing is confirmed, receives a session for the person who confirmed it.
+- **FR-421**: A pairing that is not confirmed within ten minutes of its creation is refused at both routes.
+- **FR-422**: A pairing yields one session: a second claim with the same secret is refused.
+- **FR-423**: The session of a pairing is a person's session, and every rule of the first spec for a person's session holds for it (levels, the five-minute membership and repository answers, the ending of every session of a person).
+- **FR-424**: The session of a pairing stores no GitHub token of its own: for its requests lore-api uses a stored GitHub token of the same person, found by their GitHub numeric user id among their sessions that hold one.
+- **FR-425**: When that person has no session that holds a stored token, a request of a pairing's session that needs GitHub is refused with an answer that tells the person to sign in on the web, and the session is kept.
+- **FR-352**: lore-api tells a client that holds no credential whether pairing sign-in is on, at a route this spec introduces (`GET /api/auth/pairings/available`).
 - **FR-353**: Against an install that says it is on, the local MCP server sends its session and does not read `lore.ingest-token` from git config or `LORE_INGEST_TOKEN` from its environment.
 - **FR-354**: Against such an install, the VS Code extension sends its session and reads neither its `lore.token` setting nor `lore.ingest-token` from git config (`resolveCredentials` in `apps/vscode-extension/src/extension.ts`).
 - **FR-355**: Against such an install, a client that holds no session and finds a legacy token asks the person to sign in and does not send the legacy token.
-- **FR-356**: After a successful device-flow sign-in, the client removes `lore.ingest-token` from the global git config.
-- **FR-357**: After a successful device-flow sign-in, the VS Code extension clears its `lore.token` setting.
+- **FR-356**: After a successful pairing sign-in, the client removes `lore.ingest-token` from the global git config.
+- **FR-357**: After a successful pairing sign-in, the VS Code extension clears its `lore.token` setting.
+- **FR-411**: The VS Code extension keeps its session in the editor's SecretStorage.
+- **FR-412**: The local MCP server keeps its session in the operating system's credential store.
+- **FR-413**: Where the operating system offers no credential store, the local MCP server keeps its session in a file in the user's configuration directory that only that user can read (mode `0600`).
+- **FR-414**: Neither client writes a session to editor settings, to git config or to an exported environment variable.
+- **FR-415**: Neither client writes a session to a log or to telemetry.
 - **FR-358**: `scripts/install.sh` no longer writes `lore.ingest-token` to git config and no longer tells the person to read the Secret `lore-ingest-token` from the cluster.
 - **FR-359**: `scripts/lore-doctor.sh` and `scripts/lore-status-cache.sh` use the person's session and no longer read `lore.ingest-token`.
 - **FR-360**: The README's setup steps no longer tell a developer to copy the token into git config.
-- **FR-361**: Sign-out in a client deletes the session it stored and ends it in lore-api.
-- **FR-362**: Against an install that does not say device-flow sign-in is on, a client goes on using the legacy token.
+- **FR-361**: Sign-out in a client deletes the session from wherever the client keeps it (FR-411 to FR-413) and ends it in lore-api.
+- **FR-362**: Against an install that does not say pairing sign-in is on, a client goes on using the legacy token.
+
+The pairing is Lore's own and uses nothing of GitHub's device flow: it works the same on GitHub.com and on a GitHub Enterprise Server version where the device flow is unconfirmed, and it needs no extra setting on the App. The person proves who they are in the web UI, where they are already signed in through GitHub.
+
+Today the web UI's settings page shows the shared admin token with a copy button, a command that installs it and a button that regenerates it (`apps/web-ui/src/app/settings/SettingsView.tsx`, `page.tsx`), and `GET /api/settings` (`apps/lore-api/src/transport/routes/repos/org-settings.ts`) returns it with the other settings to any signed-in member.
+
+- **FR-399**: From the first Step 4 release, the web UI's settings page does not show the ingest token.
+- **FR-400**: From that release, the settings page offers no button that copies the ingest token and none that regenerates it.
+- **FR-401**: From that release, the settings page shows no install command and no instruction that carries the ingest token.
+- **FR-402**: From that release, `GET /api/settings` does not return `ingest_token`.
+- **FR-403**: From that release, `PUT /api/settings` refuses a body that carries `ingest_token`.
+- **FR-405**: From that release, lore-api takes the shared admin token only from its own configuration (its environment) and never from the stored setting, also after a rollback to that release.
+- **FR-404**: The stored setting `ingest_token` is deleted when the shared admin token is withdrawn (FR-121).
 
 ### Webhook secrets
 
@@ -213,9 +245,9 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-321**: The pull request of FR-245 is merged.
 - **FR-322**: A scan of the workflow files on the repository's default branch finds no reference to `LORE_INGEST_TOKEN`; this is how a workflow Lore did not install, such as `lore-tests.yml` or the repository's own spec-link check, keeps the secret until it is changed.
 - **FR-323**: lore-api has accepted a request with an identity token from that repository on `POST /api/ingest` or on `POST /api/repos/{owner}/{repo}/ingest`.
-- **FR-324**: The log of FR-120 shows no request about that repository made with the shared token for one complete release.
+- **FR-324**: No row of FR-120 from the last 30 days names that repository.
 - **FR-325**: A repository for which one of the four does not hold keeps its secret and is counted as not moved (FR-256).
-- **FR-326**: The log of FR-120 records, for each use of the shared token, the repository the request concerns.
+- **FR-326**: The row of FR-120 names the repository the request concerns, where the request names one.
 - **FR-248**: The repository's row in `lore.repos` records that its webhook is moved.
 - **FR-249**: The repository's row records that its workflow is moved.
 - **FR-250**: The repository's row records that its `LORE_INGEST_TOKEN` secret is deleted.
@@ -235,10 +267,12 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 
 ### The shared admin token
 
-- **FR-120**: lore-api logs every use of the token it reads from its environment (`LORE_INGEST_TOKEN`), with the caller.
-- **FR-124**: lore-api reports the shared admin token ready for withdrawal only when that log covers one complete release with no use.
-- **FR-125**: A use by a caller the log cannot name keeps the token reported as not ready.
-- **FR-126**: A part of that release without the log keeps the token reported as not ready.
+- **FR-120**: Every request lore-api accepts with the token it reads from its environment (`LORE_INGEST_TOKEN`) writes a row to a table of its own, which this spec introduces, with the time and the caller as far as it is known.
+- **FR-406**: A request made with that token whose row cannot be written is refused, so no use goes unrecorded.
+- **FR-407**: The migration of the first Step 4 release stores the time it ran, which is the start of the observation window.
+- **FR-124**: lore-api reports the shared admin token ready for withdrawal only when 30 consecutive days have passed since the later of that start and the last recorded use.
+- **FR-125**: A recorded use starts the 30 days again whoever made it, a caller the row cannot name included.
+- **FR-126**: When the first Step 4 release is installed again after a rollback to a release that records no use, the start of the window is set to the time of that install.
 - **FR-163**: The install guide's withdrawal step tells the operator to withdraw the token only when lore-api reports it ready.
 - **FR-121**: After the withdrawal, lore-api accepts no token from its environment.
 - **FR-122**: No workload of a rendered install holds the shared admin token.
@@ -274,6 +308,8 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **SC-028**: After a developer signs in from the terminal or the editor, no copy of the shared admin token is left in their git config or editor settings, and their calls reach Lore as themselves.
 - **SC-029**: An operator can read, for each repository, whether it is moved and what still holds it back.
 - **SC-030**: A webhook move stopped at any step and run again ends with the repository on its own secret and no delivery refused.
+- **SC-033**: From the first Step 4 release, no signed-in member can read the shared admin token on the settings page or through the settings route.
+- **SC-034**: A developer signs in from the terminal and from the editor against an install on a GitHub host without the device flow, and no session is left in their editor settings, git config or environment.
 
 ## Assumptions
 
@@ -283,9 +319,10 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - The gateway token's encoding, the rotation of the floor's key and what a long visit does at expiry are a spec of their own, written before this step starts.
 - A workflow Lore did not install cannot be changed by Lore. Such a repository keeps its secret until its owners change the workflow, and the shared admin token cannot be withdrawn before then.
 - An emergency token lasts 4 hours by default and 24 hours at most (FR-128, FR-377). Proposed 2026-11-19; the owner has not confirmed the numbers.
+- The shared admin token is watched for 30 days without a use before it is reported ready for withdrawal (FR-124), and a kept key set is used for one hour at most (FR-155). Proposed 2026-11-19; the owner has not confirmed the numbers.
+- Local clients sign in by Lore's own pairing (FR-416 to FR-425), not GitHub's device flow. Proposed 2026-11-19; the owner has not confirmed it. A pairing's session works only while the same person has a session with a stored GitHub token, that is, while they are signed in on the web.
 - The stations service's calls to lore-api were listed by searching `apps/stations` for lore-api paths. A call made only through a shared library function may be missing from FR-345; the test of FR-347 is what finds it.
 
 ## Open Questions
 
-- **GitHub Enterprise Server** — Choices: use the device flow and the Actions identity token there, or fall back to the stored per-repository CI token and a browser sign-in. Both have to be confirmed on a real server of the versions installers run.
-- **The maximum age of a kept key set (FR-155)** — Choices: what the issuer's own cache headers say, or one fixed age.
+- **GitHub Enterprise Server** — Choices: use the Actions identity token there, or fall back to the stored per-repository CI token. Whether the identity token carries the claims has to be confirmed on a real server of the versions installers run.
