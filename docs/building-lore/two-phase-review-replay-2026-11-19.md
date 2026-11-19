@@ -49,6 +49,14 @@ Median local process time per snapshot was **29 seconds** for one pass and **65 
 
 ## Hosted rehearsal on the queue fixture
 
-The manual line ran twice against an isolated local Floor API and database. Local Claude Code workers read the Floor visit briefs, fetched the files with visit tokens, and returned the model output through the Floor sink. In both runs the Floor joined a concurrent duplicate, gave each reader one evidence packet and a fresh conversation, then retained all three output artifacts. The smoke test used local workers, so deployed pod startup and skill delivery still need a run on a cluster.
+The manual line ran twice against an isolated local Floor API and database. Local Claude Code workers read the Floor visit briefs, fetched the files with visit tokens, and returned the model output through the Floor sink. In both runs the Floor joined a concurrent duplicate, gave each reader one evidence packet and a fresh conversation, then retained all three output artifacts. A follow-up run used three real pods on a disposable Kubernetes cluster. Each pod fetched the catalogue skill through Lore’s gateway and read its evidence file. The floor saved all three artifacts. The code reading followed the changed default into the unchanged queue caller, the test reading identified the mock, and the challenge gave a 50-item input with distinguishable outcomes of 25 and 50. The intent passes must still decide which outcome the product promises.
 
 Sonnet at low effort and the Claude Code `haiku` alias at low effort both followed the 25-to-50 change into the unchanged queue consumer and identified the test mock that fixes the size at 25. The challenge stayed on Sonnet in both runs. One challenge proposed an impossible 50-item expectation for a 30-item input. The distinguishing outcomes for that input are 25 and 30. The reader instructions now require checking both outcomes for the proposed input. This single case provides an initial comparison. The fresh cases and repeats in the pilot still determine model selection.
+
+### Focused parser replay
+
+We then used the shared runner on the parser and tests from #739 and #4640, with one run per configuration. Both configurations used low effort. One used Sonnet for passes 1 and 2 and the other used Haiku. Pass 4 stayed on Sonnet for both. Each packet was limited to the parser, report caller and their tests.
+
+On #739, the Sonnet test reading noted the missing attribute-order case. One independent Sonnet challenge found the concrete loss of a covered line when the XML attributes were reversed. Its other run missed that failure. The Haiku test reading described the existing assertions and omitted the order gap. On #4640, both model configurations recognized the parser change and the acceptance test for reversed attributes. Both challenges still suggested additional cases after seeing that acceptance test.
+
+The results show variation even with a fixed challenge model. These two historical cases are useful controls for the pilot. Model selection still depends on repeated runs with fresh cases and a consistent severity rubric.
