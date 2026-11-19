@@ -94,7 +94,10 @@ Step 1 is the repository guard: every lore-api route that names a repository in 
 - **FR-430**: `/api/auth/redeem` deletes the code's row, creates the session's row in `pipeline.api_tokens` and stores the session's token row of FR-013 in one transaction.
 - **FR-431**: A code that was already redeemed creates no session and no token row.
 - **FR-432**: A code whose row has expired creates no session and no token row.
-- **FR-433**: The sweep that deletes expired rows of `lore.login_handoffs` deletes the encrypted pair with the row, since it is a column of that row.
+- **FR-433**: A timer in the lore-api process, once a minute, deletes every row of `lore.login_handoffs` whose expiry has passed, whether or not anyone signs in, so no expired row and no encrypted pair on it outlives its expiry by more than five minutes.
+- **FR-468**: That cleanup deletes the whole row, the encrypted pair with it, since the pair is a column of that row.
+- **FR-469**: That cleanup changes nothing when it runs twice or in two replicas at once.
+- **FR-470**: The delete of expired rows that runs when a new code is stored (`SWEEP_EXPIRED` in `apps/lore-api/src/work/auth/login-handoffs.ts`) stays, beside the timer.
 - **FR-026**: After the upgrade, a sign-in through the OAuth App creates no session.
 - **FR-011**: A sign-in whose token answer from GitHub carries no expiry is refused and creates no session.
 - **FR-028**: A sign-in whose token answer from GitHub carries no refresh token is refused and creates no session.
@@ -138,7 +141,9 @@ Both events add one to the generation, so a sign-in or a mint that began before 
 - **FR-341**: A refresh that gets the lock after a sign-out or a revocation finds the session ended and does not call GitHub.
 - **FR-015**: A session marked ended is never refreshed.
 - **FR-016**: A refresh whose request was sent and that got no definitive answer from GitHub (a timeout, a lost connection, an answer with a 5xx status) has an unknown outcome, because GitHub may have replaced the pair, and ends the session.
-- **FR-439**: Ending a session for a refresh's outcome (FR-226, FR-016, FR-397) deletes its stored tokens in the same transaction.
+- **FR-471**: A refresh that GitHub answers with a 4xx status other than its refusal of the refresh token (FR-226) has an unknown outcome and ends the session.
+- **FR-472**: A refresh that GitHub answers with a 2xx status whose body is not a token pair with both tokens and both expiries has an unknown outcome and ends the session.
+- **FR-439**: Ending a session for a refresh's outcome (FR-226, FR-016, FR-471, FR-472, FR-397) deletes its stored tokens in the same transaction.
 - **FR-393**: Before it sends a refresh request, lore-api sets a refreshing mark on the session's token row in a write of its own, committed before the request leaves.
 - **FR-440**: The refreshing mark carries a deadline: the time it was set plus the refresh request's timeout plus one minute.
 - **FR-441**: A refresh that GitHub answers with a new pair clears the mark in the transaction that stores the pair (FR-224).
@@ -153,7 +158,9 @@ The refreshing mark has two states, clear and set, and a session's refresh ends 
 | GitHub answers with a new pair (FR-441) | cleared with the new pair | the new pair | live |
 | The connection could not be opened, so nothing was sent (FR-227, FR-228) | cleared | the old pair | live; the request is refused and the next one tries again |
 | GitHub refuses the refresh token (FR-226) | gone with the row | deleted | ended |
-| The request was sent and no definitive answer came, a 5xx included (FR-016) | gone with the row | deleted | ended |
+| The request was sent and no definitive answer came: a timeout, a lost connection, a 5xx (FR-016) | gone with the row | deleted | ended |
+| GitHub answers with a 4xx that is not its refusal of the refresh token (FR-471) | gone with the row | deleted | ended |
+| GitHub answers 2xx with a body that is not a whole token pair (FR-472) | gone with the row | deleted | ended |
 | lore-api stopped; a later request finds the mark past its deadline (FR-397) | gone with the row | deleted | ended |
 | Another request arrives while the mark is set and in time (FR-442) | unchanged | unchanged | live; that request waits |
 - **FR-017**: Sign-out (`/api/auth/logout`) deletes the session's stored tokens.
@@ -162,7 +169,7 @@ The refreshing mark has two states, clear and set, and a session's refresh ends 
 - **FR-019**: An event sent to the App's webhook is verified, before it is read, with a signing secret that is no repository's webhook secret.
 - **FR-024**: An event sent to the App's webhook with a bad signature changes nothing.
 - **FR-020**: lore-api accepts two App webhook secrets at once while one is being replaced.
-- **FR-021**: A scheduled sweep deletes the stored tokens of every session that has expired.
+- **FR-021**: The same timer in the lore-api process deletes the stored tokens of every session that has expired.
 
 #### What a person sees and does
 
@@ -260,14 +267,29 @@ The live socket (`apps/lore-api/src/work/assembly-line-station/live-socket.ts`) 
 - **FR-385**: That check fails the upgrade when the permissions the installation was granted do not include Members (read).
 - **FR-444**: That check then mints an installation token and asks GitHub for one member of the organisation (`GET /orgs/{org}/members?per_page=1`), and fails the upgrade when that request does not succeed.
 - **FR-386**: That check fails the upgrade when the App's client id or client secret of FR-379 and FR-380 is not set.
-- **FR-145**: When that check fails, lore-api is not stopped, no session is ended and no minted token is revoked, and the outgoing release goes on serving.
+- **FR-473**: Before anything is stopped, that check also runs the configuration validation the incoming release runs at start for the new mode (FR-064), against the values and the Kubernetes Secrets of the cluster, and fails the upgrade when it fails.
+- **FR-474**: That validation fails for each setting of the table below that is missing, and for each Secret or key of the table that does not exist in the namespace lore-api reads it from.
+- **FR-475**: The validation names every missing setting, Secret and key in its output, not only the first.
+- **FR-145**: When that check fails for any reason (FR-443, FR-385, FR-444, FR-386, FR-473), lore-api is not stopped, no session is ended and no minted token is revoked, and the outgoing release goes on serving.
 - **FR-387**: The chart stops lore-api and runs the cleanup of FR-332 only after that check has passed.
 - **FR-381**: At start, lore-api refuses to run in the new mode when the App's client id is missing.
 - **FR-382**: At start, lore-api refuses to run in the new mode when the App's client secret is missing.
 
+The settings the new mode needs, each checked before anything is stopped (FR-474) and again at start (FR-064):
+
+| Setting | Where it is read from |
+| --- | --- |
+| The App's id, private key and installation id | Secret `github-app-credentials`, keys `app-id`, `private-key`, `installation-id` |
+| The App's client id (FR-379) | Secret `github-app-credentials`, key `client-id` |
+| The App's client secret (FR-380) | Secret `github-app-credentials`, key `client-secret` |
+| The key that encrypts stored tokens (FR-025) | a Secret of its own that this spec introduces |
+| The App webhook's signing secret (FR-019) | a Secret key that this spec introduces, apart from `lore-webhook-secret` |
+| The OAuth App's client id and secret, kept for a rollback (FR-147) | Secret `lore-github-oauth`, keys `client-id`, `client-secret` |
+| The configured organisation (`GITHUB_ORG`) | lore-api's environment |
+
 What the check cannot see shows at the first sign-in, as stated above: an App without expiring user tokens gives a token answer with no expiry or no refresh token, and that sign-in is refused (FR-011, FR-028). After the upgrade, a membership question GitHub refuses for want of permission still admits nobody and is reported as a fault of the install (FR-043, FR-142).
 
-- **FR-064**: At start, lore-api refuses to run in the new mode when a setting the values file must carry for it is missing.
+- **FR-064**: At start, lore-api runs the same validation and refuses to run in the new mode when a setting of the table above is missing. It is the second line after the check before the upgrade, for an install that changed between the two.
 - **FR-065**: lore-api reads the permissions its installation was granted through GitHub's API (`GET /app/installations/{installation_id}`) and writes a warning to its log for each required permission that is missing.
 - **FR-208**: lore-api reads the App's webhook configuration through GitHub's API (`GET /app/hook/config`) and writes a warning to its log when no webhook address is set.
 - **FR-146**: The settings page shows each App permission or webhook setting that lore-api found missing.
@@ -326,12 +348,12 @@ lore-api has no route that merges a pull request at a person's request today; th
 - **SC-007**: After a rollback, no session, no token minted since the upgrade and no stored GitHub token remains, and people sign in through the OAuth App again.
 - **SC-026**: A sign-in that reaches a lore-api pod of the outgoing release during the upgrade leaves no session after it, because no such pod runs while the cleanup does.
 - **SC-011**: A person who can access more than a thousand repositories of the installation sees all of them.
-- **SC-016**: A session whose access token has expired keeps working without a new sign-in while its refresh token is valid, and ends when GitHub refuses the refresh token.
+- **SC-016**: A session whose access token has expired keeps working without a new sign-in while its refresh token is valid. It ends when GitHub refuses the refresh token and after any refresh that was sent and did not come back with a new pair, a server error included; it is kept only when the refresh request never left lore-api.
 - **SC-018**: A person who cannot read a repository gets none of its rows from a route that takes the repository in a query or whose answer spans repositories.
 - **SC-021**: A live connection of a person removed from the organisation is closed at its first frame more than five minutes after its last check, and at once when their session is ended.
 - **SC-022**: A change a person asks lore-api to make on GitHub appears on GitHub as made by that person, and a person GitHub would refuse is refused.
 - **SC-023**: With lore-api running as two replicas, a session ended on one closes that session's live connections on the other.
-- **SC-031**: An install whose App lacks the permission Members (read), or its client id or secret, fails the upgrade before lore-api is stopped, and goes on serving with every session intact.
+- **SC-031**: An install whose App lacks the permission Members (read), or that lacks any setting or Secret key the new mode needs (the App's client id or secret, the token encryption key, the App webhook's signing secret, the OAuth App's pair kept for a rollback), fails the upgrade before lore-api is stopped, and goes on serving with every session intact.
 - **SC-032**: A person who signs in or mints a token at the moment they are found removed ends with no session and no token.
 
 ## Assumptions
@@ -339,12 +361,12 @@ lore-api has no route that merges a pull request at a person's request today; th
 - Step 1 (FR-9.20 and FR-9.21 of `specs/4-ux-repo-onboarding/spec.md`) is merged before any step here.
 - Before Step 3 is built, it is confirmed on a real installation that a user token of the App can set a repository secret and a repository variable and create a webhook. If it cannot, work on Step 3 stops and ADR-054 is amended; this spec names no other credential for those calls.
 - Steps 2 and 3 ship without Step 4.
-- An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The upgrade does not start without it (FR-143, FR-385, FR-443, FR-444).
+- An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The upgrade does not start without it, nor without every setting the new mode needs (FR-143, FR-385, FR-443, FR-444, FR-473 to FR-475).
 - At the upgrade everyone signs in again and every token minted through Lore is minted again. Decided 2026-11-19.
 - lore-api is stopped for the Step 3 upgrade and for a rollback from it, for as long as the cleanup takes (FR-332 to FR-336).
 - No session without a GitHub numeric id exists after the upgrade, because the upgrade ends every session (FR-060) and sign-in stores the id from then on (FR-327).
 - Five minutes of staleness on reads is accepted. Decided 2026-11-19.
-- A session ends when GitHub refuses its refresh token, and when a refresh request was sent and got no definitive answer, a server error included; it is kept only when the request never left lore-api (FR-016, FR-226 to FR-229, FR-393 to FR-442). Proposed 2026-11-19; the owner has not confirmed it.
+- A session ends when GitHub refuses its refresh token, and when a refresh request was sent and did not come back with a new pair (no answer, a server error, any other error status, a body that is not a pair); it is kept only when the request never left lore-api (FR-016, FR-226 to FR-229, FR-393 to FR-442, FR-471, FR-472). Proposed 2026-11-19; the owner has not confirmed it.
 - No scheduled job rechecks membership: a removed member is found at their next request (FR-236 to FR-240).
 - A local client (the local MCP server, the VS Code extension) signs in by Lore's own pairing, specified in the second spec, so the App's device flow does not have to be switched on. Proposed 2026-11-19; the owner has not confirmed it. A session made by a pairing stores no GitHub token of its own and uses the same person's stored token, so FR-013 holds for the sessions that sign in on the web.
 - Every signed-in member keeps the organisation-wide routes for now. Decided 2026-11-19.
