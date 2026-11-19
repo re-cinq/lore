@@ -23,6 +23,8 @@ Each cell records repeats 1–3 in order. A staged result is incomplete if any r
 
 Both staged configurations accounted for the independent flyer trim in their product readings, including trials that became incomplete. Both baseline reviewers surfaced the admission consequence and left the correctly tested trim unmentioned. The Codex baseline reported the missing Monday test in all three trials and approved with a suggestion each time.
 
+I inspected the blocking findings in all 60 terminal responses, including product responses retained after an incomplete stage. A duplicate repeats the same blocking remedy in one findings array. Corroboration across stages and distinct code, test, or documentation remedies are excluded. There were zero duplicates among the 17 arrays with multiple blockers. Those arrays came from seven Sonnet baseline trials, six full five-pass trials, and four light-reader trials.
+
 ## Time and usage
 
 | Configuration | Median elapsed | Median summed process time | Input tokens | Cache-read tokens | Cache-write tokens | Output tokens | Reported USD |
