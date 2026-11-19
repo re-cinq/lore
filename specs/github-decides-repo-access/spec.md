@@ -43,22 +43,32 @@ A repository's CI, an agent run and a repository's webhook each hold a credentia
 
 ## Requirements
 
-A level is GitHub's permission on a repository: `read`, `write` or `admin`. An organisation-wide route is one that belongs to no repository (agent definitions, tokens, organisation settings, pools, the audit log, pack sync). "The upgrade" is the release that switches on Step 3.
+A level is GitHub's permission on a repository: `read`, `write` or `admin`. An organisation-wide route is one that belongs to no repository (agent definitions, tokens, organisation settings, pools, the audit log, pack sync). "The upgrade" is the release that switches on Step 3. A route concerns a repository when a repository is named in its path, its payload or its query, or is reached through a run, a task, a plan or another record the request names.
 
 ### Step 1: the guard
 
-Step 1 is the repository guard: every lore-api route that names a repository asks whether the caller can open it. Its requirements are FR-9.20 and FR-9.21 of [`specs/4-ux-repo-onboarding/spec.md`](../4-ux-repo-onboarding/spec.md), and this spec adds none for it. Work on Step 2 does not start until Step 1 is merged.
+Step 1 is the repository guard: every lore-api route that names a repository in its path as `{owner}/{repo}` asks whether the caller can open it. Its requirements are FR-9.20 and FR-9.21 of [`specs/4-ux-repo-onboarding/spec.md`](../4-ux-repo-onboarding/spec.md), and this spec adds none for it. The guard of Step 1 reads path parameters only: a route that takes its repository from a query or a payload, or reaches it through a record, and a route whose answer spans repositories, are not covered by it. Covering them is Step 2's work (FR-001, FR-257 to FR-266). Work on Step 2 does not start until Step 1 is merged.
 
 ### Step 2: levels
 
-- **FR-001**: Every lore-api route that names a repository, in its path as `{owner}/{repo}` or in its payload, declares the level it needs beside its `bearerScope`.
-- **FR-164**: A test lists every route lore-api registers that names a repository and fails when one declares no level.
+- **FR-001**: Every lore-api route that concerns a repository declares the level it needs beside its `bearerScope`.
+- **FR-257**: Every such route also declares how its repository is found: a path parameter, a payload field, a query parameter, or the record the request names.
+- **FR-258**: The repository guard (`registerRepoGuard`) finds the repository the way the route declares, so a repository named in a query, in a payload or through a record is checked like one named in the path.
+- **FR-259**: A route whose answer can hold rows of more than one repository declares that it spans repositories, in place of a way to find one.
+- **FR-260**: A route that spans repositories returns a person only rows of repositories they can read.
+- **FR-261**: `GET /api/chunks` asked with no `repo` returns a person only chunks of repositories they can read.
+- **FR-262**: `GET /api/chunks?repo=` is refused for a person who cannot read that repository.
+- **FR-263**: `GET /api/context?repo=` is refused for a person who cannot read that repository.
+- **FR-264**: `GET /api/context-evals/documents?repo=` is refused for a person who cannot read that repository.
+- **FR-265**: `GET /api/chunk-types?repo=` is refused for a person who cannot read that repository.
+- **FR-266**: `GET /api/repo-status?repo=` is refused for a person who cannot read that repository.
+- **FR-164**: A test lists every route lore-api registers and fails for one that reads or writes repository data and declares neither a level with a way to find its repository, nor that it spans repositories.
 - **FR-165**: The same test holds the list of `admin` routes below (FR-004, FR-166 to FR-171, FR-196 to FR-203) and fails when a route outside it declares `admin` or a route in it declares less.
 - **FR-007**: The repository guard (`registerRepoGuard`) answers a person `403` when the level GitHub reports for them on the repository is below the level the route declares.
 - **FR-008**: In Step 2 the guard learns a person's level by asking GitHub, as the App, about that person.
 - **FR-009**: From Step 3 the guard learns a person's level by asking GitHub with that person's own token.
-- **FR-002**: A route that names a repository and changes nothing needs `read`.
-- **FR-003**: A route that names a repository and changes anything, in Lore or on GitHub, needs `write`, unless it is in the `admin` list below.
+- **FR-002**: A route that concerns a repository and changes nothing needs `read`.
+- **FR-003**: A route that concerns a repository and changes anything, in Lore or on GitHub, needs `write`, unless it is in the `admin` list below.
 - **FR-004**: `POST /api/onboard`, for a first onboarding and for a re-onboarding, needs `admin` on the repository in its payload.
 - **FR-166**: `PUT /api/repos/{owner}/{repo}/settings`, which carries the auto-merge setting, needs `admin`.
 - **FR-167**: `POST /api/repos/{owner}/{repo}/webhook/ensure` needs `admin`, because it creates the repository's webhook.
@@ -125,9 +135,9 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-031**: Every read of what Lore has stored about a repository is refused for a person whose list does not contain that repository.
 - **FR-032**: A person's repository list is kept per session for at most five minutes.
 - **FR-033**: When the list is older than five minutes and GitHub gives no fresh answer, reads are refused and are not served from the old list.
-- **FR-034**: When a person onboards a repository through `POST /api/onboard`, lore-api sets the repository secret `LORE_INGEST_TOKEN` on GitHub with that person's token.
+- **FR-034**: Until the first Step 4 release, when a person onboards a repository through `POST /api/onboard`, lore-api sets the repository secret `LORE_INGEST_TOKEN` on GitHub with that person's token.
 - **FR-206**: In the same onboarding, lore-api sets the repository variable `LORE_INGEST_URL` on GitHub with that person's token.
-- **FR-207**: In the same onboarding, lore-api creates the repository's webhook on GitHub with that person's token.
+- **FR-207**: In the same onboarding, lore-api creates the repository's webhook on GitHub with that person's token; from the first Step 4 release its signing secret is the one of FR-275.
 - **FR-175**: When a person opens a pull request through lore-api at the moment of the request, it is opened on GitHub with that person's token.
 - **FR-176**: When a person merges a pull request through lore-api, it is merged on GitHub with that person's token.
 - **FR-177**: When a person files an issue through lore-api, it is filed on GitHub with that person's token.
@@ -162,6 +172,17 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-049**: When lore-api finds that a token's maker is no longer an active member, it ends every session of that person.
 - **FR-047**: The stations token cannot be minted through `POST /api/tokens`.
 - **FR-178**: An operator's emergency token cannot be minted through `POST /api/tokens`.
+
+#### Open live connections
+
+The live socket (`apps/lore-api/src/work/assembly-line-station/live-socket.ts`) and its channels (`run-channel.ts`, `runs-channel.ts`, `plan-channel.ts`) look at the session once today, when a channel opens. A connection can stay open for hours, so it follows the same rules as a request.
+
+- **FR-279**: When a session is ended, for a sign-out, a removal from the organisation, a revocation, the upgrade or the rollback, lore-api closes every live socket opened with it.
+- **FR-280**: Before lore-api serves or accepts a frame on a live socket whose session was last checked more than five minutes ago, it checks the session again as it would for a request.
+- **FR-283**: A live socket whose person is found to be no longer an active member is closed.
+- **FR-284**: A channel on a repository its person can no longer read is closed.
+- **FR-285**: When that check gets no answer from GitHub, the socket is closed with a reason that tells the client to connect again, and the session is kept (FR-240).
+- **FR-286**: A plan collaboration token minted for a session is refused once that session has ended.
 
 #### Repository identity
 
@@ -206,6 +227,8 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 
 #### A repository's CI
 
+A run of the ingest client makes many requests (it reads the ingest state, posts each kind of document in parts, and retries), and it can last longer than one identity token. So a token is not single-use: it is good for its own short life, which GitHub sets in minutes, and only for the ingest routes of its one repository. Sending it again gives its holder nothing the workflow does not already do.
+
 - **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's.
 - **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes.
 - **FR-152**: lore-api fetches the key set from the configured issuer and from nowhere else.
@@ -215,13 +238,18 @@ Step 1 is the repository guard: every lore-api route that names a repository ask
 - **FR-155**: A kept key set has a maximum age, after which lore-api fetches it again before it accepts a token.
 - **FR-071**: An identity token whose audience is not this install's own address is refused.
 - **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused.
-- **FR-073**: An identity token's `jti` is recorded in the database under a unique key before the request is handled and until the token expires, so the same token sent twice, to one replica or to two at once, is accepted once.
 - **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository.
-- **FR-156**: An accepted identity token allows ingest for the repository it names and for no other.
+- **FR-156**: An accepted identity token allows the ingest routes of the repository it names, and no other route and no other repository.
+- **FR-267**: An identity token is accepted for as long as it is valid, so the same token can be sent on more than one request of a run.
 - **FR-075**: An identity token is accepted only when its `workflow_ref` names the workflow Lore installed.
 - **FR-157**: An identity token from a ref other than the repository's default branch is refused.
 - **FR-076**: An identity token from a pull request of a fork is refused.
 - **FR-077**: lore-api issues no longer-lived credential in exchange for an identity token.
+- **FR-268**: The ingest client (`apps/lore-code-trace`) asks GitHub for the identity token itself, at the request URL and with the request token that Actions gives a job with `id-token: write`.
+- **FR-269**: The ingest client asks for that token with this install's address as its audience.
+- **FR-270**: The ingest client asks for a new identity token when the one it holds is less than a minute from its expiry.
+- **FR-271**: The ingest client asks for a new identity token, and sends the request once more, when lore-api answers a request `401`.
+- **FR-272**: The installed workflow passes no identity token to a step in an environment variable.
 - **FR-078**: Where the identity token cannot be used, a repository's CI holds a stored token that carries only the ingest scopes.
 - **FR-158**: A repository's stored ingest token is refused for any other repository.
 - **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token.
@@ -287,6 +315,17 @@ The gateway token of FR-085 to FR-162 is a credential for Lore. The installation
 - **FR-112**: After a rollback to the first Step 4 release, a delivery from a repository already moved to its own secret is still accepted.
 - **FR-113**: Once no webhook uses the shared secret, a delivery signed with it is refused.
 
+#### Onboarding from the first Step 4 release
+
+Until the first Step 4 release, onboarding is as it is today, with the person's token from Step 3 (FR-034, FR-206, FR-207). From that release on, a newly onboarded repository starts where the reconciliation job below leaves an existing one.
+
+- **FR-273**: From the first Step 4 release, on a GitHub host whose identity token carries `repository_id` and `repository_owner_id`, onboarding commits the workflow that asks for the identity token (FR-245, FR-246, FR-282).
+- **FR-274**: On such a host, onboarding sets no repository secret `LORE_INGEST_TOKEN`.
+- **FR-275**: From the first Step 4 release, onboarding creates the repository's webhook with that repository's own signing secret (FR-110).
+- **FR-276**: On such a host, onboarding records the repository's row as moved for its webhook, its workflow and its secret (FR-248 to FR-250).
+- **FR-277**: On a GitHub host without those claims, onboarding sets the repository secret `LORE_INGEST_TOKEN` to the repository's stored ingest token of FR-078.
+- **FR-278**: From the first Step 4 release, onboarding never sets a repository secret to the shared admin token's value.
+
 #### Moving existing repositories
 
 Nothing in lore-api or the stations service opens the pull request that changes an installed workflow today: lore-api writes the workflow at onboarding (`libs/shared/src/work/onboard/onboard-scaffold.ts`, from the template in `libs/shared/src/work/ingest-workflow.ts`) and only the web UI opens a later fix. The move is a stations job this spec introduces.
@@ -295,8 +334,10 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **FR-242**: The job starts only once the first Step 4 release is the release a rollback returns to.
 - **FR-243**: A run of the job over a repository it has already moved changes nothing.
 - **FR-244**: The job sets the repository's webhook on GitHub to that repository's own signing secret, through `ensureLoreWebhook`.
-- **FR-245**: The job opens a pull request that changes the installed workflow (`.github/workflows/lore-ingest.yml`) to ask for the identity token, with `permissions: id-token: write`.
+- **FR-245**: The job opens a pull request that changes the installed workflow (`.github/workflows/lore-ingest.yml`) to ask for the identity token.
 - **FR-246**: The workflow of that pull request does not read `LORE_INGEST_TOKEN`.
+- **FR-281**: In that workflow the `ingest` job is granted `id-token: write` and `contents: read`, and no other permission.
+- **FR-282**: In that workflow the `graph` job is granted `id-token: write` and `contents: read`, and no other permission.
 - **FR-247**: The job deletes the repository secret `LORE_INGEST_TOKEN` only after that pull request is merged and lore-api has accepted an ingest with an identity token from that repository.
 - **FR-248**: The repository's row in `lore.repos` records that its webhook is moved.
 - **FR-249**: The repository's row records that its workflow is moved.
@@ -335,7 +376,7 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 ## Success Criteria
 
 - **SC-001**: For every repository route, a person one level below what the route needs is refused.
-- **SC-014**: No repository route is registered without a level, and the `admin` routes are exactly the ones this spec lists.
+- **SC-014**: No route that concerns a repository, however the repository is named, is registered without a level, and the `admin` routes are exactly the ones this spec lists.
 - **SC-002**: A person without `admin` on a repository cannot onboard it.
 - **SC-003**: A removed grant refuses the person's next write and, after five minutes at most, every read.
 - **SC-004**: A member who is no repository's administrator still opens the organisation-wide pages, and a non-member cannot sign in.
@@ -351,6 +392,10 @@ Nothing in lore-api or the stations service opens the pull request that changes 
 - **SC-013**: The shared admin token is not reported ready for withdrawal while any caller still uses it or any repository is not yet moved.
 - **SC-016**: A session whose access token has expired keeps working without a new sign-in while its refresh token is valid, and ends when GitHub refuses the refresh token.
 - **SC-017**: After the reconciliation job has finished, every onboarded repository's webhook has its own secret and no repository holds the secret `LORE_INGEST_TOKEN` with the shared admin token's value.
+- **SC-018**: A person who cannot read a repository gets none of its rows from a route that takes the repository in a query or whose answer spans repositories.
+- **SC-019**: A workflow moved to the identity token completes an ingest run that makes many requests and lasts longer than one identity token.
+- **SC-020**: A repository onboarded after the first Step 4 release never holds the shared admin token and its webhook never uses the shared secret.
+- **SC-021**: A live connection of a person removed from the organisation is closed at its first frame more than five minutes after its last check, and at once when their session is ended.
 
 ## Assumptions
 
