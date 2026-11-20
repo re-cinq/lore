@@ -1,7 +1,7 @@
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   align-items: flex-start;
 }
 
@@ -9,6 +9,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
