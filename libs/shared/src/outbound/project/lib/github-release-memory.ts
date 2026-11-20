@@ -6,10 +6,15 @@ import type {
   ReleaseRecord,
 } from "./github-port.js";
 
+class NotFoundError extends Error {
+  readonly status = 404;
+}
+
 export class InMemoryGitHubReleases implements GitHubReleasePort {
   private readonly tags = new Map<string, string>();
   private readonly releases = new Map<string, ReleaseRecord>();
   private readonly variables = new Map<string, string>();
+  private readonly unreachable = new Set<string>();
   private nextReleaseId = 1;
 
   async createTagRef(repo: string, tag: string, sha: string): Promise<void> {
@@ -75,7 +80,18 @@ export class InMemoryGitHubReleases implements GitHubReleasePort {
   }
 
   async repoVariable(repo: string, name: string): Promise<string | null> {
+    enforceTrue(
+      !this.unreachable.has(repo),
+      NotFoundError,
+      `Not Found: the GitHub App cannot read ${repo}`,
+    );
+
     return this.variables.get(`${repo}#${name}`) ?? null;
+  }
+
+  /** The App is not installed on `repo`: reading it fails the way GitHub answers, with status 404. */
+  seedUnreachable(repo: string): void {
+    this.unreachable.add(repo);
   }
 
   seedVariable(repo: string, name: string, value: string): void {
