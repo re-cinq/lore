@@ -1120,7 +1120,7 @@ describe("the floor pipelines shipped in this folder", () => {
     },
   );
 
-  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, the story review on claude-sonnet-5-5 and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on gemini-4-hydrogen for tdd-round and dod, gemini-4-carbon for test-review, fix-ci and sync, and the story review and the reply on gemini-4-argon", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const wholeDiffReviewers = ["code-review", "code-review-recheck"];
     const modelsOf = (ids: string[]): string[] =>
@@ -1149,12 +1149,12 @@ describe("the floor pipelines shipped in this folder", () => {
       reviewers: [...new Set(modelsOf(["code-review", "code-review-recheck"]))],
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
-      tddRound: "claude-sonnet-5-5",
-      testReview: "claude-opus-5-5",
+      tddRound: "gemini-4-hydrogen",
+      testReview: "gemini-4-carbon",
       fixCi: "gemini-4-carbon",
       restOfLoop: ["gemini-4-carbon", "gemini-4-hydrogen"],
-      reviewers: ["claude-sonnet-5-5"],
-      reply: ["claude-sonnet-4-6"],
+      reviewers: ["gemini-4-argon"],
+      reply: ["gemini-4-argon"],
     });
   });
 
@@ -2173,6 +2173,16 @@ function settingsOf(name: string): AgentSettings {
 function promptOnOneLine(name: string): string {
   return settingsOf(name).prompt.replace(/\s+/g, " ");
 }
+
+describe("the models the shipped agents run on", () => {
+  it("names a Gemini model in every agent file, since the organisation runs no agent on Claude", () => {
+    expect(
+      [...DEFAULT_AGENTS.entries()]
+        .map(([agent, settings]) => [agent, String(settings.model)])
+        .filter(([, model]) => !model.startsWith("gemini-")),
+    ).toEqual([]);
+  });
+});
 
 describe("the prices the floor agents state", () => {
   it("prices every Gemini model's cache reads at a tenth of its input price, since Gemini caches a repeated prefix by itself and bills it so", () => {

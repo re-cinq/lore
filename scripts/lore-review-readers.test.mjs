@@ -40,7 +40,7 @@ function review(t, failing = "") {
     const args = process.argv.slice(2);
     const prompt = args[args.indexOf("-p") + 1];
     const step = prompt.includes("Tell the story") ? "story" : prompt.includes("issue.json") ? "issue" : "implementation";
-    appendFileSync(${JSON.stringify(join(root, "calls"))}, JSON.stringify({ step, model: args[args.indexOf("--model") + 1], files: readdirSync(".").sort(), workspace: prompt.includes("/workspace/") }) + "\\n");
+    appendFileSync(${JSON.stringify(join(root, "calls"))}, JSON.stringify({ step, model: args.includes("--model") ? args[args.indexOf("--model") + 1] : null, files: readdirSync(".").sort(), workspace: prompt.includes("/workspace/") }) + "\\n");
     if (step === process.env.FAILING) process.exit(2);
     const answers = {
       story: { status: "complete", story: [{ text: "The rate is 3.", tests: [{ path: "src/rate.test.ts", line: 1 }] }] },
@@ -71,7 +71,7 @@ function review(t, failing = "") {
   return { status: result.status, report: JSON.parse(result.stdout), calls };
 }
 
-test("a local review tells the story, runs both checks against it and prints the comment and the verdict the hosted review would give", (t) => {
+test("a local review tells the story, runs both checks against it on the developer's own Claude Code model, and prints the comment and the verdict the hosted review would give", (t) => {
   const { status, report, calls } = review(t);
 
   assert.deepEqual(
@@ -100,9 +100,9 @@ test("a local review tells the story, runs both checks against it and prints the
       ],
       told: true,
       steps: [
-        ["story", "claude-sonnet-5-5", false],
-        ["implementation", "claude-sonnet-5-5", false],
-        ["issue", "claude-sonnet-5-5", false],
+        ["story", null, false],
+        ["implementation", null, false],
+        ["issue", null, false],
       ],
     },
   );

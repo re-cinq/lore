@@ -1,7 +1,13 @@
 ---
 # The feature-planning line's `spec-analysis` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
-model: claude-sonnet-4-6
+# Gemini 4 Argon since 2026-11-20, when every agent left Claude: the model the whole-diff reviewer and triage already run on, for an agent that ran on Sonnet.
+model: gemini-4-argon
+prices:
+  gemini-4-argon:
+    input_per_million: 2
+    output_per_million: 10
+    cache_read_per_million: 0.2
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 15
 config:

@@ -2,8 +2,13 @@
 # The implementation-loop line's `loop-tdd-round` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-# Sonnet 5.5 since 2026-11-18: on loop-bench (5 tickets, 55 runs) its code passed the checks in 85% of runs at $0.85 a working result, Sonnet 4.6 49% at $7.69.
-model: claude-sonnet-5-5
+# Gemini 4 Hydrogen since 2026-11-20, when every agent left Claude: on loop-bench its code passed the checks in 80% of runs at $2.23 a working result, Gemini 4 Argon 82% at $5.61 (Sonnet 5.5, until then, 85% at $0.85).
+model: gemini-4-hydrogen
+prices:
+  gemini-4-hydrogen:
+    input_per_million: 1.5
+    output_per_million: 7.5
+    cache_read_per_million: 0.15
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 60
 config:

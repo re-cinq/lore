@@ -487,13 +487,13 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(featurePlanning).toEqual(inline);
   });
 
-  it("builds code-review-refine from its file alone: claude-sonnet-4-6, 20 minutes, the agent image and the MCP url the environment names", () => {
+  it("builds code-review-refine from its file alone: gemini-4-argon, 20 minutes, the agent image and the MCP url the environment names", () => {
     const refine = pipelines
       .flatMap((pipeline) => pipeline.agentDefinitions)
       .find((definition) => definition.id === "code-review-refine");
 
     expect(refine?.body.settings).toMatchObject({
-      model: "claude-sonnet-4-6",
+      model: "gemini-4-argon",
       timeoutMinutes: 20,
       image: "ghcr.io/re-cinq/agent:1",
       config: {
