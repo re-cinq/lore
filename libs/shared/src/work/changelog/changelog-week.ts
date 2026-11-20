@@ -60,14 +60,21 @@ export interface ClosedWork {
 
 /** What merged and closed inside the week, newest first; an issue a PR of the week closes is listed once, as the PR. */
 export function weekChanges(
-  { merged, closed }: ClosedWork,
+  work: ClosedWork,
   { from, to }: WeekBounds,
 ): ChangelogChange[] {
-  const inWeek = (at: string | undefined) =>
-    at !== undefined && within(at, from, to);
+  return changesWhere(work, (at) => within(at, from, to));
+}
+
+/** What merged and closed at an instant `isInside` accepts, newest first; an issue a listed PR closes is left out. */
+export function changesWhere(
+  { merged, closed }: ClosedWork,
+  isInside: (at: string) => boolean,
+): ChangelogChange[] {
+  const inside = (at: string | undefined) => at !== undefined && isInside(at);
   const { prs, issues } = dedupeChanges(
-    merged.filter((pr) => inWeek(pr.mergedAt)),
-    closed.filter((issue) => inWeek(issue.closedAt)),
+    merged.filter((pr) => inside(pr.mergedAt)),
+    closed.filter((issue) => inside(issue.closedAt)),
   );
 
   return [...prs.map(prChange), ...issues.map(issueChange)].sort((a, b) =>

@@ -43,6 +43,10 @@
       "types": "./dist/work/changelog/*.d.ts",
       "default": "./dist/work/changelog/*.js"
     },
+    "./release/*.js": {
+      "types": "./dist/work/release/*.d.ts",
+      "default": "./dist/work/release/*.js"
+    },
     "./digest/*.js": {
       "types": "./dist/work/digest/*.d.ts",
       "default": "./dist/work/digest/*.js"

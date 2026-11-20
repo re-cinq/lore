@@ -42,6 +42,30 @@ export function localParts(now: Date, timeZone: string): LocalParts {
   };
 }
 
+/** When a recurring job runs: the days (JS `getDay()`), the local time of day and the IANA timezone both are read in. */
+export interface Schedule {
+  enabled: boolean;
+  days: number[];
+  time: string;
+  timezone: string;
+}
+
+/** Whether a schedule is due at `now`: enabled, today is one of its days, its time has passed, and the last run was not today, all in the schedule's timezone. */
+export function decideScheduleDue(
+  { enabled, days, time, timezone }: Schedule,
+  now: Date,
+  lastRunAt: Date | null,
+): boolean {
+  if (!enabled) {
+    return false;
+  }
+  const today = localParts(now, timezone);
+  const ranToday =
+    lastRunAt !== null && localParts(lastRunAt, timezone).date === today.date;
+
+  return days.includes(today.weekday) && today.hhmm >= time && !ranToday;
+}
+
 export interface DigestDueInput {
   settings: ResolvedDigestSettings;
   now: Date;
@@ -53,17 +77,5 @@ export function decideDigestDue({
   now,
   lastPostedAt,
 }: DigestDueInput): boolean {
-  if (!settings.enabled) {
-    return false;
-  }
-  const today = localParts(now, settings.timezone);
-  const postedToday =
-    lastPostedAt !== null &&
-    localParts(lastPostedAt, settings.timezone).date === today.date;
-
-  return (
-    settings.days.includes(today.weekday) &&
-    today.hhmm >= settings.time &&
-    !postedToday
-  );
+  return decideScheduleDue(settings, now, lastPostedAt);
 }

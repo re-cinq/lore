@@ -240,6 +240,7 @@ export * from "./work/digest/index.js";
 export * from "./work/feature-planning/index.js";
 export * from "./work/housekeeping/index.js";
 export * from "./work/onboard/index.js";
+export * from "./work/release/index.js";
 export * from "./work/review/index.js";
 export * from "./work/spec-tickets/index.js";
 export * from "./work/spec-trace/index.js";
