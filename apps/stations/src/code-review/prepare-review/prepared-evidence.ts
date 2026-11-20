@@ -1,3 +1,4 @@
+import type { Report } from "@re-cinq/floor-station";
 import { z } from "zod";
 
 const packet = z.object({ mode: z.string() }).passthrough();
@@ -12,24 +13,21 @@ const unprepared = z.object({
   reason: z.string().optional(),
 });
 
-export interface Unprepared {
-  outcome: "whole_diff" | "superseded";
-  /** Why the collector could not split the change, shown on the run. */
-  reason?: string;
-}
-
-/** The three packets the collector printed, or the outcome it asks for instead: the whole-diff reviewer with the reason, or nothing for a commit that is no longer the pull request's head. */
+/** The three packets the collector printed, or the outcome it asks for instead: the report that sends it to the whole-diff reviewer with the reason, or the one that ends it for a commit that is no longer the pull request's head. */
 export function preparedEvidence(
   stdout: string,
   previousFindings?: string,
-): z.infer<typeof packets> | Unprepared {
+): z.infer<typeof packets> | Report {
   const collected = JSON.parse(stdout);
   const refusal = unprepared.safeParse(collected).data;
 
+  // The reason rides on the visit, so the run page says why a pull request got the whole-diff reviewer.
   if (refusal) {
     return {
       outcome: refusal.status,
-      ...(refusal.reason ? { reason: refusal.reason } : {}),
+      ...(refusal.reason
+        ? { produced: { whole_diff_reason: refusal.reason } }
+        : {}),
     };
   }
   const evidence = packets.parse(collected);
