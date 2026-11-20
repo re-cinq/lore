@@ -4,7 +4,7 @@ This diagnostic reruns five selected stages from the frozen replay with revised 
 
 Three intent reruns use the exact saved code and test readings, discussion, and verification packet. Two product reruns also use the original intent and challenge readings, including erroneous claims from those stages. Each rerun uses a fresh restricted Claude Code process running Sonnet 4.6 at medium effort, with an empty working directory and the corresponding virtual files supplied over stdin.
 
-The revised prompts make the final marker depend on completion status. They ask reviewers to establish a supported workflow, verify the observed result, and identify the required outcome before raising a blocker. The product prompt also asks reviewers to check a prior stage's runtime claims independently. [Intent prompt](../../libs/shared/src/agent-defaults/shadow-compare-intent.md) · [Product prompt](../../libs/shared/src/agent-defaults/shadow-review-product.md)
+The revised prompts make the final marker depend on completion status. They ask reviewers to establish a supported workflow, verify the observed result, and identify the required outcome before raising a blocker. The product prompt also asks reviewers to check a prior stage's runtime claims independently. Intent prompt (deleted with the five passes on 2026-11-20) · Product prompt (deleted with the five passes on 2026-11-20)
 
 ## Results
 
