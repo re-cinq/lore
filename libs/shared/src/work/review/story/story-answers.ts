@@ -32,6 +32,7 @@ const gap = z.object({
     "missing_test",
     "missing_implementation",
     "untold",
+    "unlinked",
   ]),
   subject: text,
   detail: text,

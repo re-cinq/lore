@@ -8,6 +8,7 @@ import { promisify, parseArgs } from "node:util";
 import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
 import {
   formalReview,
+  storyPasses,
   storyReview,
 } from "@re-cinq/lore-shared/review/story/story.js";
 import { storyPackets } from "./lore-review-packets.mjs";
@@ -115,7 +116,7 @@ async function run() {
     },
     values.model,
   );
-  const { incomplete, comment } = storyReview(outputs, STEPS.length);
+  const { incomplete, comment } = storyReview(outputs, storyPasses);
   const complete = incomplete.length === 0;
 
   console.log(

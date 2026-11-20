@@ -15,8 +15,11 @@ export const reviewPasses = [
   "story",
   "implementation_check",
   "issue_check",
+  "docs_check",
 ] as const;
-type PassName = (typeof reviewPasses)[number];
+export type PassName = (typeof reviewPasses)[number];
+/** The passes of a pull request that changes code or tests; its documents, when it changes any, are a fourth. */
+export const storyPasses: readonly PassName[] = reviewPasses.slice(0, 3);
 export type PassOutputs = Partial<Record<PassName, string>>;
 export type ReviewState = "running" | "complete" | "failed";
 
@@ -24,12 +27,14 @@ const passes: Record<PassName, string> = {
   story: "Story",
   implementation_check: "Implementation check",
   issue_check: "Issue check",
+  docs_check: "Documents check",
 };
 const kinds: Record<Gap["kind"], string> = {
   contradiction: "Contradiction",
   missing_test: "Missing test",
   missing_implementation: "Missing implementation",
   untold: "Untold",
+  unlinked: "No test link",
 };
 
 interface Review {
@@ -43,39 +48,43 @@ interface Review {
   declined: Declined[];
   /** The subjects of earlier gaps a re-check found closed. */
   closed: string[];
-  /** The passes, in order, that gave a complete answer. */
-  complete: boolean[];
+  /** The passes that gave a complete answer. */
+  complete: PassName[];
 }
 
-/** The comment the pull request carries while and after it is reviewed, and the passes among the first `passCount` that gave no complete answer. */
+/** The comment the pull request carries while and after it is reviewed, and the passes among the `required` ones that gave no complete answer. */
 export function storyReview(
   outputs: PassOutputs,
-  passCount: number,
+  required: readonly PassName[],
 ): {
   incomplete: string[];
   comment(revision: string, state: ReviewState): string;
 } {
   const review = reviewOf(outputs);
-  const incomplete = reviewPasses
-    .slice(0, passCount)
-    .filter((_name, index) => !review.complete[index])
+  const incomplete = required
+    .filter((name) => !review.complete.includes(name))
     .map((name) => passes[name]);
 
   return {
     incomplete,
     comment: (revision, state) =>
-      commentOf(review, incomplete, { revision, state }),
+      commentOf(review, incomplete, { revision, state, required }),
   };
 }
 
 function commentOf(
   review: Review,
   incomplete: string[],
-  { revision, state }: { revision: string; state: ReviewState },
+  {
+    revision,
+    state,
+    required,
+  }: { revision: string; state: ReviewState; required: readonly PassName[] },
 ): string {
   return [
     "## Lore code review",
     `Reviewed revision \`${revision}\` · **${verdictOf(review, state, incomplete)}** · ${counted(review.gaps.length, "gap")}`,
+    ...(required.length ? [] : [LINKS_ONLY]),
     ...storyLines(review),
     ...gapTable(review.gaps),
     ...declinedList(review.declined),
@@ -208,11 +217,17 @@ function closedList(closed: string[]): string[] {
     : [];
 }
 
-/** The review GitHub is given once all three passes are complete: one finding per gap on its line, the rest in the body, and changes requested for any gap but an untold one. */
-export function formalReview(outputs: PassOutputs): ReviewOutput | undefined {
+const LINKS_ONLY =
+  "Only links changed in the Markdown of this pull request: nothing to review.";
+
+/** The review GitHub is given once every `required` pass is complete: one finding per gap on its line, the rest in the body, and changes requested for any gap but an untold or an unlinked one. A review that requires no pass is the approval of a pull request that changes only links. */
+export function formalReview(
+  outputs: PassOutputs,
+  required: readonly PassName[] = storyPasses,
+): ReviewOutput | undefined {
   const review = reviewOf(outputs);
 
-  if (!review.complete.every(Boolean)) {
+  if (!required.every((name) => review.complete.includes(name))) {
     return;
   }
   const unplaced = review.gaps.filter(({ location }) => !location);
@@ -221,7 +236,7 @@ export function formalReview(outputs: PassOutputs): ReviewOutput | undefined {
     verdict: review.gaps.some(asksForChanges)
       ? "changes_requested"
       : "approved",
-    summary: summaryOf(review),
+    summary: summaryOf(review, required),
     findings: review.gaps.flatMap((found) =>
       found.location ? [{ ...found.location, ...findingOf(found) }] : [],
     ),
@@ -234,6 +249,7 @@ function reviewOf(outputs: PassOutputs): Review {
   const checks = [
     answerOf(checked, outputs.implementation_check),
     answerOf(checked, outputs.issue_check),
+    answerOf(checked, outputs.docs_check),
   ];
 
   return {
@@ -242,7 +258,9 @@ function reviewOf(outputs: PassOutputs): Review {
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
     ...settledOf(checks),
-    complete: [story, ...checks].map((answer) => answer?.status === "complete"),
+    complete: reviewPasses.filter(
+      (_name, index) => [story, ...checks][index]?.status === "complete",
+    ),
   };
 }
 
@@ -272,21 +290,49 @@ function wording(subject: string): string {
   return subject.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function summaryOf({ gaps, declined }: Review): string {
-  const story =
-    gaps.length === 0
-      ? "The implementation and the issue tell the story the tests tell."
-      : `${counted(gaps.length, "gap")} ${gaps.length === 1 ? "separates" : "separate"} the story the tests tell from the implementation and the issue.`;
+function summaryOf(
+  { gaps, declined }: Review,
+  required: readonly PassName[],
+): string {
   const subjects = (label: string, named: string[]) =>
     named.length ? [`${label}: ${named.map(escapeMarkdown).join("; ")}.`] : [];
 
   return [
-    story,
+    verdictSentence(gaps.length, required),
     ...subjects(
       "Declined by a person and not blocking",
       declined.map(({ subject }) => subject),
     ),
   ].join(" ");
+}
+
+function verdictSentence(gaps: number, required: readonly PassName[]): string {
+  if (required.length === 0) {
+    return LINKS_ONLY;
+  }
+  const [told, against] = sidesOf(required);
+
+  if (gaps > 0) {
+    return `${counted(gaps, "gap")} ${gaps === 1 ? "separates" : "separate"} ${told} from ${against}.`;
+  }
+
+  return required.includes("story")
+    ? `${against.replace("the", "The")} tell ${told}.`
+    : "The changed documents say what their linked tests and the code say.";
+}
+
+/** What a review compares: the story with what was built and asked, or, with no story, the documents with their tests and the code. */
+function sidesOf(required: readonly PassName[]): [string, string] {
+  if (!required.includes("story")) {
+    return ["the changed documents", "their linked tests and the code"];
+  }
+
+  return [
+    "the story the tests tell",
+    required.includes("docs_check")
+      ? "the implementation, the issue and the changed documents"
+      : "the implementation and the issue",
+  ];
 }
 
 function findingOf(found: Gap): Omit<ReviewFinding, "path" | "line"> {
@@ -322,7 +368,7 @@ function proposalOf({ proposal, replaces_line: replaces }: Gap): {
 }
 
 function asksForChanges({ kind }: Gap): boolean {
-  return kind !== "untold";
+  return kind !== "untold" && kind !== "unlinked";
 }
 
 function counted(count: number, noun: string): string {
