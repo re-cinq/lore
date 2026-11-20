@@ -43,4 +43,12 @@ describe("preparedEvidence", () => {
       outcome: "superseded",
     });
   });
+
+  it("reports the outcome superseded alone when the collector adds a reason, which belongs to whole_diff only", () => {
+    expect(
+      preparedEvidence(
+        JSON.stringify({ status: "superseded", reason: "head moved" }),
+      ),
+    ).toEqual({ outcome: "superseded" });
+  });
 });

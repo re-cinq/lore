@@ -35,7 +35,7 @@ export function preparedEvidence(
 }
 
 function reportOf({ status, reason }: z.infer<typeof unprepared>): Report {
-  return reason
+  return reason && status === "whole_diff"
     ? { outcome: status, produced: { whole_diff_reason: reason } }
     : { outcome: status };
 }
