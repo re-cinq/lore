@@ -1,3 +1,4 @@
+import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import {
   defineStation,
   type Handle,
@@ -27,7 +28,7 @@ import {
   storyReview,
   type PassOutputs,
   type ReviewState,
-} from "./story.js";
+} from "@re-cinq/lore-shared/review/story/story.js";
 
 // How many passes must have answered when each node publishes; publish-incomplete shows whatever did.
 const stages: Record<string, number> = {
@@ -254,7 +255,10 @@ async function readOutputs(
       .filter((name) => needs[name])
       .map(
         async (name) =>
-          [name, (await tools.read(name)).toString("utf8")] as const,
+          [
+            name,
+            resultTextFromOutput((await tools.read(name)).toString("utf8")),
+          ] as const,
       ),
   );
 

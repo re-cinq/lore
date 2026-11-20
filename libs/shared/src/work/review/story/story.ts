@@ -1,8 +1,5 @@
 // The one-story review: the story the tests tell, the gaps the implementation and the issue leave against it, and the review GitHub is given.
-import type {
-  ReviewFinding,
-  ReviewOutput,
-} from "@re-cinq/lore-shared/review/review-findings.js";
+import type { ReviewFinding, ReviewOutput } from "../review-findings.js";
 import {
   answerOf,
   checked,

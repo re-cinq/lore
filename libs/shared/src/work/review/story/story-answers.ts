@@ -1,5 +1,4 @@
 // What the three agents of the one-story review answer, as the stations read it.
-import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import { z } from "zod";
 import { jsonCandidates } from "./json-candidates.js";
 
@@ -51,15 +50,15 @@ export type StoryLine = z.infer<typeof told>["story"][number];
 export type Gap = z.infer<typeof gap>;
 export type Check = z.infer<typeof checked>;
 
-/** An agent's answer as its schema reads it; nothing when the output holds no such answer. */
+/** An agent's answer text as its schema reads it; nothing when the text holds no such answer. */
 export function answerOf<T>(
   schema: z.ZodType<T>,
-  output: string | undefined,
+  text: string | undefined,
 ): T | undefined {
-  if (!output) {
+  if (!text) {
     return;
   }
-  const answer = resultTextFromOutput(output)
+  const answer = text
     .replace(/(?:^|\n)LORE_NODE_RESULT: [^\r\n]+\s*$/, "")
     .trim();
 

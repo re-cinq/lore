@@ -5,13 +5,11 @@ const REVISION = "a".repeat(40);
 const TEST = "apps/api/test/systemPrompt.acceptance.test.ts";
 
 function answer(result: object): string {
-  return JSON.stringify({
-    type: "result",
-    result:
-      "```json\n" +
-      JSON.stringify(result) +
-      '\n```\nLORE_NODE_RESULT: {"outcome":"success"}',
-  });
+  return (
+    "```json\n" +
+    JSON.stringify(result) +
+    '\n```\nLORE_NODE_RESULT: {"outcome":"success"}'
+  );
 }
 
 const story = answer({
