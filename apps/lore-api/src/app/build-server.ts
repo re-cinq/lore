@@ -13,6 +13,10 @@ import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { registerRunRepoGuard } from "../transport/http/run-repo-guard.js";
+import {
+  registerRepoAlias,
+  type MirrorOwnerOf,
+} from "../transport/http/repo-alias.js";
 import { registerRepoGuard } from "../transport/http/repo-guard.js";
 import { createRepoAccess } from "../work/auth/repo-access.js";
 import { repoAccessPorts } from "../outbound/repo-access-ports.js";
@@ -42,11 +46,12 @@ import {
 // `traceHttp` is the metric half the span does not carry — lore-api recorded it per request before the tracing plugin was shared, and still does.
 const TRACING = { tracerName: "lore.api.http", observe: traceHttp };
 
-/** `planFloor` stands in for the deployment's floor under the plan routes; a test hands in a recorded one. */
+/** `planFloor` stands in for the deployment's floor under the plan routes; a test hands in a recorded one, and `mirrorOwnerOf` the lookup of the repository a public mirror stands for; with the default, no repository has a mirror. */
 export function buildServer(
   getPool: () => Pool | null,
   port = 0,
   planFloor?: PlanVerbSeams["floorDeps"],
+  mirrorOwnerOf: MirrorOwnerOf = async () => null,
 ): Hapi.Server {
   const server = newServer(port);
 
@@ -54,6 +59,7 @@ export function buildServer(
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
+  registerRepoAlias(server, mirrorOwnerOf);
   registerRepoGuard(server, createRepoAccess(repoAccessPorts(getPool)));
   registerRunRepoGuard(server, (runId) => runRepoOf(poolOf(getPool), runId));
 

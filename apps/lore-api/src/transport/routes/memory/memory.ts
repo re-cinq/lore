@@ -33,6 +33,7 @@ import {
   scheduleMemoryMirror,
 } from "./write-effects.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { mirrorWritable } from "../../http/repo-alias.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { MAX_PAGE_LIMIT } from "../common-schemas.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -186,6 +187,7 @@ function memoryRouteOptions() {
   return zodResponse(
     {
       ...bearerScope("write"),
+      ...mirrorWritable(),
       validate: { payload: zodValidate(MemoryBody) },
     },
     MemoryOperationSchema,

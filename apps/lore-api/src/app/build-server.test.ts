@@ -27,3 +27,29 @@ describe("lore-api request-error logging (#1324)", () => {
     }
   });
 });
+
+describe("buildServer without a mirror lookup", () => {
+  it("hands PUT /probe naming acme/public to its handler unchanged", async () => {
+    const server = buildServer(() => null);
+    const seen: unknown[] = [];
+
+    server.route({
+      method: "PUT",
+      path: "/probe",
+      options: { auth: false },
+      handler: (request) => (seen.push(request.payload), { ok: true }),
+    });
+    const res = await server.inject({
+      method: "PUT",
+      url: "/probe",
+      payload: { repo: "acme/public" },
+    });
+
+    await server.stop();
+
+    expect({ status: res.statusCode, seen }).toEqual({
+      status: 200,
+      seen: [{ repo: "acme/public" }],
+    });
+  });
+});

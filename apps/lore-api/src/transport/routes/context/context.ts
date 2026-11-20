@@ -23,6 +23,7 @@ import { reportBuilt, reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
 import { ContextTemplateSchema } from "@re-cinq/lore-shared/context-template.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { mirrorWritable } from "../../http/repo-alias.js";
 import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
@@ -88,10 +89,12 @@ function contextOptions(
   repoFrom: "query" | "payload",
   validate: RouteOptionsValidate,
 ) {
+  const declared = repoLevel("read", { from: repoFrom, name: "repo" });
+
   return zodResponse(
     {
       ...bearerScope("read"),
-      ...repoLevel("read", { from: repoFrom, name: "repo" }),
+      ...(repoFrom === "payload" ? mirrorWritable(declared) : declared),
       validate,
     },
     AssembledContextSchema,

@@ -104,34 +104,45 @@ function isPerson(request: Request): boolean {
   return request.auth.isAuthenticated && principalOf(request).user !== null;
 }
 
+/** Where a request carries the name of its repository: its `{owner}/{repo}` path parameters, or a query or payload field. */
+export type RepoLocation =
+  { from: "path" } | { from: "query" | "payload"; name: string };
+
+/** Where a route's repository name sits: as the route declared it, else its path parameters. Null for a record or a route spanning repositories. */
+export function repoLocationOf(request: {
+  route: { settings: { app?: unknown } };
+}): RepoLocation | null {
+  const source = repoDeclarationOf(request)?.source ?? { from: "path" };
+
+  return source.from === "record" || source.from === "spans" ? null : source;
+}
+
+/** The repository name a request carries at a location, if it holds one. */
+export function repoAt(
+  request: Request,
+  location: RepoLocation,
+): string | null {
+  return location.from === "path"
+    ? pathRepo(request)
+    : fieldNamed(request, location);
+}
+
 /** The repository a request concerns: where the route declared it, else its `{owner}/{repo}` path parameters. */
 async function repoNamedBy(request: Request): Promise<string | null> {
   const declared = repoDeclarationOf(request);
 
-  return declared ? declaredRepo(request, declared.source) : pathRepo(request);
+  if (declared?.source.from === "record") {
+    return declared.source.find(request);
+  }
+  const location = repoLocationOf(request);
+
+  return location ? repoAt(request, location) : null;
 }
 
 function pathRepo(request: Request): string | null {
   const { owner, repo } = request.params as { owner?: string; repo?: string };
 
   return owner && repo ? `${owner}/${repo}` : null;
-}
-
-function declaredRepo(
-  request: Request,
-  source: RepoSource,
-): Promise<string | null> | string | null {
-  if (source.from === "spans") {
-    return null;
-  }
-
-  if (source.from === "path") {
-    return pathRepo(request);
-  }
-
-  return source.from === "record"
-    ? source.find(request)
-    : fieldNamed(request, source);
 }
 
 function fieldNamed(

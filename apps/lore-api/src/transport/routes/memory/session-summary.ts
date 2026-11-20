@@ -14,6 +14,7 @@ import { z } from "zod";
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { mirrorWritable } from "../../http/repo-alias.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
@@ -47,6 +48,7 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...mirrorWritable(),
         validate: { payload: zodValidate(SessionSummaryBody) },
       },
       SessionSummarySchema,

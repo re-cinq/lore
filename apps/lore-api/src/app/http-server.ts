@@ -3,6 +3,11 @@ import { buildServer } from "./build-server.js";
 import { shutdownOtel } from "../outbound/otel-init.js";
 import { drainEventProxies } from "../transport/routes/event-reporter.js";
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import {
+  cachedOwnerOf,
+  type MirrorOwnerOf,
+} from "../transport/http/repo-alias.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
 
 /** Start the Lore API (/api/*); MCP proxies to these routes via buildServer factory. */
@@ -10,7 +15,12 @@ export async function startHttpServer(
   getPool: () => Pool | null,
 ): Promise<void> {
   const port = requiredPort(process.env, "PORT");
-  const server = buildServer(getPool, port);
+  const server = buildServer(
+    getPool,
+    port,
+    undefined,
+    cachedOwnerOf(poolMirrorOwner(getPool)),
+  );
 
   // Flush telemetry on SIGTERM (was dropping on rollouts before #1051).
   process.on("SIGTERM", () => void shutdownGracefully(server, shutdownOtel));
@@ -18,6 +28,14 @@ export async function startHttpServer(
 
   await server.start();
   console.log(`Lore API listening on :${port}`);
+}
+
+function poolMirrorOwner(getPool: () => Pool | null): MirrorOwnerOf {
+  return async (name) => {
+    const pool = getPool();
+
+    return pool ? new PgSettings(pool).mirrorOwner(name) : null;
+  };
 }
 
 /** What `shutdownGracefully` needs of the server — `Server` satisfies it. */
