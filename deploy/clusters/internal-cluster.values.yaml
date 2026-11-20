@@ -224,7 +224,7 @@ lore-api:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "a360320"
+    tag: "0d681eb"
   env:
     # Evals on Gemini under the pod's Google identity; gemini-2.5-pro judged a
     # full run on 2026-10-03 and changed no verdict, so no judge model is set.
@@ -276,7 +276,7 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "a360320"
+    tag: "811060b"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   serviceAccount:
@@ -315,7 +315,7 @@ lore-stations:
   ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "a360320"
+    tag: "0d681eb"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com

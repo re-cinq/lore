@@ -2,7 +2,13 @@
 # The implementation-loop line's `loop-test-review` agent: the whole definition the floor is seeded with, settings here and the prompt below.
 review_required: false
 execution_mode: claude-code
-model: claude-opus-5-5
+# Gemini 4 Carbon since 2026-11-20, when every agent left Claude: the strongest Gemini model, for the agent that ran on Opus 5.5.
+model: gemini-4-carbon
+prices:
+  gemini-4-carbon:
+    input_per_million: 4
+    output_per_million: 20
+    cache_read_per_million: 0.4
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 60
 config:

@@ -266,7 +266,7 @@ async function startRecheckLine(
     repo: floorRepoOf(target.repo),
     startItems: {
       ...(await reviewItems(deps, pr, description)),
-      ...recheckEvidenceItems(range, handOff.brief),
+      ...recheckEvidenceItems(handOff.brief),
       ...openThreadsItem(handOff.threadIds),
     },
   });

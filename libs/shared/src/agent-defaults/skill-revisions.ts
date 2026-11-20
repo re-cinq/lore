@@ -59,8 +59,8 @@ export const SKILL_REVISIONS: SkillRevision[] = [
     names: ["tdd-loop"],
   },
   {
-    version: "skills/0004_review_reader_assertion_outcomes",
-    names: ["lore-review-files"],
+    version: "skills/0005_lore_review_one_story",
+    names: ["lore-review"],
   },
 ];
 

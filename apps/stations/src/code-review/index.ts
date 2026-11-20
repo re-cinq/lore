@@ -5,17 +5,17 @@ import { startPostReplyStation } from "./post-reply/station.js";
 import { startPostReviewStation } from "./post-review/station.js";
 import { startReadReviewStation } from "./read-review/station.js";
 import { startRunSettledStation } from "./run-settled/station.js";
-import { startReviewProgressStation } from "./shadow-progress/station.js";
+import { startReviewProgressStation } from "./story-review/station.js";
 
 export function startCodeReviewStations(): RunningStation[] {
   return [
     startPrepareReviewStation(),
     startReviewProgressStation("finalize-code-review"),
     startReviewProgressStation("code-review-progress"),
+    startReviewProgressStation("code-review-docs-gate"),
     startPostReviewStation(),
     startReadReviewStation(),
     startPostReplyStation(),
     startRunSettledStation(),
-    startReviewProgressStation("shadow-review-progress"),
   ];
 }

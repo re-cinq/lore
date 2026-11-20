@@ -10,29 +10,22 @@ line:
   nodes:
     - id: prepare
       station: prepare-code-review
-    - id: read-code
-      station: code-review-read-code
-    - id: publish-code
+    - id: tell-story
+      station: review-story
+    - id: publish-story
       station: code-review-progress
       bind: { revision: head_sha }
-    - id: read-tests
-      station: code-review-read-tests
-    - id: publish-tests
-      station: code-review-progress
+    - id: check-implementation
+      station: review-implementation
+    - id: check-issue
+      station: review-issue
+    - id: publish-checks
+      station: code-review-docs-gate
       bind: { revision: head_sha }
-    - id: compare-intent
-      station: code-review-compare-intent
-    - id: publish-intent
-      station: code-review-progress
-      bind: { revision: head_sha }
-    - id: challenge-tests
-      station: code-review-challenge-tests
-    - id: publish-challenge
-      station: code-review-progress
-      bind: { revision: head_sha }
-    - id: review-product
-      station: code-review-product
-    - id: publish-product
+    - id: check-docs
+      station: review-docs
+      bind: { target: repo }
+    - id: finalize
       station: finalize-code-review
       bind: { revision: head_sha }
     - id: publish-incomplete
@@ -45,108 +38,94 @@ line:
       station: post-review
     - id: done
   edges:
-    - { from: prepare, to: read-code, on: success }
+    - { from: prepare, to: tell-story, on: success }
     - { from: prepare, to: publish-incomplete, on: failed }
-    # A change the collector cannot split into code and tests (documents only, a binary, a file holding its own tests) is reviewed whole.
+    # A change the collector cannot split into code and tests (a binary, a file holding its own tests) is reviewed whole.
     - { from: prepare, to: review-whole, on: whole_diff }
     # A commit that is no longer the pull request head is reviewed by the run of the newer one.
     - { from: prepare, to: done, on: superseded }
+    # A pull request of Markdown alone has no story: its statements go to the documents check, and one that moves only links is approved without an agent.
+    - { from: prepare, to: check-docs, on: docs_only }
+    - { from: prepare, to: finalize, on: links_only }
     - { from: post-review, to: done, on: superseded }
     - { from: review-whole, to: post-review, on: success }
     - { from: review-whole, to: post-review, on: changes_requested }
     - { from: review-whole, to: review-whole, on: failed, iteration_max: 1 }
-    - { from: read-code, to: publish-code, on: success }
-    - { from: publish-code, to: read-tests, on: success }
-    - { from: read-tests, to: publish-tests, on: success }
-    - { from: publish-tests, to: compare-intent, on: success }
-    - { from: compare-intent, to: publish-intent, on: success }
-    - { from: publish-intent, to: challenge-tests, on: success }
-    - { from: challenge-tests, to: publish-challenge, on: success }
-    - { from: publish-challenge, to: review-product, on: success }
-    - { from: review-product, to: publish-product, on: success }
-    - { from: publish-product, to: post-review, on: success }
+    - { from: tell-story, to: publish-story, on: success }
+    - { from: publish-story, to: check-implementation, on: success }
+    - { from: check-implementation, to: check-issue, on: success }
+    - { from: check-issue, to: publish-checks, on: success }
+    # The documents check runs only for a pull request that writes or removes a statement in its Markdown.
+    - { from: publish-checks, to: finalize, on: success }
+    - { from: publish-checks, to: check-docs, on: docs }
+    - { from: check-docs, to: finalize, on: success }
+    - { from: finalize, to: post-review, on: success }
     - { from: post-review, to: done, on: success }
     # A post that fails is usually a review without a verdict; posting again reads the same output, so the whole-diff reviewer writes one.
     - { from: post-review, to: review-whole, on: failed, iteration_max: 1 }
-    - { from: read-code, to: publish-incomplete, on: failed }
-    - { from: read-tests, to: publish-incomplete, on: failed }
-    - { from: compare-intent, to: publish-incomplete, on: failed }
-    - { from: challenge-tests, to: publish-incomplete, on: failed }
-    - { from: review-product, to: publish-incomplete, on: failed }
-    - { from: publish-code, to: publish-incomplete, on: failed }
-    - { from: publish-tests, to: publish-incomplete, on: failed }
-    - { from: publish-intent, to: publish-incomplete, on: failed }
-    - { from: publish-challenge, to: publish-incomplete, on: failed }
-    - { from: publish-product, to: publish-incomplete, on: failed }
-    # A review the five passes could not finish is still owed: the whole-diff reviewer gives it.
+    - { from: tell-story, to: publish-incomplete, on: failed }
+    - { from: publish-story, to: publish-incomplete, on: failed }
+    - { from: check-implementation, to: publish-incomplete, on: failed }
+    - { from: check-issue, to: publish-incomplete, on: failed }
+    - { from: publish-checks, to: publish-incomplete, on: failed }
+    - { from: check-docs, to: publish-incomplete, on: failed }
+    - { from: finalize, to: publish-incomplete, on: failed }
+    # A review the story could not finish is still owed: the whole-diff reviewer gives it.
     - { from: publish-incomplete, to: review-whole, on: always }
 stations:
-  code-review-read-code:
-    description: Describes the changed behavior from implementation evidence.
+  review-story:
+    description: Tells the story the tests tell, one behaviour per assertion.
     kind: agent
-    agent_definition: shadow-review-reader
+    agent_definition: review-story
     conversation: new
     result_required: true
     outcomes: [success, failed]
     needs:
-      - { name: code_evidence, kind: file, path: evidence.json }
+      - { name: test_evidence, kind: file, path: tests.json }
     produces:
-      - { name: code_reading, kind: file, from: output }
-  code-review-read-tests:
-    description: Describes the assertions and mocks from test evidence.
+      - { name: story, kind: file, from: output }
+  review-implementation:
+    description: Checks the implementation against the story and reports every gap with a proposed change.
     kind: agent
-    agent_definition: shadow-review-reader
+    agent_definition: review-implementation
     conversation: new
     result_required: true
     outcomes: [success, failed]
     needs:
-      - { name: test_evidence, kind: file, path: evidence.json }
+      - { name: story, kind: file, path: story.txt }
+      - { name: code_evidence, kind: file, path: code.json }
+      - { name: test_evidence, kind: file, path: tests.json }
     produces:
-      - { name: test_reading, kind: file, from: output }
-  code-review-compare-intent:
-    description: Compares the independent readings to the human discussion and verifies material disagreements.
+      - { name: implementation_check, kind: file, from: output }
+  review-issue:
+    description: Checks what the issue, the discussion and the specs require against the story and reports every gap with a proposed change.
     kind: agent
-    agent_definition: shadow-compare-intent
+    agent_definition: review-issue
     conversation: new
     result_required: true
     outcomes: [success, failed]
     needs:
-      - { name: intent_evidence, kind: file, path: intent.json }
-      - { name: code_reading, kind: file, path: code-reading.txt }
-      - { name: test_reading, kind: file, path: test-reading.txt }
-      - { name: challenge_evidence, kind: file, path: verification.json }
+      - { name: story, kind: file, path: story.txt }
+      - { name: implementation_check, kind: file, path: implementation-check.txt }
+      - { name: issue_evidence, kind: file, path: issue.json }
+      - { name: code_evidence, kind: file, path: code.json }
+      - { name: test_evidence, kind: file, path: tests.json }
     produces:
-      - { name: intent_comparison, kind: file, from: output }
-  code-review-challenge-tests:
-    description: Identifies behavior the supplied tests would let through.
+      - { name: issue_check, kind: file, from: output }
+  review-docs:
+    description: Checks each statement the pull request writes in its Markdown against the tests it links and against the code.
     kind: agent
-    agent_definition: shadow-review-challenge
+    agent_definition: review-docs
     conversation: new
     result_required: true
     outcomes: [success, failed]
     needs:
-      - { name: challenge_evidence, kind: file, path: evidence.json }
+      - { name: docs_evidence, kind: file, path: docs.json }
+      - { name: target, kind: git, path: target, access: read }
     produces:
-      - { name: test_challenge, kind: file, from: output }
-  code-review-product:
-    description: Checks shipped promises and agreed scope against the observed behavior and judges outstanding findings for the formal verdict.
-    kind: agent
-    agent_definition: code-review-product
-    conversation: new
-    result_required: true
-    outcomes: [success, failed]
-    needs:
-      - { name: product_evidence, kind: file, path: product.json }
-      - { name: intent_evidence, kind: file, path: intent.json }
-      - { name: code_reading, kind: file, path: code-reading.txt }
-      - { name: test_reading, kind: file, path: test-reading.txt }
-      - { name: intent_comparison, kind: file, path: intent-comparison.txt }
-      - { name: test_challenge, kind: file, path: test-challenge.txt }
-      - { name: challenge_evidence, kind: file, path: verification.json }
-    produces:
-      - { name: product_review, kind: file, from: output }
+      - { name: docs_check, kind: file, from: output }
   code-review-recheck:
-    description: An AI agent re-checks the commits pushed since the last review from the whole diff, when the change cannot be split into code and tests.
+    description: An AI agent re-checks the commits pushed since the last review from the whole diff, when the story review cannot be given.
     kind: agent
     agent_definition: code-review-recheck
     conversation: new
@@ -159,47 +138,58 @@ stations:
     produces:
       - { name: review_output, kind: file, from: output }
   code-review-progress:
-    description: Updates the progress comment for this pull request revision.
+    description: Updates the review comment for this pull request revision with the story and the gaps found so far.
     kind: service
     outcomes: [success, failed]
     needs:
       - { name: revision, kind: value }
       - { name: pr_url, kind: value, optional: true }
       - { name: preparation_failed, kind: value, optional: true }
-      - { name: code_reading, kind: file, optional: true }
-      - { name: test_reading, kind: file, optional: true }
-      - { name: intent_comparison, kind: file, optional: true }
-      - { name: test_challenge, kind: file, optional: true }
-      - { name: product_review, kind: file, optional: true }
+      - { name: review_mode, kind: value, optional: true }
+      - { name: story, kind: file, optional: true }
+      - { name: implementation_check, kind: file, optional: true }
+      - { name: issue_check, kind: file, optional: true }
+      - { name: docs_check, kind: file, optional: true }
+    produces: []
+  code-review-docs-gate:
+    description: Updates the review comment with what both checks found, and sends a pull request that changes documents to the documents check.
+    kind: service
+    outcomes: [success, docs, failed]
+    needs:
+      - { name: revision, kind: value }
+      - { name: pr_url, kind: value, optional: true }
+      - { name: docs_changed, kind: value, optional: true }
+      - { name: story, kind: file }
+      - { name: implementation_check, kind: file }
+      - { name: issue_check, kind: file }
     produces: []
   prepare-code-review:
-    description: Collects separate code, test, intent, challenge and product evidence for the pull request revision.
+    description: Collects the tests, the code, the issue and the changed documents of the pull request revision as four packets.
     kind: service
-    outcomes: [success, whole_diff, superseded, failed]
+    outcomes: [success, docs_only, links_only, whole_diff, superseded, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: head_sha, kind: value }
-      - { name: since_sha, kind: value, optional: true }
-      - { name: review_paths, kind: value, optional: true }
       - { name: previous_findings, kind: value, optional: true }
     produces:
-      - { name: code_evidence, kind: file }
       - { name: test_evidence, kind: file }
-      - { name: challenge_evidence, kind: file }
-      - { name: intent_evidence, kind: file }
-      - { name: product_evidence, kind: file }
+      - { name: code_evidence, kind: file }
+      - { name: issue_evidence, kind: file }
+      - { name: docs_evidence, kind: file }
+      - { name: review_mode, kind: value }
+      - { name: docs_changed, kind: value }
   finalize-code-review:
-    description: Validates all five pass results and produces the formal review for GitHub.
+    description: Checks that every pass of the review is complete and produces the formal review for GitHub, changes requested for any gap that blocks.
     kind: service
     outcomes: [success, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: revision, kind: value }
-      - { name: code_reading, kind: file }
-      - { name: test_reading, kind: file }
-      - { name: intent_comparison, kind: file }
-      - { name: test_challenge, kind: file }
-      - { name: product_review, kind: file }
+      - { name: review_mode, kind: value, optional: true }
+      - { name: story, kind: file, optional: true }
+      - { name: implementation_check, kind: file, optional: true }
+      - { name: issue_check, kind: file, optional: true }
+      - { name: docs_check, kind: file, optional: true }
     produces:
       - { name: review_output, kind: file }
       - { name: review_run, kind: value }

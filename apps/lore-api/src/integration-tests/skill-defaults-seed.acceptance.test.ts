@@ -47,9 +47,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
         .filter((row) => !hasValidHelpBlock(row.content))
         .map((row) => row.name),
     }).toEqual({ names: skillNames, withoutValidHelp: [] });
-    expect(skillNames).toEqual(
-      expect.arrayContaining(["lore-review", "lore-review-files"]),
-    );
+    expect(skillNames).toEqual(expect.arrayContaining(["lore-review"]));
   });
 
   it("keeps an edited and disabled skill when the shipped skills are seeded again", async () => {

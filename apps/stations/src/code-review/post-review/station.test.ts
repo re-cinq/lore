@@ -369,7 +369,18 @@ describe("an approving re-check settles the findings it was handed", () => {
     expect(resolved).toEqual(["T1", "T2"]);
   });
 
-  it("resolves no thread when the re-check handed T1 asks for changes again", async () => {
+  it("resolves thread T1 when a story re-check handed T1 asks for changes again, since its review states every gap still open anew", async () => {
+    const { deps, resolved } = fakeProject();
+
+    await postReviewHandle(deps)(
+      brief({ open_threads: "T1", review_run: "run-1" }),
+      toolsReading(changesRequestedOutput),
+    );
+
+    expect(resolved).toEqual(["T1"]);
+  });
+
+  it("resolves no thread when the whole-diff re-check handed T1 asks for changes again", async () => {
     const { deps, resolved } = fakeProject();
 
     await postReviewHandle(deps)(

@@ -14,7 +14,6 @@ const LOOP_BY_LINE: Record<string, LoopKey> = {
 
 /** Floor lines no loop switch owns, so nothing can pause them. */
 export const NOT_A_LOOP: readonly string[] = [
-  "code-review-shadow",
   "onboard",
   "feature-planning",
   "lore-run-settled",

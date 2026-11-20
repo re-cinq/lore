@@ -136,9 +136,9 @@ describe("readFloorMigrations", () => {
         "floor/0014_commit_author_from_settings",
         "floor/0015_models_from_loop_bench",
         "floor/0016_round_closes_test_gaps_first",
-        "floor/0017_review_agents_read_paged_packets",
-        "floor/0018_review_agents_diff_first_and_guard",
-        "floor/0019_review_findings_name_their_line",
+        "floor/0020_checks_claim_only_what_they_read",
+        "floor/0021_issue_check_reads_the_implementation_check",
+        "floor/0022_every_agent_on_gemini",
       ],
       unshipped: [],
     });
@@ -354,51 +354,54 @@ describe("floor/0016_round_closes_test_gaps_first", () => {
   });
 });
 
-describe("floor/0017_review_agents_read_paged_packets", () => {
-  it("writes the shipped prompts of the five review pass agents, and nothing else", async () => {
+describe("floor/0020_checks_claim_only_what_they_read", () => {
+  it("writes the shipped prompts of review-implementation and review-issue, and nothing else", async () => {
     const { writes } = await everyWrite(
-      "floor/0017_review_agents_read_paged_packets",
+      "floor/0020_checks_claim_only_what_they_read",
     );
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
-      "prompt shadow-review-reader",
-      "prompt shadow-compare-intent",
-      "prompt shadow-review-challenge",
-      "prompt shadow-review-product",
-      "prompt code-review-product",
+      "prompt review-implementation",
+      "prompt review-issue",
     ]);
   });
 });
 
-describe("floor/0018_review_agents_diff_first_and_guard", () => {
-  it("writes the shipped prompt and skills of the five review pass agents, and nothing else", async () => {
+describe("floor/0021_issue_check_reads_the_implementation_check", () => {
+  it("writes the shipped prompt of review-issue, and nothing else", async () => {
     const { writes } = await everyWrite(
-      "floor/0018_review_agents_diff_first_and_guard",
+      "floor/0021_issue_check_reads_the_implementation_check",
     );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt review-issue",
+    ]);
+  });
+});
+
+describe("floor/0022_every_agent_on_gemini", () => {
+  it("writes the model of every agent a pipeline names that ran on Claude, fifteen of them, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0022_every_agent_on_gemini");
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
       [
-        "shadow-review-reader",
-        "shadow-compare-intent",
-        "shadow-review-challenge",
-        "shadow-review-product",
-        "code-review-product",
-      ].flatMap((agent) => [`prompt ${agent}`, `skills ${agent}`]),
+        "loop-tdd-round",
+        "loop-test-review",
+        "spec-upkeep-update-specs",
+        "onboard-author",
+        "review-story",
+        "review-implementation",
+        "review-issue",
+        "review-docs",
+        "code-review-refine",
+        "plan-analyze",
+        "plan-sketch",
+        "plan-validate",
+        "spec-analysis",
+        "spec-write",
+        "spec-rework",
+      ].map((agent) => `model ${agent}`),
     );
-  });
-});
-
-describe("floor/0019_review_findings_name_their_line", () => {
-  it("writes the shipped prompts of the three agents that write findings, and nothing else", async () => {
-    const { writes } = await everyWrite(
-      "floor/0019_review_findings_name_their_line",
-    );
-
-    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
-      "prompt shadow-compare-intent",
-      "prompt shadow-review-product",
-      "prompt code-review-product",
-    ]);
   });
 });
 
@@ -528,13 +531,13 @@ describe("updateModel", () => {
     });
   });
 
-  it("writes loop-tdd-round's shipped claude-sonnet-5-5 and drops the prices it ships none of", async () => {
+  it("writes changelog-intro's shipped gemini-3-flash-preview and drops the prices it ships none of", async () => {
     const { prices: _dropped, ...settings } = {
       ...saved.settings,
-      model: "claude-sonnet-5-5",
+      model: "gemini-3-flash-preview",
     };
 
-    expect(await updated("loop-tdd-round", saved)).toEqual({
+    expect(await updated("changelog-intro", saved)).toEqual({
       ...saved,
       settings,
     });

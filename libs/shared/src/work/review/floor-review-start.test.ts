@@ -339,7 +339,6 @@ describe("reviewOrRecheck", () => {
       path: "/assembly-lines/code-review-recheck/start",
       body: {
         startItems: {
-          since_sha: { ref: "sha-old" },
           description: {
             ref: expect.stringContaining(
               "diff --no-ext-diff sha-old..HEAD",

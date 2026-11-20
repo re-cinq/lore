@@ -1,6 +1,7 @@
 // Drops the new tasks an existing ticket already holds before the issues station files them (specs/spec-tickets FR30). The search picks candidates, a model judges them, ticket-dedupe applies the verdicts. A failed search or judge keeps the task: dedupe never fails a run.
 import {
   defineStation,
+  type Brief,
   type Handle,
   type RunningStation,
   type Tools,
@@ -30,9 +31,15 @@ import {
   type OwnTickets,
   type TaskJudgement,
 } from "@re-cinq/lore-shared/spec-tickets/ticket-dedupe.js";
+import { specFilingKey } from "@re-cinq/lore-shared/spec-tickets/floor-spec-tickets.js";
+import type { PlanIssues } from "@re-cinq/lore-shared/feature-planning/plan-issues.js";
+import { projectFor } from "../../outbound/project-boot.js";
+import { existingPlanIssues } from "../../planning/file-issues/plan-issue-filing.js";
 import type { TicketListing } from "../load-tickets/listing.js";
 
 export interface DedupeDeps {
+  /** The story and task issues filed for the spec so far, this run's earlier rounds included. */
+  filed(repo: string, filingKey: string): Promise<PlanIssues>;
   search(request: TicketSearchRequest): Promise<TicketSearchAnswer>;
   judge(prompt: string): Promise<LlmToolResult<unknown>>;
 }
@@ -42,6 +49,8 @@ const SEARCH_LIMIT = 5;
 const JUDGES_AT_ONCE = 4;
 
 const productionDeps: DedupeDeps = {
+  filed: async (repo, filingKey) =>
+    existingPlanIssues(await projectFor(repo), filingKey),
   search: (request) => searchTicketsOverHttp(request),
   judge: (prompt) =>
     Llm.for(LLM_USE).completeWithTool<unknown>({
@@ -66,7 +75,7 @@ interface Visit {
 export function dedupeHandle(deps: DedupeDeps): Handle {
   return async ({ needs }, tools) => {
     try {
-      await dedupeVisit(deps, parseGitRef(needs.target).repo, tools);
+      await dedupeVisit(deps, needs, tools);
 
       return { outcome: "success" };
     } catch (err) {
@@ -81,14 +90,14 @@ export function dedupeHandle(deps: DedupeDeps): Handle {
 
 async function dedupeVisit(
   deps: DedupeDeps,
-  repo: string,
+  needs: Brief["needs"],
   tools: Tools,
 ): Promise<void> {
   const decomposition = parseDecomposition(
     parseModelJson(await readText(tools, "verified_decomposition")),
   );
-  const own = ownTicketsOf(await readText(tools, "existing_tickets"));
-  const visit = { deps, repo, own, tools };
+  const own = await ownTicketsOf(deps, needs, tools);
+  const visit = { deps, repo: parseGitRef(needs.target).repo, own, tools };
   const judged = await pooled(newTasks(decomposition, own), (task) =>
     judgementOf(visit, task),
   );
@@ -105,7 +114,29 @@ async function readText(tools: Tools, name: string): Promise<string> {
   return (await tools.read(name)).toString("utf8");
 }
 
-function ownTicketsOf(listing: string): OwnTickets {
+// Read at this visit, not from the load step's file: a round sent back to decompose files tickets the load step never saw, and a task judged a duplicate of its own ticket closes it.
+async function ownTicketsOf(
+  deps: DedupeDeps,
+  needs: Brief["needs"],
+  tools: Tools,
+): Promise<OwnTickets> {
+  // A line version that hands this step no spec_path has only the load step's listing.
+  if (!needs.spec_path) {
+    return listedTickets(await readText(tools, "existing_tickets"));
+  }
+  const { story, tasks } = await deps.filed(
+    parseGitRef(needs.target).repo,
+    specFilingKey(needs.spec_path),
+  );
+  const issues = [...tasks.values(), ...(story ? [story] : [])];
+
+  return {
+    ids: new Set(tasks.keys()),
+    numbers: new Set(issues.map((issue) => issue.number)),
+  };
+}
+
+function listedTickets(listing: string): OwnTickets {
   const tickets = JSON.parse(listing) as TicketListing[];
 
   return {

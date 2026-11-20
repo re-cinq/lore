@@ -165,17 +165,11 @@ export interface RecheckRange {
   paths: string[] | null;
 }
 
+/** What a re-check is started with beyond the pull request: the gaps the last review left open. Its packets cover the whole pull request, so the story it retells is complete. */
 export function recheckEvidenceItems(
-  { sinceSha, paths }: RecheckRange,
   previousFindings: string,
-) {
-  return {
-    ...(sinceSha ? { since_sha: valueItem(sinceSha) } : {}),
-    ...(paths?.length
-      ? { review_paths: valueItem(JSON.stringify(paths)) }
-      : {}),
-    ...(previousFindings
-      ? { previous_findings: valueItem(previousFindings) }
-      : {}),
-  };
+): Record<string, ReturnType<typeof valueItem>> {
+  return previousFindings
+    ? { previous_findings: valueItem(previousFindings) }
+    : {};
 }
