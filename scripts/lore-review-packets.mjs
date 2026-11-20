@@ -17,6 +17,7 @@ const snapshot = z.object({
       role: z.enum(["code", "test"]),
       before: z.string().nullable(),
       after: z.string().nullable(),
+      diff: z.string().optional(),
     }),
   ),
   discussion: z
@@ -55,6 +56,14 @@ const snapshot = z.object({
     .optional(),
 });
 
+function packetFile({ path, before, after, diff }) {
+  if (before === after) {
+    return { path, unchanged: after };
+  }
+
+  return diff ? { path, diff, after } : { path, before, after };
+}
+
 function packetFor(mode, files) {
   const selected = [];
 
@@ -70,11 +79,7 @@ function packetFor(mode, files) {
     if ((mode === "code" && test) || (mode === "tests" && !test)) {
       continue;
     }
-    selected.push(
-      file.before === file.after
-        ? { path: file.path, unchanged: file.after }
-        : { path: file.path, before: file.before, after: file.after },
-    );
+    selected.push(packetFile(file));
   }
 
   return { mode, files: selected };

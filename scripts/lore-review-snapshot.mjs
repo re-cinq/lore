@@ -7,8 +7,7 @@ const runFile = promisify(execFile);
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const markdown = /\.(?:md|mdx|markdown|mkd|mkdn|mdown)$/i;
 const testDirectory = /(?:^|\/)(?:tests?|__mocks__|__fixtures__|fixtures)\//i;
-// What a reader with a 200k-token context can page through and still answer; the test challenge packet holds all of it.
-const maxEvidenceBytes = 300 * 1024;
+const maxEvidenceBytes = 2 * 1024 * 1024;
 
 // A change the collector cannot hand to the code and test readers; the whole-diff reviewer takes it.
 class UnsplittableChange extends Error {}
