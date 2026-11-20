@@ -1,42 +1,16 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
-import { createServer } from "node:http";
-import { once } from "node:events";
-import { text } from "node:stream/consumers";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, delimiter } from "node:path";
+import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const runner = fileURLToPath(
   new URL("./lore-review-readers.mjs", import.meta.url),
 );
-
-function runReaders(t, failedMode, extraFiles = []) {
-  const root = mkdtempSync(join(tmpdir(), "review-test-"));
-
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const skillDir = join(root, ".claude", "skills", "lore-review-files");
-
-  mkdirSync(skillDir, { recursive: true });
-  writeFileSync(join(skillDir, "SKILL.md"), "Trusted reader instructions");
-  writeFileSync(
-    join(root, "claude"),
-    `#!/usr/bin/env node
-    const { readFileSync, readdirSync } = require("node:fs");
-    const packet = JSON.parse(readFileSync(0, "utf8"));
-    if (packet.mode === process.env.FAILED_MODE) process.exit(2);
-    const seen = { packet, cwd: process.cwd(), names: readdirSync("."), args: process.argv.slice(2) };
-    const schema = JSON.parse(seen.args[seen.args.indexOf("--json-schema") + 1]);
-    if (schema.$schema && !schema.$schema.includes("draft-07")) process.exit(2);
-    const status = process.env.FAILED_MODE === "missing evidence" && packet.mode === "tests" ? "incomplete" : "complete";
-    const structured_output = { status, reading: ["First statement.", "Second statement."], evidence: [JSON.stringify(seen)], requests: [] };
-    console.log(JSON.stringify({ subtype: "success", is_error: false, structured_output }));
-  `,
-    { mode: 0o700 },
-  );
-  const files = [
+const snapshot = {
+  files: [
     {
       path: "src/rate.ts",
       role: "code",
@@ -45,98 +19,113 @@ function runReaders(t, failedMode, extraFiles = []) {
     },
     {
       path: "src/rate.test.ts",
-      role: "code",
+      role: "test",
       before: null,
       after: "expect(3)",
     },
-    { path: "fixtures/rate.txt", role: "test", before: "3", after: "3" },
-    { path: "docs/PR.MD", role: "code", before: null, after: "LEAK" },
-    ...extraFiles,
-  ];
-  const result = spawnSync(
-    process.execPath,
-    [runner, "--reader-model", "small", "--reader-effort", "low"],
-    {
-      input: JSON.stringify({ files, issue: "LEAK" }),
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        HOME: root,
-        CLAUDE_CONFIG_DIR: join(root, ".claude"),
-        PATH: root + delimiter + process.env.PATH,
-        FAILED_MODE: failedMode ?? "",
-      },
-    },
+  ],
+  discussion: [],
+  specs: [],
+};
+
+// A stand-in for the claude CLI: it answers each of the three prompts by what the prompt asks for, and records what it was given.
+function review(t, failing = "") {
+  const root = mkdtempSync(join(tmpdir(), "review-test-"));
+
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(
+    join(root, "claude"),
+    `#!/usr/bin/env node
+    const { readFileSync, readdirSync, appendFileSync } = require("node:fs");
+    const args = process.argv.slice(2);
+    const prompt = args[args.indexOf("-p") + 1];
+    const step = prompt.includes("Tell the story") ? "story" : prompt.includes("issue.json") ? "issue" : "implementation";
+    appendFileSync(${JSON.stringify(join(root, "calls"))}, JSON.stringify({ step, model: args[args.indexOf("--model") + 1], files: readdirSync(".").sort(), workspace: prompt.includes("/workspace/") }) + "\\n");
+    if (step === process.env.FAILING) process.exit(2);
+    const answers = {
+      story: { status: "complete", story: [{ id: 1, behaviour: "The rate is 3.", tests: [{ path: "src/rate.test.ts", line: 1 }] }] },
+      implementation: { status: "complete", summary: "The code returns 3.", gaps: [] },
+      issue: { status: "complete", summary: "One requirement is untold.", gaps: [{ kind: "missing_test", subject: "a negative rate is refused", detail: "The issue asks for it.", location: { path: "src/rate.test.ts", line: 1 }, proposal: "expect(() => rate(-1)).toThrow();", evidence: [] }] },
+    };
+    console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: JSON.stringify(answers[step]) }));
+  `,
+    { mode: 0o700 },
   );
+  const result = spawnSync(process.execPath, [runner], {
+    input: JSON.stringify(snapshot),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: root,
+      PATH: root + delimiter + process.env.PATH,
+      FAILING: failing,
+    },
+  });
+  const calls = spawnSync("cat", [join(root, "calls")], { encoding: "utf8" })
+    .stdout.trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
 
   assert.ok(result.stdout, result.stderr);
 
-  return { status: result.status, report: JSON.parse(result.stdout) };
+  return { status: result.status, report: JSON.parse(result.stdout), calls };
 }
 
-test("three isolated readers receive code, tests and combined evidence with no Markdown or issue text", (t) => {
-  const { status, report } = runReaders(t);
-
-  assert.equal(status, 0);
-  assert.equal(report.status, "readings_complete");
-  const seen = report.readings.map(({ evidence }) => JSON.parse(evidence[0]));
+test("a local review tells the story, runs both checks against it and prints the comment and the verdict the hosted review would give", (t) => {
+  const { status, report, calls } = review(t);
 
   assert.deepEqual(
-    seen.map(({ packet }) => packet.files.map(({ path }) => path)),
-    [
-      ["src/rate.ts"],
-      ["src/rate.test.ts", "fixtures/rate.txt"],
-      ["src/rate.ts", "src/rate.test.ts", "fixtures/rate.txt"],
-    ],
-  );
-  assert.equal(new Set(seen.map(({ cwd }) => cwd)).size, 3);
-
-  for (const { args, names, packet } of seen) {
-    assert.deepEqual(names, []);
-    assert.equal(args[args.indexOf("--tools") + 1], "");
-    assert.ok(args.includes("--strict-mcp-config"));
-    assert.ok(args.includes("--restricted"));
-    assert.doesNotMatch(JSON.stringify(packet), /LEAK/);
-  }
-  assert.deepEqual(
-    seen.map(({ args }) => args.includes("small") && args.includes("low")),
-    [true, true, false],
-  );
-});
-
-test("a failed test reader leaves the run incomplete and preserves the other two readings", (t) => {
-  const { status, report } = runReaders(t, "tests");
-
-  assert.equal(status, 1);
-  assert.equal(report.status, "incomplete");
-  assert.deepEqual(
-    report.readings.map(({ mode, status }) => [mode, status]),
-    [
-      ["code", "complete"],
-      ["tests", "incomplete"],
-      ["test challenge", "complete"],
-    ],
-  );
-});
-
-test("a reader reporting missing material evidence leaves the run incomplete even after a successful process exit", (t) => {
-  const { status, report } = runReaders(t, "missing evidence");
-
-  assert.equal(status, 1);
-  assert.equal(report.status, "incomplete");
-});
-
-test("a Rust source packet containing its inline test module asks for separate regions", (t) => {
-  const { status, report } = runReaders(t, undefined, [
     {
-      path: "src/lib.rs",
-      role: "code",
-      before: null,
-      after:
-        "pub fn rate() -> u8 { 3 }\n#[cfg(test)]\nmod tests { #[test] fn value() {} }",
+      status,
+      outcome: report.status,
+      verdict: report.review.verdict,
+      onLine: report.review.findings.map(({ path, line, subject }) => [
+        path,
+        line,
+        subject,
+      ]),
+      told: report.comment.includes("1. The rate is 3."),
+      steps: calls.map(({ step, model, workspace }) => [
+        step,
+        model,
+        workspace,
+      ]),
     },
-  ]);
+    {
+      status: 0,
+      outcome: "complete",
+      verdict: "changes_requested",
+      onLine: [
+        ["src/rate.test.ts", 1, "Missing test: a negative rate is refused"],
+      ],
+      told: true,
+      steps: [
+        ["story", "claude-sonnet-5-5", false],
+        ["implementation", "claude-sonnet-5-5", false],
+        ["issue", "claude-sonnet-5-5", false],
+      ],
+    },
+  );
+});
 
-  assert.equal(status, 1);
-  assert.match(report.reason, /src\/lib\.rs/);
+test("the story is told from the tests packet alone, and each check is handed the story", (t) => {
+  const { calls } = review(t);
+
+  assert.deepEqual(
+    calls.map(({ files }) => files),
+    [
+      ["tests.json"],
+      ["code.json", "story.txt", "tests.json"],
+      ["code.json", "issue.json", "story.txt", "tests.json"],
+    ],
+  );
+});
+
+test("a step that fails leaves the local review incomplete and names it", (t) => {
+  const { status, report } = review(t, "implementation");
+
+  assert.deepEqual(
+    [status, report.status, report.incomplete, report.review],
+    [1, "incomplete", ["Implementation check", "Issue check"], undefined],
+  );
 });

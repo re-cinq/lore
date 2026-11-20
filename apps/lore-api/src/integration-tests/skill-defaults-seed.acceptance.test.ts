@@ -48,7 +48,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
         .map((row) => row.name),
     }).toEqual({ names: skillNames, withoutValidHelp: [] });
     expect(skillNames).toEqual(
-      expect.arrayContaining(["lore-review", "lore-review-files"]),
+      expect.arrayContaining(["lore-review"]),
     );
   });
 
