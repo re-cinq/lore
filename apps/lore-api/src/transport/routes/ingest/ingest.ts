@@ -13,6 +13,7 @@ import { ingestFiles } from "../../../work/spec-trace/ingest.js";
 import { ingestedDocMirror } from "../../../work/utopia/docs/ingested-doc-mirror.js";
 import { reconcileOrphanChunks } from "../../../work/chunks/reconcile-orphans.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 
@@ -36,6 +37,7 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write", { from: "payload", name: "repo" }),
         validate: { payload: zodValidate(IngestBody) },
       },
       IngestResultSchema,

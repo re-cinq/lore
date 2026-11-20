@@ -66,27 +66,60 @@ const REPOS_WITH_COUNTS_SQL = `SELECT ${selectList(REPO_COLUMNS, "r")},
  WHERE NOT ${isMirrorSql("r.full_name")}
  ORDER BY r.onboarded_at DESC LIMIT $1 OFFSET $2`;
 
+const READABLE_ONLY_SQL = REPOS_WITH_COUNTS_SQL.replace(
+  " ORDER BY",
+  " AND lower(r.full_name) = ANY($3::text[]) ORDER BY",
+);
+
+const ONBOARDED_TOTAL_SQL = `SELECT count(*)::int as total FROM lore.repos WHERE ${NOT_A_MIRROR_SQL}`;
+const READABLE_TOTAL_SQL = `${ONBOARDED_TOTAL_SQL} AND lower(full_name) = ANY($1::text[])`;
+
 /** Returns a page of repos with pipeline task counts plus the unpaged total. */
 export async function getOnboardedReposWithCounts(
   pool: Pool,
   limit = 100,
   offset = 0,
+  readable: string[] | null = null,
 ): Promise<{ repos: RepoWithCounts[]; total: number }> {
-  const { rows } = await pool.query<Record<string, unknown>>(
-    REPOS_WITH_COUNTS_SQL,
-    [limit, offset],
-  );
-  const { rows: countRows } = await pool.query<{ total: number }>(
-    `SELECT count(*)::int as total FROM lore.repos WHERE ${NOT_A_MIRROR_SQL}`,
-  );
+  const readableLower = readable?.map((name) => name.toLowerCase()) ?? null;
+  const [rows, total] = await Promise.all([
+    queryRepoRows(pool, limit, offset, readableLower),
+    queryRepoTotal(pool, readableLower),
+  ]);
 
-  const repos = rows.map((row) => ({
+  return { repos: rows.map(toRepoWithCounts), total };
+}
+
+async function queryRepoRows(
+  pool: Pool,
+  limit: number,
+  offset: number,
+  readableLower: string[] | null,
+): Promise<Record<string, unknown>[]> {
+  const { rows } = readableLower
+    ? await pool.query(READABLE_ONLY_SQL, [limit, offset, readableLower])
+    : await pool.query(REPOS_WITH_COUNTS_SQL, [limit, offset]);
+
+  return rows;
+}
+
+async function queryRepoTotal(
+  pool: Pool,
+  readableLower: string[] | null,
+): Promise<number> {
+  const { rows } = readableLower
+    ? await pool.query<{ total: number }>(READABLE_TOTAL_SQL, [readableLower])
+    : await pool.query<{ total: number }>(ONBOARDED_TOTAL_SQL);
+
+  return rows[0].total;
+}
+
+function toRepoWithCounts(row: Record<string, unknown>): RepoWithCounts {
+  return {
     ...fromRow<Repo>(REPO_COLUMNS, row),
     taskCount: row.task_count as number,
     activeAgents: row.active_agents as number,
-  }));
-
-  return { repos, total: countRows[0].total };
+  };
 }
 
 /** Returns installation repos that are NOT yet in lore.repos. */

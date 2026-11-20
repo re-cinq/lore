@@ -9,6 +9,11 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { NOT_A_MIRROR_SQL } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import {
+  readableReposOf,
+  repoLevel,
+  SPANS_REPOS,
+} from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { withPool } from "../with-pool.js";
 
@@ -43,22 +48,29 @@ export function inboxRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/inbox",
-    options: zodResponse(bearerScope("read"), InboxPageSchema, {
-      name: "InboxPage",
-      description:
-        "A page of inbox items aggregated from plan and onboarding sources",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+      InboxPageSchema,
+      {
+        name: "InboxPage",
+        description:
+          "A page of inbox items aggregated from plan and onboarding sources",
+      },
+    ),
     handler: withPool(getPool, serveInbox),
   };
 }
 
 async function serveInbox(
   pool: Pool,
-  _request: Request,
+  request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const inboxItems = await aggregateInboxItems(pool);
+    const inboxItems = await aggregateInboxItems(
+      pool,
+      readableReposOf(request)?.map((name) => name.toLowerCase()) ?? null,
+    );
 
     return h.response({
       items: inboxItems,
@@ -82,21 +94,23 @@ function countByKind(
   return counts;
 }
 
-const OPEN_ONBOARDING_PRS_SQL = `SELECT id, full_name, onboarding_pr_url, onboarded_at
+const IN_REVIEW_PLANS_SQL = `SELECT id, repo, title, status, updated_at
+       FROM lore.plans
+       WHERE status = 'in-review'
+         AND ($1::text[] IS NULL OR lower(repo) = ANY($1::text[]))
+       ORDER BY updated_at DESC`;
+
+const OPEN_ONBOARDING_SQL = `SELECT id, full_name, onboarding_pr_url, onboarded_at
        FROM lore.repos
        WHERE onboarding_pr_merged = false
          AND onboarding_pr_url IS NOT NULL
-         AND ${NOT_A_MIRROR_SQL}`;
+         AND ${NOT_A_MIRROR_SQL}
+         AND ($1::text[] IS NULL OR lower(full_name) = ANY($1::text[]))`;
 
-async function aggregateInboxItems(pool: Pool) {
+async function aggregateInboxItems(pool: Pool, readable: string[] | null) {
   const [planRows, repoRows] = await Promise.all([
-    pool.query(
-      `SELECT id, repo, title, status, updated_at
-       FROM lore.plans
-       WHERE status = 'in-review'
-       ORDER BY updated_at DESC`,
-    ),
-    pool.query(OPEN_ONBOARDING_PRS_SQL),
+    pool.query(IN_REVIEW_PLANS_SQL, [readable]),
+    pool.query(OPEN_ONBOARDING_SQL, [readable]),
   ]);
 
   return [

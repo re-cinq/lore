@@ -23,6 +23,7 @@ import { reportBuilt, reportingAssembly } from "./assembly-report.js";
 import { z } from "zod";
 import { ContextTemplateSchema } from "@re-cinq/lore-shared/context-template.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
 
@@ -62,26 +63,40 @@ const AssembledContextSchema = z.object({
 /** `GET /api/context` with the query in the URL, and `POST /api/context` with the same fields as a JSON body, for a query too long for a URL: a station briefing a loop run sends the whole ticket. */
 export function contextRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
-    contextRoute(getPool, "GET", { query: zodValidate(ContextQuery) }),
-    contextRoute(getPool, "POST", { payload: zodValidate(ContextQuery) }),
+    contextRoute(getPool, "GET", "query", { query: zodValidate(ContextQuery) }),
+    contextRoute(getPool, "POST", "payload", {
+      payload: zodValidate(ContextQuery),
+    }),
   ];
 }
 
 function contextRoute(
   getPool: () => Pool | null,
   method: "GET" | "POST",
+  repoFrom: "query" | "payload",
   validate: RouteOptionsValidate,
 ): ServerRoute {
   return {
     method,
     path: "/api/context",
-    options: zodResponse(
-      { ...bearerScope("read"), validate },
-      AssembledContextSchema,
-      { name: "AssembledContext", description: "The assembled context block" },
-    ),
+    options: contextOptions(repoFrom, validate),
     handler: (request, h) => serveContext(getPool, request, h),
   };
+}
+
+function contextOptions(
+  repoFrom: "query" | "payload",
+  validate: RouteOptionsValidate,
+) {
+  return zodResponse(
+    {
+      ...bearerScope("read"),
+      ...repoLevel("read", { from: repoFrom, name: "repo" }),
+      validate,
+    },
+    AssembledContextSchema,
+    { name: "AssembledContext", description: "The assembled context block" },
+  );
 }
 
 async function serveContext(

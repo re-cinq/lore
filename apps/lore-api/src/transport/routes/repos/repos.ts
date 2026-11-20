@@ -12,6 +12,11 @@ import type {
 import { z } from "zod";
 import { getOnboardedReposWithCounts } from "../../../work/repo/repo-onboard.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import {
+  readableReposOf,
+  repoLevel,
+  SPANS_REPOS,
+} from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit, offsetParam } from "../common-schemas.js";
@@ -51,6 +56,7 @@ function reposRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(ReposQuery) },
       },
       RepoListResponse,
@@ -69,7 +75,9 @@ async function serveRepoList(
   const { limit, offset } = request.query as unknown as ReposQuery;
 
   try {
-    return h.response(await repoListPage(pool, limit, offset));
+    return h.response(
+      await repoListPage(pool, limit, offset, readableReposOf(request)),
+    );
   } catch (err) {
     console.error("[repos] API error:", errorMessage(err));
 
@@ -78,21 +86,30 @@ async function serveRepoList(
 }
 
 /** One page in wire shape: the stored columns per repo, plus the two counts the list renders. */
-async function repoListPage(pool: Pool, limit: number, offset: number) {
+async function repoListPage(
+  pool: Pool,
+  limit: number,
+  offset: number,
+  readable: string[] | null,
+) {
   const { repos, total } = await getOnboardedReposWithCounts(
     pool,
     limit,
     offset,
+    readable,
   );
 
+  return { repos: repos.map(toWireRepo), total, limit, offset };
+}
+
+function toWireRepo({
+  taskCount,
+  activeAgents,
+  ...repo
+}: Awaited<ReturnType<typeof getOnboardedReposWithCounts>>["repos"][number]) {
   return {
-    repos: repos.map(({ taskCount, activeAgents, ...repo }) => ({
-      ...toRow(REPO_COLUMNS, repo),
-      task_count: taskCount,
-      active_agents: activeAgents,
-    })),
-    total,
-    limit,
-    offset,
+    ...toRow(REPO_COLUMNS, repo),
+    task_count: taskCount,
+    active_agents: activeAgents,
   };
 }

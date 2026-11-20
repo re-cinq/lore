@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { readableReposOf, repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { buildChunkUnionQuery } from "../../../work/chunks/chunk-union.js";
@@ -50,6 +51,7 @@ function listChunksRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(ChunksQuery) },
       },
       ChunkListSchema,
@@ -59,32 +61,29 @@ function listChunksRoute(getPool: () => Pool | null): ServerRoute {
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const query = request.query as unknown as ChunksQuery;
 
-      return h.response({ chunks: await readChunkPage(pool, query) });
+      return h.response({ chunks: await readChunkPage(pool, request) });
     },
   };
 }
 
 /** A page of chunks: from ONE repo's team schema when a repo is named, else unioned across every team schema. Reads limit+1 rows so the caller can tell there is another page without paying for a COUNT, and orders by rank only when there is a query to rank against. */
-async function readChunkPage(pool: Pool, query: ChunksQuery) {
-  const { repo, type, q, limit, offset } = query;
+async function readChunkPage(pool: Pool, request: Request) {
+  const { repo, type, q, limit, offset } =
+    request.query as unknown as ChunksQuery;
   const { getChunkSchemas, repoSchema } = schemaReaders(pool);
   const pageSize = limit + 1;
   const orderBy = q ? "rank DESC, id DESC" : "ingested_at DESC, id DESC";
 
   if (repo) {
-    return readRepoChunks(pool, await repoSchema(repo), {
-      repo,
-      type,
-      q,
-      orderBy,
-      pageSize,
-      offset,
-    });
+    const page = { repo, type, q, orderBy, pageSize, offset };
+
+    return readRepoChunks(pool, await repoSchema(repo), page);
   }
 
-  return readUnionChunks(pool, await getChunkSchemas(), chunkSelect(type, q), {
+  const select = chunkSelect(type, q, readableReposOf(request));
+
+  return readUnionChunks(pool, await getChunkSchemas(), select, {
     orderBy,
     limit: pageSize,
   });
@@ -136,7 +135,13 @@ async function readUnionChunks(
 }
 
 /** One schema's SELECT. `$n`/`$n+1` are the type and query params — the union read repeats this per schema with a shifted offset, so the placeholders are positional rather than named. The content column is truncated to 300 chars: this is a browse view, not a fetch. */
-function chunkSelect(type: string | undefined, q: string | undefined) {
+function chunkSelect(
+  type: string | undefined,
+  q: string | undefined,
+  readable: string[] | null,
+) {
+  const readableLower = readable?.map((name) => name.toLowerCase()) ?? null;
+
   return (schema: string, offset: number) => ({
     sql: `SELECT id, file_path, content_type, repo, metadata,
                      substring(content, 1, 300) as content, ingested_at,
@@ -144,8 +149,9 @@ function chunkSelect(type: string | undefined, q: string | undefined) {
                           ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $${offset + 1})) END as rank
                 FROM ${schema}.chunks
                WHERE ($${offset}::text IS NULL OR content_type = $${offset})
-                 AND ($${offset + 1}::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $${offset + 1}))`,
-    params: [type || null, q || null],
+                 AND ($${offset + 1}::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $${offset + 1}))
+                 AND ($${offset + 2}::text[] IS NULL OR lower(repo) = ANY($${offset + 2}::text[]))`,
+    params: [type || null, q || null, readableLower],
   });
 }
 
