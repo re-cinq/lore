@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFloorPipelineFiles } from "./seed-floor-pipelines.js";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { InMemoryAgentDefinitions } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.fixture.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
@@ -135,9 +136,29 @@ describe("readFloorMigrations", () => {
         "floor/0014_commit_author_from_settings",
         "floor/0015_models_from_loop_bench",
         "floor/0016_round_closes_test_gaps_first",
+        "floor/0017_review_agents_read_paged_packets",
+        "floor/0018_review_agents_diff_first_and_guard",
+        "floor/0019_review_findings_name_their_line",
       ],
       unshipped: [],
     });
+  });
+});
+
+describe("every floor migration", () => {
+  it("writes only agents a shipped pipeline names, since the floor holds no other and one refused write stops every later migration", async () => {
+    const named = new Set(
+      (await readFloorPipelineFiles()).flatMap(({ text }) =>
+        [...text.matchAll(/agent_definition: ([\w-]+)/g)].map(
+          ([, agent]) => agent,
+        ),
+      ),
+    );
+    const { writes } = await everyWrite();
+
+    expect(
+      writes.filter(({ agent }) => !named.has(agent)).map(({ agent }) => agent),
+    ).toEqual([]);
   });
 });
 
@@ -280,14 +301,13 @@ describe("floor/0013_ticket_agents_search_first", () => {
 });
 
 describe("floor/0014_commit_author_from_settings", () => {
-  it("writes the shipped prompt and env of the six agents that commit, and nothing else", async () => {
+  it("writes the shipped prompt and env of the five agents that commit and a pipeline names, and nothing else", async () => {
     const { writes } = await everyWrite(
       "floor/0014_commit_author_from_settings",
     );
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
       [
-        "gap-fill",
         "loop-dod",
         "loop-fix-ci",
         "loop-tdd-round",
@@ -330,6 +350,54 @@ describe("floor/0016_round_closes_test_gaps_first", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt loop-tdd-round",
+    ]);
+  });
+});
+
+describe("floor/0017_review_agents_read_paged_packets", () => {
+  it("writes the shipped prompts of the five review pass agents, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0017_review_agents_read_paged_packets",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt shadow-review-reader",
+      "prompt shadow-compare-intent",
+      "prompt shadow-review-challenge",
+      "prompt shadow-review-product",
+      "prompt code-review-product",
+    ]);
+  });
+});
+
+describe("floor/0018_review_agents_diff_first_and_guard", () => {
+  it("writes the shipped prompt and skills of the five review pass agents, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0018_review_agents_diff_first_and_guard",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
+      [
+        "shadow-review-reader",
+        "shadow-compare-intent",
+        "shadow-review-challenge",
+        "shadow-review-product",
+        "code-review-product",
+      ].flatMap((agent) => [`prompt ${agent}`, `skills ${agent}`]),
+    );
+  });
+});
+
+describe("floor/0019_review_findings_name_their_line", () => {
+  it("writes the shipped prompts of the three agents that write findings, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0019_review_findings_name_their_line",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt shadow-compare-intent",
+      "prompt shadow-review-product",
+      "prompt code-review-product",
     ]);
   });
 });

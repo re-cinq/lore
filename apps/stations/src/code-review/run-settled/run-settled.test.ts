@@ -122,6 +122,7 @@ describe("failedAgentVisitOf", () => {
     });
 
     expect(failedAgentVisitOf([first, retry])).toEqual({
+      nodeId: "review",
       visitId: "v-2",
       iteration: 2,
       error: "429 insufficient_quota",
@@ -149,6 +150,7 @@ describe("failedAgentVisitOf", () => {
 describe("isOutOfBudget", () => {
   it("is true for a Gemini exceeded your current quota failure", () => {
     const failure = {
+      nodeId: "review",
       visitId: "v-1",
       iteration: 1,
       error: "You exceeded your current quota",
@@ -159,6 +161,7 @@ describe("isOutOfBudget", () => {
 
   it("is false for a 429 rate limit failure", () => {
     const failure = {
+      nodeId: "review",
       visitId: "v-1",
       iteration: 1,
       error: "429 Too Many Requests",

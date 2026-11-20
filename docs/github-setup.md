@@ -4,7 +4,7 @@ Lore needs two things from GitHub before it is installed, and a GitHub organizat
 
 | What | Who creates it | What Lore uses it for |
 | ---- | -------------- | --------------------- |
-| [A GitHub App](#1-the-github-app) | an owner of the client's organization | reading and writing repositories, issues and pull requests as Lore |
+| [A GitHub App](#1-the-github-app) | an owner of your GitHub organization | reading and writing repositories, issues and pull requests as Lore |
 | [A GitHub OAuth App](#2-the-oauth-app-for-sign-in) | the same owner | signing people in to the web UI |
 
 Optional, later: [a second App that approves pull requests](#3-optional-the-reviewer-app).
@@ -35,14 +35,14 @@ On the same form, under **Permissions**, open **Repository permissions** and set
 
 | Permission | Access | What Lore does with it |
 | ---------- | ------ | ---------------------- |
-| Actions | Read-only | reads a failed CI job and its log, so an agent fixes what CI reported |
+| Actions | Read and write | reads a failed CI job and its log, so an agent fixes what CI reported. At onboarding, the last station (`onboard-start-ingest`) enables `lore-ingest.yml` and `lore-tests.yml` when they are disabled and dispatches them on the default branch to start the first ingestion; merge-check does the same when an onboarding pull request merges. Without the write access the station reports a gap and does not fail |
 | Checks | Read and write | reads CI results on a pull request, and posts its own review as the `lore/code-review` check |
 | Contents | Read and write | reads code, specs and ADRs; pushes branches and commits; merges pull requests |
 | Issues | Read and write | reads the backlog; files, labels, comments on and closes tickets |
 | Metadata | Read-only | GitHub selects it for every App |
 | Pull requests | Read and write | opens, reviews, comments on, updates and merges pull requests |
-| Secrets | Read and write | at onboarding, sets the repository secret `LORE_INGEST_TOKEN` that the repository's CI uses to post to Lore |
-| Variables | Read and write | at onboarding, sets the repository variable `LORE_INGEST_URL` |
+| Secrets | Read and write | onboarding sets the repository secret `LORE_INGEST_TOKEN` on every run; the repository's CI uses it to post to Lore. Nobody sets it by hand |
+| Variables | Read and write | onboarding sets the repository variable `LORE_INGEST_URL` on every run. Nobody sets it by hand. Its value is the stations deployment's `LORE_INGEST_URL`, the public lore-api URL (for example `https://<api host>`), set from the chart value `lore-stations.ingestUrl` (the stations subchart value in the umbrella chart; the install chart sets it under `lore-platform.lore-stations.ingestUrl`) |
 | Webhooks | Read and write | creates the repository's webhook at onboarding |
 | Workflows | Read and write | the onboarding pull request adds files under `.github/workflows/`. GitHub refuses any push that changes a workflow file without it |
 
@@ -56,14 +56,16 @@ Leave **Organization permissions** and **Account permissions** at "No access". U
 
 Agents get no credential of their own. For each run Lore gives the agent a short-lived token of this App's installation, for the one repository it works in and narrowed to Contents, Issues, Pull requests and Workflows. An agent never holds the Secrets, Webhooks or Checks permission.
 
-To change a permission later, edit it on the App and save. GitHub then asks the organization to accept the change: an owner opens **Organization settings → GitHub Apps → Configure** on the App and approves the request. Until then the installation keeps the old permissions.
+To change a permission later, edit it on the App and save. GitHub then asks the organization to accept the change: an owner opens **Organization settings → GitHub Apps → Configure** on the App and approves the request. Until then the installation keeps the old permissions. An installation made before Actions became Read and write must accept that change the same way; until it does, onboarding cannot start the first ingestion and says so.
+
+Re-onboarding (`POST /api/onboard` with `reonboard: true`, or "Update setup" in the web UI) rewrites the secret and the variable and starts the ingestion again.
 
 Then:
 
 1. **Create the App.** Its settings page shows the **App ID**.
 2. **Generate a private key** (on the same page, under "Private keys"). GitHub downloads a `.pem` file. It is shown once.
 3. **Install the App** on the organization ("Install App" in the left menu), on all repositories or on the ones Lore should work in.
-4. **Read the installation ID.** After installing, the browser is on `https://github.com/organizations/<org>/settings/installations/<number>`. The number is the installation ID.
+4. **Read the installation ID.** After installing, GitHub sends the browser to the Setup URL with `?installation_id=<number>` in the address. Before Lore is installed that page does not load, which is expected; the number is the installation ID. You can also read it later: **Organization settings → GitHub Apps → Configure** on the App opens `…/settings/installations/<number>`.
 
 What you now have, and where it goes in `my-values.yaml`:
 
@@ -75,7 +77,7 @@ What you now have, and where it goes in `my-values.yaml`:
 | Slug | `lore-platform.lore-ui.env.GITHUB_APP_SLUG` |
 | Organization name | `lore-platform.lore-api.env.GITHUB_ORG` |
 
-Quote the two IDs in the values file (`"123456"`), so they are read as text.
+The two IDs are numbers. Write them with or without quotes.
 
 ## 2. The OAuth App for sign-in
 
@@ -121,7 +123,7 @@ Create it like the App in section 1, named `lore-reviewer`, with the webhook off
 | Metadata | Read-only |
 | Pull requests | Read and write |
 
-Install it on the same repositories. On a client cluster its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
+Install it on the same repositories. Its three values go into a Secret named `lore-reviewer-app` in the `lore-stations` namespace, with the keys `app-id`, `private-key` and `installation-id`.
 
 ## GitHub Enterprise Server
 

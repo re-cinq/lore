@@ -2,19 +2,13 @@ import { describe, it, expect } from "vitest";
 import * as mirror from "./ingest-workflow";
 import * as canonical from "../../../../libs/shared/src/work/ingest-workflow";
 
-describe("ingest-workflow parity (web-ui mirror vs shared canonical)", () => {
+describe("ingest-workflow parity (web-ui version markers vs shared canonical)", () => {
   it("shares the workflow path and canonical version", () => {
     expect(mirror.LORE_INGEST_WORKFLOW_PATH).toBe(
       canonical.LORE_INGEST_WORKFLOW_PATH,
     );
     expect(mirror.LORE_INGEST_WORKFLOW_VERSION).toBe(
       canonical.LORE_INGEST_WORKFLOW_VERSION,
-    );
-  });
-
-  it("shares the workflow content byte for byte", () => {
-    expect(mirror.LORE_INGEST_WORKFLOW_CONTENT).toBe(
-      canonical.LORE_INGEST_WORKFLOW_CONTENT,
     );
   });
 
@@ -31,14 +25,5 @@ describe("ingest-workflow parity (web-ui mirror vs shared canonical)", () => {
     expect(mirror.parseIngestWorkflowVersion(content ?? "")).toEqual(
       canonical.parseIngestWorkflowVersion(content ?? ""),
     );
-  });
-
-  it("classifies the canonical content as aligned on both sides", () => {
-    expect(
-      mirror.ingestWorkflowStatus(canonical.LORE_INGEST_WORKFLOW_CONTENT),
-    ).toBe("aligned");
-    expect(
-      canonical.ingestWorkflowStatus(mirror.LORE_INGEST_WORKFLOW_CONTENT),
-    ).toBe("aligned");
   });
 });

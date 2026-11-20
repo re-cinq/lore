@@ -358,7 +358,7 @@ lore-api has no route that merges a pull request at a person's request today; th
 
 ## Assumptions
 
-- Step 1 (FR-9.20 and FR-9.21 of `specs/4-ux-repo-onboarding/spec.md`) is merged before any step here.
+- Step 1 (FR-9.21 and FR-9.22 of `specs/4-ux-repo-onboarding/spec.md`) is merged before any step here.
 - Before Step 3 is built, it is confirmed on a real installation that a user token of the App can set a repository secret and a repository variable and create a webhook. If it cannot, work on Step 3 stops and ADR-054 is amended; this spec names no other credential for those calls.
 - Steps 2 and 3 ship without Step 4.
 - An existing install changes its GitHub App's settings once, and an owner of the organisation approves the permission Members (read), before the upgrade. The upgrade does not start without it, nor without every setting the new mode needs (FR-143, FR-385, FR-443, FR-444, FR-473 to FR-475).

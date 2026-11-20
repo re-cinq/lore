@@ -1,8 +1,6 @@
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
-import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
-import FixIngestButton, {
-  FixWorkflowButton,
-} from "@/components/FixIngestButton";
+import type { SetupOutcome } from "@/lib/update-setup-result";
+import UpdateSetupButton from "@/components/UpdateSetupButton";
 import Icon from "@/components/Icon";
 import Link from "next/link";
 import styles from "./HomeView.module.css";
@@ -34,16 +32,16 @@ export type Repo = Pick<
 export interface HomeViewProps {
   repos: Repo[];
   ingestStatus: Map<string, IngestWorkflowStatus>;
-  misaligned: string[];
-  /** Overview action wired to the Fix-ingest button ("actions up"). */
-  fixIngestWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
+  /** Repos whose ingest or spec-impact workflow is missing or stale: the ones Update setup is offered for. */
+  needsUpdate: string[];
+  /** Overview action wired to the Update setup button ("actions up"). */
+  updateSetup: (repos: string[]) => Promise<SetupOutcome[]>;
   impactMisaligned: string[];
-  fixTraceImpactWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
   /** The chip the reader picked (`?filter=`); every repo when absent. */
   filter?: RepoFilter;
 }
 
-// Pure render — repo list/status come from page.tsx; the fix buttons are the only mutations.
+// Pure render — repo list/status come from page.tsx; Update setup is the only mutation.
 export default function HomeView(props: HomeViewProps) {
   const filter = props.filter ?? "all";
   const attention = attentionByRepo(props);
@@ -97,18 +95,11 @@ function DashboardHeader(props: DashboardHeaderProps) {
   );
 }
 
-/** The two fix buttons hide themselves when nothing is misaligned, so this row is usually just "Add repo". */
+/** The Update setup button hides itself when nothing needs it, so this row is usually just "Add repo". */
 function HeaderActions(props: DashboardHeaderProps) {
   return (
     <div className={styles.headerActions}>
-      <FixIngestButton
-        repos={props.misaligned}
-        action={props.fixIngestWorkflows}
-      />
-      <FixImpactButton
-        repos={props.impactMisaligned}
-        action={props.fixTraceImpactWorkflows}
-      />
+      <UpdateSetupButton repos={props.needsUpdate} action={props.updateSetup} />
       <Link href="/onboard" className={styles.addRepo}>
         <Icon name="add" size={16} inline /> Add repo
       </Link>
@@ -120,24 +111,6 @@ function summaryLine(repos: Repo[], attention: AttentionMap): string {
   const running = repos.reduce((n, r) => n + r.active_agents, 0);
 
   return `${repos.length} onboarded · ${attention.size} need attention · ${running} agents running`;
-}
-
-/** Opens the PR that installs the current spec-impact workflow. The title spells out the consequence of NOT fixing it: a repo on an old workflow has its impact findings suppressed. */
-function FixImpactButton({
-  repos,
-  action,
-}: {
-  repos: React.ComponentProps<typeof FixWorkflowButton>["repos"];
-  action: React.ComponentProps<typeof FixWorkflowButton>["action"];
-}) {
-  return (
-    <FixWorkflowButton
-      repos={repos}
-      action={action}
-      label="Fix spec-impact workflow"
-      title="Open a PR installing the latest .github/workflows/lore-trace-impact.yml. Until it lands, this repo's impact findings are suppressed."
-    />
-  );
 }
 
 interface FilterChipsProps {

@@ -22,6 +22,7 @@ export interface ReviewFinding {
 export interface ReviewOutput {
   verdict: ReviewVerdict;
   findings: ReviewFinding[];
+  generalFindings?: Array<Omit<ReviewFinding, "path" | "line">>;
   summary?: string;
 }
 
@@ -244,11 +245,28 @@ function isReviewOutput(value: unknown): value is ReviewOutput {
     return false;
   }
 
-  if (value.summary !== undefined && typeof value.summary !== "string") {
+  if (!optional(value.summary, (summary) => typeof summary === "string")) {
+    return false;
+  }
+
+  if (!optional(value.generalFindings, validGeneralFindings)) {
     return false;
   }
 
   return Array.isArray(value.findings) && value.findings.every(isReviewFinding);
+}
+
+function validGeneralFindings(findings: unknown): boolean {
+  return (
+    Array.isArray(findings) &&
+    findings.every(
+      (finding) =>
+        isRecord(finding) &&
+        typeof finding.subject === "string" &&
+        includes(LABELS, finding.label) &&
+        hasValidOptionalFindingFields(finding),
+    )
+  );
 }
 
 function isReviewFinding(value: unknown): value is ReviewFinding {

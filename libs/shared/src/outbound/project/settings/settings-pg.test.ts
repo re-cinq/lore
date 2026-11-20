@@ -28,6 +28,17 @@ function fakeWriter(
     setRepoSecret: async (repo, name, value) => {
       calls.push({ kind: "secret", args: [repo, name, value] });
     },
+    workflowState: async (repo, file) => {
+      calls.push({ kind: "state", args: [repo, file] });
+
+      return "disabled";
+    },
+    enableWorkflow: async (repo, file) => {
+      calls.push({ kind: "enable", args: [repo, file] });
+    },
+    dispatchWorkflow: async (repo, file, ref) => {
+      calls.push({ kind: "dispatch", args: [repo, file, ref] });
+    },
   };
 }
 
@@ -61,6 +72,23 @@ describe("PgSettings", () => {
 
     expect(calls).toEqual([
       { kind: "var", args: ["re-cinq/lore", "LORE_INGEST_URL", "https://api"] },
+    ]);
+  });
+
+  it("delegates workflow state, enable and dispatch to the repo-config writer", async () => {
+    const calls: Array<{ kind: string; args: string[] }> = [];
+    const store = new PgSettings(fakePool([], []), fakeWriter(calls));
+
+    expect(await store.workflowState("re-cinq/lore", "lore-ingest.yml")).toBe(
+      "disabled",
+    );
+    await store.enableWorkflow("re-cinq/lore", "lore-ingest.yml");
+    await store.dispatchWorkflow("re-cinq/lore", "lore-ingest.yml", "main");
+
+    expect(calls).toEqual([
+      { kind: "state", args: ["re-cinq/lore", "lore-ingest.yml"] },
+      { kind: "enable", args: ["re-cinq/lore", "lore-ingest.yml"] },
+      { kind: "dispatch", args: ["re-cinq/lore", "lore-ingest.yml", "main"] },
     ]);
   });
 

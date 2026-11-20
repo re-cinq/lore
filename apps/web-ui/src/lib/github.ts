@@ -219,11 +219,6 @@ function nullOnNotFound(e: unknown): null {
   throw e;
 }
 
-export {
-  openIngestWorkflowPR,
-  openTraceImpactWorkflowPR,
-} from "./github-workflow-pr";
-
 export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
   if (!isGitHubConfigured()) {
     return null;

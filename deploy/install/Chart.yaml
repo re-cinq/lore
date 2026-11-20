@@ -1,9 +1,8 @@
 apiVersion: v2
 name: lore-install
 description: >-
-  Installs Lore, the floor, the agent subsystem and Utopia on one cluster from
-  one values file. For a cluster we do not run ourselves; our own cluster deploys
-  deploy/chart with Argo CD.
+  Installs Lore, the floor, the agent subsystem and, optionally, Utopia on one
+  cluster from one values file.
 type: application
 version: 0.1.0
 

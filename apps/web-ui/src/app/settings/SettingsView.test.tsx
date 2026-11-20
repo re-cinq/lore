@@ -40,7 +40,6 @@ function renderView(
       saveContextModel={action}
       sessionLengthHours=""
       saveSessionLength={action}
-      regenerateToken={action}
       githubInstallations={[]}
       githubInstallUrl={null}
       packSync={null}
@@ -67,7 +66,6 @@ describe("SettingsView", () => {
       "Sign-in session",
       "Context builder",
       "Developer install",
-      "Regenerate ingest token",
     ]);
     expect(screen.getByTestId("theme-switcher")).toBeInTheDocument();
   });
@@ -151,14 +149,20 @@ describe("SettingsView", () => {
     );
   });
 
-  it("renders the regenerate-token form with its danger button and warning", () => {
+  it("names the secret and variable onboarding writes and Update setup in the token note", () => {
     renderView();
     expect(
-      screen.getByRole("button", { name: "Regenerate token" }),
-    ).toBeInTheDocument();
+      screen.getByText(/Update setup rewrites them/, { selector: "p" }),
+    ).toHaveTextContent(
+      "Onboarding writes each repo's LORE_INGEST_TOKEN secret and LORE_INGEST_URL variable",
+    );
+  });
+
+  it("offers no Regenerate token button", () => {
+    renderView();
     expect(
-      screen.getByText(/invalidates all existing tokens/),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Regenerate token" }),
+    ).not.toBeInTheDocument();
   });
 
   it("wires the approval form to the config values with the checkbox checked", () => {

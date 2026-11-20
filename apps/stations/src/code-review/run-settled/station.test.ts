@@ -36,6 +36,7 @@ function brokenRun(headSha?: string): RunView {
 }
 
 const OUT_OF_QUOTA: FailedAgentVisit = {
+  nodeId: "review",
   visitId: "visit-agent",
   iteration: 2,
   error:
@@ -144,6 +145,19 @@ describe("runSettledHandle", () => {
     await handle(brief("walk-note", "error"), TOOLS);
 
     expect(checks).toEqual([]);
+  });
+
+  it("fails the review check when the product pass runs out of credit", async () => {
+    const { handle, checks, reviews } = scene(brokenRun("sha-1"), undefined, {
+      ...OUT_OF_QUOTA,
+      nodeId: "review-product",
+    });
+
+    await handle(brief("code-review", "failed"), TOOLS);
+    expect({ checks, reviews }).toMatchObject({
+      checks: [{ headSha: "sha-1", conclusion: "failure" }],
+      reviews: [],
+    });
   });
 
   it("approves once with the budget notice and succeeds the check for a run whose agent ran out of quota", async () => {

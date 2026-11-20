@@ -224,9 +224,8 @@ lore-api:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "e1eca01"
+    tag: "a360320"
   env:
-    LORE_PACK_REPO: re-cinq/lore-assembly-lines
     # Evals on Gemini under the pod's Google identity; gemini-2.5-pro judged a
     # full run on 2026-10-03 and changed no verdict, so no judge model is set.
     LORE_EVAL_LLM_PROVIDER: vertex
@@ -277,7 +276,7 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "e1eca01"
+    tag: "a360320"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   serviceAccount:
@@ -286,7 +285,7 @@ lore-ui:
   replicaCount: 1
   image:
     repository: ghcr.io/re-cinq/lore-ui
-    tag: "6392c77"
+    tag: "401b16e"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
@@ -313,14 +312,14 @@ lore-db-helm:
 # ---- Stations (lore-stations namespace)
 lore-stations:
   gcpProject: re-cinq-internal
+  ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "e1eca01"
+    tag: "a360320"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
   env:
-    LORE_PACK_REPO: re-cinq/lore-assembly-lines
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
     LORE_DB_PORT: "5432"
     LORE_DB_NAME: lore

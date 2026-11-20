@@ -50,6 +50,7 @@ interface Pulls {
 function scene({ open = [], refusal }: Partial<Pulls> = {}) {
   const opened: Opened[] = [];
   const recorded: string[] = [];
+  const onboarded: string[] = [];
   const deps: OpenOnboardPrDeps = {
     pulls: () =>
       Promise.resolve({
@@ -65,9 +66,14 @@ function scene({ open = [], refusal }: Partial<Pulls> = {}) {
 
       return Promise.resolve();
     },
+    markOnboarded: (repo) => {
+      onboarded.push(repo);
+
+      return Promise.resolve();
+    },
   };
 
-  return { handle: openOnboardPrHandle(deps), opened, recorded };
+  return { handle: openOnboardPrHandle(deps), opened, recorded, onboarded };
 }
 
 describe("the onboard-open-pr station", () => {
@@ -114,8 +120,8 @@ describe("the onboard-open-pr station", () => {
     expect(opened).toEqual([]);
   });
 
-  it("reports changes_requested and records nothing when the branch has no commits to open a pull request from", async () => {
-    const { handle, recorded } = scene({
+  it("reports changes_requested, records no pull request and marks re-cinq/app onboarded when the branch has no commits to open a pull request from", async () => {
+    const { handle, recorded, onboarded } = scene({
       refusal: new Error(
         "Validation Failed: No commits between main and lore/x",
       ),
@@ -124,7 +130,10 @@ describe("the onboard-open-pr station", () => {
     expect(await handle(brief(), TOOLS)).toEqual({
       outcome: "changes_requested",
     });
-    expect(recorded).toEqual([]);
+    expect({ recorded, onboarded }).toEqual({
+      recorded: [],
+      onboarded: ["re-cinq/app"],
+    });
   });
 
   it("reports failed with the error when GitHub refuses for any other reason", async () => {

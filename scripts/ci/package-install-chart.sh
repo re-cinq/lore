@@ -141,6 +141,13 @@ for namespace in lore-api lore-ui lore-stations lore-dgraph; do
     '.kind == "NetworkPolicy" and .metadata.name == "default-deny-ingress" and .metadata.namespace == "'"$namespace"'"'
 done
 
+rendered_count "$rendered" "cert-manager's HTTP-01 solver is admitted from the ingress namespace wherever an Ingress asks for a certificate" \
+  '.kind == "NetworkPolicy" and .metadata.name == "allow-acme-http01-solver" and (.metadata.namespace | test("^lore-(api|ui)$")) and .spec.ingress[0].ports[0].port == 8089' 2
+rendered_lacks "$(render --set-string lore-platform.platform.clusterIssuer=)" "no solver rule without a ClusterIssuer" \
+  '.kind == "NetworkPolicy" and .metadata.name == "allow-acme-http01-solver"'
+rendered_has "$(render --set secrets.githubApp.appId=1234567 --set secrets.githubApp.installationId=87654321)" "an unquoted GitHub App id is written as plain digits" \
+  '.kind == "Secret" and .metadata.name == "github-app-credentials" and .metadata.namespace == "lore-api" and .stringData["app-id"] == "1234567" and .stringData["installation-id"] == "87654321"'
+
 echo "[lore] only GitHub is mandatory: the minimal example"
 MINIMAL="$WORK/values.minimal.filled.yaml"
 sed 's/CHANGE-ME/render-check-value-0123456789abcdef/g' "$REPO/deploy/install/values.minimal.example.yaml" >"$MINIMAL"
@@ -250,6 +257,8 @@ yq -e '.["lore-platform"]["lore-api"].floor.agentImage | contains("@'"$fake_dige
 echo "[lore] the install stops on a placeholder and on a short token"
 raw_error="$(helm template lore "$ARCHIVE" -n lore-floor -f "$REPO/$VALUES_EXAMPLE" 2>&1 >/dev/null || true)"
 grep -q 'CHANGE-ME' <<<"$raw_error" && render_ok "an example with CHANGE-ME left in it is refused" || render_fail "the unedited ${VALUES_EXAMPLE} was not refused"
+list_error="$(render --set-string 'lore-platform.platform.ingresses[0].host=CHANGE-ME.example.com' 2>&1 >/dev/null || true)"
+grep -q 'ingresses.0.host still holds the placeholder CHANGE-ME' <<<"$list_error" && render_ok "a placeholder inside a list is refused" || render_fail "a CHANGE-ME ingress host was accepted"
 short_error="$(render --set secrets.ingestToken=short 2>&1 >/dev/null || true)"
 grep -q 'must be at least 32' <<<"$short_error" && render_ok "a token shorter than 32 characters is refused" || render_fail "a 5 character ingest token was accepted"
 finish_assertions "install chart render assertions"

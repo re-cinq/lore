@@ -339,6 +339,7 @@ describe("reviewOrRecheck", () => {
       path: "/assembly-lines/code-review-recheck/start",
       body: {
         startItems: {
+          since_sha: { ref: "sha-old" },
           description: {
             ref: expect.stringContaining(
               "diff --no-ext-diff sha-old..HEAD",
@@ -409,6 +410,9 @@ describe("reviewOrRecheck", () => {
           ref: expect.stringContaining(
             "- src/a.ts:12: the null check is inverted",
           ) as string,
+        },
+        previous_findings: {
+          ref: expect.stringContaining("the null check is inverted"),
         },
         open_threads: { kind: "value", ref: "T1" },
       },

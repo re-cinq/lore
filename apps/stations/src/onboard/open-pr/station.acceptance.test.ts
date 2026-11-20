@@ -48,6 +48,7 @@ function scene({ open = [], refusal }: Partial<Pulls> = {}) {
         },
       }),
     recordOnboardingPr: () => Promise.resolve(),
+    markOnboarded: () => Promise.resolve(),
   };
 
   return { handle: openOnboardPrHandle(deps), opened };

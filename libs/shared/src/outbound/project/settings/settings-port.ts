@@ -31,12 +31,21 @@ export type PendingOnboardingRepo = RepoColumn<"id" | "fullName"> & {
 /** What renaming a repo's row did: moved it in place, folded it into a row already carrying the new name, or found no row under the old name. */
 export type RepoRenameOutcome = "renamed" | "merged" | "absent";
 
+import type { WorkflowState } from "../lib/platform-github-repo-config.js";
+
+export type { WorkflowState };
+
 /** Repo settings port: org settings, repo config writes and the raw lore.repos record ops. */
 export interface SettingsPort {
   /** An org-wide setting (`lore.settings`) by key; null when unset. */
   orgSetting(key: string): Promise<string | null>;
   setRepoVariable(repo: string, name: string, value: string): Promise<void>;
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
+  /** A repo's Actions workflow by file name (`lore-ingest.yml`): `disabled` for any GitHub state but `active`, `missing` on a 404. */
+  workflowState(repo: string, file: string): Promise<WorkflowState>;
+  enableWorkflow(repo: string, file: string): Promise<void>;
+  /** Rejects with GitHub's message (422) for a workflow without a `workflow_dispatch` trigger. */
+  dispatchWorkflow(repo: string, file: string, ref: string): Promise<void>;
 
   // ── raw lore.repos record ops (relocated from Floor inline SQL) ──
   /** Whole lore.repos row, or null — exists because five web-ui pages each SELECTed a different column subset; prefer rawSettings/team when that's genuinely all you need. */

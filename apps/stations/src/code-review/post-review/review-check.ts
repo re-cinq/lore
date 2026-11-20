@@ -22,7 +22,11 @@ export function reviewVerdictOf(agentOutput: string): ReviewVerdict | null {
 }
 
 export function findingCountOf(agentOutput: string): number {
-  return parseReviewFindings(agentOutput)?.findings.length ?? 0;
+  const review = parseReviewFindings(agentOutput);
+
+  return review
+    ? review.findings.length + (review.generalFindings?.length ?? 0)
+    : 0;
 }
 
 export interface ReviewCheckInput {
