@@ -4,15 +4,8 @@ const rest = {
   repos: {
     get: vi.fn(),
     getContent: vi.fn(),
-    createOrUpdateFileContents: vi.fn(),
-  },
-  git: {
-    getRef: vi.fn(),
-    createRef: vi.fn(),
   },
   pulls: {
-    create: vi.fn(),
-    list: vi.fn(),
     get: vi.fn(),
     listReviews: vi.fn(),
   },
@@ -33,7 +26,6 @@ import {
   getPRDetails,
   isGitHubConfigured,
   getRepoFileContent,
-  openIngestWorkflowPR,
   checkRepoAccess,
 } from "./github";
 
@@ -233,124 +225,6 @@ describe("getRepoFileContent", () => {
     delete process.env.GITHUB_APP_ID;
     expect(await getRepoFileContent("re-cinq/app", "x.yml")).toBeNull();
     expect(rest.repos.getContent).not.toHaveBeenCalled();
-  });
-});
-
-describe("openIngestWorkflowPR", () => {
-  beforeEach(() => {
-    configureApp();
-    resetRest();
-  });
-
-  const happyPath = () => {
-    rest.repos.get.mockResolvedValue({ data: { default_branch: "main" } });
-    rest.git.getRef.mockResolvedValue({ data: { object: { sha: "basesha" } } });
-    rest.git.createRef.mockResolvedValue({});
-    rest.repos.createOrUpdateFileContents.mockResolvedValue({});
-    rest.pulls.create.mockResolvedValue({
-      data: { html_url: "https://gh/pr/1", number: 1 },
-    });
-  };
-
-  it("creates a branch, commits the file, and opens a PR against the default branch", async () => {
-    happyPath();
-    rest.repos.getContent.mockRejectedValue(httpError(404));
-
-    const out = await openIngestWorkflowPR(
-      "re-cinq/app",
-      ".github/workflows/lore-ingest.yml",
-      "CONTENT",
-    );
-
-    expect(out).toEqual({ url: "https://gh/pr/1", number: 1 });
-    expect(rest.git.createRef).toHaveBeenCalledWith({
-      owner: "re-cinq",
-      repo: "app",
-      ref: "refs/heads/lore/fix-ingest-workflow",
-      sha: "basesha",
-    });
-    expect(rest.repos.createOrUpdateFileContents).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: "re-cinq",
-        repo: "app",
-        path: ".github/workflows/lore-ingest.yml",
-        branch: "lore/fix-ingest-workflow",
-        content: b64("CONTENT"),
-      }),
-    );
-    expect(
-      rest.repos.createOrUpdateFileContents.mock.calls[0][0].sha,
-    ).toBeUndefined();
-    expect(rest.pulls.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        head: "lore/fix-ingest-workflow",
-        base: "main",
-      }),
-    );
-  });
-
-  it("upserts with the existing blob sha when the file is already on the branch", async () => {
-    happyPath();
-    rest.repos.getContent.mockResolvedValue({
-      data: { type: "file", sha: "oldsha" },
-    });
-
-    await openIngestWorkflowPR(
-      "re-cinq/app",
-      ".github/workflows/lore-ingest.yml",
-      "CONTENT",
-    );
-
-    expect(rest.repos.createOrUpdateFileContents.mock.calls[0][0].sha).toBe(
-      "oldsha",
-    );
-  });
-
-  it("reuses an existing branch when createRef reports it already exists", async () => {
-    happyPath();
-    rest.git.createRef.mockRejectedValue(httpError(422));
-    rest.repos.getContent.mockRejectedValue(httpError(404));
-
-    const out = await openIngestWorkflowPR("re-cinq/app", "p.yml", "CONTENT");
-
-    expect(out).toEqual({ url: "https://gh/pr/1", number: 1 });
-    expect(rest.repos.createOrUpdateFileContents).toHaveBeenCalled();
-  });
-
-  it("returns the existing open PR when one is already open for the branch", async () => {
-    happyPath();
-    rest.repos.getContent.mockRejectedValue(httpError(404));
-    rest.pulls.create.mockRejectedValue(httpError(422));
-    rest.pulls.list.mockResolvedValue({
-      data: [{ html_url: "https://gh/pr/9", number: 9 }],
-    });
-
-    const out = await openIngestWorkflowPR("re-cinq/app", "p.yml", "CONTENT");
-
-    expect(out).toEqual({ url: "https://gh/pr/9", number: 9 });
-    expect(rest.pulls.list).toHaveBeenCalledWith(
-      expect.objectContaining({
-        head: "re-cinq:lore/fix-ingest-workflow",
-        state: "open",
-      }),
-    );
-  });
-
-  it("rethrows a non-422 createRef failure", async () => {
-    happyPath();
-    rest.git.createRef.mockRejectedValue(httpError(500));
-
-    await expect(
-      openIngestWorkflowPR("re-cinq/app", "p.yml", "CONTENT"),
-    ).rejects.toThrow("HTTP 500");
-  });
-
-  it("returns null without touching GitHub when the App is not configured", async () => {
-    delete process.env.GITHUB_APP_PRIVATE_KEY;
-    expect(
-      await openIngestWorkflowPR("re-cinq/app", "p.yml", "CONTENT"),
-    ).toBeNull();
-    expect(rest.repos.get).not.toHaveBeenCalled();
   });
 });
 

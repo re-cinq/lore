@@ -18,7 +18,6 @@ type SettingsViewData = Omit<
   SettingsViewProps,
   | "saveSettings"
   | "saveApprovalConfig"
-  | "regenerateToken"
   | "saveSlackPeople"
   | "saveContextModel"
   | "saveSessionLength"
@@ -47,7 +46,6 @@ export default async function SettingsPage({
       saveContextModel={saveContextModel}
       saveSessionLength={saveSessionLength}
       syncPack={syncPack}
-      regenerateToken={regenerateToken}
     />
   );
 }
@@ -274,13 +272,4 @@ function parseApprovalRepos(
   }
 
   return repos;
-}
-
-async function regenerateToken() {
-  "use server";
-  const crypto = await import("crypto");
-  const newToken = crypto.randomBytes(32).toString("hex");
-
-  await putOrgSettings([{ key: "ingest_token", value: newToken }]);
-  revalidatePath("/settings");
 }

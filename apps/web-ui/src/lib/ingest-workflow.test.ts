@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_VERSION,
-  LORE_INGEST_WORKFLOW_CONTENT,
   parseIngestWorkflowVersion,
   ingestWorkflowStatus,
 } from "./ingest-workflow";
@@ -12,18 +11,8 @@ describe("constants", () => {
     expect(LORE_INGEST_WORKFLOW_PATH).toBe(".github/workflows/lore-ingest.yml");
   });
 
-  it("pins the canonical version to 9", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(9);
-  });
-
-  it("embeds a version marker that matches the version constant", () => {
-    expect(parseIngestWorkflowVersion(LORE_INGEST_WORKFLOW_CONTENT)).toBe(
-      LORE_INGEST_WORKFLOW_VERSION,
-    );
-  });
-
-  it("classifies its own canonical content as aligned", () => {
-    expect(ingestWorkflowStatus(LORE_INGEST_WORKFLOW_CONTENT)).toBe("aligned");
+  it("pins the canonical version to 10", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(10);
   });
 });
 

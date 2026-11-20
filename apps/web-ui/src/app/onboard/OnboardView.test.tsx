@@ -78,7 +78,7 @@ describe("OnboardView", () => {
     await waitFor(() => expect(input.value).toBe("re-cinq/nope"));
   });
 
-  it("lists what the onboarding PR adds", () => {
+  it("lists the PR files, the ingest variable and secret, and the first ingestion", () => {
     render(<OnboardView onboarded={[]} onboardRepoAction={action} />);
     const fileCards = screen
       .getAllByRole("listitem")
@@ -88,6 +88,8 @@ describe("OnboardView", () => {
       "CLAUDE.md, AGENTS.mdConventions and context for agents",
       "PR templateWhat every pull request describes",
       "CI workflowsIngest and test tracing on push to main",
+      "LORE_INGEST_URL variable, LORE_INGEST_TOKEN secretSet on the repo on every run, not through the PR",
+      "First ingestionStarted by dispatching the ingest workflows",
     ]);
   });
 

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { reposNeedingWorkflowFix } from "./workflow-fix";
+import {
+  reposNeedingSetupUpdate,
+  reposNeedingWorkflowFix,
+} from "./workflow-fix";
 
 const onboarded = (full_name: string) => ({
   full_name,
@@ -37,5 +40,30 @@ describe("reposNeedingWorkflowFix", () => {
     expect(reposNeedingWorkflowFix([onboarded("o/unread")], new Map())).toEqual(
       [],
     );
+  });
+});
+
+describe("reposNeedingSetupUpdate", () => {
+  it("lists a repo once when either workflow is missing or stale, in repo order", () => {
+    const ingest = new Map([
+      ["o/both", "stale" as const],
+      ["o/ingest-only", "missing" as const],
+      ["o/impact-only", "aligned" as const],
+      ["o/fine", "aligned" as const],
+    ]);
+    const impact = new Map([
+      ["o/both", "stale" as const],
+      ["o/ingest-only", "aligned" as const],
+      ["o/impact-only", "stale" as const],
+      ["o/fine", "aligned" as const],
+    ]);
+
+    expect(
+      reposNeedingSetupUpdate(
+        ["o/both", "o/ingest-only", "o/impact-only", "o/fine"].map(onboarded),
+        ingest,
+        impact,
+      ),
+    ).toEqual(["o/both", "o/ingest-only", "o/impact-only"]);
   });
 });

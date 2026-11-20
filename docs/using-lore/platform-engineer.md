@@ -118,8 +118,8 @@ Each onboarded repo has configurable settings at `LORE_UI_DOMAIN/repos/{owner}/{
 Platform configuration lives at `LORE_UI_DOMAIN/settings`:
 
 - **API URL** — the external Lore API endpoint (`LORE_API_URL`); the local MCP adapter proxies every operation to it
-- **Ingest Token** — shared auth token for API calls (legacy single-token mode)
-- **Regenerate Token** — rotates the token (invalidates all existing)
+- **Ingest Token** — shared auth token for API calls (legacy single-token mode). Onboarding writes each repo's `LORE_INGEST_TOKEN` secret and `LORE_INGEST_URL` variable
+- **Update setup** — on the home page, for onboarded repos whose ingest or spec-impact workflow is missing or stale: re-onboards each one, which rewrites the variable and secret, opens a PR only for Lore files that differ, and starts the ingest workflows
 - **Dev Install Command** — copy-paste for new developer onboarding
 - **Approval Gates** — require human approval before agents process tasks (per-repo or global)
 
