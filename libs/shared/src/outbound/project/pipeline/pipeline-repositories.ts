@@ -10,6 +10,7 @@ import type { AgentRunEventsRepository } from "../agent-run-events/agent-run-eve
 import type { PodLogsRepository } from "../pod-logs/pod-logs-port.js";
 import type { AgentRunTurnsRepository } from "../agent-run-turns/agent-run-turns-port.js";
 import type { DigestPostsPort } from "../digest-posts/digest-posts-port.js";
+import type { ChangelogReleasesPort } from "../changelog-releases/changelog-releases-port.js";
 import type { ChangelogWeeksPort } from "../changelog-weeks/changelog-weeks-port.js";
 import type { PrBlockedReasonsPort } from "../pr-blocked-reasons/pr-blocked-reasons-port.js";
 
@@ -37,6 +38,7 @@ export interface PipelineRepositories {
   digestPosts: DigestPostsPort;
   /** `lore.changelog_weeks` — each repo's finished weeks with their introduction (specs/repo-changelog). */
   changelogWeeks: ChangelogWeeksPort;
+  changelogReleases: ChangelogReleasesPort;
   /** `pipeline.pr_blocked_reasons` — what blocks each open PR Lore watches, keyed by repo and PR number. */
   prBlockedReasons: PrBlockedReasonsPort;
 }

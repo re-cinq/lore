@@ -6,6 +6,7 @@ export * from "./anthropic-cost-daily.js";
 export * from "./api-token.js";
 export * from "./assembly-run.js";
 export * from "./audit-log-entry.js";
+export * from "./changelog-release.js";
 export * from "./changelog-week.js";
 export * from "./chunk.js";
 export * from "./digest-post.js";

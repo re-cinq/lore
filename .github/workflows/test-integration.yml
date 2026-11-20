@@ -102,6 +102,16 @@ jobs:
           LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/outbound/project/assembly-runs/assembly-runs.contract.test.ts
 
+      - name: Changelog releases store against real Postgres
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run --root libs/shared src/outbound/project/changelog-releases/changelog-releases.test.ts
+
       # TEST_PATH_SQL_PATTERN must match the same paths as isTestFile — the
       # acceptance test verifies this against a live Postgres instance. It skips
       # when Postgres is unreachable (unit matrix), so this is the one place it

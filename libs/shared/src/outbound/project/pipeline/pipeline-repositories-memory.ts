@@ -11,6 +11,7 @@ import { InMemoryAudit } from "../audit/audit-memory.js";
 import { FileLeaseBackend } from "../leases/lease-backends.js";
 import { InMemoryAgentRunEvents } from "../agent-run-events/agent-run-events-memory.js";
 import { InMemoryDigestPosts } from "../digest-posts/digest-posts-memory.js";
+import { InMemoryChangelogReleases } from "../changelog-releases/changelog-releases-memory.js";
 import { InMemoryChangelogWeeks } from "../changelog-weeks/changelog-weeks-memory.js";
 import { InMemoryPodLogs } from "../pod-logs/pod-logs-memory.js";
 import { InMemoryAgentRunTurns } from "../agent-run-turns/agent-run-turns-memory.js";
@@ -33,6 +34,7 @@ export function createInMemoryPipelineRepositories(
     agentRunTurns: new InMemoryAgentRunTurns(),
     digestPosts: new InMemoryDigestPosts(),
     changelogWeeks: new InMemoryChangelogWeeks(),
+    changelogReleases: new InMemoryChangelogReleases(),
     prBlockedReasons: new InMemoryPrBlockedReasons(),
     ...overrides,
   };
