@@ -12,6 +12,7 @@ export function startCodeReviewStations(): RunningStation[] {
     startPrepareReviewStation(),
     startReviewProgressStation("finalize-code-review"),
     startReviewProgressStation("code-review-progress"),
+    startReviewProgressStation("code-review-docs-gate"),
     startPostReviewStation(),
     startReadReviewStation(),
     startPostReplyStation(),

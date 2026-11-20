@@ -62,7 +62,8 @@ interface ProgressDeps {
 }
 
 export function startReviewProgressStation(
-  name: "code-review-progress" | "finalize-code-review",
+  name:
+    "code-review-progress" | "code-review-docs-gate" | "finalize-code-review",
 ): RunningStation {
   return defineStation(name, reviewProgressHandle(productionDeps));
 }

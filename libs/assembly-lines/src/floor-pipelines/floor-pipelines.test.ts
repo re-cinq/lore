@@ -947,6 +947,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "publish-story",
       "check-implementation",
       "check-issue",
+      "publish-checks",
       "finalize",
       "post-review",
       "done",
@@ -998,6 +999,67 @@ describe("the floor pipelines shipped in this folder", () => {
     }
   });
 
+  it.each(["code-review", "code-review-recheck"])(
+    "sends a %s run to the documents check after both checks when the pull request changes documents, straight to it for documents alone, and straight to finalize for links alone",
+    (name) => {
+      const { line, stations } = pipelineOf(name);
+      const docs = stations["review-docs"];
+
+      expect({
+        routes: ["prepare", "publish-checks", "check-docs"]
+          .flatMap((node) => edgesOn(line, node))
+          .filter((edge) => !["tell-story", "review-whole"].includes(edge.to))
+          .map((edge) => [edge.from, edge.on, edge.to]),
+        gate: line.nodes.find((node) => node.id === "publish-checks")?.station,
+        checkout: line.nodes.find((node) => node.id === "check-docs"),
+        agent: [docs.agent_definition, docs.conversation],
+        reads: docs.needs.map((need) => [need.name, need.path]),
+        answer: docs.produces,
+      }).toEqual({
+        routes: [
+          ["prepare", "failed", "publish-incomplete"],
+          ["prepare", "superseded", "done"],
+          ["prepare", "docs_only", "check-docs"],
+          ["prepare", "links_only", "finalize"],
+          ["publish-checks", "success", "finalize"],
+          ["publish-checks", "docs", "check-docs"],
+          ["publish-checks", "failed", "publish-incomplete"],
+          ["check-docs", "success", "finalize"],
+          ["check-docs", "failed", "publish-incomplete"],
+        ],
+        gate: "code-review-docs-gate",
+        checkout: {
+          id: "check-docs",
+          station: "review-docs",
+          bind: { target: "repo" },
+        },
+        agent: ["review-docs", "new"],
+        reads: [
+          ["docs_evidence", "docs.json"],
+          ["target", "target"],
+        ],
+        answer: [{ name: "docs_check", kind: "file", from: "output" }],
+      });
+    },
+  );
+
+  it("tells review-docs to judge a statement by what its linked tests assert, to check the rest against the checkout, and never to block on a missing link", () => {
+    const prompt = promptOnOneLine("review-docs");
+
+    expect(
+      [
+        "judge by the assertions, never by a test's title, a name or a comment",
+        "`contradiction`: a linked test asserts something else than the statement says, or its file is missing",
+        "`missing_test`: the linked tests assert nothing about what the statement says, or prove only a part of it",
+        "`unlinked`. It asks for a link and never for more",
+        "Check it against /workspace/target: search for the name, open the file, and report only what you looked up",
+        "The `location` of a gap is the `path` and `line` of its statement",
+        "Never write that a file could not be opened or checked unless a command you ran on it failed",
+        "only a person's answer counts",
+      ].filter((rule) => !prompt.includes(rule)),
+    ).toEqual([]);
+  });
+
   it.each([
     ["code-review", "code-review"],
     ["code-review-recheck", "code-review-recheck"],
@@ -1016,6 +1078,8 @@ describe("the floor pipelines shipped in this folder", () => {
         ["prepare", "failed", "publish-incomplete"],
         ["prepare", "whole_diff", "review-whole"],
         ["prepare", "superseded", "done"],
+        ["prepare", "docs_only", "check-docs"],
+        ["prepare", "links_only", "finalize"],
         ["publish-incomplete", "always", "review-whole"],
         ["review-whole", "success", "post-review"],
         ["review-whole", "changes_requested", "post-review"],
@@ -1032,7 +1096,14 @@ describe("the floor pipelines shipped in this folder", () => {
         },
         stations: {
           "prepare-code-review": {
-            outcomes: ["success", "whole_diff", "superseded", "failed"],
+            outcomes: [
+              "success",
+              "docs_only",
+              "links_only",
+              "whole_diff",
+              "superseded",
+              "failed",
+            ],
           },
           [agent]: {
             agent_definition: agent,

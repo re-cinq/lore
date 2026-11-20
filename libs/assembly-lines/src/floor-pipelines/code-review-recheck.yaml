@@ -19,6 +19,12 @@ line:
       station: review-implementation
     - id: check-issue
       station: review-issue
+    - id: publish-checks
+      station: code-review-docs-gate
+      bind: { revision: head_sha }
+    - id: check-docs
+      station: review-docs
+      bind: { target: repo }
     - id: finalize
       station: finalize-code-review
       bind: { revision: head_sha }
@@ -38,6 +44,9 @@ line:
     - { from: prepare, to: review-whole, on: whole_diff }
     # A commit that is no longer the pull request head is reviewed by the run of the newer one.
     - { from: prepare, to: done, on: superseded }
+    # A pull request of Markdown alone has no story: its statements go to the documents check, and one that moves only links is approved without an agent.
+    - { from: prepare, to: check-docs, on: docs_only }
+    - { from: prepare, to: finalize, on: links_only }
     - { from: post-review, to: done, on: superseded }
     - { from: review-whole, to: post-review, on: success }
     - { from: review-whole, to: post-review, on: changes_requested }
@@ -45,7 +54,11 @@ line:
     - { from: tell-story, to: publish-story, on: success }
     - { from: publish-story, to: check-implementation, on: success }
     - { from: check-implementation, to: check-issue, on: success }
-    - { from: check-issue, to: finalize, on: success }
+    - { from: check-issue, to: publish-checks, on: success }
+    # The documents check runs only for a pull request that writes or removes a statement in its Markdown.
+    - { from: publish-checks, to: finalize, on: success }
+    - { from: publish-checks, to: check-docs, on: docs }
+    - { from: check-docs, to: finalize, on: success }
     - { from: finalize, to: post-review, on: success }
     - { from: post-review, to: done, on: success }
     # A post that fails is usually a review without a verdict; posting again reads the same output, so the whole-diff reviewer writes one.
@@ -54,6 +67,8 @@ line:
     - { from: publish-story, to: publish-incomplete, on: failed }
     - { from: check-implementation, to: publish-incomplete, on: failed }
     - { from: check-issue, to: publish-incomplete, on: failed }
+    - { from: publish-checks, to: publish-incomplete, on: failed }
+    - { from: check-docs, to: publish-incomplete, on: failed }
     - { from: finalize, to: publish-incomplete, on: failed }
     # A review the story could not finish is still owed: the whole-diff reviewer gives it.
     - { from: publish-incomplete, to: review-whole, on: always }
@@ -97,6 +112,18 @@ stations:
       - { name: test_evidence, kind: file, path: tests.json }
     produces:
       - { name: issue_check, kind: file, from: output }
+  review-docs:
+    description: Checks each statement the pull request writes in its Markdown against the tests it links and against the code.
+    kind: agent
+    agent_definition: review-docs
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: docs_evidence, kind: file, path: docs.json }
+      - { name: target, kind: git, path: target, access: read }
+    produces:
+      - { name: docs_check, kind: file, from: output }
   code-review-recheck:
     description: An AI agent re-checks the commits pushed since the last review from the whole diff, when the story review cannot be given.
     kind: agent
@@ -118,14 +145,28 @@ stations:
       - { name: revision, kind: value }
       - { name: pr_url, kind: value, optional: true }
       - { name: preparation_failed, kind: value, optional: true }
+      - { name: review_mode, kind: value, optional: true }
       - { name: story, kind: file, optional: true }
       - { name: implementation_check, kind: file, optional: true }
       - { name: issue_check, kind: file, optional: true }
+      - { name: docs_check, kind: file, optional: true }
+    produces: []
+  code-review-docs-gate:
+    description: Updates the review comment with what both checks found, and sends a pull request that changes documents to the documents check.
+    kind: service
+    outcomes: [success, docs, failed]
+    needs:
+      - { name: revision, kind: value }
+      - { name: pr_url, kind: value, optional: true }
+      - { name: docs_changed, kind: value, optional: true }
+      - { name: story, kind: file }
+      - { name: implementation_check, kind: file }
+      - { name: issue_check, kind: file }
     produces: []
   prepare-code-review:
-    description: Collects the tests, the code and the issue of the pull request revision as three packets.
+    description: Collects the tests, the code, the issue and the changed documents of the pull request revision as four packets.
     kind: service
-    outcomes: [success, whole_diff, superseded, failed]
+    outcomes: [success, docs_only, links_only, whole_diff, superseded, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: head_sha, kind: value }
@@ -134,16 +175,21 @@ stations:
       - { name: test_evidence, kind: file }
       - { name: code_evidence, kind: file }
       - { name: issue_evidence, kind: file }
+      - { name: docs_evidence, kind: file }
+      - { name: review_mode, kind: value }
+      - { name: docs_changed, kind: value }
   finalize-code-review:
-    description: Checks that the story and both checks are complete and produces the formal review for GitHub, changes requested for any gap.
+    description: Checks that every pass of the review is complete and produces the formal review for GitHub, changes requested for any gap that blocks.
     kind: service
     outcomes: [success, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: revision, kind: value }
-      - { name: story, kind: file }
-      - { name: implementation_check, kind: file }
-      - { name: issue_check, kind: file }
+      - { name: review_mode, kind: value, optional: true }
+      - { name: story, kind: file, optional: true }
+      - { name: implementation_check, kind: file, optional: true }
+      - { name: issue_check, kind: file, optional: true }
+      - { name: docs_check, kind: file, optional: true }
     produces:
       - { name: review_output, kind: file }
       - { name: review_run, kind: value }
