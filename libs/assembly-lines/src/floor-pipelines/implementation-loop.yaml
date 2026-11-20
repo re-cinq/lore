@@ -378,7 +378,7 @@ stations:
         kind: file
         path: ticket.md
       # Lore's briefing for the ticket, built once by `brief`; absent when it
-      # could not be built, and on an upkeep run started at sync-pr.
+      # could not be built, and on an upkeep run started at await-pr.
       - name: brief
         kind: file
         path: brief.md
@@ -471,7 +471,7 @@ stations:
         kind: file
         path: ticket.md
       # Lore's briefing for the ticket, built once by `brief`; absent when it
-      # could not be built, and on an upkeep run started at sync-pr.
+      # could not be built, and on an upkeep run started at await-pr.
       - name: brief
         kind: file
         path: brief.md
@@ -557,7 +557,7 @@ stations:
         kind: file
         path: ticket.md
       # Lore's briefing for the ticket, built once by `brief`; absent when it
-      # could not be built, and on an upkeep run started at sync-pr.
+      # could not be built, and on an upkeep run started at await-pr.
       - name: brief
         kind: file
         path: brief.md
@@ -660,7 +660,7 @@ stations:
         kind: file
         path: ticket.md
       # Lore's briefing for the ticket, built once by `brief`; absent when it
-      # could not be built, and on an upkeep run started at sync-pr.
+      # could not be built, and on an upkeep run started at await-pr.
       - name: brief
         kind: file
         path: brief.md

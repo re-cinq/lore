@@ -115,17 +115,9 @@ const loopMergeDeps: LoopMergeDeps = {
 };
 
 const loopUpkeepDeps: LoopUpkeepDeps = {
+  repoSettings: () => settings().onboardedRepoSettings(),
   floor: floorClient,
-  project: async (repo) => {
-    const project = await projectFor(repo);
-
-    return {
-      pulls: project.pulls,
-      repo: project.repo,
-      issues: project.issues,
-      settings: project.settings,
-    };
-  },
+  project: projectFor,
   latestLoopTaskByIssue: (repo, issueNumber) =>
     pipeline().taskQueue.latestLoopTaskByIssue(repo, issueNumber),
   judgeParked: judgeFloorPullRequest,

@@ -4,6 +4,7 @@ import {
   serviceToken,
   type FloorClient,
   type RunView,
+  type RunsApi,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../lib/enforce.js";
 
@@ -42,4 +43,22 @@ export function floorClient(): FloorClient {
 /** The floor, or null on a deployment that was given none: for a read that simply has nothing to add there. */
 export function floorIfConfigured(): FloorClient | null {
   return floorConfigured() ? floorClient() : null;
+}
+
+/** All open runs of a line, including older parked PRs beyond the first page. */
+export async function openLineRuns(
+  runs: Pick<RunsApi, "list">,
+  scope: { line: string; repo?: string },
+): Promise<RunView[]> {
+  const result: RunView[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await runs.list({ ...scope, open: true }, { cursor });
+
+    result.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+
+  return result;
 }

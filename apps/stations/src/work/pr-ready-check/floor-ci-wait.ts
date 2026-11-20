@@ -1,6 +1,9 @@
 // The waits of lines that run on the external floor: a run parked on its `await-ci` or `await-pr` human station is judged by the same readers the Postgres-backed runs use, and the verdict is reported to the parked visit. A red build's failing checks ride along as produced values and as one file, the round brief, which is how the next agent is handed them.
 
-import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  openLineRuns,
+  type floorClient,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   roundBriefOf,
   type CiFeedback,
@@ -90,10 +93,10 @@ export async function floorCiWaitSweep(deps: FloorCiWaitDeps): Promise<string> {
 }
 
 async function parkedCiWaits(floor: CiWaitFloor): Promise<CiWait[]> {
-  const pages = await Promise.all(
-    FLOOR_CI_WAIT_LINES.map((line) => floor.runs.list({ line, open: true })),
+  const byLine = await Promise.all(
+    FLOOR_CI_WAIT_LINES.map((line) => openLineRuns(floor.runs, { line })),
   );
-  const runs = pages.flatMap(({ items: openRuns }) => openRuns);
+  const runs = byLine.flat();
   const waits = await Promise.all(
     runs.map(async (run) =>
       ciWaitOf(run, await floor.stationRuns.list({ run: run.id })),

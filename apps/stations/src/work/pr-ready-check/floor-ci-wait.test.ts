@@ -5,7 +5,11 @@ import {
   planVisit,
   recordedPlanFloor,
 } from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
-import { floorCiWaitSweep, type FloorCiWaitDeps } from "./floor-ci-wait.js";
+import {
+  floorCiWaitSweep,
+  type FloorCiWaitDeps,
+  type CiWaitFloor,
+} from "./floor-ci-wait.js";
 import type { LoopRunSlice } from "./sweep-contract.js";
 
 const PR_URL = "https://github.com/re-cinq/app/pull/42";
@@ -361,4 +365,53 @@ describe("floorCiWaitSweep", () => {
       writes: [reportedOn("visit-await-merge", { outcome: "success" }).body],
     });
   });
+});
+
+it("hands the review findings to an upkeep run for PR 42 on the second page before its first repair", async () => {
+  const upkeep = planRun({
+    id: "upkeep-42",
+    lineId: "implementation-loop",
+    repo: "github.com/re-cinq/app",
+    startItems: { pr_url: { kind: "value", ref: PR_URL, by: "lore" } },
+  });
+  const recorded = recordedPlanFloor({
+    visits: { "upkeep-42": [planVisit("await-pr", null)] },
+  });
+  const floor = {
+    ...recorded.floor,
+    runs: {
+      ...recorded.floor.runs,
+      list: async (filter, page) => {
+        if (filter.line !== "implementation-loop") {
+          return { items: [], nextCursor: null };
+        }
+
+        return page?.cursor === "older"
+          ? { items: [upkeep], nextCursor: null }
+          : { items: [], nextCursor: "older" };
+      },
+    },
+  } satisfies CiWaitFloor;
+
+  await floorCiWaitSweep({
+    ...scene().deps,
+    floor,
+    judgePr: async (run) => ({
+      outcome: "changes_requested",
+      args: {
+        review_feedback_sha: "abc123",
+        review_feedback: `PR ${run.args.pr_number}: handle empty input`,
+      },
+    }),
+  });
+
+  expect(
+    String(recorded.requests.find((r) => r.path === "/blobs")?.body),
+  ).toContain("PR 42: handle empty input");
+  expect(recorded.requests.filter((r) => r.path === "/events")).toEqual([
+    reportedOn("visit-await-pr", {
+      outcome: "changes_requested",
+      produced: { round_brief: PLAN_BLOB_HASH },
+    }),
+  ]);
 });

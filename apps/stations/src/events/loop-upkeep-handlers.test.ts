@@ -124,6 +124,9 @@ function scene(input: SceneInput = {}) {
     },
   };
   const handlers = loopUpkeepHandlers({
+    repoSettings: async () => [
+      { full_name: REPO, settings: await project.settings.rawSettings() },
+    ],
     floor: () => recorded.floor,
     project: async () => project,
     latestLoopTaskByIssue: async () => ({ id: "task-1" }),
@@ -157,7 +160,10 @@ function scene(input: SceneInput = {}) {
       pr_numbers: numbers,
     });
 
-  return { push, suite, starts, judged, parked, handlers };
+  const tick = (params = {}) =>
+    handlers.get("cron.implementation_loop.tick")!(params);
+
+  return { push, suite, tick, starts, judged, parked, handlers };
 }
 
 const gaveUp = (prNumber: number, createdAt: string) =>
@@ -172,18 +178,18 @@ const gaveUp = (prNumber: number, createdAt: string) =>
   });
 
 describe("loopUpkeepHandlers", () => {
-  it("answers github.push and github.check_suite.completed, the two events it asks the bus for", () => {
+  it("answers pushes, completed check suites and implementation loop ticks", () => {
     expect([...scene().handlers.keys()]).toEqual([...LOOP_UPKEEP_EVENTS]);
   });
 
-  it("starts the line at sync-pr, keyed on upkeep-12, when main moves and GitHub calls settled pull request 12 behind it", async () => {
+  it("starts the line at await-pr, keyed on upkeep-12, when main moves and GitHub calls settled pull request 12 behind it", async () => {
     const { push, starts, judged } = scene({ mergeState: "behind" });
 
     await push("main");
 
     expect({ starts: starts(), judged }).toEqual({
       starts: [
-        ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+        ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
       ],
       judged: [],
     });
@@ -214,7 +220,7 @@ describe("loopUpkeepHandlers", () => {
     await suite([]);
 
     expect(starts()).toEqual([
-      ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+      ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
     ]);
   });
 
@@ -227,7 +233,7 @@ describe("loopUpkeepHandlers", () => {
     await suite([12, 13]);
 
     expect(starts()).toEqual([
-      ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+      ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
     ]);
   });
 
@@ -327,13 +333,13 @@ describe("loop upkeep on a parked ticket", () => {
 });
 
 describe("loop upkeep on a pull request Lore's review asked changes on", () => {
-  it("starts an upkeep run at sync-pr for settled pull request 12, on main and green, whose head Lore's review asked changes on (otto #478 sat with nobody to fix them)", async () => {
+  it("starts an upkeep run at await-pr for settled pull request 12, on main and green, whose head Lore's review asked changes on (otto #478 sat with nobody to fix them)", async () => {
     const { suite, starts } = scene({ loreReview: "neutral" });
 
     await suite([12]);
 
     expect(starts()).toEqual([
-      ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+      ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
     ]);
   });
 });
@@ -399,10 +405,44 @@ describe("loop upkeep on a pull request whose upkeep keeps giving up", () => {
     expect(outcomes).toEqual(
       Array(2).fill({
         starts: [
-          ["sync-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+          ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
         ],
         parked: [],
       }),
     );
+  });
+});
+
+describe("scheduled implementation-loop PR upkeep", () => {
+  it("returns PR 12 to await-pr for a late red check without a webhook and leaves merged PR 15 alone", async () => {
+    const upkeep = scene({
+      ci: "failure",
+      pulls: [pull(), pull({ number: 15, state: "merged" })],
+    });
+
+    await upkeep.tick();
+
+    expect(upkeep.starts()).toEqual([
+      ["await-pr", "upkeep-12", "https://github.com/acme/widgets/pull/12"],
+    ]);
+  });
+
+  it("leaves an open run to its parked wait and skips backlog re-arms and disabled repositories", async () => {
+    const active = scene({ openRuns: [LOOP_RUN_ON_7], ci: "failure" });
+    const rearm = scene({ ci: "failure" });
+    const disabled = scene({ loopOn: false, ci: "failure" });
+
+    await Promise.all([
+      active.tick(),
+      rearm.tick({ repo: REPO }),
+      disabled.tick(),
+    ]);
+
+    expect([
+      active.starts(),
+      active.judged,
+      rearm.starts(),
+      disabled.starts(),
+    ]).toEqual([[], [], [], []]);
   });
 });

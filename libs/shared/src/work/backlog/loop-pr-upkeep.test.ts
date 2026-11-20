@@ -24,6 +24,7 @@ const ON_MAIN: UpkeepFacts = {
 };
 
 const PULL = {
+  repo: "acme/widgets",
   number: 12,
   url: "https://github.com/acme/widgets/pull/12",
   branch: "lore/implementation-loop/issue-7",
@@ -62,7 +63,8 @@ describe("isLoopPull", () => {
       isLoopPull(PULL),
       isLoopPull({ ...PULL, branch: "feature/export" }),
       isLoopPull({ ...PULL, state: "closed" }),
-    ]).toEqual([true, false, false]);
+      isLoopPull({ ...PULL, headRepo: "contributor/widgets" }),
+    ]).toEqual([true, false, false, false]);
   });
 });
 
@@ -99,7 +101,7 @@ describe("openRunOnBranch", () => {
 });
 
 describe("startUpkeepRun", () => {
-  it("starts implementation-loop at sync-pr for pull request 12, keyed on upkeep-12, with the ticket, task and pull request url", async () => {
+  it("starts implementation-loop at await-pr for pull request 12, keyed on upkeep-12, with the ticket, task and pull request url", async () => {
     const recorded = recordedPlanFloor();
 
     await startUpkeepRun(recorded.floor, {
@@ -118,7 +120,7 @@ describe("startUpkeepRun", () => {
         path: "/assembly-lines/implementation-loop/start",
         body: {
           repo: "github.com/acme/widgets",
-          entry: "sync-pr",
+          entry: "await-pr",
           startItems: {
             repo: {
               kind: "git",

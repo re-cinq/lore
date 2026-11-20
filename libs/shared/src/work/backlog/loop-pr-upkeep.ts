@@ -1,8 +1,9 @@
-// A loop pull request stays the loop's to keep mergeable after its run has settled (specs/external-floor FR12.19): when main moves past it or its build goes red, the pull request's own events start the line again at `sync-pr`, keyed on the pull request, so the rebase and the fix run with the line's budgets and beside the repository's backlog run.
+// A loop pull request stays the loop's to keep mergeable after its run has settled (specs/external-floor FR12.19): when main moves past it or its build goes red, the pull request's own events start the line again at `await-pr`, keyed on the pull request, so the rebase and the fix run with the line's budgets and beside the repository's backlog run.
 import type { RunView } from "@re-cinq/floor-client";
 import type {
   CiConclusion,
   IssueComment,
+  PullRef,
 } from "../../outbound/project/pulls/pull-requests-port.js";
 import { parseGitRef } from "../../outbound/floor/floor-items.js";
 import { startLoopRun, type LoopFloor } from "./floor-loop.js";
@@ -10,8 +11,8 @@ import { LOOP_PARKING_PREFIX, LORE_BLOCKED_LABEL } from "./labels.js";
 import { issueNumberFromLoopBranch } from "./loop-merge-success.js";
 import { implementationTicketDescription } from "./ticket-description.js";
 
-/** The node an upkeep run starts at: the sync before the end-of-line wait. */
-export const UPKEEP_ENTRY = "sync-pr";
+/** The node an upkeep run starts at: the wait that records current CI and review feedback before a repair. */
+export const UPKEEP_ENTRY = "await-pr";
 
 const UPKEEP_BACKLOG = "upkeep-";
 
@@ -128,9 +129,14 @@ export interface UpkeepPull {
 }
 
 /** A loop ticket's open pull request: on a loop branch, still open. */
-export function isLoopPull(pull: UpkeepPull): boolean {
+export function isLoopPull(
+  pull: Pick<PullRef, "repo" | "headRepo" | "state" | "branch">,
+): boolean {
   return (
-    pull.state === "open" && issueNumberFromLoopBranch(pull.branch) !== null
+    pull.state === "open" &&
+    (pull.headRepo === undefined ||
+      pull.headRepo.toLowerCase() === pull.repo.toLowerCase()) &&
+    issueNumberFromLoopBranch(pull.branch) !== null
   );
 }
 
@@ -196,7 +202,7 @@ export interface UpkeepStart {
   taskId: string;
 }
 
-/** Starts the line at `sync-pr` for the pull request, with the ticket's text and task as the agents expect them. */
+/** Starts the line at `await-pr` for the pull request, with the ticket's text and task as the agents expect them. */
 export async function startUpkeepRun(
   floor: LoopFloor,
   { repo, pull, issue, taskId }: UpkeepStart,
