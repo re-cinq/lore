@@ -23,6 +23,7 @@ test("an unchanged file that only uses the changed code travels as the lines aro
     role: "code",
     before: consumer,
     after: consumer,
+    context: true,
   });
   const [, queue] = code.files;
 
@@ -46,31 +47,33 @@ test("an unchanged file that only uses the changed code travels as the lines aro
   );
 });
 
-test("the unchanged test of a changed file travels whole, since every assertion in it tells the story", () => {
+test("an unchanged file the change is about, such as its own test or a fixture, travels whole", () => {
   const own = lines(40, 3, "import { limit } from './limit';");
-  const { test_evidence: tests } = packets({
-    path: "src/limit.test.ts",
-    role: "test",
-    before: own,
-    after: own,
-  });
+  const { test_evidence: tests } = packets(
+    { path: "src/limit.test.ts", role: "test", before: own, after: own },
+    { path: "src/fixtures/rate.json", role: "test", before: "{}", after: "{}" },
+  );
 
   assert.deepEqual(tests.files, [
     { path: "src/limit.test.ts", unchanged: own },
+    { path: "src/fixtures/rate.json", unchanged: "{}" },
   ]);
 });
 
-test("an unchanged file that never names the changed code travels whole, as a fixture does", () => {
-  const { test_evidence: tests } = packets({
-    path: "src/fixtures/rate.json",
-    role: "test",
-    before: "{}",
-    after: "{}",
+test("a context file that names nothing the pull request changes is left out", () => {
+  const unrelated = lines(40, 30, "import { enforce } from './enforce';");
+  const { code_evidence: code } = packets({
+    path: "src/other.ts",
+    role: "code",
+    before: unrelated,
+    after: unrelated,
+    context: true,
   });
 
-  assert.deepEqual(tests.files, [
-    { path: "src/fixtures/rate.json", unchanged: "{}" },
-  ]);
+  assert.deepEqual(
+    code.files.map(({ path }) => path),
+    ["src/limit.ts"],
+  );
 });
 
 test("two uses closer than their margins travel as one block", () => {
@@ -80,6 +83,7 @@ test("two uses closer than their margins travel as one block", () => {
     role: "code",
     before: consumer,
     after: consumer,
+    context: true,
   });
 
   assert.deepEqual(
@@ -88,24 +92,18 @@ test("two uses closer than their margins travel as one block", () => {
   );
 });
 
-test("a file with the changed file's name in another folder is no test of it, and travels as its uses", () => {
-  const other = lines(40, 30, "import { limit } from '../src/limit';");
-  const { code_evidence: code } = packets({
-    path: "lib/limit.ts",
-    role: "code",
-    before: other,
-    after: other,
-  });
-
-  assert.deepEqual(code.files[1].uses.length, 1);
-});
-
 test("a file found by a changed configuration key travels as the lines that read the key", () => {
   const reader = lines(40, 30, "const size = process.env.QUEUE_SIZE;");
   const { code_evidence: code } = storyPackets({
     files: [
       limit,
-      { path: "src/env.ts", role: "code", before: reader, after: reader },
+      {
+        path: "src/env.ts",
+        role: "code",
+        before: reader,
+        after: reader,
+        context: true,
+      },
     ],
     terms: ["limit", "QUEUE_SIZE"],
     discussion: [],

@@ -12,6 +12,7 @@ const snapshot = z.object({
       before: z.string().nullable(),
       after: z.string().nullable(),
       diff: z.string().optional(),
+      context: z.boolean().optional(),
     }),
   ),
   terms: z.array(z.string().min(1)).optional(),
@@ -98,37 +99,28 @@ function usesOf(text, stems) {
   );
 }
 
-// An unchanged file that only uses the changed code goes as those uses: whole, such files were four fifths of a packet.
-function unchangedFile({ path, after }, { terms, changed }) {
-  const beside = changed.some(
-    (other) =>
-      posix.dirname(other) === posix.dirname(path) &&
-      referenceStem(other) === referenceStem(path),
-  );
-  const uses = after === null || beside ? [] : usesOf(after, terms);
-
-  return uses.length ? { path, uses } : { path, unchanged: after };
-}
-
-function packetFile(file, named) {
-  const { path, before, after, diff } = file;
-
-  if (before === after) {
-    return unchangedFile(file, named);
+// A context file goes as its uses of the changed code, and not at all when it names none: whole, such files were four fifths of a packet.
+function packetFile({ path, before, after, diff, context }, terms) {
+  if (before !== after) {
+    return [diff ? { path, diff, after } : { path, before, after }];
   }
 
-  return diff ? { path, diff, after } : { path, before, after };
+  if (!context || after === null) {
+    return [{ path, unchanged: after }];
+  }
+  const uses = usesOf(after, terms);
+
+  return uses.length ? [{ path, uses }] : [];
 }
 
 function packetFor(mode, files, terms) {
   const selected = [];
-  const changed = files
-    .filter((file) => file.before !== file.after)
-    .map((file) => file.path);
-  const named = {
-    changed,
-    terms: terms ?? changed.map(referenceStem).filter(Boolean),
-  };
+  const named =
+    terms ??
+    files
+      .filter((file) => file.before !== file.after)
+      .map((file) => referenceStem(file.path))
+      .filter(Boolean);
 
   for (const file of files) {
     if (/\.(md|mdx|markdown|mkd|mkdn|mdown)$/i.test(file.path)) {
@@ -142,7 +134,7 @@ function packetFor(mode, files, terms) {
     if ((mode === "code" && test) || (mode === "tests" && !test)) {
       continue;
     }
-    selected.push(packetFile(file, named));
+    selected.push(...packetFile(file, named));
   }
 
   return { mode, files: selected };

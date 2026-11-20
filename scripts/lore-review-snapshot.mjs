@@ -375,6 +375,9 @@ async function capture(base, head, includes, comparisonBase, scope) {
     }
   }
 
+  // What the change is about; a file found only by a search for its uses is context.
+  const subject = new Set(paths);
+
   for (const path of related.flat()) {
     paths.add(path);
   }
@@ -428,7 +431,13 @@ async function capture(base, head, includes, comparisonBase, scope) {
         `Evidence exceeds ${maxEvidenceBytes} bytes`,
       );
     }
-    files.push({ path, role, before, after });
+    files.push({
+      path,
+      role,
+      before,
+      after,
+      ...(paths.has(path) && !subject.has(path) ? { context: true } : {}),
+    });
   }
 
   for (const path of [...paths].sort()) {
