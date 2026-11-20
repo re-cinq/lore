@@ -9,6 +9,7 @@ import type {
   RepoRecord,
   RepoRenameOutcome,
 } from "./settings-port.js";
+import { isMirror, mirrorNameOf } from "./seeded-mirror.js";
 
 function pausesOf(
   settings: Record<string, unknown> | null | undefined,
@@ -18,22 +19,6 @@ function pausesOf(
   return typeof pauses === "object" && pauses !== null
     ? (pauses as Record<string, unknown>)
     : {};
-}
-
-function mirrorNameOf(
-  settings: Record<string, unknown> | null | undefined,
-): string | undefined {
-  const mirror = settings?.public_mirror;
-
-  return typeof mirror === "string" ? mirror : undefined;
-}
-
-function isMirror(repos: SeedRepo[], repo: SeedRepo): boolean {
-  return repos.some(
-    (publisher) =>
-      mirrorNameOf(publisher.settings)?.toLowerCase() ===
-      repo.full_name.toLowerCase(),
-  );
 }
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
@@ -302,6 +287,8 @@ export class InMemorySettings implements SettingsPort {
     const source = this.row(from);
     const target = this.row(to);
 
+    this.repointPublicMirror(from, to);
+
     if (!source) {
       return "absent";
     }
@@ -312,6 +299,14 @@ export class InMemorySettings implements SettingsPort {
     this.repointCrossRepoLinks(from, to);
 
     return outcome;
+  }
+
+  private repointPublicMirror(from: string, to: string): void {
+    for (const repo of this.repos) {
+      if (mirrorNameOf(repo.settings)?.toLowerCase() === from.toLowerCase()) {
+        repo.settings = { ...repo.settings, public_mirror: to };
+      }
+    }
   }
 
   private renameRowInPlace(source: SeedRepo, to: string): RepoRenameOutcome {

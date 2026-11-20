@@ -3,12 +3,8 @@
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { reviewStartDeps } from "@re-cinq/lore-shared/review/review-start-deps.js";
 import { STATIONS } from "../work/registry.js";
-import {
-  eventTriggerNames,
-  type SweepStationModule,
-} from "../work/lib/station.js";
-import { stationHost } from "./runner/station-host.js";
-import { timedStationRun } from "./runner/timed-station-run.js";
+import { eventTriggerNames } from "../work/lib/station.js";
+import { runSweepFor } from "./runner/run-sweep-for.js";
 import { autoReviewEnabled } from "@re-cinq/lore-shared/loops/auto-review-enabled.js";
 import {
   floorClient,
@@ -79,6 +75,7 @@ import {
   specTicketsEnabled,
 } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
+import { withMirrorDrop, type MirrorOwnerOf } from "./mirror-drop.js";
 import { relocateOnTeamChange } from "./team-changed.js";
 import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
@@ -284,22 +281,9 @@ const repoEventDeps: RepoEventDeps = {
     reportToVisit(floorClient().events, visitId, { outcome: "success" }),
 };
 
-// Runs the sweep that declared this event trigger — derived from the manifests like the subscription set, so a station can't subscribe without a handler and get silently dead-lettered.
-const runSweepFor =
-  (mod: SweepStationModule, eventName: string): EventHandler =>
-  async (params, meta) => {
-    const summary = await timedStationRun(mod.manifest.name, () =>
-      mod.run({
-        trigger: "event",
-        event: { name: eventName, params, eventId: meta?.eventId ?? "" },
-        host: stationHost(),
-      }),
-    );
-
-    console.log(`[station] ${mod.manifest.name}: ${summary}`);
-  };
-
-export function buildStationHandlers(): Map<string, EventHandler> {
+export function buildStationHandlers(
+  mirrorOwnerOf: MirrorOwnerOf = (repo) => settings().mirrorOwner(repo),
+): Map<string, EventHandler> {
   const handlers = new Map<string, EventHandler>();
 
   // Composed like every other registration: two sweeps may answer one event, each its own half.
@@ -313,17 +297,21 @@ export function buildStationHandlers(): Map<string, EventHandler> {
   addHandlers(handlers, packPushHandlers(packPushDeps()));
 
   if (floorConfigured()) {
-    addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
-    addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
-    addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
-    addHandlers(handlers, loopUpkeepHandlers(loopUpkeepDeps));
-    addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
+    addFloorHandlers(handlers);
   }
 
   addHandlers(handlers, loopProgressHandlers(loopProgressProductionDeps));
   addHandlers(handlers, specReviewResultHandlers());
 
-  return handlers;
+  return withMirrorDrop(handlers, mirrorOwnerOf);
+}
+
+function addFloorHandlers(handlers: Map<string, EventHandler>): void {
+  addHandlers(handlers, floorReviewHandlers(floorReviewDeps));
+  addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
+  addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
+  addHandlers(handlers, loopUpkeepHandlers(loopUpkeepDeps));
+  addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
 }
 
 /** The pack repo this service watches; the sync itself is lore-api's, under its lease. */

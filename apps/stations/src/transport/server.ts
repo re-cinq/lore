@@ -10,6 +10,8 @@ import { stationsRoute } from "./routes/stations.js";
 import { dbHealthRoute } from "@re-cinq/lore-shared/http/db-health-route.js";
 import { serviceStations } from "../events/runner/service-stations.js";
 import { stationHost } from "../events/runner/station-host.js";
+import { withMirrorDropStations } from "../events/mirror-drop.js";
+import { settings } from "../outbound/queues.js";
 import { registerRequestTracing } from "@re-cinq/lore-shared/http/tracing.js";
 import { traceHttp } from "@re-cinq/lore-shared/otel/metrics.js";
 
@@ -24,7 +26,10 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
 
   server.route([
     stationsRoute({
-      registry: () => serviceStations(stationHost()),
+      registry: () =>
+        withMirrorDropStations(serviceStations(stationHost()), (repo) =>
+          settings().mirrorOwner(repo),
+        ),
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
     dbHealthRoute(),

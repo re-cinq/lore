@@ -21,13 +21,21 @@ export interface RepoConfigWriter {
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 }
 
-interface RepoIdentityRow {
+interface LockedRenameRow {
   id: string;
   full_name: string;
+  mirrorName: string | null;
 }
 
-const LOCK_RENAME_ROWS_SQL =
-  "SELECT id, full_name FROM lore.repos WHERE full_name = ANY($1) FOR UPDATE";
+/** Locks the two named rows and the row whose public_mirror is either name, so a renamed public repo finds its private repo in the same read. */
+const LOCK_RENAME_ROWS_SQL = `SELECT id, full_name, settings->>'public_mirror' AS "mirrorName"
+    FROM lore.repos
+   WHERE full_name = ANY($1)
+      OR lower(settings->>'public_mirror') IN (SELECT lower(name) FROM unnest($1::text[]) AS name)
+     FOR UPDATE`;
+
+const REPOINT_PUBLIC_MIRROR_SQL =
+  "UPDATE lore.repos SET settings = jsonb_set(settings, '{public_mirror}', to_jsonb($2::text)) WHERE id = $1";
 
 const RENAME_REPO_ROW_SQL =
   "UPDATE lore.repos SET owner = $2, name = $3, full_name = $4 WHERE id = $1";
@@ -55,11 +63,13 @@ async function renameRepoRow(
   from: string,
   to: string,
 ): Promise<RepoRenameOutcome> {
-  const { rows } = await db.query<RepoIdentityRow>(LOCK_RENAME_ROWS_SQL, [
+  const { rows } = await db.query<LockedRenameRow>(LOCK_RENAME_ROWS_SQL, [
     [from, to],
   ]);
   const source = rows.find((row) => row.full_name === from);
   const target = rows.find((row) => row.full_name === to);
+
+  await repointPublicMirror(db, rows, from, to);
 
   if (!source) {
     return "absent";
@@ -68,10 +78,33 @@ async function renameRepoRow(
     ? await mergeRepoRows(db, source.id, target.id)
     : await renameRepoRowInPlace(db, source.id, to);
 
-  await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
-  await db.query(MOVE_PLANS_SQL, [from, to]);
+  await repointReferences(db, from, to);
 
   return outcome;
+}
+
+async function repointReferences(
+  db: PgPool,
+  from: string,
+  to: string,
+): Promise<void> {
+  await db.query(REPOINT_CROSS_REPO_LINKS_SQL, [from, to]);
+  await db.query(MOVE_PLANS_SQL, [from, to]);
+}
+
+async function repointPublicMirror(
+  db: PgPool,
+  rows: LockedRenameRow[],
+  from: string,
+  to: string,
+): Promise<void> {
+  const mirrorOwner = rows.find(
+    (row) => row.mirrorName?.toLowerCase() === from.toLowerCase(),
+  );
+
+  if (mirrorOwner) {
+    await db.query(REPOINT_PUBLIC_MIRROR_SQL, [mirrorOwner.id, to]);
+  }
 }
 
 async function renameRepoRowInPlace(
