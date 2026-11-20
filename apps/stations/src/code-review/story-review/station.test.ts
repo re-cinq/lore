@@ -9,7 +9,11 @@ const story = complete({
 });
 const matches = complete({ status: "complete", summary: "It does.", gaps: [] });
 
-function station(nodeId: string, answers: Record<string, string>) {
+function station(
+  nodeId: string,
+  answers: Record<string, string>,
+  values: Record<string, string> = {},
+) {
   const work: string[] = [];
   const produced: Record<string, string> = {};
   const handle = reviewProgressHandle({
@@ -39,6 +43,7 @@ function station(nodeId: string, answers: Record<string, string>) {
     iteration: 1,
     needs: {
       revision: "a".repeat(40),
+      ...values,
       ...Object.fromEntries(
         Object.keys(answers).map((name) => [name, `blob://${name}`]),
       ),
@@ -91,5 +96,59 @@ it("produces the formal review at finalize and names the run that posts it", asy
   }).toEqual({
     report: { outcome: "success", produced: { review_run: "run-7" } },
     verdict: "approved",
+  });
+});
+
+const checked = { story, implementation_check: matches, issue_check: matches };
+const verdictIn = (produced: Record<string, string>) =>
+  /"verdict":"(\w+)"/.exec(produced.review_output)?.[1];
+
+it("sends a review from publish-checks to the documents check when the pull request changes documents, and on to finalize when it changes none", async () => {
+  expect([
+    await station("publish-checks", checked, { docs_changed: "true" }).handle(),
+    await station("publish-checks", checked).handle(),
+  ]).toEqual([{ outcome: "docs" }, { outcome: "success" }]);
+});
+
+it("produces the review of a pull request of documents alone at finalize from the documents check, with no story", async () => {
+  const { handle, produced } = station(
+    "finalize",
+    { docs_check: matches },
+    { review_mode: "docs" },
+  );
+
+  expect({ report: await handle(), verdict: verdictIn(produced) }).toEqual({
+    report: { outcome: "success", produced: { review_run: "run-7" } },
+    verdict: "approved",
+  });
+});
+
+it("approves a pull request that changes only links at finalize, with no answer of any agent", async () => {
+  const { handle, produced, work } = station(
+    "finalize",
+    {},
+    { review_mode: "links" },
+  );
+
+  expect({
+    report: await handle(),
+    verdict: verdictIn(produced),
+    work,
+  }).toEqual({
+    report: { outcome: "success", produced: { review_run: "run-7" } },
+    verdict: "approved",
+    work: [],
+  });
+});
+
+it("fails finalize when the documents check ran beside the story and gave no answer", async () => {
+  const { handle } = station("finalize", {
+    ...checked,
+    docs_check: "I could not.",
+  });
+
+  expect(await handle()).toEqual({
+    outcome: "failed",
+    error: "Incomplete review evidence: Documents check",
   });
 });

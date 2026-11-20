@@ -30,19 +30,15 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
 
   await requireReviewRepository(visitId, target.repo);
   const stdout = await collect(collectorArgs(needs, target), tools.signal);
-  const evidence = preparedEvidence(stdout, needs.previous_findings);
-
-  if ("outcome" in evidence) {
-    return evidence;
-  }
+  const { report, packets } = preparedEvidence(stdout, needs.previous_findings);
 
   await Promise.all(
-    Object.entries(evidence).map(([name, packet]) =>
+    Object.entries(packets).map(([name, packet]) =>
       tools.produce(name, pagedPacket(packet)),
     ),
   );
 
-  return { outcome: "success" };
+  return report;
 };
 
 async function collect(args: string[], signal: AbortSignal): Promise<string> {

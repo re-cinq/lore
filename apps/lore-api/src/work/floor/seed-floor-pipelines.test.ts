@@ -108,23 +108,29 @@ function codeReviewOnFloor(held: string[]) {
 }
 
 describe("seedFloorPipelines", () => {
-  it("preserves the whole-diff reviewer the floor holds and seeds the three story review agents", async () => {
+  it("preserves the whole-diff reviewer the floor holds and seeds the three story review agents and the documents check", async () => {
     const { deps, imported } = codeReviewOnFloor(["code-review"]);
 
     await seedFloorPipelines(deps);
 
     expect(imported).toEqual([
-      ["review-story", "review-implementation", "review-issue"],
+      ["review-story", "review-implementation", "review-issue", "review-docs"],
     ]);
   });
 
-  it("seeds the three story review agents and the whole-diff reviewer on an empty floor", async () => {
+  it("seeds the three story review agents, the documents check and the whole-diff reviewer on an empty floor", async () => {
     const { deps, imported } = codeReviewOnFloor([]);
 
     await seedFloorPipelines(deps);
 
     expect(imported).toEqual([
-      ["review-story", "review-implementation", "review-issue", "code-review"],
+      [
+        "review-story",
+        "review-implementation",
+        "review-issue",
+        "review-docs",
+        "code-review",
+      ],
     ]);
   });
 

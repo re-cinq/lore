@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formalReview, storyReview, type PassOutputs } from "./story.js";
+import {
+  formalReview,
+  storyPasses,
+  storyReview,
+  type PassOutputs,
+} from "./story.js";
+
+const upTo = (count: number) => storyPasses.slice(0, count);
 
 const REVISION = "a".repeat(40);
 const TEST = "apps/api/test/systemPrompt.acceptance.test.ts";
@@ -46,7 +53,7 @@ const outputs = (issue_check: string): PassOutputs => ({
 
 describe("storyReview", () => {
   it("shows the short story, with the full story and its tests folded under it, as In progress once tell-story has answered", () => {
-    expect(storyReview({ story }, 1).comment(REVISION, "running")).toBe(
+    expect(storyReview({ story }, upTo(1)).comment(REVISION, "running")).toBe(
       [
         "## Lore code review",
         `Reviewed revision \`${REVISION}\` · **In progress** · 0 gaps`,
@@ -61,10 +68,10 @@ describe("storyReview", () => {
   });
 
   it("lists a gap under the story with its kind, its subject and where, and asks for changes", () => {
-    const comment = storyReview(outputs(issueGaps(missingTest)), 3).comment(
-      REVISION,
-      "complete",
-    );
+    const comment = storyReview(
+      outputs(issueGaps(missingTest)),
+      upTo(3),
+    ).comment(REVISION, "complete");
 
     expect(comment.split("\n\n").slice(1)).toEqual([
       `Reviewed revision \`${REVISION}\` · **Changes requested** · 1 gap`,
@@ -104,7 +111,7 @@ describe("storyReview", () => {
     });
 
     expect(
-      storyReview({ story: told }, 1)
+      storyReview({ story: told }, upTo(1))
         .comment(REVISION, "running")
         .split("\n\n")
         .slice(3),
@@ -120,12 +127,12 @@ describe("storyReview", () => {
     const untold = answer({ status: "complete", story: [] });
 
     expect(
-      storyReview({ story: untold }, 1).comment(REVISION, "running"),
+      storyReview({ story: untold }, upTo(1)).comment(REVISION, "running"),
     ).toContain("The tests tell nothing about this change.");
   });
 
   it("names the passes that did not answer and says the whole diff is reviewed instead when the run failed", () => {
-    const review = storyReview({ story, implementation_check: "{}" }, 2);
+    const review = storyReview({ story, implementation_check: "{}" }, upTo(2));
 
     expect([
       review.incomplete,
@@ -248,7 +255,7 @@ describe("formalReview", () => {
     });
 
     expect(
-      storyReview({ story, implementation_check: noted }, 2).comment(
+      storyReview({ story, implementation_check: noted }, upTo(2)).comment(
         REVISION,
         "running",
       ),
@@ -277,7 +284,10 @@ describe("formalReview", () => {
 
     expect([
       formalReview(review),
-      storyReview(review, 3).comment(REVISION, "complete").split("\n\n").at(-5),
+      storyReview(review, upTo(3))
+        .comment(REVISION, "complete")
+        .split("\n\n")
+        .at(-5),
     ]).toEqual([
       {
         verdict: "approved",
@@ -309,7 +319,7 @@ describe("formalReview", () => {
     });
 
     expect(
-      storyReview(outputs(closing), 3)
+      storyReview(outputs(closing), upTo(3))
         .comment(REVISION, "complete")
         .split("\n\n")
         .at(-5),
@@ -334,7 +344,7 @@ describe("formalReview", () => {
         ),
         issue_check: closing("The rule is  not in the identity section"),
       },
-      3,
+      upTo(3),
     ).comment(REVISION, "complete");
 
     expect(comment.match(/the rule is +not in the identity section/gi)).toEqual(
@@ -377,5 +387,109 @@ describe("formalReview", () => {
     ).toBe(
       "The implementation and the issue tell the story the tests tell. Declined by a person and not blocking: the rule is not in the identity section.",
     );
+  });
+});
+
+describe("a pull request of documents", () => {
+  const SPEC = "specs/queue/spec.md";
+  const docs = (...gaps: object[]) =>
+    answer({
+      status: "complete",
+      summary: "Every statement was read against its tests.",
+      gaps,
+    });
+  const unproven = {
+    kind: "contradiction",
+    subject: "the linked test refuses item 26, the statement says item 25",
+    detail: "The test fills 25 items and refuses the next one.",
+    location: { path: SPEC, line: 5 },
+    proposal: "- A full queue of 25 refuses item 26.",
+    replaces_line: true,
+  };
+
+  it("approves a pull request of documents alone when the documents check finds no gap, with no story", () => {
+    expect(formalReview({ docs_check: docs() }, ["docs_check"])).toEqual({
+      verdict: "approved",
+      summary:
+        "The changed documents say what their linked tests and the code say.",
+      findings: [],
+    });
+  });
+
+  it("asks for changes on line 5 of the spec when the statement there says something else than its linked test", () => {
+    expect(
+      formalReview({ docs_check: docs(unproven) }, ["docs_check"]),
+    ).toMatchObject({
+      verdict: "changes_requested",
+      summary:
+        "1 gap separates the changed documents from their linked tests and the code.",
+      findings: [
+        {
+          path: SPEC,
+          line: 5,
+          decoration: "blocking",
+          suggestion: "- A full queue of 25 refuses item 26.",
+        },
+      ],
+    });
+  });
+
+  it("approves and only notes a statement that links no test", () => {
+    const unlinked = {
+      kind: "unlinked",
+      subject: "a queue holds 25 items",
+      detail: "The statement is testable and links no test.",
+      location: { path: SPEC, line: 6 },
+    };
+
+    expect(
+      formalReview({ docs_check: docs(unlinked) }, ["docs_check"]),
+    ).toMatchObject({
+      verdict: "approved",
+      findings: [
+        {
+          line: 6,
+          label: "question",
+          decoration: "non-blocking",
+          subject: "No test link: a queue holds 25 items",
+        },
+      ],
+    });
+  });
+
+  it("approves a pull request that changes only links without any pass, and says so in the review and the comment", () => {
+    expect([
+      formalReview({}, []),
+      storyReview({}, []).comment(REVISION, "complete").split("\n\n").slice(1),
+    ]).toEqual([
+      {
+        verdict: "approved",
+        summary:
+          "Only links changed in the Markdown of this pull request: nothing to review.",
+        findings: [],
+      },
+      [
+        `Reviewed revision \`${REVISION}\` · **Approved** · 0 gaps`,
+        "Only links changed in the Markdown of this pull request: nothing to review.",
+      ],
+    ]);
+  });
+
+  it("gives no review of a pull request of code and documents until the documents check is complete too", () => {
+    expect(formalReview(outputs(matches), [...storyPasses, "docs_check"])).toBe(
+      undefined,
+    );
+  });
+
+  it("counts the gap of the documents check with the story's in one review, and names the check that did not answer", () => {
+    const reviewed = { ...outputs(matches), docs_check: docs(unproven) };
+
+    expect([
+      formalReview(reviewed, [...storyPasses, "docs_check"])?.summary,
+      storyReview(outputs(matches), [...storyPasses, "docs_check"]).incomplete,
+    ]).toEqual([
+      "1 gap separates the story the tests tell from the implementation, the issue and the changed documents.",
+      ["Documents check"],
+    ]);
   });
 });

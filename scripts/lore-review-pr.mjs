@@ -10,11 +10,17 @@ import { githubHost } from "../libs/shared/dist/domain/github-host.js";
 import {
   EvidenceLimit,
   discussionFor,
+  changedMarkdown,
+  markdown,
   productDocuments,
   productSpecs,
 } from "./lore-review-pr-context.mjs";
-
-import { storyPackets } from "./lore-review-packets.mjs";
+import {
+  DocsLimit,
+  docsEvidence,
+  onlyLinksChanged,
+} from "./lore-review-docs.mjs";
+import { repliesIn, storyPackets } from "./lore-review-packets.mjs";
 
 const exec = promisify(execFile);
 const script = (name) => fileURLToPath(new URL(name, import.meta.url));
@@ -95,6 +101,28 @@ async function prepare(cwd) {
     ],
     { ...options, env: authEnv },
   );
+  const superseded = async () => {
+    const latest = await current();
+
+    return (
+      latest.head.sha !== pr.head.sha ||
+      latest.base.sha !== pr.base.sha ||
+      latest.state !== "open"
+    );
+  };
+  const written = await writtenMarkdown(git, mergeBase, pr.head.sha);
+
+  if (written.status) {
+    return written;
+  }
+
+  if (written.only) {
+    const documents = await documentsAlone(written, () =>
+      discussionFor(api, target, pr),
+    );
+
+    return (await superseded()) ? { status: "superseded" } : documents;
+  }
   const [discussion, snapshot] = await Promise.all([
     discussionFor(api, target, pr),
     exec(
@@ -158,17 +186,61 @@ async function prepare(cwd) {
     return product;
   }
   const [specs, documents] = product;
-  const latest = await current();
 
-  if (
-    latest.head.sha !== pr.head.sha ||
-    latest.base.sha !== pr.base.sha ||
-    latest.state !== "open"
-  ) {
+  if (await superseded()) {
     return { status: "superseded" };
   }
 
-  return { snapshot, discussion, specs, documents };
+  return {
+    snapshot,
+    discussion,
+    specs,
+    documents,
+    docs: { ...written.docs, ...repliesIn(discussion) },
+  };
+}
+
+/** The Markdown the pull request changes, specs included, as the documents check reads it, and whether the pull request changes nothing else. */
+async function writtenMarkdown(git, base, head) {
+  const changed = (
+    await git(["diff", "--no-renames", "--name-only", "-z", base, head])
+  )
+    .split("\0")
+    .filter(Boolean);
+
+  try {
+    const documents = await changedMarkdown(git, [base, head]);
+
+    return {
+      only: changed.length > 0 && changed.every((path) => markdown.test(path)),
+      links: onlyLinksChanged(documents),
+      docs: await docsEvidence(documents, (path) =>
+        git(["show", head + ":" + path]).catch(() => null),
+      ),
+    };
+  } catch (error) {
+    if (error instanceof DocsLimit) {
+      return { status: "whole_diff", reason: error.message };
+    }
+    throw error;
+  }
+}
+
+// A pull request of documents alone has no story to tell: its statements go to the documents check, and one that moves only links needs no review.
+async function documentsAlone({ links, docs }, discussion) {
+  if (links) {
+    return { status: "links_only" };
+  }
+
+  return docs.statements.length + docs.removed.length
+    ? {
+        status: "docs_only",
+        docs_evidence: { ...docs, ...repliesIn(await discussion()) },
+      }
+    : {
+        status: "whole_diff",
+        reason: "The change has no code or test file",
+      };
 }
 
 const cwd = await mkdtemp(join(tmpdir(), "lore-review-pr-"));
@@ -181,12 +253,15 @@ try {
     JSON.stringify(
       prepared.status
         ? prepared
-        : storyPackets({
-            ...prepared.snapshot,
-            discussion: prepared.discussion,
-            specs: prepared.specs,
-            documents: prepared.documents,
-          }),
+        : {
+            ...storyPackets({
+              ...prepared.snapshot,
+              discussion: prepared.discussion,
+              specs: prepared.specs,
+              documents: prepared.documents,
+            }),
+            docs_evidence: prepared.docs,
+          },
     ),
   );
 } catch (error) {

@@ -1,7 +1,7 @@
 import { linkedIssueNumber } from "../libs/shared/dist/domain/pr-body.js";
 import { segmentStatements } from "../libs/shared/dist/domain/spec-segment.js";
 
-const markdown = /\.(?:md|mdx|markdown|mkd|mkdn|mdown)$/i;
+export const markdown = /\.(?:md|mdx|markdown|mkd|mkdn|mdown)$/i;
 const spec = /^specs\/.*\/spec\.md$/;
 const maxProductEvidenceBytes = 2 * 1024 * 1024;
 
@@ -132,6 +132,28 @@ export async function productSpecs(git, base, head, discussion, files) {
 }
 
 export async function productDocuments(git, base, head, scope = []) {
+  const documents = await changedMarkdown(
+    git,
+    [base, head],
+    (path) => !spec.test(path) && (!scope.length || scope.includes(path)),
+  );
+  const size = documents.reduce(
+    (sum, { before, after }) =>
+      sum + Buffer.byteLength(before ?? "") + Buffer.byteLength(after ?? ""),
+    0,
+  );
+
+  if (size > maxProductEvidenceBytes) {
+    throw new EvidenceLimit(
+      "Changed Markdown exceeds the product evidence limit",
+    );
+  }
+
+  return documents;
+}
+
+/** Every Markdown file the range changes that `wanted` keeps, with its text on either side; a file added or removed has no text on the other. */
+export async function changedMarkdown(git, [base, head], wanted = () => true) {
   const entries = (
     await git([
       "diff",
@@ -144,16 +166,11 @@ export async function productDocuments(git, base, head, scope = []) {
     ])
   ).split("\0");
   const documents = [];
-  let size = 0;
 
   for (let index = 0; index < entries.length - 1; index += 2) {
     const path = entries[index + 1];
 
-    if (
-      !markdown.test(path) ||
-      spec.test(path) ||
-      (scope.length && !scope.includes(path))
-    ) {
+    if (!markdown.test(path) || !wanted(path)) {
       continue;
     }
     const [beforeMode, afterMode, beforeHash, afterHash] = entries[index]
@@ -166,18 +183,9 @@ export async function productDocuments(git, base, head, scope = []) {
       textOf(afterMode, afterHash),
     ]);
 
-    if (before === after) {
-      continue;
+    if (before !== after) {
+      documents.push({ path, before, after });
     }
-
-    size += Buffer.byteLength(before ?? "") + Buffer.byteLength(after ?? "");
-
-    if (size > maxProductEvidenceBytes) {
-      throw new EvidenceLimit(
-        "Changed Markdown exceeds the product evidence limit",
-      );
-    }
-    documents.push({ path, before, after });
   }
 
   return documents;
