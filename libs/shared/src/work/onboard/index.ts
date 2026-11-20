@@ -4,3 +4,4 @@ export * from "./onboard-attention.js";
 export * from "./onboard-audit.js";
 export * from "./onboard-ingest-callback.js";
 export * from "./onboard-scaffold.js";
+export * from "./start-first-ingest.js";

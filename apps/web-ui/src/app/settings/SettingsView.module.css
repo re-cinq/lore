@@ -59,21 +59,6 @@
   gap: var(--space-3);
 }
 
-.regenerateButton {
-  white-space: nowrap;
-}
-
-/* The design's soft destructive button: tinted ground, danger text. */
-:global([data-theme-family="lore"]) .regenerateButton {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-:global([data-theme-family="lore"]) .regenerateButton:hover {
-  background: var(--danger);
-  color: var(--text-on-accent);
-}
-
 .reposTextarea {
   font-family: var(--font-mono);
   font-size: var(--fs-sm);

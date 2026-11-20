@@ -62,6 +62,11 @@ serviceAccount:
 # On AKS the azure-cost-sync station reads Cost Management with the two lines of
 # the example, so it needs no stored secret.
 
+# The PUBLIC lore-api URL a GitHub runner reaches, e.g. https://lore-api.example.com.
+# Onboarding writes it to every repo's LORE_INGEST_URL variable; not LORE_API_URL,
+# which is cluster-internal. Empty renders no variable.
+ingestUrl: ""
+
 env:
   # Comma-separated owner/name repositories opted into shadow PR review.
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.

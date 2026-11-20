@@ -51,5 +51,6 @@ lore-platform:
       LORE_API_PUBLIC_URL: http://lore-api.example.com
       LORE_WS_URL: ws://lore.example.com/api/ws
   lore-stations:
+    ingestUrl: http://lore-api.example.com   # the lore-api ingress host
     env:
       LORE_UI_URL: http://lore.example.com

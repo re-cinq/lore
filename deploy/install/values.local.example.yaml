@@ -53,5 +53,6 @@ lore-platform:
       LORE_API_PUBLIC_URL: http://lore-api.localtest.me
       LORE_WS_URL: ws://lore.localtest.me/api/ws
   lore-stations:
+    ingestUrl: http://lore-api.localtest.me   # the lore-api ingress host
     env:
       LORE_UI_URL: http://lore.localtest.me

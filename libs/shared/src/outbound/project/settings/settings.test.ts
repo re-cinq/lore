@@ -14,6 +14,39 @@ describe("Settings", () => {
     ]);
   });
 
+  it("answers a seeded disabled workflow as disabled, then active once enabled", async () => {
+    const port = new InMemorySettings();
+    const facade = new Settings("re-cinq/lore", port);
+
+    port.workflowStates.set("re-cinq/lore/lore-ingest.yml", "disabled");
+
+    expect(await facade.workflowState("lore-ingest.yml")).toBe("disabled");
+
+    await facade.enableWorkflow("lore-ingest.yml");
+
+    expect(await facade.workflowState("lore-ingest.yml")).toBe("active");
+    expect(port.enabledWorkflows).toEqual([
+      { repo: "re-cinq/lore", file: "lore-ingest.yml" },
+    ]);
+  });
+
+  it("answers missing for a workflow nobody seeded", async () => {
+    const facade = new Settings("re-cinq/lore", new InMemorySettings());
+
+    expect(await facade.workflowState("lore-ingest.yml")).toBe("missing");
+  });
+
+  it("records a workflow dispatch with its ref, repo bound", async () => {
+    const port = new InMemorySettings();
+    const facade = new Settings("re-cinq/lore", port);
+
+    await facade.dispatchWorkflow("lore-ingest.yml", "main");
+
+    expect(port.dispatchedWorkflows).toEqual([
+      { repo: "re-cinq/lore", file: "lore-ingest.yml", ref: "main" },
+    ]);
+  });
+
   it("reads and overwrites the raw settings JSONB, repo bound", async () => {
     const port = new InMemorySettings([
       { full_name: "re-cinq/lore", settings: { trust: { level: "tests" } } },

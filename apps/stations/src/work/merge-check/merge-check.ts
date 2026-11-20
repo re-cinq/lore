@@ -16,12 +16,36 @@ import {
   githubHostPattern,
 } from "@re-cinq/lore-shared/github-host.js";
 import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
+import type { Project } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import type { PendingOnboardingRepo } from "@re-cinq/lore-shared/project/settings/settings-port.js";
+import {
+  startFirstIngest,
+  type FirstIngestWorkflows,
+} from "@re-cinq/lore-shared/onboard/start-first-ingest.js";
 
 type OnboardingOutcome = "merged" | "closed" | "invalid" | "unchanged";
 
 type MergeableOutcome = "merged" | "closed" | "unchanged";
+
+/** What the onboarding sweep reads and writes: one repo's pull requests, default branch and workflows, and its row. */
+type OnboardingProject = Awaited<ReturnType<OnboardingSweepDeps["projectFor"]>>;
+
+export interface OnboardingSweepDeps {
+  projectFor(repo: string): Promise<{
+    pulls: Pick<Project["pulls"], "isMerged" | "isClosed">;
+    repo: Pick<Project["repo"], "defaultBranch">;
+    settings: FirstIngestWorkflows;
+  }>;
+  markOnboardingMerged(id: string): Promise<void>;
+  clearOnboardingPrUrl(id: string): Promise<void>;
+}
+
+const productionSweepDeps: OnboardingSweepDeps = {
+  projectFor,
+  markOnboardingMerged: (id) => settings().markOnboardingMergedById(id),
+  clearOnboardingPrUrl: (id) => settings().clearOnboardingPrUrl(id),
+};
 
 export async function mergeCheckJob(): Promise<string> {
   const repos = await settings().pendingOnboardingRepos();
@@ -29,7 +53,7 @@ export async function mergeCheckJob(): Promise<string> {
   if (repos.length === 0) {
     console.log("[job] merge-check: no pending repos");
   }
-  const mergedCount = await sweepOnboardingRepos(repos);
+  const mergedCount = await sweepOnboardingRepos(repos, productionSweepDeps);
   const tasks = await pipeline().taskQueue.mergeableTasks();
   const taskCounts = await sweepMergeableTasks(tasks);
 
@@ -37,13 +61,14 @@ export async function mergeCheckJob(): Promise<string> {
 }
 
 /** Onboarding PRs. Each repo is caught on its own — one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion. */
-async function sweepOnboardingRepos(
+export async function sweepOnboardingRepos(
   repos: PendingOnboardingRepo[],
+  deps: OnboardingSweepDeps,
 ): Promise<number> {
   let mergedCount = 0;
 
   for (const repo of repos) {
-    if ((await checkedOutcome(repo)) === "merged") {
+    if ((await checkedOutcome(repo, deps)) === "merged") {
       mergedCount++;
     }
   }
@@ -54,9 +79,10 @@ async function sweepOnboardingRepos(
 // One repo's outcome, or "unchanged" if reading it threw. Caught per repo on purpose: one repo whose PR cannot be read must not stop the sweep, because the next repo's merge is what unblocks its ingestion.
 async function checkedOutcome(
   repo: PendingOnboardingRepo,
+  deps: OnboardingSweepDeps,
 ): Promise<OnboardingOutcome> {
   try {
-    return await checkOnboardingRepo(repo);
+    return await checkOnboardingRepo(repo, deps);
   } catch (err) {
     console.error(`[job] merge-check: error checking ${repo.full_name}:`, err);
 
@@ -67,26 +93,58 @@ async function checkedOutcome(
 /** One onboarding repo's PR check: merges/clears the row as needed, reporting what happened. */
 async function checkOnboardingRepo(
   repo: PendingOnboardingRepo,
+  deps: OnboardingSweepDeps,
 ): Promise<OnboardingOutcome> {
   const parsed = parseOnboardingPrUrl(repo.onboarding_pr_url);
 
   if (!parsed) {
     return reportInvalidPrUrl(repo);
   }
-  const project = await projectFor(`${parsed.owner}/${parsed.repoName}`);
+  const project = await deps.projectFor(`${parsed.owner}/${parsed.repoName}`);
 
   if (await project.pulls.isMerged(parsed.number)) {
-    await settings().markOnboardingMergedById(repo.id);
-    console.log(`[job] merge-check: ${repo.full_name} PR merged`);
-
-    return "merged";
+    return recordMerged(repo, deps, project);
   }
 
   if (await project.pulls.isClosed(parsed.number)) {
-    return clearClosedOnboarding(repo);
+    return clearClosedOnboarding(repo, deps);
   }
 
   return "unchanged";
+}
+
+async function recordMerged(
+  repo: PendingOnboardingRepo,
+  deps: OnboardingSweepDeps,
+  project: OnboardingProject,
+): Promise<OnboardingOutcome> {
+  await deps.markOnboardingMerged(repo.id);
+  console.log(`[job] merge-check: ${repo.full_name} PR merged`);
+  await startIngestAfterMerge(repo, project);
+
+  return "merged";
+}
+
+/** The merged onboarding PR's push run only sends its own diff, so the first full ingestion is started here. Never raised: the repo is already marked merged and the sweep has other repos to check. */
+async function startIngestAfterMerge(
+  repo: PendingOnboardingRepo,
+  project: OnboardingProject,
+): Promise<void> {
+  try {
+    const { started, gaps } = await startFirstIngest(
+      project.settings,
+      await project.repo.defaultBranch(),
+    );
+
+    console.log(
+      `[job] merge-check: ${repo.full_name} first ingest started [${started.join(", ")}], gaps [${gaps.map((gap) => `${gap.step}: ${gap.error}`).join("; ")}]`,
+    );
+  } catch (err) {
+    console.error(
+      `[job] merge-check: ${repo.full_name} first ingest not started:`,
+      err,
+    );
+  }
 }
 
 /** Extracts owner/repo and PR number from a pull URL on the configured GitHub host, or null when the URL is not one. */
@@ -118,8 +176,9 @@ function reportInvalidPrUrl(repo: PendingOnboardingRepo): OnboardingOutcome {
 // Closed without merging: the stored URL is cleared so onboarding can be resubmitted (#968). Leaving it would make the repo look permanently mid-onboarding.
 async function clearClosedOnboarding(
   repo: PendingOnboardingRepo,
+  deps: OnboardingSweepDeps,
 ): Promise<OnboardingOutcome> {
-  await settings().clearOnboardingPrUrl(repo.id);
+  await deps.clearOnboardingPrUrl(repo.id);
   console.log(
     `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
   );

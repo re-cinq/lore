@@ -83,7 +83,7 @@ Context reaches the stores from CI on every push to `main`, never from a schedul
 | [**stations (service)**](../../apps/stations/README.md) | Service stations reached by name over `POST /api/stations/{name}` — the sweeps (`merge-check`, `pr-ready-check`, the ticks that start runs, the housekeeping prunes) and Lore's stations for the external floor. It is also the scheduler: it emits the `cron.*.tick` events and answers them, and it drains the PR-lifecycle events that start and cancel runs. |
 | [**Web UI**](../../apps/web-ui/README.md) | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. Holds **no** database pool — every read goes through lore-api via typed clients generated from its OpenAPI schema. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |
-| **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
+| **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets and variables for ingest automation, and enables and dispatches the ingest workflows to start the first ingestion. |
 
 ## Search
 
