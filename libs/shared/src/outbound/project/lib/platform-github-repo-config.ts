@@ -95,6 +95,65 @@ export async function setRepoVariable(
   }
 }
 
+export type WorkflowState = "active" | "disabled" | "missing";
+
+export async function workflowState(
+  ok: Octokit,
+  repo: string,
+  file: string,
+): Promise<WorkflowState> {
+  const [owner, repoName] = split(repo);
+  const { actions } = ok.rest;
+
+  try {
+    const { data: workflow } = await actions.getWorkflow({
+      owner,
+      repo: repoName,
+      workflow_id: file,
+    });
+
+    return workflow.state === "active" ? "active" : "disabled";
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) {return "missing";}
+    throw error;
+  }
+}
+
+export async function enableWorkflow(
+  ok: Octokit,
+  repo: string,
+  file: string,
+): Promise<void> {
+  const [owner, repoName] = split(repo);
+
+  const { actions } = ok.rest;
+
+  await actions.enableWorkflow({
+    owner,
+    repo: repoName,
+    workflow_id: file,
+  });
+}
+
+/** GitHub answers 422 for a workflow with no `workflow_dispatch` trigger; the error propagates with GitHub's message. */
+export async function dispatchWorkflow(
+  ok: Octokit,
+  repo: string,
+  file: string,
+  ref: string,
+): Promise<void> {
+  const [owner, repoName] = split(repo);
+
+  const { actions } = ok.rest;
+
+  await actions.createWorkflowDispatch({
+    owner,
+    repo: repoName,
+    workflow_id: file,
+    ref,
+  });
+}
+
 interface Sodium {
   ready: Promise<void>;
   base64_variants: { ORIGINAL: number };

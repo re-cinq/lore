@@ -316,6 +316,25 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return repoConfig.setRepoSecret(await this.octo(), repo, name, value);
   }
 
+  async workflowState(
+    repo: string,
+    file: string,
+  ): Promise<repoConfig.WorkflowState> {
+    return repoConfig.workflowState(await this.octo(), repo, file);
+  }
+
+  async enableWorkflow(repo: string, file: string): Promise<void> {
+    return repoConfig.enableWorkflow(await this.octo(), repo, file);
+  }
+
+  async dispatchWorkflow(
+    repo: string,
+    file: string,
+    ref: string,
+  ): Promise<void> {
+    return repoConfig.dispatchWorkflow(await this.octo(), repo, file, ref);
+  }
+
   // ── PullRequestsPort: reads ─────────────────────────────────────────
 
   async list(repo: string): Promise<PullRef[]> {
