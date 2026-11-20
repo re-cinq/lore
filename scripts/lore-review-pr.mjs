@@ -11,6 +11,7 @@ import {
   githubPullUrl,
 } from "../libs/shared/dist/domain/github-host.js";
 import {
+  EvidenceLimit,
   discussionFor,
   productDocuments,
   productSpecs,
@@ -133,10 +134,20 @@ async function prepare(cwd) {
   if (snapshot.status) {
     return snapshot;
   }
-  const [specs, documents] = await Promise.all([
+  const product = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
     productDocuments(git, evidenceBase, pr.head.sha, values.paths),
-  ]);
+  ]).catch((error) => {
+    if (error instanceof EvidenceLimit) {
+      return { status: "whole_diff", reason: error.message };
+    }
+    throw error;
+  });
+
+  if (product.status) {
+    return product;
+  }
+  const [specs, documents] = product;
   const latest = await current();
 
   if (
