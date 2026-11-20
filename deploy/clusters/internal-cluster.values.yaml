@@ -276,7 +276,7 @@ lore-api:
 lore-mcp-gateway:
   image:
     repository: ghcr.io/re-cinq/lore-mcp
-    tag: "f1d4cef"
+    tag: "811060b"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
   serviceAccount:
