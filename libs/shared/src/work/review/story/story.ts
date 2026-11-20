@@ -255,6 +255,7 @@ function summaryOf({ gaps, checks, declined }: Review): string {
 function findingOf(found: Gap): Omit<ReviewFinding, "path" | "line"> {
   const blocking = asksForChanges(found);
   const { suggestion, block } = proposalOf(found);
+  const evidence = found.evidence.map(escapeMarkdown);
 
   return {
     label: blocking ? "issue" : "question",
@@ -263,7 +264,7 @@ function findingOf(found: Gap): Omit<ReviewFinding, "path" | "line"> {
     discussion: [
       escapeMarkdown(found.detail),
       ...block,
-      ...found.evidence.map(escapeMarkdown),
+      ...(evidence.length ? [`Evidence: ${evidence.join("; ")}`] : []),
     ].join("\n\n"),
     ...suggestion,
   };
@@ -299,12 +300,20 @@ function cell(value: string): string {
   return escapeMarkdown(value).replaceAll("|", "\\|");
 }
 
+// Inline code is shown as written: GitHub renders a backslash or an entity inside it literally.
 function escapeMarkdown(value: string): string {
   return value
+    .replace(/\r?\n/g, " ")
+    .split(/(`[^`]+`)/)
+    .map((part, index) => (index % 2 ? part : escapedProse(part)))
+    .join("");
+}
+
+function escapedProse(prose: string): string {
+  return prose
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("@", "&#64;")
-    .replace(/[\\*_[\]~]/g, "\\$&")
-    .replace(/\r?\n/g, " ");
+    .replace(/[\\*_[\]~]/g, "\\$&");
 }

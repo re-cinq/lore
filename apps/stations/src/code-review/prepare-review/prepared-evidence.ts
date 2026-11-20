@@ -7,18 +7,30 @@ const packets = z.object({
   issue_evidence: packet,
 });
 
-const unprepared = z.enum(["whole_diff", "superseded"]);
+const unprepared = z.object({
+  status: z.enum(["whole_diff", "superseded"]),
+  reason: z.string().optional(),
+});
 
-/** The three packets the collector printed, or the outcome it asks for instead: the whole-diff reviewer, or nothing for a commit that is no longer the pull request's head. */
+export interface Unprepared {
+  outcome: "whole_diff" | "superseded";
+  /** Why the collector could not split the change, shown on the run. */
+  reason?: string;
+}
+
+/** The three packets the collector printed, or the outcome it asks for instead: the whole-diff reviewer with the reason, or nothing for a commit that is no longer the pull request's head. */
 export function preparedEvidence(
   stdout: string,
   previousFindings?: string,
-): z.infer<typeof packets> | z.infer<typeof unprepared> {
+): z.infer<typeof packets> | Unprepared {
   const collected = JSON.parse(stdout);
-  const outcome = unprepared.safeParse(collected.status).data;
+  const refusal = unprepared.safeParse(collected).data;
 
-  if (outcome) {
-    return outcome;
+  if (refusal) {
+    return {
+      outcome: refusal.status,
+      ...(refusal.reason ? { reason: refusal.reason } : {}),
+    };
   }
   const evidence = packets.parse(collected);
 

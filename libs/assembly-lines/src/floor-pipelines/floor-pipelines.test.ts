@@ -1845,6 +1845,7 @@ describe("a gap is posted on the line it is about, with a proposal", () => {
           "put it in `declined` with its `subject` and `reply`, the URL of that answer",
           "only a person's answer counts",
           "search it for an assertion that already proves the behaviour",
+          "Never write that a file could not be opened or checked unless a command you ran on it failed",
         ].filter((rule) => !prompt.includes(rule)),
       ).toEqual([]);
     },

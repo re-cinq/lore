@@ -5,6 +5,7 @@ import {
   defineStation,
   type Brief,
   type Handle,
+  type Report,
   type RunningStation,
 } from "@re-cinq/floor-station";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
@@ -14,7 +15,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
-import { preparedEvidence } from "./prepared-evidence.js";
+import { preparedEvidence, type Unprepared } from "./prepared-evidence.js";
 
 const exec = promisify(execFile);
 const collector = fileURLToPath(
@@ -32,8 +33,8 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
   const stdout = await collect(collectorArgs(needs, target), tools.signal);
   const evidence = preparedEvidence(stdout, needs.previous_findings);
 
-  if (typeof evidence === "string") {
-    return { outcome: evidence };
+  if ("outcome" in evidence) {
+    return unprepared(evidence);
   }
 
   await Promise.all(
@@ -44,6 +45,13 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
 
   return { outcome: "success" };
 };
+
+// The reason rides on the visit, so the run page says why a pull request got the whole-diff reviewer.
+function unprepared({ outcome, reason }: Unprepared): Report {
+  return reason
+    ? { outcome, produced: { whole_diff_reason: reason } }
+    : { outcome };
+}
 
 async function collect(args: string[], signal: AbortSignal): Promise<string> {
   const { stdout } = await exec(process.execPath, args, {
