@@ -103,22 +103,30 @@ export async function workflowState(
   file: string,
 ): Promise<WorkflowState> {
   const [owner, repoName] = split(repo);
+
   const { actions } = ok.rest;
+  const found = actions.getWorkflow({
+    owner,
+    repo: repoName,
+    workflow_id: file,
+  });
 
-  try {
-    const { data: workflow } = await actions.getWorkflow({
-      owner,
-      repo: repoName,
-      workflow_id: file,
-    });
+  return found.then(stateOf, missingOn404);
+}
 
-    return workflow.state === "active" ? "active" : "disabled";
-  } catch (error) {
-    if ((error as { status?: number }).status === 404) {
-      return "missing";
-    }
-    throw error;
+function stateOf({
+  data: workflow,
+}: {
+  data: { state: string };
+}): WorkflowState {
+  return workflow.state === "active" ? "active" : "disabled";
+}
+
+function missingOn404(error: unknown): WorkflowState {
+  if ((error as { status?: number }).status === 404) {
+    return "missing";
   }
+  throw error;
 }
 
 export async function enableWorkflow(
