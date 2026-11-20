@@ -75,16 +75,10 @@ function collectorArgs(
   needs: Brief["needs"],
   { repo, prNumber }: ReturnType<typeof parsePullRequestUrl>,
 ): string[] {
-  const paths = needs.review_paths
-    ? z.array(z.string()).parse(JSON.parse(needs.review_paths))
-    : [];
-
   return [
     collector,
     "--repo=" + repo,
     "--pr=" + prNumber,
     "--head=" + needs.head_sha,
-    ...(needs.since_sha ? ["--since", needs.since_sha] : []),
-    ...paths.map((path) => "--paths=" + path),
   ];
 }

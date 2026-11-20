@@ -20,8 +20,6 @@ const exec = promisify(execFile);
 const script = (name) => fileURLToPath(new URL(name, import.meta.url));
 const { values } = parseArgs({
   options: {
-    since: { type: "string" },
-    paths: { type: "string", multiple: true, default: [] },
     repo: { type: "string" },
     pr: { type: "string" },
     head: { type: "string" },
@@ -30,7 +28,6 @@ const { values } = parseArgs({
 
 function validateTarget() {
   if (
-    (values.since !== undefined && !/^[0-9a-f]{40}$/.test(values.since)) ||
     !/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") ||
     !/^[1-9]\d*$/.test(values.pr ?? "") ||
     !/^[0-9a-f]{40}$/.test(values.head ?? "")
@@ -56,7 +53,6 @@ async function prepare(cwd) {
     per_page: 1,
   });
   const mergeBase = comparison.data.merge_base_commit.sha;
-  const evidenceBase = values.since ?? mergeBase;
   const host = githubHost();
   const token = await new PlatformGitHub().getInstallationToken(values.repo, {
     contents: "read",
@@ -95,7 +91,7 @@ async function prepare(cwd) {
       "--no-tags",
       "--depth=1",
       `https://${host}/${values.repo}.git`,
-      ...new Set([mergeBase, evidenceBase, pr.head.sha, pr.base.sha]),
+      ...new Set([mergeBase, pr.head.sha, pr.base.sha]),
     ],
     { ...options, env: authEnv },
   );
@@ -110,8 +106,7 @@ async function prepare(cwd) {
         "--head",
         pr.head.sha,
         "--github-merge-base",
-        evidenceBase,
-        ...values.paths.flatMap((path) => ["--scope", path]),
+        mergeBase,
       ],
       options,
     ).then(
@@ -141,7 +136,7 @@ async function prepare(cwd) {
               "diff",
               "--no-ext-diff",
               "--no-color",
-              evidenceBase,
+              mergeBase,
               pr.head.sha,
               "--",
               ":(literal)" + file.path,
@@ -151,7 +146,7 @@ async function prepare(cwd) {
   );
   const product = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
-    productDocuments(git, evidenceBase, pr.head.sha, values.paths),
+    productDocuments(git, mergeBase, pr.head.sha),
   ]).catch((error) => {
     if (error instanceof EvidenceLimit) {
       return { status: "whole_diff", reason: error.message };
