@@ -16,8 +16,7 @@ const story = answer({
   status: "complete",
   story: [
     {
-      id: 1,
-      behaviour: "MASK_TOKEN_RULE is one of the response guidelines.",
+      text: "The system prompt carries MASK_TOKEN_RULE among its response guidelines.",
       tests: [{ path: TEST, line: 6 }],
     },
   ],
@@ -45,13 +44,14 @@ const outputs = (issue_check: string): PassOutputs => ({
 });
 
 describe("storyReview", () => {
-  it("shows the story alone as In progress once tell-story has answered", () => {
+  it("shows the story as prose with its tests under it, as In progress, once tell-story has answered", () => {
     expect(storyReview({ story }, 1).comment(REVISION, "running")).toBe(
       [
         "## Lore code review",
-        `Reviewed revision \`${REVISION}\` · **In progress** · 1 story line, 0 gaps`,
+        `Reviewed revision \`${REVISION}\` · **In progress** · 0 gaps`,
         "### The story the tests tell",
-        `1. MASK\\_TOKEN\\_RULE is one of the response guidelines.\n   \`${TEST}:6\``,
+        "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
+        `Tests: \`${TEST}:6\``,
       ].join("\n\n"),
     );
   });
@@ -63,9 +63,10 @@ describe("storyReview", () => {
     );
 
     expect(comment.split("\n\n").slice(1)).toEqual([
-      `Reviewed revision \`${REVISION}\` · **Changes requested** · 1 story line, 1 gap`,
+      `Reviewed revision \`${REVISION}\` · **Changes requested** · 1 gap`,
       "### The story the tests tell",
-      `1. MASK\\_TOKEN\\_RULE is one of the response guidelines.\n   \`${TEST}:6\``,
+      "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
+      `Tests: \`${TEST}:6\``,
       "### Gaps",
       [
         "| # | Kind | What differs | Where |",
@@ -74,6 +75,32 @@ describe("storyReview", () => {
       ].join("\n"),
       "The implementation matches the story.",
       "One requirement is untold.",
+    ]);
+  });
+
+  it("writes a real enumeration as a list under its paragraph, and tells several themes as several paragraphs", () => {
+    const told = answer({
+      status: "complete",
+      story: [
+        {
+          text: "A person who cannot read a repository is refused wherever the request names it:",
+          list: ["in the path", "in the query"],
+          tests: [{ path: TEST, line: 27 }],
+        },
+        { text: "A service token reaches every repository.", tests: [] },
+      ],
+    });
+
+    expect(
+      storyReview({ story: told }, 1)
+        .comment(REVISION, "running")
+        .split("\n\n")
+        .slice(3),
+    ).toEqual([
+      "A person who cannot read a repository is refused wherever the request names it:",
+      "- in the path\n- in the query",
+      `Tests: \`${TEST}:27\``,
+      "A service token reaches every repository.",
     ]);
   });
 
@@ -106,7 +133,7 @@ describe("formalReview", () => {
     expect(formalReview(outputs(issueGaps()))).toEqual({
       verdict: "approved",
       summary:
-        "The tests tell 1 behaviour, and the implementation and the issue tell the same story.",
+        "The implementation and the issue tell the story the tests tell.",
       findings: [],
     });
   });
@@ -115,7 +142,7 @@ describe("formalReview", () => {
     expect(formalReview(outputs(issueGaps(missingTest)))).toEqual({
       verdict: "changes_requested",
       summary:
-        "The tests tell 1 behaviour; 1 gap separates that story from the implementation and the issue.",
+        "1 gap separates the story the tests tell from the implementation and the issue.",
       findings: [
         {
           path: TEST,
@@ -198,7 +225,7 @@ describe("formalReview", () => {
     });
 
     expect(formalReview(outputs(closing))?.summary).toBe(
-      "The tests tell 1 behaviour, and the implementation and the issue tell the same story. Closed since the last review: the rule is not in the identity section.",
+      "The implementation and the issue tell the story the tests tell. Closed since the last review: the rule is not in the identity section.",
     );
   });
 });

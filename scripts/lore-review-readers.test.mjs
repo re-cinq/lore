@@ -43,7 +43,7 @@ function review(t, failing = "") {
     appendFileSync(${JSON.stringify(join(root, "calls"))}, JSON.stringify({ step, model: args[args.indexOf("--model") + 1], files: readdirSync(".").sort(), workspace: prompt.includes("/workspace/") }) + "\\n");
     if (step === process.env.FAILING) process.exit(2);
     const answers = {
-      story: { status: "complete", story: [{ id: 1, behaviour: "The rate is 3.", tests: [{ path: "src/rate.test.ts", line: 1 }] }] },
+      story: { status: "complete", story: [{ text: "The rate is 3.", tests: [{ path: "src/rate.test.ts", line: 1 }] }] },
       implementation: { status: "complete", summary: "The code returns 3.", gaps: [] },
       issue: { status: "complete", summary: "One requirement is untold.", gaps: [{ kind: "missing_test", subject: "a negative rate is refused", detail: "The issue asks for it.", location: { path: "src/rate.test.ts", line: 1 }, proposal: "expect(() => rate(-1)).toThrow();", evidence: [] }] },
     };
@@ -84,7 +84,7 @@ test("a local review tells the story, runs both checks against it and prints the
         line,
         subject,
       ]),
-      told: report.comment.includes("1. The rate is 3."),
+      told: report.comment.includes("\n\nThe rate is 3.\n\n"),
       steps: calls.map(({ step, model, workspace }) => [
         step,
         model,

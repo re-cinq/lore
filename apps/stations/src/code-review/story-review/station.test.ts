@@ -5,7 +5,7 @@ import { reviewProgressHandle } from "./station.js";
 const complete = (answer: object) => JSON.stringify(answer);
 const story = complete({
   status: "complete",
-  story: [{ id: 1, behaviour: "A locked item keeps its name.", tests: [] }],
+  story: [{ text: "A locked item keeps its name.", tests: [] }],
 });
 const matches = complete({ status: "complete", summary: "It does.", gaps: [] });
 

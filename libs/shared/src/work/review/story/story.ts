@@ -7,7 +7,7 @@ import {
   type Check,
   type Gap,
   type Place,
-  type StoryLine,
+  type StoryPart,
 } from "./story-answers.js";
 
 export const reviewPasses = [
@@ -32,8 +32,8 @@ const kinds: Record<Gap["kind"], string> = {
 };
 
 interface Review {
-  /** The story's lines; absent until tell-story has answered. */
-  lines: StoryLine[] | undefined;
+  /** The story's paragraphs; absent until tell-story has answered. */
+  parts: StoryPart[] | undefined;
   checks: Array<Check | undefined>;
   gaps: Gap[];
   /** The passes, in order, that gave a complete answer. */
@@ -66,11 +66,9 @@ function commentOf(
   incomplete: string[],
   { revision, state }: { revision: string; state: ReviewState },
 ): string {
-  const counts = `${counted((review.lines ?? []).length, "story line")}, ${counted(review.gaps.length, "gap")}`;
-
   return [
     "## Lore code review",
-    `Reviewed revision \`${revision}\` · **${verdictOf(review, state, incomplete)}** · ${counts}`,
+    `Reviewed revision \`${revision}\` · **${verdictOf(review, state, incomplete)}** · ${counted(review.gaps.length, "gap")}`,
     ...storyLines(review),
     ...gapTable(review.gaps),
     ...review.checks.flatMap((check) =>
@@ -99,18 +97,22 @@ function verdictOf(
   return review.gaps.some(asksForChanges) ? "Changes requested" : "Approved";
 }
 
-function storyLines({ lines }: Review): string[] {
-  if (!lines) {
+// Prose, a paragraph a theme: a list only where the story itself enumerates, and the tests that prove a paragraph under it.
+function storyLines({ parts }: Review): string[] {
+  if (!parts) {
     return [];
   }
-  const numbered = lines.map(
-    ({ behaviour, tests }, index) =>
-      `${index + 1}. ${escapeMarkdown(behaviour)}\n   ${tests.map(placeOf).join(", ")}`,
-  );
+  const told = parts.flatMap(({ text, list, tests }) => [
+    escapeMarkdown(text),
+    ...(list.length
+      ? [list.map((entry) => `- ${escapeMarkdown(entry)}`).join("\n")]
+      : []),
+    ...(tests.length ? [`Tests: ${tests.map(placeOf).join(", ")}`] : []),
+  ]);
 
   return [
     "### The story the tests tell",
-    numbered.join("\n") || "The tests tell nothing about this change.",
+    ...(told.length ? told : ["The tests tell nothing about this change."]),
   ];
 }
 
@@ -162,20 +164,19 @@ function reviewOf(outputs: PassOutputs): Review {
   ];
 
   return {
-    lines: story?.story,
+    parts: story?.story,
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
     complete: [story, ...checks].map((answer) => answer?.status === "complete"),
   };
 }
 
-function summaryOf({ lines, gaps, checks }: Review): string {
-  const behaviours = counted((lines ?? []).length, "behaviour");
+function summaryOf({ gaps, checks }: Review): string {
   const closed = checks.flatMap((check) => check?.closed ?? []);
   const story =
     gaps.length === 0
-      ? `The tests tell ${behaviours}, and the implementation and the issue tell the same story.`
-      : `The tests tell ${behaviours}; ${counted(gaps.length, "gap")} ${gaps.length === 1 ? "separates" : "separate"} that story from the implementation and the issue.`;
+      ? "The implementation and the issue tell the story the tests tell."
+      : `${counted(gaps.length, "gap")} ${gaps.length === 1 ? "separates" : "separate"} the story the tests tell from the implementation and the issue.`;
 
   return closed.length
     ? `${story} Closed since the last review: ${closed.map(escapeMarkdown).join("; ")}.`

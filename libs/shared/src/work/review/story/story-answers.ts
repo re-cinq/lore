@@ -17,7 +17,11 @@ const reference = z.union([
 export const told = z.object({
   status,
   story: z.array(
-    z.object({ id: z.number().int(), behaviour: text, tests: z.array(place) }),
+    z.object({
+      text,
+      list: z.array(text).default([]),
+      tests: z.array(place).default([]),
+    }),
   ),
 });
 
@@ -46,7 +50,7 @@ export const checked = z.object({
 });
 
 export type Place = z.infer<typeof place>;
-export type StoryLine = z.infer<typeof told>["story"][number];
+export type StoryPart = z.infer<typeof told>["story"][number];
 export type Gap = z.infer<typeof gap>;
 export type Check = z.infer<typeof checked>;
 
