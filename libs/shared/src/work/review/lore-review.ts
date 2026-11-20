@@ -106,7 +106,7 @@ export interface RecheckHandOff {
   threadIds: string[];
 }
 
-/** Lore's findings still open, as threads, and, when Lore's newest review asked for changes, that review's findings, which a review GitHub would take no inline comment for keeps only in its body. Without them the re-check judges only the commits since the last verdict, and approves a rebase that fixed nothing. */
+/** Lore's findings still open, as threads, and, when Lore's newest review asked for changes, that review's findings, which a review GitHub would take no inline comment for keeps only in its body. Without them the re-check judges only the commits since the last verdict, and approves a rebase that fixed nothing. A comment whose thread is open is handed once, as the open finding. */
 export function recheckHandOff(
   reviews: readonly PullReview[],
   comments: readonly ReviewComment[],
@@ -114,8 +114,11 @@ export function recheckHandOff(
 ): RecheckHandOff {
   const findings = openLoreFindings(reviews, comments, threads);
   const newest = newestLoreReview(reviews);
+  const unlisted = comments.filter(
+    ({ id }) => !findThreadForComment(threads, id),
+  );
   const asked = newest?.body.includes(CHANGES_SUGGESTED_HEADING)
-    ? askedSection(feedbackOfReview(newest, comments))
+    ? askedSection(feedbackOfReview(newest, unlisted))
     : "";
 
   return {

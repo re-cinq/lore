@@ -308,8 +308,65 @@ describe("formalReview", () => {
       closed: ["the rule is not in the identity section"],
     });
 
+    expect(
+      storyReview(outputs(closing), 3)
+        .comment(REVISION, "complete")
+        .split("\n\n")
+        .at(-5),
+    ).toBe(
+      "Closed since the last review:\n- the rule is not in the identity section",
+    );
+  });
+
+  it("lists a gap both checks found closed once", () => {
+    const closing = answer({
+      status: "complete",
+      summary: "All earlier gaps are closed.",
+      gaps: [],
+      closed: ["The rule is not in the  identity section"],
+    });
+    const comment = storyReview(
+      { story, implementation_check: closing, issue_check: closing },
+      3,
+    ).comment(REVISION, "complete");
+
+    expect(comment.split("identity section")).toHaveLength(2);
+  });
+
+  it("keeps the closed gaps out of the review GitHub is given, which the next re-check is handed as the gaps left open", () => {
+    const closing = answer({
+      status: "complete",
+      summary: "All earlier gaps are closed.",
+      gaps: [],
+      closed: ["the rule is not in the identity section"],
+    });
+
     expect(formalReview(outputs(closing))?.summary).toBe(
-      "The implementation and the issue tell the story the tests tell. Closed since the last review: the rule is not in the identity section.",
+      "The implementation and the issue tell the story the tests tell.",
+    );
+  });
+
+  it("lists a gap both checks report declined, with the same reply, once", () => {
+    const declining = answer({
+      status: "complete",
+      summary: "One gap was declined.",
+      gaps: [],
+      declined: [
+        {
+          subject: "the rule is not in the identity section",
+          reply: "https://github.com/re-cinq/Otto/pull/794#discussion_r1",
+        },
+      ],
+    });
+
+    expect(
+      formalReview({
+        story,
+        implementation_check: declining,
+        issue_check: declining,
+      })?.summary,
+    ).toBe(
+      "The implementation and the issue tell the story the tests tell. Declined by a person and not blocking: the rule is not in the identity section.",
     );
   });
 });

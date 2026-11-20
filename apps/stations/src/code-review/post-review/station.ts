@@ -1,4 +1,4 @@
-// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine. A re-check handed Lore's open findings settles their threads when it approves, before the check says so, so no wait reads an approval beside threads it has settled.
+// The post-review service station: posts the review agent's findings to the pull request and publishes its verdict as the lore/code-review check, on the external floor engine. A re-check handed Lore's open findings settles their threads when it approves, before the check says so, so no wait reads an approval beside threads it has settled. A story re-check settles them whatever its verdict: it reviews the whole pull request again and its review states every gap still open on its own line.
 
 import {
   defineStation,
@@ -105,7 +105,7 @@ async function settleReview(
   brief: Brief,
   { agentOutput, verdict }: { agentOutput: string; verdict: ReviewVerdict },
 ): Promise<Report> {
-  if (verdict === "success") {
+  if (verdict === "success" || brief.needs.review_run) {
     await resolveHandedThreads(visit, brief);
   }
   const summary = verdictSummary(verdict, findingCountOf(agentOutput));
@@ -176,7 +176,7 @@ async function approvalCountsOn(
   return rule.requiredApprovals > 0;
 }
 
-/** The threads of Lore's findings the re-check was handed and judged resolved. Best-effort: the verdict is posted either way, and a thread left open only holds the merge for a person. */
+/** The threads of Lore's findings the re-check was handed, which it judged resolved or stated anew. Best-effort: the verdict is posted either way, and a thread left open only holds the merge for a person. */
 async function resolveHandedThreads(
   { project: { pulls }, target }: ReviewVisitState,
   brief: Brief,
