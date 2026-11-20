@@ -259,7 +259,7 @@ interface LoopDispatchInput {
   resume: ReturnType<typeof decideBranchResume>;
 }
 
-/** Creates the backlog task, stamps the issue link onto it, and hands it to whoever starts it. A ticket whose pull request is open and ready for review continues at `sync-pr`, where its pull request is: starting it at the line's entry made `dod` judge the finished branch and close re-cinq/Otto #326 as "already resolved" while its pull request still had review findings to address (2026-10-25). */
+/** Creates the backlog task, stamps the issue link onto it, and hands it to whoever starts it. A ticket whose pull request is open and ready for review continues at `await-pr`, where its pull request is: starting it at the line's entry made `dod` judge the finished branch and close re-cinq/Otto #326 as "already resolved" while its pull request still had review findings to address (2026-10-25). */
 async function dispatchLoopTask(
   input: LoopDispatchInput,
   deps: LoopTickDeps,

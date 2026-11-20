@@ -456,12 +456,12 @@ describe("createImplementationLoopTickHandler resuming a ticket whose pull reque
       openPrForBranch: async () => ({ ...PR_77, draft: true }),
     });
 
-  it("continues at sync-pr when pull request 77 is ready for review, so the definition of done is not judged again on finished work", async () => {
+  it("continues at await-pr when pull request 77 is ready for review, so the definition of done is not judged again on finished work", async () => {
     const d = resumedWithReadyPr();
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.started[0].entry).toBe("sync-pr");
+    expect(d.started[0].entry).toBe("await-pr");
   });
 
   it("continues at the line's entry when pull request 77 is still a draft", async () => {

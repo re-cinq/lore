@@ -1,4 +1,4 @@
-// A loop pull request's events, turned into the loop's own upkeep (specs/external-floor FR12.19): a push to the default branch and a finished check suite each ask whether the pull request is behind, conflicted or red, and judge the open run's parked wait now, or start the line again at sync-pr for a pull request whose run has settled. The retry and dead-lettering are the bus's.
+// A loop pull request's events, turned into the loop's own upkeep (specs/external-floor FR12.19): a push to the default branch and a finished check suite each ask whether the pull request is behind, conflicted or red, and judge the open run's parked wait now, or start the line again at await-pr for a pull request whose run has settled. The retry and dead-lettering are the bus's.
 import {
   LOOP_LINE,
   type LoopFloor,
@@ -25,38 +25,30 @@ import {
 import { implementationLoopEnabled } from "@re-cinq/lore-shared/loops/implementation-loop-enabled.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { freshOf, judgeExhaustion, parks } from "./loop-upkeep-exhaustion.js";
-import type { IssueRef } from "@re-cinq/lore-shared/project/lib/github-port.js";
+import type { Project } from "@re-cinq/lore-shared";
+import { openLineRuns } from "@re-cinq/lore-shared/floor/floor-client.js";
 import type {
   CheckRun,
-  IssueComment,
-  Mergeability,
-  PullCommit,
   PullRef,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 /** The repository as the upkeep reads it. */
 export interface UpkeepProject {
-  pulls: {
-    list(): Promise<PullRef[]>;
-    get(number: number): Promise<PullRef | null>;
-    getMergeability(number: number): Promise<Mergeability>;
-    listCommits(number: number): Promise<PullCommit[]>;
-    listChecks(ref: string): Promise<CheckRun[]>;
-  };
-  repo: {
-    defaultBranch(): Promise<string>;
-  };
-  issues: {
-    get(number: number): Promise<IssueRef | null>;
-    listComments(number: number): Promise<IssueComment[]>;
-    addLabel(number: number, label: string): Promise<void>;
-    comment(number: number, body: string): Promise<void>;
-  };
+  pulls: Pick<
+    Project["pulls"],
+    "list" | "get" | "getMergeability" | "listCommits" | "listChecks"
+  >;
+  repo: Pick<Project["repo"], "defaultBranch">;
+  issues: Pick<
+    Project["issues"],
+    "get" | "listComments" | "addLabel" | "comment"
+  >;
   settings: { rawSettings(): Promise<unknown> };
 }
 
 export interface LoopUpkeepDeps {
   floor(): LoopFloor & LoopRunsFloor;
+  repoSettings(): Promise<Array<{ full_name: string; settings: unknown }>>;
   project(repo: string): Promise<UpkeepProject>;
   /** The newest loop task of the ticket: what the run carries as `task_id`. */
   latestLoopTaskByIssue(
@@ -70,7 +62,13 @@ export interface LoopUpkeepDeps {
 const PUSH = "github.push";
 const CHECK_SUITE = "github.check_suite.completed";
 
-export const LOOP_UPKEEP_EVENTS: readonly string[] = [PUSH, CHECK_SUITE];
+const LOOP_TICK = "cron.implementation_loop.tick";
+
+export const LOOP_UPKEEP_EVENTS: readonly string[] = [
+  PUSH,
+  CHECK_SUITE,
+  LOOP_TICK,
+];
 
 export function loopUpkeepHandlers(
   deps: LoopUpkeepDeps,
@@ -78,6 +76,7 @@ export function loopUpkeepHandlers(
   return new Map<string, EventHandler>([
     [PUSH, onPush(deps)],
     [CHECK_SUITE, onCheckSuite(deps)],
+    [LOOP_TICK, onTick(deps)],
   ]);
 }
 
@@ -86,6 +85,42 @@ interface Scope {
   repo: string;
   project: UpkeepProject;
   deps: LoopUpkeepDeps;
+}
+
+/** The scheduled tick also finds failures reported without a webhook. Scoped ticks only re-arm the backlog after a run settles. */
+function onTick(deps: LoopUpkeepDeps): EventHandler {
+  return async (params) => {
+    if (params.repo) {
+      return;
+    }
+    const repos = await deps.repoSettings();
+    const enabled = repos.filter((row) =>
+      implementationLoopEnabled(row.settings),
+    );
+
+    await Promise.all(
+      enabled.map((row) => sweepSettledPulls(row.full_name, deps)),
+    );
+  };
+}
+
+async function sweepSettledPulls(
+  repo: string,
+  deps: LoopUpkeepDeps,
+): Promise<void> {
+  const project = await deps.project(repo);
+  const scope = { repo, project, deps };
+  const pulls = (await project.pulls.list()).filter(isLoopPull);
+
+  if (pulls.length === 0) {
+    return;
+  }
+  const open = await openLoopRuns(scope);
+
+  await upkeepSettled(
+    scope,
+    pulls.filter((pull) => !openRunOnBranch(open, pull.branch)),
+  );
 }
 
 /** Main moved: every open loop pull request based on it may now be behind or in conflict. */
@@ -182,15 +217,11 @@ async function upkeepEach(scope: Scope, pulls: PullRef[]): Promise<void> {
   );
 }
 
-async function openLoopRuns({ repo, deps }: Scope) {
-  const { runs } = deps.floor();
-  const { items: openRuns } = await runs.list({
+function openLoopRuns({ repo, deps }: Scope) {
+  return openLineRuns(deps.floor().runs, {
     repo: floorRepoOf(repo),
     line: LOOP_LINE,
-    open: true,
   });
-
-  return openRuns;
 }
 
 /** A run is working the branch: its parked wait hears the verdict now rather than at the next tick. */
@@ -203,10 +234,12 @@ async function upkeepSettled(
   scope: Scope,
   pulls: PullRef[],
 ): Promise<string[]> {
-  const [needing, lineRuns] = await Promise.all([
-    needingUpkeep(scope, pulls),
-    loopRuns(scope),
-  ]);
+  const needing = await needingUpkeep(scope, pulls);
+
+  if (needing.length === 0) {
+    return [];
+  }
+  const lineRuns = await loopRuns(scope);
   const judged = await judgeExhaustion(scope.project, needing, lineRuns);
   const due = upkeepOrder(freshOf(judged), lastUpkeepStarts(lineRuns));
   const outcomes = await Promise.all([
@@ -320,5 +353,5 @@ async function startFor(scope: Scope, pull: PullRef): Promise<string> {
     taskId: task.id,
   });
 
-  return "upkeep run started at sync-pr";
+  return "upkeep run started";
 }

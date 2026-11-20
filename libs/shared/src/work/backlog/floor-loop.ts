@@ -77,7 +77,7 @@ export interface LoopRunStart {
   backlog?: string;
   /** The pull request the branch already has, a start item so the run page shows it before its open-pr node finds it again. */
   openPr?: OpenPr | null;
-  /** The node the run starts at; left out, the line's entry. An upkeep run of a settled pull request starts at `sync-pr`. */
+  /** The node the run starts at; left out, the line's entry. An upkeep run of a settled pull request starts at `await-pr`. */
   entry?: string;
 }
 
