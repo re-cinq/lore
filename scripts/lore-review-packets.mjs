@@ -3,13 +3,6 @@ import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
 
 const modes = ["code", "tests", "test challenge"];
 
-export const shadowEvidence = [
-  "code_evidence",
-  "test_evidence",
-  "challenge_evidence",
-  "intent_evidence",
-  "product_evidence",
-];
 const snapshot = z.object({
   files: z.array(
     z.object({
