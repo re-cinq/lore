@@ -56,7 +56,7 @@ test("a statement the pull request rewrites is handed with its line, its heading
           path: SPEC,
           line: 5,
           heading: "Limits",
-          text: "A full queue of 25 refuses item 26.",
+          text: "- A full queue of 25 refuses item 26.",
           tests: [
             {
               path: TEST,
@@ -74,7 +74,7 @@ test("a statement the pull request rewrites is handed with its line, its heading
         {
           path: SPEC,
           heading: "Limits",
-          text: "A full queue refuses item 26.",
+          text: "- A full queue refuses item 26.",
         },
       ],
     },
@@ -140,4 +140,24 @@ test("a changed sentence of a guide is handed with no tests, to be checked again
       tests: [],
     },
   ]);
+});
+
+test("a paragraph is handed whole, as written, when one of its sentences changes", async () => {
+  const paragraph = (version) =>
+    `# Queue\n\nThe queue ships in \`${version}\`.\nIt holds 25 items.\n\nNothing else changed.`;
+  const { statements, removed } = await docsEvidence(
+    [
+      {
+        path: "docs/queue.md",
+        before: paragraph("0.1.0"),
+        after: paragraph("0.2.0"),
+      },
+    ],
+    reading({}),
+  );
+
+  assert.deepEqual(
+    [statements.map(({ line, text }) => [line, text]), removed.length],
+    [[[3, "The queue ships in `0.2.0`.\nIt holds 25 items."]], 1],
+  );
 });

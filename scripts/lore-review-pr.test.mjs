@@ -188,7 +188,7 @@ test("a PR that changes code and a spec statement hands the statement to the doc
       path: "specs/limit/spec.md",
       line: 3,
       heading: "Limit",
-      text: "The limit is 2.",
+      text: "- The limit is 2.",
       tests: [],
     },
   ]);
