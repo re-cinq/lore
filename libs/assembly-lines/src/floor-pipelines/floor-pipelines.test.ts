@@ -986,6 +986,7 @@ describe("the floor pipelines shipped in this folder", () => {
     for (const name of ["code-review", "code-review-recheck"]) {
       const { line, stations } = pipelineOf(name);
       const agents = line.nodes
+        .filter((node) => route.includes(node.id))
         .map((node) => stations[node.station ?? ""])
         .filter((station) => station?.kind === "agent");
       const targets = (nodes: string[], outcome: string) =>
@@ -1007,20 +1008,70 @@ describe("the floor pipelines shipped in this folder", () => {
         success: route.slice(1),
         failure: route.slice(0, -2).map(() => "publish-incomplete"),
         incomplete: [
-          { from: "publish-incomplete", on: "always", to: line.fail },
+          { from: "publish-incomplete", on: "always", to: "review-whole" },
         ],
         passes: reviewPasses.map((needs) => ["new", needs]),
       });
     }
   });
 
+  it.each([
+    ["code-review", "code-review"],
+    ["code-review-recheck", "code-review-recheck"],
+  ])(
+    "sends a %s run whose change the collector cannot split, or whose pass or post failed, to the %s agent, which reads the whole diff on gemini-4-argon and hands its verdict to post-review",
+    (name, agent) => {
+      const pipeline = pipelineOf(name);
+      const { line } = pipeline;
+
+      expect(
+        ["prepare", "publish-incomplete", "review-whole", "post-review"]
+          .flatMap((node) => edgesOn(line, node))
+          .map((edge) => [edge.from, edge.on, edge.to]),
+      ).toEqual([
+        ["prepare", "success", "read-code"],
+        ["prepare", "failed", "publish-incomplete"],
+        ["prepare", "whole_diff", "review-whole"],
+        ["publish-incomplete", "always", "review-whole"],
+        ["review-whole", "success", "post-review"],
+        ["review-whole", "changes_requested", "post-review"],
+        ["review-whole", "failed", "review-whole"],
+        ["post-review", "success", "done"],
+        ["post-review", "failed", "review-whole"],
+      ]);
+      expect(pipeline).toMatchObject({
+        line: {
+          nodes: expect.arrayContaining([
+            { id: "review-whole", station: agent, bind: { target: "repo" } },
+          ]),
+        },
+        stations: {
+          "prepare-code-review": {
+            outcomes: ["success", "whole_diff", "failed"],
+          },
+          [agent]: {
+            agent_definition: agent,
+            needs: expect.arrayContaining([
+              { name: "target", kind: "git", path: "target", access: "read" },
+            ]),
+            produces: [{ name: "review_output", kind: "file", from: "output" }],
+          },
+        },
+        agent_definitions: {
+          [agent]: { settings: { model: "gemini-4-argon" } },
+        },
+      });
+    },
+  );
+
   it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, five review passes and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
+    const wholeDiffReviewers = ["code-review", "code-review-recheck"];
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
-        Object.values(pipelineOf(id).agent_definitions ?? {}).map(
-          (definition) => definition.settings.model,
-        ),
+        Object.entries(pipelineOf(id).agent_definitions ?? {})
+          .filter(([name]) => !wholeDiffReviewers.includes(name))
+          .map(([, definition]) => definition.settings.model),
       );
 
     expect({
@@ -1931,13 +1982,13 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(retries).toEqual([
       {
         from: "post-review",
-        to: "post-review",
+        to: "review-whole",
         on: "failed",
         iteration_max: 1,
       },
       {
         from: "post-review",
-        to: "post-review",
+        to: "review-whole",
         on: "failed",
         iteration_max: 1,
       },

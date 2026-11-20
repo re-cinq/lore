@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-test("a PR event collects pinned code and unchanged tests and starts a five-pass run for the PR head", async (t) => {
+async function pullRequest(t, before, after) {
   const root = await mkdtemp(join(tmpdir(), "lore-pr-test-"));
 
   t.after(() => rm(root, { force: true, recursive: true }));
@@ -19,19 +19,23 @@ test("a PR event collects pinned code and unchanged tests and starts a five-pass
   await mkdir(repository);
   const git = (...args) =>
     execFileSync("git", args, { cwd: repository, encoding: "utf8" }).trim();
+  const commit = async (files, message) => {
+    await Promise.all(
+      Object.entries(files).map(([path, body]) =>
+        writeFile(join(repository, path), body),
+      ),
+    );
+    git("add", ".");
+    git("commit", "-qm", message);
+
+    return git("rev-parse", "HEAD");
+  };
 
   git("init", "-q");
   git("config", "user.email", "test@example.org");
   git("config", "user.name", "Collector test");
-  await writeFile(join(repository, "limit.ts"), "export const limit = 1;");
-  await writeFile(join(repository, "limit.test.ts"), "expect(limit).toBe(1);");
-  git("add", ".");
-  git("commit", "-qm", "base");
-  const base = git("rev-parse", "HEAD");
-
-  await writeFile(join(repository, "limit.ts"), "export const limit = 2;");
-  git("commit", "-qam", "head");
-  const head = git("rev-parse", "HEAD");
+  const base = await commit(before, "base");
+  const head = await commit(after, "head");
   // Serve commit objects from the fixture while exercising a real shallow fetch.
   const shim = join(root, "git");
 
@@ -58,8 +62,7 @@ globalThis.fetch=async (url) => {
   return new Response(JSON.stringify(body),{headers:{"content-type":"application/json"}});
 };`,
   );
-  const packets = new Map();
-  let started;
+  const floorRun = { packets: new Map(), started: undefined };
   const floor = createServer(async (req, res) => {
     res.setHeader("content-type", "application/json");
 
@@ -69,11 +72,11 @@ globalThis.fetch=async (url) => {
     const body = JSON.parse(await text(req));
 
     if (req.url === "/blobs") {
-      packets.set(body.mode, body);
+      floorRun.packets.set(body.mode, body);
 
       return res.end(JSON.stringify({ hash: body.mode }));
     }
-    started = body;
+    floorRun.started = body;
     res.end(JSON.stringify({ run: { id: "run-42" } }));
   });
 
@@ -100,14 +103,26 @@ globalThis.fetch=async (url) => {
       FLOOR_SERVICE_TOKEN: "fixture-floor",
     },
   };
-  const collected = await run(
-    process.execPath,
-    [...args, "--evidence-only", "--since", base],
-    options,
-  );
-  const evidence = JSON.parse(collected.stdout);
+  const collect = async (...extra) =>
+    JSON.parse(
+      (await run(process.execPath, [...args, ...extra], options)).stdout,
+    );
 
-  assert.equal(started, undefined);
+  return { base, head, collect, floorRun };
+}
+
+test("a PR event collects pinned code and unchanged tests and starts a five-pass run for the PR head", async (t) => {
+  const { base, head, collect, floorRun } = await pullRequest(
+    t,
+    {
+      "limit.ts": "export const limit = 1;",
+      "limit.test.ts": "expect(limit).toBe(1);",
+    },
+    { "limit.ts": "export const limit = 2;" },
+  );
+  const evidence = await collect("--evidence-only", "--since", base);
+
+  assert.equal(floorRun.started, undefined);
   assert.deepEqual(Object.keys(evidence).sort(), [
     "challenge_evidence",
     "code_evidence",
@@ -123,19 +138,39 @@ globalThis.fetch=async (url) => {
     evidence.code_evidence.files.map((file) => file.path),
     ["limit.ts"],
   );
-  const result = await run(process.execPath, args, options);
+  const result = await collect();
 
-  assert.equal(JSON.parse(result.stdout).runId, "run-42");
-  assert.equal(started.startItems.revision.ref, head);
-  assert.deepEqual(packets.get("tests").files, [
+  assert.equal(result.runId, "run-42");
+  assert.equal(floorRun.started.startItems.revision.ref, head);
+  assert.deepEqual(floorRun.packets.get("tests").files, [
     { path: "limit.test.ts", unchanged: "expect(limit).toBe(1);" },
   ]);
-  assert.deepEqual(packets.get("code").files, [
+  assert.deepEqual(floorRun.packets.get("code").files, [
     {
       path: "limit.ts",
       before: "export const limit = 1;",
       after: "export const limit = 2;",
     },
   ]);
-  assert.equal(packets.get("intent").discussion[0].text, "Adjust limit");
+  assert.equal(
+    floorRun.packets.get("intent").discussion[0].text,
+    "Adjust limit",
+  );
+});
+
+test("a Markdown-only PR asks for the whole-diff reviewer and starts no five-pass run", async (t) => {
+  const { collect, floorRun } = await pullRequest(
+    t,
+    { "README.md": "# Otto\n" },
+    { "README.md": "# Otto\n\nAn admin erases one person's data.\n" },
+  );
+  const asked = {
+    status: "whole_diff",
+    reason: "The change has no code or test file",
+  };
+
+  assert.deepEqual(
+    [await collect("--evidence-only"), await collect(), floorRun.started],
+    [asked, asked, undefined],
+  );
 });

@@ -179,3 +179,18 @@ it("requests changes for a blocking intent finding even when product approves an
     ],
   });
 });
+
+it.each([
+  ["code-review", true],
+  ["code-review-recheck", true],
+  ["code-review-shadow", false],
+])(
+  "an incomplete %s review says the whole diff is reviewed instead: %s",
+  (lineId, said) => {
+    expect(
+      reviewProgress({}, 5, lineId)
+        .body(REVISION, "failed")
+        .includes("Lore reviews this revision from its whole diff instead."),
+    ).toBe(said);
+  },
+);

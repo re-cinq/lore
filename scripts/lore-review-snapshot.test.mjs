@@ -123,7 +123,7 @@ test("captures committed changes, callers, tests and fixtures from a diverged co
   });
 });
 
-test("reports a changed binary as incomplete evidence", (t) => {
+test("a changed binary asks for the whole-diff reviewer", (t) => {
   const { write, commit, snapshot } = repository(t);
 
   write("status.ts", "export const status = 'ready';\n");
@@ -135,8 +135,48 @@ test("reports a changed binary as incomplete evidence", (t) => {
   assert.deepEqual(snapshot(base, head), {
     exitCode: 1,
     output: {
-      status: "incomplete",
+      status: "whole_diff",
       reason: "Binary evidence for settings.bin",
+    },
+  });
+});
+
+test("a Markdown-only change asks for the whole-diff reviewer", (t) => {
+  const { write, commit, snapshot } = repository(t);
+
+  write("README.md", "# Otto\n");
+  const base = commit();
+
+  write("README.md", "# Otto\n\nAn admin erases one person's data.\n");
+  const head = commit();
+
+  assert.deepEqual(snapshot(base, head), {
+    exitCode: 1,
+    output: {
+      status: "whole_diff",
+      reason: "The change has no code or test file",
+    },
+  });
+});
+
+test("a Rust file holding its own test module asks for the whole-diff reviewer", (t) => {
+  const { write, commit, snapshot } = repository(t);
+
+  write("src/limit.rs", "pub const LIMIT: u8 = 1;\n");
+  const base = commit();
+
+  write(
+    "src/limit.rs",
+    "pub const LIMIT: u8 = 2;\n#[cfg(test)]\nmod tests {}\n",
+  );
+  const head = commit();
+
+  assert.deepEqual(snapshot(base, head), {
+    exitCode: 1,
+    output: {
+      status: "whole_diff",
+      reason:
+        "Mixed code and inline tests require separately filtered evidence in src/limit.rs",
     },
   });
 });

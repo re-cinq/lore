@@ -14,19 +14,12 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { z } from "zod";
+import { preparedEvidence } from "./prepared-evidence.js";
 
 const exec = promisify(execFile);
 const collector = fileURLToPath(
   new URL("../../../../../scripts/lore-review-pr.mjs", import.meta.url),
 );
-const packet = z.object({ mode: z.string() }).passthrough();
-const packets = z.object({
-  code_evidence: packet,
-  test_evidence: packet,
-  intent_evidence: packet,
-  challenge_evidence: packet,
-  product_evidence: packet,
-});
 
 export function startPrepareReviewStation(): RunningStation {
   return defineStation("prepare-code-review", prepareReview);
@@ -36,14 +29,12 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
   const target = parsePullRequestUrl(needs.pr_url);
 
   await requireReviewRepository(visitId, target.repo);
-  const args = collectorArgs(needs, target);
-  const options = {
-    timeout: 300_000,
-    maxBuffer: 32 * 1024 * 1024,
-    signal: tools.signal,
-  };
-  const { stdout } = await exec(process.execPath, args, options);
-  const evidence = preparedPackets(stdout, needs.previous_findings);
+  const stdout = await collect(collectorArgs(needs, target), tools.signal);
+  const evidence = preparedEvidence(stdout, needs.previous_findings);
+
+  if (!evidence) {
+    return { outcome: "whole_diff" };
+  }
 
   await Promise.all(
     Object.entries(evidence).map(([name, packet]) =>
@@ -53,6 +44,16 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
 
   return { outcome: "success" };
 };
+
+async function collect(args: string[], signal: AbortSignal): Promise<string> {
+  const { stdout } = await exec(process.execPath, args, {
+    timeout: 300_000,
+    maxBuffer: 32 * 1024 * 1024,
+    signal,
+  });
+
+  return stdout;
+}
 
 async function requireReviewRepository(
   visitId: string,
@@ -86,21 +87,4 @@ function collectorArgs(
     ...(needs.since_sha ? ["--since", needs.since_sha] : []),
     ...paths.map((path) => "--paths=" + path),
   ];
-}
-
-function preparedPackets(stdout: string, previous?: string) {
-  const collected = JSON.parse(stdout);
-
-  enforceTrue(
-    collected.status !== "superseded",
-    Error,
-    "The pull request changed during evidence preparation",
-  );
-  const evidence = packets.parse(collected);
-
-  if (previous) {
-    evidence.product_evidence.previous_findings = previous;
-  }
-
-  return evidence;
 }

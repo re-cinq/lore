@@ -113,6 +113,7 @@ describe("seedFloorPipelines", () => {
       "shadow-review-reader",
       "shadow-compare-intent",
       "shadow-review-challenge",
+      "code-review",
     ]);
 
     await seedFloorPipelines(deps);
@@ -120,7 +121,7 @@ describe("seedFloorPipelines", () => {
     expect(imported).toEqual([["code-review-product"]]);
   });
 
-  it("seeds all four agent definitions for the five review passes on an empty floor", async () => {
+  it("seeds the four agent definitions of the five review passes and the whole-diff reviewer on an empty floor", async () => {
     const { deps, imported } = codeReviewOnFloor([]);
 
     await seedFloorPipelines(deps);
@@ -131,6 +132,7 @@ describe("seedFloorPipelines", () => {
         "shadow-compare-intent",
         "shadow-review-challenge",
         "code-review-product",
+        "code-review",
       ],
     ]);
   });
