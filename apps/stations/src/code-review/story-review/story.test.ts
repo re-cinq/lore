@@ -170,6 +170,21 @@ describe("formalReview", () => {
     });
   });
 
+  it("keeps a gap whose evidence is given as path, line and note objects, written as one line each", () => {
+    const evidence = [{ path: "limit.ts", line: 4, spec: "caps at 2" }];
+
+    expect(
+      formalReview(outputs(issueGaps({ ...missingTest, evidence })))
+        ?.findings[0]?.discussion,
+    ).toBe(
+      [
+        "FR-027 says so; no test tells it.",
+        "Proposed:\n\n```\ninIdentity: false,\n```",
+        "limit.ts 4 caps at 2",
+      ].join("\n\n"),
+    );
+  });
+
   it("returns nothing until all three passes are complete", () => {
     expect(formalReview({ story, implementation_check: matches })).toBe(
       undefined,

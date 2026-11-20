@@ -7,6 +7,14 @@ const status = z.enum(["complete", "incomplete"]);
 const text = z.string().trim().min(1);
 const place = z.object({ path: text, line: z.number().int().positive() });
 
+// A model sometimes gives a reference as an object of path, line and note; its values, in order, say the same.
+const reference = z.union([
+  text,
+  z
+    .record(z.string(), z.union([z.string(), z.number()]))
+    .transform((parts) => Object.values(parts).join(" ")),
+]);
+
 export const told = z.object({
   status,
   story: z.array(
@@ -28,7 +36,7 @@ const gap = z.object({
     .optional(),
   proposal: text.optional(),
   replaces_line: z.boolean().optional(),
-  evidence: z.array(text).default([]),
+  evidence: z.array(reference).default([]),
 });
 
 export const checked = z.object({
