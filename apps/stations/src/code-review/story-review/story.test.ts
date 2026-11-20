@@ -58,7 +58,7 @@ describe("storyReview", () => {
     );
   });
 
-  it("lists a gap under the story with its kind, what differs and where, and asks for changes", () => {
+  it("lists a gap under the story with its kind, its subject and where, and asks for changes", () => {
     const comment = storyReview(outputs(issueGaps(missingTest)), 3).comment(
       REVISION,
       "complete",
@@ -72,7 +72,7 @@ describe("storyReview", () => {
       [
         "| # | Kind | What differs | Where |",
         "|---|------|--------------|-------|",
-        `| 1 | Missing test | the rule is not in the identity section — FR-027 says so; no test tells it. | \`${TEST}:13\` |`,
+        `| 1 | Missing test | the rule is not in the identity section | \`${TEST}:13\` |`,
       ].join("\n"),
       "The implementation matches the story.",
       "One requirement is untold.",

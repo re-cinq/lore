@@ -122,8 +122,8 @@ function gapTable(gaps: Gap[]): string[] {
     return [];
   }
   const rows = gaps.map(
-    ({ kind, subject, detail, location }, index) =>
-      `| ${index + 1} | ${kinds[kind]} | ${cell(subject)} — ${cell(detail)} | ${location ? placeOf(location) : "pull request"} |`,
+    ({ kind, subject, location }, index) =>
+      `| ${index + 1} | ${kinds[kind]} | ${cell(subject)} | ${location ? placeOf(location) : "pull request"} |`,
   );
 
   return [
