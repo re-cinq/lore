@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { posix } from "node:path";
 import { promisify, parseArgs } from "node:util";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
+import { referenceStem } from "./lore-review-packets.mjs";
 
 const runFile = promisify(execFile);
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
@@ -48,18 +49,6 @@ async function tree(revision) {
       return [entry.slice(separator + 1), { mode, hash }];
     }),
   );
-}
-
-function referenceStem(path) {
-  const filename = posix.basename(path, posix.extname(path));
-  const stem = filename.replace(
-    /(?:[._-](?:test|spec|tests)|Tests?|^test_)/g,
-    "",
-  );
-
-  return /^(?:index|mod|main|lib)$/.test(stem)
-    ? posix.basename(posix.dirname(path))
-    : stem;
 }
 
 async function referencedPaths(revision, stems, pathspecs = []) {
