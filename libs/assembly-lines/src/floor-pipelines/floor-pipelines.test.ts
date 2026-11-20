@@ -1021,35 +1021,42 @@ describe("the floor pipelines shipped in this folder", () => {
   ])(
     "sends a %s run whose change the collector cannot split to the %s agent, which reads the whole diff on gemini-4-argon and hands its verdict to post-review",
     (name, agent) => {
-      const { line, stations, agent_definitions: agents } = pipelineOf(name);
-      const node = line.nodes.find(({ id }) => id === "review-whole");
-      const station = stations[node?.station ?? ""];
+      const pipeline = pipelineOf(name);
+      const { line } = pipeline;
 
-      expect({
-        offered: stations["prepare-code-review"]?.outcomes,
-        route: [...edgesOn(line, "prepare"), ...edgesOn(line, "review-whole")]
-          .filter((edge) => edge.on !== "success" || edge.from !== "prepare")
-          .map((edge) => [edge.from, edge.on, edge.to]),
-        checkout: [node?.bind, needOf(station, "target")],
-        agent: station?.agent_definition,
-        model: agents?.[agent]?.settings.model,
-        verdict: station?.produces,
-      }).toEqual({
-        offered: ["success", "whole_diff", "failed"],
-        route: [
-          ["prepare", "failed", "publish-incomplete"],
-          ["prepare", "whole_diff", "review-whole"],
-          ["review-whole", "success", "post-review"],
-          ["review-whole", "changes_requested", "post-review"],
-          ["review-whole", "failed", "review-whole"],
-        ],
-        checkout: [
-          { target: "repo" },
-          { name: "target", kind: "git", path: "target", access: "read" },
-        ],
-        agent,
-        model: "gemini-4-argon",
-        verdict: [{ name: "review_output", kind: "file", from: "output" }],
+      expect(
+        [...edgesOn(line, "prepare"), ...edgesOn(line, "review-whole")].map(
+          (edge) => [edge.from, edge.on, edge.to],
+        ),
+      ).toEqual([
+        ["prepare", "success", "read-code"],
+        ["prepare", "failed", "publish-incomplete"],
+        ["prepare", "whole_diff", "review-whole"],
+        ["review-whole", "success", "post-review"],
+        ["review-whole", "changes_requested", "post-review"],
+        ["review-whole", "failed", "review-whole"],
+      ]);
+      expect(pipeline).toMatchObject({
+        line: {
+          nodes: expect.arrayContaining([
+            { id: "review-whole", station: agent, bind: { target: "repo" } },
+          ]),
+        },
+        stations: {
+          "prepare-code-review": {
+            outcomes: ["success", "whole_diff", "failed"],
+          },
+          [agent]: {
+            agent_definition: agent,
+            needs: expect.arrayContaining([
+              { name: "target", kind: "git", path: "target", access: "read" },
+            ]),
+            produces: [{ name: "review_output", kind: "file", from: "output" }],
+          },
+        },
+        agent_definitions: {
+          [agent]: { settings: { model: "gemini-4-argon" } },
+        },
       });
     },
   );

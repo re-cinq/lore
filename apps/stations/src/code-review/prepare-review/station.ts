@@ -29,13 +29,7 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
   const target = parsePullRequestUrl(needs.pr_url);
 
   await requireReviewRepository(visitId, target.repo);
-  const args = collectorArgs(needs, target);
-  const options = {
-    timeout: 300_000,
-    maxBuffer: 32 * 1024 * 1024,
-    signal: tools.signal,
-  };
-  const { stdout } = await exec(process.execPath, args, options);
+  const stdout = await collect(collectorArgs(needs, target), tools.signal);
   const evidence = preparedEvidence(stdout, needs.previous_findings);
 
   if (!evidence) {
@@ -50,6 +44,16 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
 
   return { outcome: "success" };
 };
+
+async function collect(args: string[], signal: AbortSignal): Promise<string> {
+  const { stdout } = await exec(process.execPath, args, {
+    timeout: 300_000,
+    maxBuffer: 32 * 1024 * 1024,
+    signal,
+  });
+
+  return stdout;
+}
 
 async function requireReviewRepository(
   visitId: string,
