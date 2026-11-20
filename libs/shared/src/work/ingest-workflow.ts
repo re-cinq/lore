@@ -2,13 +2,14 @@
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
-export const LORE_INGEST_WORKFLOW_VERSION = 9;
+export const LORE_INGEST_WORKFLOW_VERSION = 10;
 
-// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure. v8: the graph job runs one at a time, because uploads stacked beside each other could never finish a large delta. v9: the fetch of lore-code-trace retries any error, 7 attempts 30 seconds apart, because one dropped connection from a runner skipped the projection while the run stayed green.
-export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 9
+// v4 (#1545): fail loudly on misconfiguration/4xx, warn only on transient 5xx; v5: `--no-renames`, because rename detection lists only a moved file's destination, so its old path was never posted, never deleted, and (since #1880) never swept — as a delete + add it takes /api/ingest's existing 404→delete branch. The v5 URL binding also reads secrets.LORE_INGEST_URL ahead of the vars, so a repo can keep the endpoint hostname out of its public run logs (the runner masks secrets, not variables) without deviating from this template; the binding is additive (an unset secret falls through to the vars), so v5 installs need no re-projection and the marker stays 5. v6 (#2327): the graph job posts changed specs and ADRs as a delta through `lore-code-trace docs --post` instead of asking `ingest-graph` for a pod that clones the repo. v7: treats lore-code-trace exit 75 as a transient projection failure. v8: the graph job runs one at a time, because uploads stacked beside each other could never finish a large delta. v9: the fetch of lore-code-trace retries any error, 7 attempts 30 seconds apart, because one dropped connection from a runner skipped the projection while the run stayed green. v10: a `workflow_dispatch` trigger lets onboarding start a repo's first ingestion; a dispatch run posts every tracked file under the push paths (`git ls-files`) instead of the last commit's diff, and the graph job already sends everything when Lore has ingested no commit yet.
+export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 10
 name: Lore Context Ingest
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -31,9 +32,15 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          # --no-renames: a moved file must arrive as its old path (a delete)
-          # plus its new path, or the old path's chunks outlive the file.
-          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # A dispatch run has no diff to read: it posts every tracked file
+            # under the push paths above (keep the two lists identical).
+            FILES=$(git ls-files -- 'CLAUDE.md' 'AGENTS.md' 'adrs/**' 'runbooks/**' 'specs/**' 'teams/**' '.specify/**' | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          else
+            # --no-renames: a moved file must arrive as its old path (a delete)
+            # plus its new path, or the old path's chunks outlive the file.
+            FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\\n") | map(select(. != ""))')
+          fi
           echo "files=\${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest

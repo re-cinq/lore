@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   writeFileSync,
@@ -57,8 +58,26 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     );
   });
 
-  it("is version 9 — the template whose graph job treats exhausted transient lore-code-trace projection retries as non-fatal", () => {
-    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(9);
+  it("is version 10 — the template a workflow_dispatch run can start a first ingestion from", () => {
+    expect(LORE_INGEST_WORKFLOW_VERSION).toBe(10);
+  });
+
+  it("triggers on workflow_dispatch beside the push to main", () => {
+    expect(triggerBlock()).toContain("\n  workflow_dispatch:\n");
+    expect(triggerBlock()).toContain("\n  push:\n    branches: [main]\n");
+  });
+
+  it("lists with git ls-files exactly the pathspecs the push filter names", () => {
+    const pushPaths = [...triggerBlock().matchAll(/^ {6}- '(.+)'$/gm)].map(
+      (match) => match[1],
+    );
+    const lsFilesPathspecs = extractRunBlock("Get changed files").match(
+      /git ls-files -- ([^|]+) \|/,
+    )?.[1];
+
+    expect(lsFilesPathspecs).toEqual(
+      pushPaths.map((path) => `'${path}'`).join(" "),
+    );
   });
 
   it("projects specs and ADRs with lore-code-trace docs --post and no longer posts to ingest-graph", () => {
@@ -137,6 +156,13 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
     expect(referenceCopy).toBe(expected);
   });
 });
+
+function triggerBlock(): string {
+  return LORE_INGEST_WORKFLOW_CONTENT.slice(
+    LORE_INGEST_WORKFLOW_CONTENT.indexOf("\non:\n"),
+    LORE_INGEST_WORKFLOW_CONTENT.indexOf("\njobs:\n"),
+  );
+}
 
 function graphJob(): string {
   return LORE_INGEST_WORKFLOW_CONTENT.slice(
@@ -232,6 +258,61 @@ const runScript = (script: string, env: Record<string, string>) => {
     }),
   };
 };
+
+describe("the ingest job's changed-files step", () => {
+  const script = extractRunBlock("Get changed files");
+
+  const filesOutputOf = (eventName: string): unknown[] => {
+    const repoDir = mkdtempSync(join(tmpdir(), "lore-ingest-repo-"));
+    const git = (...args: string[]) =>
+      spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+        cwd: repoDir,
+        encoding: "utf8",
+      });
+
+    git("init", "-q");
+    mkdirSync(join(repoDir, "specs"));
+    mkdirSync(join(repoDir, "src"));
+    writeFileSync(join(repoDir, "CLAUDE.md"), "one");
+    writeFileSync(join(repoDir, "specs", "old.md"), "one");
+    writeFileSync(join(repoDir, "src", "code.ts"), "one");
+    git("add", ".");
+    git("commit", "-q", "-m", "first");
+    writeFileSync(join(repoDir, "specs", "new.md"), "two");
+    git("add", ".");
+    git("commit", "-q", "-m", "second");
+    const outputFile = join(repoDir, "github-output.txt");
+
+    writeFileSync(outputFile, "");
+    const stepResult = spawnSync("bash", ["-e", "-c", script], {
+      cwd: repoDir,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        GITHUB_EVENT_NAME: eventName,
+        GITHUB_OUTPUT: outputFile,
+      },
+    });
+
+    expect(stepResult.status).toBe(0);
+
+    return JSON.parse(
+      readFileSync(outputFile, "utf8").replace(/^files=/, "").trim(),
+    );
+  };
+
+  it("lists only the files of the last commit on a push", () => {
+    expect(filesOutputOf("push")).toEqual(["specs/new.md"]);
+  });
+
+  it("lists every tracked file under the push paths on a workflow_dispatch, none outside them", () => {
+    expect(filesOutputOf("workflow_dispatch").sort()).toEqual([
+      "CLAUDE.md",
+      "specs/new.md",
+      "specs/old.md",
+    ]);
+  });
+});
 
 describe("the graph job's fetch step", () => {
   const script = extractRunBlock("Fetch lore-code-trace");
