@@ -8,20 +8,39 @@ export type MirrorOwnerOf = (repo: string) => Promise<string | null>;
 
 type DropLog = (line: string) => void;
 
-const RENAMED = "github.repository.renamed";
+/** A push to a branch of a public mirror, with the private repo that owns it. */
+export interface MirrorPush {
+  owner: string;
+  mirror: string;
+  branch: string | undefined;
+}
 
-/** The rename of a mirror must reach its handler: it repoints the private repo's `public_mirror`. */
+export type MirrorPushHandler = (push: MirrorPush) => Promise<void>;
+
+const RENAMED = "github.repository.renamed";
+const PUSH = "github.push";
+
+interface MirrorDrop {
+  ownerOf: MirrorOwnerOf;
+  log: DropLog;
+  onMirrorPush?: MirrorPushHandler;
+}
+
+/** The rename of a mirror must reach its handler: it repoints the private repo's `public_mirror`. A push to the mirror goes to `onMirrorPush` when one is given, which brings its commits back to the owner. */
 export function withMirrorDrop(
   handlers: Map<string, EventHandler>,
   ownerOf: MirrorOwnerOf,
   log: DropLog = console.log,
+  onMirrorPush?: MirrorPushHandler,
 ): Map<string, EventHandler> {
+  const drop = { ownerOf, log, onMirrorPush };
+
   return new Map(
     [...handlers].map(([eventName, handler]) => [
       eventName,
       eventName === RENAMED
         ? handler
-        : droppingMirror(eventName, handler, ownerOf, log),
+        : droppingMirror(eventName, handler, drop),
     ]),
   );
 }
@@ -29,21 +48,22 @@ export function withMirrorDrop(
 function droppingMirror(
   eventName: string,
   handler: EventHandler,
-  ownerOf: MirrorOwnerOf,
-  log: DropLog,
+  drop: MirrorDrop,
 ): EventHandler {
   return async (params, meta) => {
     const repo = eventRepo(params);
-    const owner = repo === null ? null : await ownerOf(repo);
+    const owner = repo === null ? null : await drop.ownerOf(repo);
 
-    if (owner !== null) {
-      log(
-        `[stations] dropped ${eventName} for ${repo}: the public mirror of ${owner}`,
-      );
-
-      return;
+    if (repo === null || owner === null) {
+      return handler(params, meta);
     }
-    await handler(params, meta);
+    const branch = (params as { branch?: string }).branch;
+
+    return eventName === PUSH && drop.onMirrorPush
+      ? drop.onMirrorPush({ owner, mirror: repo, branch })
+      : drop.log(
+          `[stations] dropped ${eventName} for ${repo}: the public mirror of ${owner}`,
+        );
   };
 }
 

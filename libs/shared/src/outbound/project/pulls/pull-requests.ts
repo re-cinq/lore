@@ -36,6 +36,10 @@ export class PullRequests {
     return this.pulls.listMergedSince(this.repo, since);
   }
 
+  listByHead(branch: string): Promise<PullRef[]> {
+    return this.pulls.listByHead(this.repo, branch);
+  }
+
   get(number: number): Promise<PullRef | null> {
     return this.pulls.get(this.repo, number);
   }

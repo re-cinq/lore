@@ -374,6 +374,10 @@ export class PlatformGitHub
     return pullsRead.list(await this.octo(), repo);
   }
 
+  async listByHead(repo: string, branch: string): Promise<PullRef[]> {
+    return pullsRead.listByHead(await this.octo(), repo, branch);
+  }
+
   async listMergedSince(repo: string, since: string): Promise<PullRef[]> {
     return pullsRead.listMergedSince(await this.octo(), repo, since);
   }

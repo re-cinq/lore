@@ -28,3 +28,32 @@ export function decideMirrorPush(facts: MirrorPushFacts): MirrorPushVerdict {
 function isPublished(facts: MirrorPushFacts): boolean {
   return facts.targetHead === facts.sha && facts.targetTagSha === facts.sha;
 }
+
+export interface MirrorPullFacts {
+  publicHead: string;
+  publicHeadIsOnTarget: boolean;
+  branchHead: string | null;
+  branchHeadIsOnPublic: boolean;
+}
+
+export type MirrorPullVerdict =
+  | { kind: "in-sync" }
+  | { kind: "push" }
+  | { kind: "already-pushed" }
+  | { kind: "branch-diverged"; branchHead: string };
+
+export function decideMirrorPull(facts: MirrorPullFacts): MirrorPullVerdict {
+  const { publicHead, branchHead } = facts;
+
+  if (facts.publicHeadIsOnTarget) {
+    return { kind: "in-sync" };
+  }
+
+  if (branchHead === publicHead) {
+    return { kind: "already-pushed" };
+  }
+
+  return branchHead && !facts.branchHeadIsOnPublic
+    ? { kind: "branch-diverged", branchHead }
+    : { kind: "push" };
+}

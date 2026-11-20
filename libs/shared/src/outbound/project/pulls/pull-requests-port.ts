@@ -186,6 +186,8 @@ export interface PullRequestsPort {
   list(repo: string): Promise<PullRef[]>;
   /** PRs merged at or after `since` (ISO), newest first — the digest's "implemented" window; pages stop once GitHub's updated-at order passes the cutoff. */
   listMergedSince(repo: string, since: string): Promise<PullRef[]>;
+  /** Every PR, open, merged or closed, whose head is `branch` of the repository itself, newest first. */
+  listByHead(repo: string, branch: string): Promise<PullRef[]>;
   get(repo: string, number: number): Promise<PullRef | null>;
   comment(repo: string, number: number, body: string): Promise<void>;
   updateIssueComment(repo: string, id: number, body: string): Promise<void>;
@@ -276,3 +278,9 @@ export interface PullRequestsPort {
   /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */
   resolveReviewThread(threadId: string): Promise<void>;
 }
+
+/** The pull request reads and writes the public mirror's sync needs. */
+export type SyncPulls = Pick<
+  PullRequestsPort,
+  "listByHead" | "open" | "comment" | "listIssueComments"
+>;

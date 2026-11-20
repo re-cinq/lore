@@ -31,6 +31,8 @@ function fakePulls(
     list: async (repo) => pulls.filter((p) => p.repo === repo),
     listMergedSince: async (repo, since) =>
       pulls.filter((p) => p.repo === repo && (p.mergedAt ?? "") >= since),
+    listByHead: async (repo, branch) =>
+      pulls.filter((p) => p.repo === repo && p.branch === branch),
     get: async (repo, number) =>
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},
@@ -355,5 +357,34 @@ describe("PullRequests branch reads", () => {
       log: "log",
       asked: ["re-cinq/lore topic 30", "re-cinq/lore 7"],
     });
+  });
+});
+
+describe("PullRequests by head", () => {
+  it("lists the pull requests of branch sync/public-main on re-cinq/lore only", async () => {
+    const pullOn = (repo: string, number: number, branch: string): PullRef => ({
+      repo,
+      number,
+      title: "t",
+      branch,
+      state: "merged",
+      labels: [],
+      url: `u${number}`,
+    });
+    const facade = new PullRequests(
+      "re-cinq/lore",
+      fakePulls(
+        [
+          pullOn("re-cinq/lore", 9, "sync/public-main"),
+          pullOn("re-cinq/lore", 10, "other"),
+          pullOn("other/repo", 11, "sync/public-main"),
+        ],
+        [],
+      ),
+    );
+
+    expect(
+      (await facade.listByHead("sync/public-main")).map((pr) => pr.number),
+    ).toEqual([9]);
   });
 });

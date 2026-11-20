@@ -1,7 +1,7 @@
 ---
 adr_number: 55
 title: "A public mirror is published by fast-forward"
-status: shipped
+status: in progress
 date: 2026-11-20
 deciders: ["Platform Engineering"]
 domains: [release, github, ci, security]
@@ -48,3 +48,15 @@ A fast-forward keeps one history. A force push would let a mistake on the public
 - A release tag pushed to the public repository runs no release workflow there; the one run is the private repository's.
 - `lore-ingest.yml` carries no guard: its content is the template Lore installs in every onboarded repo, so guarding it means a new template version for all of them. Until that is decided, the workflow is disabled in the public repository's Actions settings as a rollout step.
 - The install guide names no version: its commands install the latest release, and a reader who wants another adds `--version`.
+
+## Amendment 2026-11-20: commits flow both ways
+
+Every commit on the public repository's `main` also arrives on the private repository's `main`; only the two default branches matter.
+
+- The private default branch is the only place where the two histories are merged. Lore never pushes to it.
+- When the public `main` holds commits the private `main` lacks, Lore copies the public `main` to the branch `sync/public-main` of the private repository, fast-forward only, and keeps one pull request open from it into the default branch. That pull request goes through the private repository's normal CI and review.
+- It is merged with a merge commit. A squash or a rebase makes new commits, so the public head is still not an ancestor of the private `main` and the next release cannot fast-forward the public repository. When Lore finds the newest sync pull request merged that way, it comments once on it and opens a new one.
+- A sync branch that holds commits the public `main` lacks is reported and left alone, never forced.
+- The sync runs on the release tick's 15 minutes, at once on a push to the mirror's default branch (the one event of a mirror the stations drain no longer drops), and when a release finds the public `main` diverged, whose failure then names the sync pull request.
+- The rest of the decision stands: the release still fast-forwards the public `main` to the private head and never forces it. After a merge commit the public head is an ancestor of the private `main`, so that fast-forward succeeds.
+

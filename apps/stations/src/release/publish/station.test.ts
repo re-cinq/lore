@@ -3,6 +3,11 @@ import type { Tools } from "@re-cinq/floor-station";
 import { InMemoryGitHubReleases } from "@re-cinq/lore-shared/project/lib/github-release-memory.js";
 import { InMemorySettings } from "@re-cinq/lore-shared/project/settings/settings-memory.js";
 import { repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
+import { InMemoryPulls } from "@re-cinq/lore-shared/project/pulls/pull-requests-memory.js";
+import {
+  syncMirrorMain,
+  type TokenPermissions,
+} from "@re-cinq/lore-shared/release/mirror-sync.js";
 import { InMemoryMirrorPush } from "@re-cinq/lore-shared/project/workspace/mirror-push-memory.js";
 import type { MirrorPushPort } from "@re-cinq/lore-shared/project/workspace/mirror-push-port.js";
 import { releasePublishHandle } from "./station.js";
@@ -12,33 +17,48 @@ const MIRROR = "re-cinq/lore";
 const SHA = "bbb222";
 const VERSION = "v1.3.0";
 const MIRROR_URL = repoCloneUrl(MIRROR);
+const SOURCE_URL = repoCloneUrl(SOURCE);
 
 function scene(options: { mirror?: string; push?: MirrorPushPort } = {}) {
+  const mirrorPush = new InMemoryMirrorPush();
+  const tokenRequests: Array<{ repo: string; permissions: unknown }> = [];
+  const pulls = new InMemoryPulls();
+  const mintToken = async (repo: string, permissions: TokenPermissions) => {
+    tokenRequests.push({ repo, permissions });
+
+    return `token-for-${repo}`;
+  };
   const { mirror = MIRROR } = options;
+  const releases = new InMemoryGitHubReleases();
   const settings = new InMemorySettings([
     { full_name: SOURCE, settings: mirror ? { public_mirror: mirror } : {} },
   ]);
-  const releases = new InMemoryGitHubReleases();
-  const mirrorPush = new InMemoryMirrorPush();
-  const tokenRequests: Array<{ repo: string; permissions: unknown }> = [];
+  const handle = releasePublishHandle({
+    settings,
+    releases,
+    mintToken,
+    mirrorPush: () => options.push ?? mirrorPush,
+    syncMirror: (repo) =>
+      syncMirrorMain(
+        {
+          settings,
+          pulls,
+          defaultBranch: async () => "main",
+          mintToken,
+          mirrorPush: () => mirrorPush,
+        },
+        repo,
+      ),
+  });
+
   const tools: Tools = {
     read: () => Promise.resolve(Buffer.from("")),
     produce: () => Promise.resolve(),
     modelCall: () => Promise.resolve(),
     signal: new AbortController().signal,
   };
-  const handle = releasePublishHandle({
-    settings,
-    releases,
-    mintToken: async (repo, permissions) => {
-      tokenRequests.push({ repo, permissions });
 
-      return `token-for-${repo}`;
-    },
-    mirrorPush: () => options.push ?? mirrorPush,
-  });
-
-  return { handle, tools, releases, mirrorPush, tokenRequests };
+  return { handle, tools, releases, mirrorPush, tokenRequests, pulls };
 }
 
 const brief = (needs: Record<string, string> = {}) => ({
@@ -157,23 +177,42 @@ describe("the release-publish station", () => {
     });
   });
 
-  it("fails naming re-cinq/lore and ddd444 when its main is not an ancestor of bbb222, leaving the mirror as it was", async () => {
-    const { handle, tools, releases, mirrorPush } = scene();
+  it("fails naming the sync pull request and a merge commit when re-cinq/lore main ddd444 is not an ancestor of bbb222, leaving the mirror as it was", async () => {
+    const { handle, tools, releases, mirrorPush, pulls } = scene();
     const held = { head: "ddd444", tags: {} };
 
     releases.seedVariable(MIRROR, "LORE_MIRROR", "true");
     mirrorPush.seedTarget(MIRROR_URL, held);
+    mirrorPush.seedTarget(SOURCE_URL, { head: "aaa111", tags: {} });
+    mirrorPush.seedHistory("bbb222", ["aaa111"]);
 
     expect({
       report: await handle(brief(), tools),
       target: mirrorPush.targetOf(MIRROR_URL),
+      opened: (await pulls.listByHead(SOURCE, "sync/public-main")).length,
     }).toEqual({
       report: {
         outcome: "failed",
         error:
-          "re-cinq/lore main is at ddd444, which is not an ancestor of bbb222 from re-cinq/lore-security; the mirror was left as it was",
+          "the public main holds commits this repository lacks; merge https://github.com/re-cinq/lore-security/pull/1 with a merge commit, then release again",
       },
       target: held,
+      opened: 1,
+    });
+  });
+
+  it("fails naming re-cinq/lore and ddd444 with the mirror left as it was when the sync branch holds foreign commits and no pull request exists", async () => {
+    const { handle, tools, releases, mirrorPush } = scene();
+
+    releases.seedVariable(MIRROR, "LORE_MIRROR", "true");
+    mirrorPush.seedTarget(MIRROR_URL, { head: "ddd444", tags: {} });
+    mirrorPush.seedTarget(SOURCE_URL, { head: "aaa111", tags: {} });
+    mirrorPush.seedBranch(SOURCE_URL, "sync/public-main", "x9");
+
+    expect(await handle(brief(), tools)).toEqual({
+      outcome: "failed",
+      error:
+        "re-cinq/lore main is at ddd444, which is not an ancestor of bbb222 from re-cinq/lore-security; the mirror was left as it was",
     });
   });
 
@@ -199,7 +238,10 @@ describe("the release-publish station", () => {
 
   it("fails with the git message when the push throws", async () => {
     const { handle, tools, releases } = scene({
-      push: { push: () => Promise.reject(new Error("git fetch failed")) },
+      push: {
+        push: () => Promise.reject(new Error("git fetch failed")),
+        pullBranch: () => Promise.reject(new Error("git fetch failed")),
+      },
     });
 
     releases.seedVariable(MIRROR, "LORE_MIRROR", "true");

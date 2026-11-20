@@ -9,14 +9,7 @@ export interface PublishedRelease {
   version: string;
 }
 
-/** The mirror a private repository publishes to, null when its settings name none. */
-export function mirrorOf(
-  settings: Record<string, unknown> | null,
-): string | null {
-  const mirror = settings?.public_mirror;
-
-  return typeof mirror === "string" ? mirror : null;
-}
+export { mirrorOf } from "@re-cinq/lore-shared/release/mirror-sync.js";
 
 /** `failed` unless the mirror's `LORE_MIRROR` variable is exactly `true`, the switch that keeps its own workflows off. A null read is a missing variable or a repository the App cannot see, which the read cannot tell apart, so its reason covers both. */
 export function mirrorStatusReport(
@@ -43,15 +36,20 @@ export function missingInstallationReport(mirror: string): Report {
   };
 }
 
-/** Success for a push done or already there; a refusal names both repositories and the commit and says nothing was changed. */
+/** Success for a push done or already there; a refusal names both repositories and the commit and says nothing was changed. A diverged mirror names the sync pull request that brings its commits back, when there is one. */
 export function publishReport(
   outcome: MirrorPushOutcome,
-  { repo, mirror, sha, version }: PublishedRelease,
+  release: PublishedRelease,
+  syncPullUrl?: string,
 ): Report {
+  const { repo, mirror, sha, version } = release;
+
   if (outcome.kind === "target-diverged") {
-    return failed(
-      `${mirror} main is at ${outcome.targetHead}, which is not an ancestor of ${sha} from ${repo}`,
-    );
+    return syncPullUrl
+      ? failedWithPull(syncPullUrl)
+      : failed(
+          `${mirror} main is at ${outcome.targetHead}, which is not an ancestor of ${sha} from ${repo}`,
+        );
   }
 
   if (outcome.kind === "tag-at-other-sha") {
@@ -61,6 +59,13 @@ export function publishReport(
   }
 
   return { outcome: "success", produced: { published_to: mirror } };
+}
+
+function failedWithPull(syncPullUrl: string): Report {
+  return {
+    outcome: "failed",
+    error: `the public main holds commits this repository lacks; merge ${syncPullUrl} with a merge commit, then release again`,
+  };
 }
 
 function failed(reason: string): Report {

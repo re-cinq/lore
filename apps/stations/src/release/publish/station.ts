@@ -17,6 +17,7 @@ import type {
   MirrorPushOutcome,
   MirrorPushPort,
 } from "@re-cinq/lore-shared/project/workspace/mirror-push-port.js";
+import type { MirrorSyncResult } from "@re-cinq/lore-shared/release/mirror-sync.js";
 import { publishDeps } from "../deps.js";
 import { absentNeedsReport } from "../needs.js";
 import {
@@ -36,6 +37,8 @@ export interface ReleasePublishDeps {
   mintToken(repo: string, permissions: TokenPermissions): Promise<string>;
   /** The mirror push whose clone is cached for this source repository. */
   mirrorPush(repo: string): MirrorPushPort;
+  /** Brings the public main's commits to the private repository's sync pull request. */
+  syncMirror(repo: string): Promise<MirrorSyncResult>;
 }
 
 const REQUIRED = ["release_repo", "release_sha", "release_version"];
@@ -81,12 +84,23 @@ async function publishTo(
       await deps.releases.repoVariable(release.mirror, "LORE_MIRROR"),
     );
 
-    return (
-      switchedOff ?? publishReport(await pushToMirror(deps, release), release)
-    );
+    return switchedOff ?? (await pushAndReport(deps, release));
   } catch (err) {
     return failureReport(err, release.mirror);
   }
+}
+
+async function pushAndReport(
+  deps: ReleasePublishDeps,
+  release: PublishedRelease,
+): Promise<Report> {
+  const outcome = await pushToMirror(deps, release);
+  const syncPullUrl =
+    outcome.kind === "target-diverged"
+      ? (await deps.syncMirror(release.repo)).pullRequestUrl
+      : undefined;
+
+  return publishReport(outcome, release, syncPullUrl);
 }
 
 async function pushToMirror(

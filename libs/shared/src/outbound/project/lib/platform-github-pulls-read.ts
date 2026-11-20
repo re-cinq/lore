@@ -23,6 +23,27 @@ export async function list(ok: Octokit, repo: string): Promise<PullRef[]> {
   return rows.map((pr) => toPullRef(repo, pr));
 }
 
+/** Every pull request, open, merged or closed, whose head is `branch` of the repository itself, newest first. */
+export async function listByHead(
+  ok: Octokit,
+  repo: string,
+  branch: string,
+): Promise<PullRef[]> {
+  const [owner, name] = split(repo);
+  const { pulls } = ok.rest;
+  const rows = await ok.paginate(pulls.list, {
+    owner,
+    repo: name,
+    head: `${owner}:${branch}`,
+    state: "all",
+    sort: "created",
+    direction: "desc",
+    per_page: 100,
+  });
+
+  return rows.map((pr) => toPullRef(repo, pr));
+}
+
 /** Merged PRs at or after `since`. GitHub has no merged-since filter, so closed PRs are read newest-updated first and the window closes on the first page whose last row is older than the cutoff (a merge always updates the PR). */
 export async function listMergedSince(
   ok: Octokit,

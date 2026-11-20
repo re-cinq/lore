@@ -49,6 +49,7 @@ describe("Workspace", () => {
     const ws = new Workspace("re-cinq/lore", "/tmp/ws", fakeGit(log), {
       list: async () => [],
       listMergedSince: async () => [],
+      listByHead: async () => [],
       get: async () => null,
       comment: async () => {},
       updateIssueComment: async () => {},

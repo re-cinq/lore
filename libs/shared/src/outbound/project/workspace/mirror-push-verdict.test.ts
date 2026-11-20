@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideMirrorPush } from "./mirror-push-verdict.js";
+import { decideMirrorPull, decideMirrorPush } from "./mirror-push-verdict.js";
 
 const SHA = "a1b2c3";
 
@@ -90,5 +90,55 @@ describe("decideMirrorPush", () => {
         targetTagSha: "f6a7",
       }),
     ).toEqual({ kind: "tag-at-other-sha", tagSha: "f6a7" });
+  });
+});
+
+describe("decideMirrorPull", () => {
+  const facts = {
+    publicHead: "p1",
+    publicHeadIsOnTarget: false,
+    branchHead: null,
+    branchHeadIsOnPublic: false,
+  };
+
+  it("answers in-sync when public head p1 is already on the private main", () => {
+    expect(
+      decideMirrorPull({
+        ...facts,
+        publicHeadIsOnTarget: true,
+        branchHead: "b1",
+      }),
+    ).toEqual({ kind: "in-sync" });
+  });
+
+  it("pushes when public head p1 is not on the private main and the sync branch is absent", () => {
+    expect(decideMirrorPull(facts)).toEqual({ kind: "push" });
+  });
+
+  it("pushes when the sync branch sits at b0, an ancestor of public head p1", () => {
+    expect(
+      decideMirrorPull({
+        ...facts,
+        branchHead: "b0",
+        branchHeadIsOnPublic: true,
+      }),
+    ).toEqual({ kind: "push" });
+  });
+
+  it("answers already-pushed when the sync branch already sits at public head p1", () => {
+    expect(
+      decideMirrorPull({
+        ...facts,
+        branchHead: "p1",
+        branchHeadIsOnPublic: true,
+      }),
+    ).toEqual({ kind: "already-pushed" });
+  });
+
+  it("answers branch-diverged naming x9 when the sync branch holds a commit the public main lacks", () => {
+    expect(decideMirrorPull({ ...facts, branchHead: "x9" })).toEqual({
+      kind: "branch-diverged",
+      branchHead: "x9",
+    });
   });
 });

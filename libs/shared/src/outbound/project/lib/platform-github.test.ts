@@ -35,6 +35,7 @@ const state: {
   pullsPages?: Array<Array<Record<string, unknown>>>;
   commitFiles?: Record<string, string[]>;
   pullsListCall?: Record<string, unknown>;
+  pullsListRows?: Array<Record<string, unknown>>;
   pagesServed: number;
   issueData?: Record<string, unknown>;
   blockersData?: Array<{ number: number; state: string }>;
@@ -132,7 +133,7 @@ vi.mock("octokit", () => ({
         list: async (params: Record<string, unknown>) => {
           state.pullsListCall = params;
 
-          return [];
+          return state.pullsListRows ?? [];
         },
         listFiles: async () => state.files,
         get: async () => ({ data: state.prData }),
@@ -265,6 +266,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.treeData = undefined;
     state.issuesData = undefined;
     state.pullsPages = undefined;
+    state.pullsListRows = undefined;
     state.pagesServed = 0;
   });
   afterEach(() => vi.clearAllMocks());
@@ -314,6 +316,25 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       state: "closed",
       sort: "updated",
       direction: "desc",
+    });
+  });
+
+  it("listByHead asks for every state of the head re-cinq:sync/public-main newest first and maps a merged pull", async () => {
+    state.pullsListRows = [
+      closedPull(8, "2026-09-25T09:00:00Z", "2026-09-25T08:00:00Z"),
+    ];
+    const pulls = await gh().listByHead("re-cinq/lore", "sync/public-main");
+
+    expect({ pulls, call: state.pullsListCall }).toMatchObject({
+      pulls: [{ number: 8, state: "merged", branch: "b8" }],
+      call: {
+        owner: "re-cinq",
+        repo: "lore",
+        head: "re-cinq:sync/public-main",
+        state: "all",
+        sort: "created",
+        direction: "desc",
+      },
     });
   });
 

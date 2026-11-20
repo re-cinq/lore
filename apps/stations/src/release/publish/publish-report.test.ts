@@ -110,4 +110,18 @@ describe("the release-publish decisions", () => {
       },
     );
   });
+
+  it("returns failed naming pull request 7 and a merge commit for a target-diverged outcome with that sync pull request", () => {
+    expect(
+      publishReport(
+        { kind: "target-diverged", targetHead: "ddd444" },
+        RELEASE,
+        "https://github.com/re-cinq/lore-security/pull/7",
+      ),
+    ).toEqual({
+      outcome: "failed",
+      error:
+        "the public main holds commits this repository lacks; merge https://github.com/re-cinq/lore-security/pull/7 with a merge commit, then release again",
+    });
+  });
 });

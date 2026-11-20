@@ -10,6 +10,7 @@ import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { changelogTickStation } from "./changelog-tick/manifest.js";
 import { releaseTickStation } from "./release-tick/manifest.js";
+import { mirrorSyncTickStation } from "./mirror-sync-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
 import { loopReap } from "./loop-reap/manifest.js";
 import { blockedReason } from "./blocked-reason/manifest.js";
@@ -44,6 +45,7 @@ export const STATION_NAMES = [
   "loop-tick",
   "memory-ttl",
   "merge-check",
+  "mirror-sync-tick",
   "pack-sync-tick",
   "pr-blocked-reasons-prune",
   "pr-ready-check",
@@ -73,6 +75,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "loop-tick": loopTickStation,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
+  "mirror-sync-tick": mirrorSyncTickStation,
   "pack-sync-tick": packSyncTickStation,
   "pr-blocked-reasons-prune": prBlockedReasonsPrune,
   "pr-ready-check": prReadyCheck,

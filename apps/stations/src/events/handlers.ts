@@ -75,7 +75,8 @@ import {
   specTicketsEnabled,
 } from "@re-cinq/lore-shared/loops/loop-enabled.js";
 import { reportToVisit } from "@re-cinq/lore-shared/floor/floor-report.js";
-import { withMirrorDrop, type MirrorOwnerOf } from "./mirror-drop.js";
+import type { MirrorOwnerOf } from "./mirror-drop.js";
+import { withProductionMirrorDrop } from "./mirror-push-sync.js";
 import { relocateOnTeamChange } from "./team-changed.js";
 import { openPrOnBranch } from "@re-cinq/lore-shared/backlog/ticket-holder.js";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
@@ -303,7 +304,7 @@ export function buildStationHandlers(
   addHandlers(handlers, loopProgressHandlers(loopProgressProductionDeps));
   addHandlers(handlers, specReviewResultHandlers());
 
-  return withMirrorDrop(handlers, mirrorOwnerOf);
+  return withProductionMirrorDrop(handlers, mirrorOwnerOf);
 }
 
 function addFloorHandlers(handlers: Map<string, EventHandler>): void {
