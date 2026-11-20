@@ -101,6 +101,7 @@ test("collects the tests, the code and the issue of a pull request at its pinned
   assert.deepEqual(
     {
       packets: Object.keys(evidence),
+      docs: evidence.docs_evidence,
       tests: evidence.test_evidence.files,
       code: {
         path: changed.path,
@@ -112,7 +113,13 @@ test("collects the tests, the code and the issue of a pull request at its pinned
       asked: evidence.issue_evidence.discussion[0].text,
     },
     {
-      packets: ["test_evidence", "code_evidence", "issue_evidence"],
+      packets: [
+        "test_evidence",
+        "code_evidence",
+        "issue_evidence",
+        "docs_evidence",
+      ],
+      docs: { mode: "docs", statements: [], removed: [] },
       tests: [{ path: "limit.test.ts", unchanged: "expect(limit).toBe(1);" }],
       code: {
         path: "limit.ts",
@@ -126,7 +133,7 @@ test("collects the tests, the code and the issue of a pull request at its pinned
   );
 });
 
-test("a Markdown-only PR asks for the whole-diff reviewer", async (t) => {
+test("a Markdown-only PR is handed to the documents check alone, with each statement it writes", async (t) => {
   const { collect } = await pullRequest(
     t,
     { "README.md": "# Otto\n" },
@@ -134,12 +141,60 @@ test("a Markdown-only PR asks for the whole-diff reviewer", async (t) => {
   );
 
   assert.deepEqual(await collect(), {
-    status: "whole_diff",
-    reason: "The change has no code or test file",
+    status: "docs_only",
+    docs_evidence: {
+      mode: "docs",
+      statements: [
+        {
+          path: "README.md",
+          line: 3,
+          heading: "Otto",
+          text: "An admin erases one person's data.",
+          tests: [],
+        },
+      ],
+      removed: [],
+    },
   });
 });
 
-test("a PR that adds more spec statements than the product evidence limit asks for the whole-diff reviewer", async (t) => {
+test("a PR that only moves the links of a spec needs no review", async (t) => {
+  const statement = (line) =>
+    `# Queue\n\n- A full queue refuses a new item. ([validated by](../../queue.test.ts#L${line}))\n`;
+  const { collect } = await pullRequest(
+    t,
+    { "specs/queue/spec.md": statement(4) },
+    { "specs/queue/spec.md": statement(9) },
+  );
+
+  assert.deepEqual(await collect(), { status: "links_only" });
+});
+
+test("a PR that changes code and a spec statement hands the statement to the documents check beside the story packets", async (t) => {
+  const { collect } = await pullRequest(
+    t,
+    {
+      "limit.ts": "export const limit = 1;",
+      "specs/limit/spec.md": "# Limit\n",
+    },
+    {
+      "limit.ts": "export const limit = 2;",
+      "specs/limit/spec.md": "# Limit\n\n- The limit is 2.\n",
+    },
+  );
+
+  assert.deepEqual((await collect()).docs_evidence.statements, [
+    {
+      path: "specs/limit/spec.md",
+      line: 3,
+      heading: "Limit",
+      text: "The limit is 2.",
+      tests: [],
+    },
+  ]);
+});
+
+test("a PR that adds more spec statements than the review evidence limit asks for the whole-diff reviewer", async (t) => {
   const statements = Array.from(
     { length: 60_000 },
     (_unused, index) => `- Booking ${index} shows its payer and its orderer.\n`,
@@ -158,6 +213,6 @@ test("a PR that adds more spec statements than the product evidence limit asks f
 
   assert.deepEqual(await collect(), {
     status: "whole_diff",
-    reason: "Relevant product specifications exceed the review evidence limit",
+    reason: "Changed Markdown exceeds the review evidence limit",
   });
 });
