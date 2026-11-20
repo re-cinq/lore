@@ -190,11 +190,9 @@ async function readReviewVisit(
 }
 
 function stageOf(nodeId: string): number {
-  const stage = stages[nodeId];
+  enforceTrue(nodeId in stages, Error, `Unknown review stage ${nodeId}`);
 
-  enforceTrue(stage !== undefined, Error, `Unknown review stage ${nodeId}`);
-
-  return stage;
+  return stages[nodeId];
 }
 
 function hostedTarget(
