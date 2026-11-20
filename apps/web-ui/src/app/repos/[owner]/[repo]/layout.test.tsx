@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RepoLayout from "./layout";
+import { getRepo } from "@/lib/api/repos";
 
 vi.mock("@/lib/github", () => ({
   getRepoMeta: vi.fn().mockResolvedValue({ description: "Test Repo" }),
@@ -41,5 +42,36 @@ describe("RepoLayout", () => {
     expect(links).toContain("Loops");
     expect(links).not.toContain("Backlog");
     expect(links).not.toContain("Triage");
+  });
+});
+
+describe("RepoLayout public mirror chip", () => {
+  const renderWith = async (settings: object) => {
+    vi.mocked(getRepo).mockResolvedValueOnce({
+      status: "ok",
+      data: {
+        team: null,
+        onboarded_at: "2026-03-01T00:00:00Z",
+        last_ingested_at: null,
+        settings,
+      },
+    } as never);
+    const params = Promise.resolve({ owner: "acme", repo: "private" });
+
+    render(await RepoLayout({ children: <div>child</div>, params }));
+  };
+
+  it("renders the chip public: acme/public for a repo whose settings name it", async () => {
+    await renderWith({ public_mirror: "acme/public" });
+
+    expect(
+      screen.getByRole("link", { name: "public: acme/public" }),
+    ).toHaveAttribute("href", "https://github.com/acme/public");
+  });
+
+  it("renders no public chip for a repo whose settings name no mirror", async () => {
+    await renderWith({});
+
+    expect(screen.queryByText(/^public:/)).toEqual(null);
   });
 });

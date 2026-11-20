@@ -4,6 +4,7 @@ import { render } from "@testing-library/react";
 import SettingsView, { type RepoSettingsShape } from "./SettingsView";
 import { INITIAL_SAVE_STATE, type SaveState } from "./SaveResultBanner";
 
+const noMove = () => Promise.resolve({ ok: false as const, said: "unused" });
 const action = vi.fn(async (): Promise<SaveState> => INITIAL_SAVE_STATE);
 
 function renderView(settings: RepoSettingsShape = {}) {
@@ -14,6 +15,7 @@ function renderView(settings: RepoSettingsShape = {}) {
       settings={settings}
       allRepos={[{ full_name: "re-cinq/a" }, { full_name: "re-cinq/b" }]}
       saveAction={action}
+      moveMirror={noMove}
     />,
   );
 }
@@ -83,7 +85,7 @@ describe("SettingsView (general only)", () => {
     ]);
   });
 
-  it("links the sub-navigation to the four section cards", () => {
+  it("links the sub-navigation to the five section cards", () => {
     const { container } = renderView();
     const hrefs = Array.from(
       container.querySelectorAll('nav[aria-label="Settings sections"] a'),
@@ -94,6 +96,7 @@ describe("SettingsView (general only)", () => {
       "#set-policy",
       "#set-cross-repo",
       "#set-digest",
+      "#set-release",
     ]);
   });
 
@@ -120,5 +123,18 @@ describe("SettingsView (general only)", () => {
       ["set-policy", false],
       ["set-policy", true],
     ]);
+  });
+});
+
+describe("SettingsView mirror and release card", () => {
+  it("renders the Public mirror and Release card prefilled with acme/public", () => {
+    const { container } = renderView({ public_mirror: "acme/public" });
+
+    expect({
+      card: container.querySelector("#set-release") !== null,
+      mirror: container.querySelector<HTMLInputElement>(
+        'input[name="public_mirror"]',
+      )?.value,
+    }).toEqual({ card: true, mirror: "acme/public" });
   });
 });

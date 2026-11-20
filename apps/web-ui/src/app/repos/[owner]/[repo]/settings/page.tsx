@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { parseSettingsForm } from "@/lib/settings-form";
 import SettingsView, { type RepoSettingsShape } from "./SettingsView";
 import type { SaveState } from "./SaveResultBanner";
+import { moveMirrorAction } from "./actions";
 
 interface Repo {
   full_name: string;
@@ -36,6 +37,7 @@ export default async function RepoSettings(props: RepoSettingsProps) {
       settings={(settings as RepoSettingsShape | null) ?? {}}
       allRepos={linkCandidates(repos, fullName)}
       saveAction={saveSettings}
+      moveMirror={moveMirrorAction.bind(null, fullName)}
     />
   );
 }
@@ -55,7 +57,7 @@ async function saveSettings(
 ): Promise<SaveState> {
   "use server";
   const fullName = formData.get("full_name") as string;
-  const updates = parseSettingsForm(formData);
+  const updates = parseSettingsForm(formData, await storedSettings(fullName));
 
   const result = await putRepoSettings(fullName, {
     team: (formData.get("team") as string) || null,
@@ -72,6 +74,13 @@ async function saveSettings(
   revalidatePath(`/repos/${fullName}/settings`);
 
   return { saved: true };
+}
+
+/** What the repository has saved, which the mirror and release fields are compared with. */
+async function storedSettings(fullName: string): Promise<RepoSettingsShape> {
+  const record = await getRepo(fullName);
+
+  return (record.status === "ok" ? record.data.settings : null) ?? {};
 }
 
 function refusalMessage(result: { status: string; message?: string }): string {

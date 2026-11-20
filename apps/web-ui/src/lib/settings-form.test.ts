@@ -112,3 +112,46 @@ describe("parseSettingsForm", () => {
     expect("base_image" in parseSettingsForm(form({}))).toBe(false);
   });
 });
+
+describe("parseSettingsForm public mirror and release", () => {
+  it("sends public_mirror acme/public and the release block when both changed", () => {
+    expect(
+      parseSettingsForm(
+        form({
+          public_mirror: "acme/public",
+          release_enabled: "on",
+          release_days: ["1", "4"],
+          release_time: "09:30",
+          release_timezone: "Europe/Bucharest",
+        }),
+        { public_mirror: null },
+      ),
+    ).toMatchObject({
+      public_mirror: "acme/public",
+      release: {
+        enabled: true,
+        days: [1, 4],
+        time: "09:30",
+        timezone: "Europe/Bucharest",
+      },
+    });
+  });
+
+  it("sends public_mirror null when the saved acme/public was emptied", () => {
+    expect(
+      parseSettingsForm(form({ public_mirror: "" }), {
+        public_mirror: "acme/public",
+      }),
+    ).toMatchObject({ public_mirror: null });
+  });
+
+  it("sends neither key when nothing changed", () => {
+    const sent = parseSettingsForm(form({ public_mirror: "acme/public" }), {
+      public_mirror: "acme/public",
+    });
+
+    expect(
+      Object.keys(sent).filter((key) => /mirror|release/.test(key)),
+    ).toEqual([]);
+  });
+});

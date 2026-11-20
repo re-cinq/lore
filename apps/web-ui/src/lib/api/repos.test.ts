@@ -12,6 +12,7 @@ const {
   getOrgSettings,
   putOrgSettings,
   putRepoSettings,
+  moveMirror,
 } = await import("./repos");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -214,6 +215,24 @@ describe("listAvailableRepos", () => {
     expect(result).toEqual({
       status: "ok",
       data: [{ full_name: "some/not-onboarded" }],
+    });
+  });
+});
+
+describe("moveMirror", () => {
+  it("posts {dry_run: true} to /api/repos/acme/private/mirror/move", async () => {
+    await moveMirror("acme/private", { dry_run: true });
+
+    const [requestUrl, init] = fetchMock.mock.calls[0];
+
+    expect({
+      url: String(requestUrl),
+      method: init.method,
+      body: JSON.parse(init.body),
+    }).toEqual({
+      url: "http://api:3000/api/repos/acme/private/mirror/move",
+      method: "POST",
+      body: { dry_run: true },
     });
   });
 });

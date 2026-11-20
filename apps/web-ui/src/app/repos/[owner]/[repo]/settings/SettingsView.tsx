@@ -1,6 +1,7 @@
 "use client";
 import SettingsFormShell, { type SaveAction } from "./SettingsFormShell";
-import DigestFields from "./DigestFields";
+import ScheduleCards from "./ScheduleCards";
+import type { MirrorMove } from "./mirror-move-outcome";
 import SettingsHelp from "./SettingsHelp";
 import { SubmitButton } from "@/components/SubmitButton";
 import { type SettingsNavItem } from "@/components/SettingsLayout";
@@ -19,6 +20,7 @@ export interface SettingsViewProps {
   settings: RepoSettingsShape;
   allRepos: { full_name: string }[];
   saveAction: SaveAction;
+  moveMirror: MirrorMove;
 }
 
 /** Says what this tab covers, so a reader knows before scrolling which settings live here and which live on a sibling tab. */
@@ -31,10 +33,11 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-policy", label: "Run policy" },
   { id: "set-cross-repo", label: "Cross-repo context" },
   { id: "set-digest", label: "Daily digest" },
+  { id: "set-release", label: "Mirror and releases" },
 ];
 
 export default function SettingsView(props: SettingsViewProps) {
-  const { fullName, team, settings, allRepos, saveAction } = props;
+  const { fullName, saveAction } = props;
 
   return (
     <SettingsFormShell
@@ -45,7 +48,7 @@ export default function SettingsView(props: SettingsViewProps) {
       lede={SETTINGS_LEDE}
       nav={SETTINGS_NAV}
     >
-      <SettingsSections team={team} settings={settings} allRepos={allRepos} />
+      <SettingsSections {...props} />
       <div className={styles.saveRow}>
         <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
       </div>
@@ -55,11 +58,13 @@ export default function SettingsView(props: SettingsViewProps) {
 
 type SettingsSectionsProps = Pick<
   SettingsViewProps,
-  "team" | "settings" | "allRepos"
+  "team" | "settings" | "allRepos" | "moveMirror"
 >;
 
-/** The form's four section cards, top to bottom. */
-function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
+/** The form's five section cards, top to bottom. */
+function SettingsSections(props: SettingsSectionsProps) {
+  const { team, settings, allRepos } = props;
+
   return (
     <>
       <GeneralFields team={team} settings={settings} />
@@ -68,10 +73,7 @@ function SettingsSections({ team, settings, allRepos }: SettingsSectionsProps) {
         allRepos={allRepos}
         selectedRepos={settings.cross_repo_repos ?? []}
       />
-      <DigestFields
-        digest={settings.digest ?? undefined}
-        slackChannelSet={Boolean(settings.slack_channel_id)}
-      />
+      <ScheduleCards settings={settings} moveMirror={props.moveMirror} />
     </>
   );
 }

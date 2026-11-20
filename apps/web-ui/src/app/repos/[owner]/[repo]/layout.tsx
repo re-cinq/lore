@@ -42,6 +42,7 @@ function fullChrome({ owner, repo, base, meta, record }: FullChromeProps) {
         repo={repo}
         description={meta?.description}
         record={record}
+        publicMirror={record?.settings?.public_mirror}
       />
       <TabNav tabs={repoTabs(base)} base={base} />
     </>

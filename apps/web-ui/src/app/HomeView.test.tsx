@@ -19,6 +19,7 @@ const repo = (over: Partial<Repo>): Repo => ({
   onboarding_pr_merged: true,
   task_count: 0,
   active_agents: 0,
+  settings: null,
   ...over,
 });
 
@@ -321,5 +322,26 @@ describe("HomeView", () => {
     expect(
       screen.getByText("No repositories match this filter."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("HomeView public mirror chip", () => {
+  it("shows the chip public: acme/public on the card of acme/private", () => {
+    renderHome([
+      repo({
+        full_name: "acme/private",
+        owner: "acme",
+        name: "private",
+        settings: { public_mirror: "acme/public" },
+      }),
+    ]);
+
+    expect(screen.getByText("public: acme/public")).toBeInTheDocument();
+  });
+
+  it("shows no public chip on a card without a mirror", () => {
+    renderHome([repo({ settings: {} }), repo({ full_name: "re-cinq/b" })]);
+
+    expect(screen.queryByText(/^public:/)).toBeNull();
   });
 });

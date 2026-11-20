@@ -41,6 +41,14 @@
   font-weight: var(--fw-medium);
 }
 
+.mirror {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
 .sep {
   color: var(--border-hover);
 }

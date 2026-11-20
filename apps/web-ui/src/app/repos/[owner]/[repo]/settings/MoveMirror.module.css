@@ -1,0 +1,44 @@
+/* The move control under the Public mirror field; the card around it is page.module.css's. */
+.move {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.counts {
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.counts th,
+.counts td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.counts th {
+  color: var(--text-muted);
+  font-weight: var(--fw-semibold);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.note p {
+  margin: var(--space-2) 0;
+}
+
+.refusal {
+  margin: 0;
+  color: var(--danger);
+}

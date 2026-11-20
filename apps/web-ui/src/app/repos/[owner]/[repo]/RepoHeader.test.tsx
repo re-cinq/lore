@@ -62,3 +62,39 @@ describe("RepoHeader on host ghe.example.com", () => {
     );
   });
 });
+
+describe("RepoHeader public mirror chip", () => {
+  it("links the chip public: acme/public to https://github.com/acme/public", () => {
+    render(
+      <RepoHeader
+        owner="acme"
+        repo="private"
+        record={record}
+        publicMirror="acme/public"
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "public: acme/public" }),
+    ).toHaveAttribute("href", "https://github.com/acme/public");
+  });
+
+  it("links the chip to https://ghe.example.com/acme/public on that host", () => {
+    render(
+      <RepoHeader
+        owner="acme"
+        repo="private"
+        record={record}
+        publicMirror="acme/public"
+        host="ghe.example.com"
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "public: acme/public" }),
+    ).toHaveAttribute("href", "https://ghe.example.com/acme/public");
+  });
+
+  it("shows no chip without a mirror", () => {
+    render(<RepoHeader owner="acme" repo="private" record={record} />);
+    expect(screen.queryByText(/^public:/)).toBeNull();
+  });
+});

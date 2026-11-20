@@ -136,3 +136,14 @@ export function putRepoSettings(
     body: patch,
   });
 }
+
+/** Previews (`dry_run`) or does the move of the public mirror's stored knowledge to this repository (specs/public-mirror); a real run needs `confirm` to be the mirror's full name. */
+export function moveMirror(
+  repo: string,
+  body: { confirm?: string; dry_run: boolean },
+): Promise<ApiResult<components["schemas"]["MirrorMoveResult"]>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/mirror/move`, {
+    method: "POST",
+    body,
+  });
+}

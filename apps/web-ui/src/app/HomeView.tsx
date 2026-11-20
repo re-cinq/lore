@@ -27,6 +27,7 @@ export type Repo = Pick<
   | "onboarding_pr_merged"
   | "task_count"
   | "active_agents"
+  | "settings"
 >;
 
 export interface HomeViewProps {
@@ -179,6 +180,7 @@ function RepoCard({ repo: r, attention }: RepoCardProps) {
       className={`repo-card ${styles.card}`}
     >
       <CardHead repo={r} />
+      <MirrorChip publicMirror={r.settings?.public_mirror} />
       <CardStats repo={r} />
       {attention && <AttentionNote attention={attention} />}
       {!attention && !r.last_ingested_at && (
@@ -197,6 +199,23 @@ function CardHead({ repo: r }: { repo: Repo }) {
       </h3>
       {r.team && <span className={styles.team}>{r.team}</span>}
     </div>
+  );
+}
+
+/** Where the repo is published, when it names a public mirror. Not a link: the whole card already is one, and an anchor cannot hold an anchor. */
+function MirrorChip({
+  publicMirror,
+}: {
+  publicMirror: string | null | undefined;
+}) {
+  if (!publicMirror) {
+    return null;
+  }
+
+  return (
+    <span className={styles.mirror} title="Published to this public repository">
+      public: {publicMirror}
+    </span>
   );
 }
 

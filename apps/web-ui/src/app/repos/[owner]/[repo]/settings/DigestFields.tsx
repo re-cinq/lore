@@ -2,10 +2,10 @@
 import {
   DIGEST_DEFAULTS,
   DIGEST_SECTIONS,
-  WEEKDAYS,
   type DigestBlock,
 } from "@/lib/settings-digest";
 import { SettingsCard } from "@/components/SettingsCard";
+import ScheduleFields from "./ScheduleFields";
 import styles from "./page.module.css";
 
 export interface DigestFieldsProps {
@@ -38,6 +38,7 @@ function DigestBody({ digest, slackChannelSet }: DigestFieldsProps) {
         Switch the daily digest on or off on the Loops tab.
       </span>
       <ScheduleFields
+        prefix="digest"
         time={current.time}
         days={current.days}
         timezone={current.timezone}
@@ -53,68 +54,6 @@ function SlackChannelHint() {
     <span className={styles.hint}>
       Set a Slack Channel ID above first: the digest is posted there.
     </span>
-  );
-}
-
-interface ScheduleFieldsProps {
-  time: string;
-  days: number[];
-  timezone: string;
-}
-
-function ScheduleFields({ time, days, timezone }: ScheduleFieldsProps) {
-  return (
-    <>
-      <div className={styles.field}>
-        <label htmlFor="digest_time">Time of day</label>
-        <input
-          id="digest_time"
-          type="time"
-          name="digest_time"
-          defaultValue={time}
-        />
-      </div>
-      <WeekdayBoxes days={days} />
-      <div className={styles.field}>
-        <label htmlFor="digest_timezone">Timezone</label>
-        <TimezoneSelect timezone={timezone} />
-      </div>
-    </>
-  );
-}
-
-function WeekdayBoxes({ days }: { days: number[] }) {
-  return (
-    <fieldset className={styles.choices}>
-      <legend>Days</legend>
-      {WEEKDAYS.map((day) => (
-        <label key={day.value} className={styles.choice}>
-          <input
-            type="checkbox"
-            name="digest_days"
-            value={day.value}
-            defaultChecked={days.includes(day.value)}
-          />{" "}
-          {day.label}
-        </label>
-      ))}
-    </fieldset>
-  );
-}
-
-/** Every zone the browser knows, with the stored one kept even when the browser does not list it (an old name still resolves server-side). */
-function TimezoneSelect({ timezone }: { timezone: string }) {
-  const zones = Intl.supportedValuesOf("timeZone");
-  const options = zones.includes(timezone) ? zones : [timezone, ...zones];
-
-  return (
-    <select id="digest_timezone" name="digest_timezone" defaultValue={timezone}>
-      {options.map((zone) => (
-        <option key={zone} value={zone}>
-          {zone}
-        </option>
-      ))}
-    </select>
   );
 }
 

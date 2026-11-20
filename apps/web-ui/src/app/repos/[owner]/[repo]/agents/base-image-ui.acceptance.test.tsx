@@ -57,6 +57,7 @@ describe("Base Image UI Controls (Acceptance)", () => {
         settings={{ base_image: "node:20-alpine" }}
         allRepos={[]}
         saveAction={vi.fn(async () => INITIAL_SAVE_STATE)}
+        moveMirror={vi.fn(async () => ({ ok: false as const, said: "unused" }))}
       />,
     );
 

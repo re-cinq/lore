@@ -1,8 +1,32 @@
+import type { components } from "@/lib/api/schema";
 import { parseDigestBlock } from "./settings-digest";
+import { parsePublicMirror } from "./settings-mirror";
+import { parseReleasePatch } from "./settings-release";
 
-export function parseSettingsForm(formData: FormData) {
+type StoredSettings = NonNullable<components["schemas"]["Repo"]["settings"]>;
+
+/** `stored` is what the repository saved now: the mirror and release fields send only what differs from it. */
+export function parseSettingsForm(
+  formData: FormData,
+  stored: StoredSettings = {},
+) {
+  const updates = settingsFields(formData, stored);
+  const trustLevel = formData.get("trust_level") as string;
+
+  if (trustLevel) {
+    updates.trust = { level: trustLevel, auto_promote_threshold: 3 };
+  }
+
+  return withoutUndefined(updates);
+}
+
+function settingsFields(
+  formData: FormData,
+  stored: StoredSettings,
+): Record<string, unknown> {
   const selectedRepos = formData.getAll("cross_repo_repos") as string[];
-  const updates: Record<string, unknown> = {
+
+  return {
     task_types: commaList(formData, "task_types"),
     cross_repo: selectedRepos.length > 0,
     cross_repo_repos: selectedRepos,
@@ -13,15 +37,9 @@ export function parseSettingsForm(formData: FormData) {
     auto_merge: minAgeBlock(formData),
     implementation_loop: doneCheckBlock(formData),
     base_image: baseImageField(formData),
+    public_mirror: parsePublicMirror(formData, stored.public_mirror),
+    release: parseReleasePatch(formData, stored.release),
   };
-
-  const trustLevel = formData.get("trust_level") as string;
-
-  if (trustLevel) {
-    updates.trust = { level: trustLevel, auto_promote_threshold: 3 };
-  }
-
-  return withoutUndefined(updates);
 }
 
 /** A chosen base image sets the key, an empty selection clears it to null, and a form without the control leaves it undefined. */
