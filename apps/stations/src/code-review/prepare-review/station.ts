@@ -14,7 +14,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { z } from "zod";
-import { preparedEvidence } from "./prepared-evidence.js";
+import { pagedPacket, preparedEvidence } from "./prepared-evidence.js";
 
 const exec = promisify(execFile);
 const collector = fileURLToPath(
@@ -38,7 +38,7 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
 
   await Promise.all(
     Object.entries(evidence).map(([name, packet]) =>
-      tools.produce(name, JSON.stringify(packet)),
+      tools.produce(name, pagedPacket(packet)),
     ),
   );
 
