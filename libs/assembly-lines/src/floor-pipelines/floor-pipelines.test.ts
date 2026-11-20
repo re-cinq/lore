@@ -108,33 +108,8 @@ const ONBOARD_AGENT_NEEDS = [
   { name: "ticket", kind: "file", path: "ticket.md" },
 ];
 
-describe("the hosted review rehearsal", () => {
-  it("gives each reader one evidence file and a fresh conversation, then retains three separate artifacts", () => {
-    const pipeline = pipelineOf("code-review-shadow");
-    const readers = [
-      ["shadow-read-code", "code_evidence", "code_reading"],
-      ["shadow-read-tests", "test_evidence", "test_reading"],
-      ["shadow-challenge-tests", "challenge_evidence", "test_challenge"],
-    ];
-
-    expect(readers.map(([id]) => pipeline.stations[id])).toMatchObject(
-      readers.map(([, input, output]) => ({
-        kind: "agent",
-        conversation: "new",
-        result_required: true,
-        needs: [{ name: input, kind: "file", path: "evidence.json" }],
-        produces: [{ name: output, kind: "file", from: "output" }],
-      })),
-    );
-    expect({ start: pipeline.line.start, fail: pipeline.line.fail }).toEqual({
-      start: undefined,
-      fail: "failed",
-    });
-  });
-});
-
 describe("the floor pipelines shipped in this folder", () => {
-  it("ships exactly the pipelines auto-merge, code-review, code-review-recheck, code-review-reply, code-review-shadow, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("ships exactly the pipelines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(
       [...PIPELINES.values()].map((pipeline) => pipeline.line.id).sort(),
     ).toEqual([
@@ -142,7 +117,6 @@ describe("the floor pipelines shipped in this folder", () => {
       "code-review",
       "code-review-recheck",
       "code-review-reply",
-      "code-review-shadow",
       "daily-digest",
       "feature-planning",
       "implementation-loop",
@@ -966,36 +940,21 @@ describe("the floor pipelines shipped in this folder", () => {
     );
   });
 
-  it("routes both formal reviews through five isolated passes before posting the verdict", () => {
+  it("routes both formal reviews through the story, the implementation check and the issue check before posting the verdict", () => {
     const route = [
       "prepare",
-      "read-code",
-      "publish-code",
-      "read-tests",
-      "publish-tests",
-      "compare-intent",
-      "publish-intent",
-      "challenge-tests",
-      "publish-challenge",
-      "review-product",
-      "publish-product",
+      "tell-story",
+      "publish-story",
+      "check-implementation",
+      "check-issue",
+      "finalize",
       "post-review",
       "done",
     ];
-    const reviewPasses = [
-      ["code_evidence"],
+    const reads = [
       ["test_evidence"],
-      ["intent_evidence", "code_reading", "test_reading", "challenge_evidence"],
-      ["challenge_evidence"],
-      [
-        "product_evidence",
-        "intent_evidence",
-        "code_reading",
-        "test_reading",
-        "intent_comparison",
-        "test_challenge",
-        "challenge_evidence",
-      ],
+      ["story", "code_evidence", "test_evidence"],
+      ["story", "issue_evidence", "code_evidence", "test_evidence"],
     ];
 
     for (const name of ["code-review", "code-review-recheck"]) {
@@ -1010,22 +969,25 @@ describe("the floor pipelines shipped in this folder", () => {
         );
 
       expect({
-        entry: line.entry,
         success: targets(route.slice(0, -1), "success"),
         failure: targets(route.slice(0, -2), "failed"),
         incomplete: edgesOn(line, "publish-incomplete"),
         passes: agents.map((agent) => [
           agent.conversation,
+          agent.agent_definition,
           agent.needs.map((need) => need.name),
         ]),
       }).toEqual({
-        entry: route[0],
         success: route.slice(1),
         failure: route.slice(0, -2).map(() => "publish-incomplete"),
         incomplete: [
           { from: "publish-incomplete", on: "always", to: "review-whole" },
         ],
-        passes: reviewPasses.map((needs) => ["new", needs]),
+        passes: [
+          ["new", "review-story", reads[0]],
+          ["new", "review-implementation", reads[1]],
+          ["new", "review-issue", reads[2]],
+        ],
       });
     }
   });
@@ -1044,7 +1006,7 @@ describe("the floor pipelines shipped in this folder", () => {
           .flatMap((node) => edgesOn(line, node))
           .map((edge) => [edge.from, edge.on, edge.to]),
       ).toEqual([
-        ["prepare", "success", "read-code"],
+        ["prepare", "success", "tell-story"],
         ["prepare", "failed", "publish-incomplete"],
         ["prepare", "whole_diff", "review-whole"],
         ["prepare", "superseded", "done"],
@@ -1867,26 +1829,28 @@ describe("test_policy on the review agent definitions", () => {
   });
 });
 
-describe("a five-pass finding is posted on the line it is about", () => {
-  it.each([
-    "shadow-compare-intent",
-    "code-review-product",
-    "shadow-review-product",
-  ])(
-    "tells %s to give every finding a location with path, line and side, and to keep what is correct out of the findings",
+describe("a gap is posted on the line it is about, with a proposal", () => {
+  it.each(["review-implementation", "review-issue"])(
+    "tells %s to give every gap a kind, a location with path, line and side, and a proposal ready to paste, and to keep what matches out of the gaps",
     (agent) => {
       const prompt = promptOnOneLine(agent);
 
-      expect([
-        prompt.includes(
-          "Every finding names the line it is about in a `location` object",
-        ),
-        prompt.includes(
-          "What is correct, complete or aligned belongs in `summary` and is never a finding",
-        ),
-      ]).toEqual([true, true]);
+      expect(
+        [
+          "Each gap has `kind`, `subject`",
+          "`location` (`path`, `line`, and `side`",
+          "`proposal` (the change you propose, as code or test code only, ready to paste)",
+          "What matches the story belongs in `summary` and is never a gap",
+        ].filter((rule) => !prompt.includes(rule)),
+      ).toEqual([]);
     },
   );
+
+  it("tells review-story to take the story from what the assertions prove, never from a title, a name or a comment", () => {
+    expect(promptOnOneLine("review-story")).toContain(
+      "A test's title, a variable name and a comment prove nothing: say only what would fail if the behaviour changed.",
+    );
+  });
 });
 
 describe("an agent under a test policy has its guard", () => {
@@ -2419,64 +2383,5 @@ it("sends a write pod that failed to the assemble join, and never back to write,
   }).toEqual({
     onFailed: [{ from: "write", to: "assemble", on: "failed" }],
     intoWrite: [{ from: "split-sections", to: "write", on: "success" }],
-  });
-});
-
-describe("the later passes of the hosted review rehearsal", () => {
-  it("compares recorded readings with intent and reviews product direction after the independent challenge", () => {
-    const { line, stations } = pipelineOf("code-review-shadow");
-    const intent = stations["shadow-compare-intent"];
-    const product = stations["shadow-review-product"];
-    const forward = line.edges.filter(({ on }) => on === "success");
-
-    expect({
-      reviewKey: line.args["review_key"],
-      readerDefinitions: [
-        stations["shadow-read-code"]?.agent_definition,
-        stations["shadow-read-tests"]?.agent_definition,
-        stations["shadow-challenge-tests"]?.agent_definition,
-      ],
-      intent: intent?.needs.map(({ name }) => name),
-      product: product?.needs.map(({ name }) => name),
-      forward: forward.map(({ from, to }) => `${from}>${to}`),
-      failed: line.edges.filter(
-        ({ from, on }) => from === "publish-incomplete" && on === "always",
-      ),
-    }).toEqual({
-      reviewKey: { kind: "value", subject: true },
-      readerDefinitions: [
-        "shadow-review-reader",
-        "shadow-review-reader",
-        "shadow-review-challenge",
-      ],
-      intent: [
-        "intent_evidence",
-        "code_reading",
-        "test_reading",
-        "challenge_evidence",
-      ],
-      product: [
-        "product_evidence",
-        "intent_evidence",
-        "code_reading",
-        "test_reading",
-        "intent_comparison",
-        "test_challenge",
-        "challenge_evidence",
-      ],
-      forward: [
-        "read-code>publish-code",
-        "publish-code>read-tests",
-        "read-tests>publish-tests",
-        "publish-tests>compare-intent",
-        "compare-intent>publish-intent",
-        "publish-intent>challenge-tests",
-        "challenge-tests>publish-challenge",
-        "publish-challenge>review-product",
-        "review-product>publish-product",
-        "publish-product>done",
-      ],
-      failed: [{ from: "publish-incomplete", to: "failed", on: "always" }],
-    });
   });
 });
