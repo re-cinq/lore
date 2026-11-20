@@ -315,7 +315,7 @@ lore-stations:
   ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
     repository: ghcr.io/re-cinq/lore-stations
-    tag: "35a7270"
+    tag: "48dde89"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
