@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 
 const GUARD = resolve(
   import.meta.dirname,
-  "../../agent-skills/skills/lore-context/guard-tests.sh",
+  "../../agent-skills/hooks/shared/.lore/guard-tests.sh",
 );
 
 function guard(
@@ -81,12 +81,12 @@ const blocked = (command: string, policy?: string) =>
 function geminiDecision(command: string, policy: string): string | null {
   const settings = JSON.parse(
     readFileSync(
-      resolve(GUARD, "../../../hooks/gemini/.gemini/settings.json"),
+      resolve(GUARD, "../../../gemini/.gemini/settings.json"),
       "utf8",
     ),
   ) as { hooks: { BeforeTool: Array<{ hooks: Array<{ command: string }> }> } };
   const home = mkdtempSync(join(tmpdir(), "lore-gemini-hook-"));
-  const staged = join(home, ".claude/skills/lore-context");
+  const staged = join(home, ".lore");
 
   mkdirSync(staged, { recursive: true });
   copyFileSync(GUARD, join(staged, "guard-tests.sh"));
@@ -108,10 +108,10 @@ function geminiDecision(command: string, policy: string): string | null {
 }
 
 describe("guard-tests hook", () => {
-  it("is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the lore-context tarball unpacks to", () => {
+  it("is wired as the Bash PreToolUse hook in the settings every pod fetches, at the path the hook bundle unpacks to", () => {
     const settings = JSON.parse(
       readFileSync(
-        resolve(GUARD, "../../../hooks/claude/.claude/settings.json"),
+        resolve(GUARD, "../../../claude/.claude/settings.json"),
         "utf8",
       ),
     ) as {
@@ -129,9 +129,7 @@ describe("guard-tests hook", () => {
         hooks: [
           {
             type: "command",
-            command: expect.stringContaining(
-              "$HOME/.claude/skills/lore-context/guard-tests.sh",
-            ),
+            command: expect.stringContaining("$HOME/.lore/guard-tests.sh"),
           },
         ],
       },
@@ -295,7 +293,7 @@ describe("guard-tests hook", () => {
     const wiring = (
       JSON.parse(
         readFileSync(
-          resolve(GUARD, "../../../hooks/claude/.claude/settings.json"),
+          resolve(GUARD, "../../../claude/.claude/settings.json"),
           "utf8",
         ),
       ) as {
@@ -387,7 +385,7 @@ describe("guard-tests hook", () => {
   it("wires the same guard into the Gemini bundle, which blocks with a decision on stdout rather than an exit code", () => {
     const settings = JSON.parse(
       readFileSync(
-        resolve(GUARD, "../../../hooks/gemini/.gemini/settings.json"),
+        resolve(GUARD, "../../../gemini/.gemini/settings.json"),
         "utf8",
       ),
     ) as {
@@ -401,9 +399,7 @@ describe("guard-tests hook", () => {
     const hook = settings.hooks.BeforeTool[0];
 
     expect(hook.matcher).toEqual("run_shell_command");
-    expect(hook.hooks[0].command).toContain(
-      "$HOME/.claude/skills/lore-context/guard-tests.sh",
-    );
+    expect(hook.hooks[0].command).toContain("$HOME/.lore/guard-tests.sh");
     expect(hook.hooks[0].command).toContain('"decision":"block"');
   });
 

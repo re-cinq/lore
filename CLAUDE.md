@@ -20,7 +20,7 @@ PR history, and task state.
   it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
   **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
   + `/skills/hooks/<vendor>.tar.gz` (a per-vendor hook bundle laid out relative to `$HOME`;
-  `hooks/claude/.claude/settings.json` wires the `lore-context` skill's `guard-tests.sh` as
+  `hooks/claude/.claude/settings.json` wires `guard-tests.sh`, which every vendor's bundle carries at `.lore/guard-tests.sh`, as
   the Bash `PreToolUse` guard and is also served as the flat `/skills/settings.json`;
   `hooks/gemini/.gemini/settings.json` wires the same script as a `BeforeTool` hook on
   `run_shell_command`, wrapped to report a refusal as the `{"decision":"block"}` document

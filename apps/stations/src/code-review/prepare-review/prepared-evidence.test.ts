@@ -2,27 +2,22 @@ import { describe, expect, it } from "vitest";
 import { preparedEvidence } from "./prepared-evidence.js";
 
 const collected = {
-  code_evidence: { mode: "code", files: [{ path: "limit.ts" }] },
   test_evidence: { mode: "tests", files: [] },
-  intent_evidence: { mode: "intent", discussion: [] },
-  challenge_evidence: { mode: "test challenge", files: [] },
-  product_evidence: { mode: "product", specs: [] },
+  code_evidence: { mode: "code", files: [{ path: "limit.ts" }] },
+  issue_evidence: { mode: "issue", discussion: [], specs: [] },
 };
 
 describe("preparedEvidence", () => {
-  it("returns the five packets the collector printed", () => {
+  it("returns the three packets the collector printed", () => {
     expect(preparedEvidence(JSON.stringify(collected))).toEqual(collected);
   });
 
-  it("adds the previous findings to the product packet of a re-check", () => {
+  it("hands the gaps still open to both checks of a re-check", () => {
     expect(
       preparedEvidence(JSON.stringify(collected), "limit.ts:1 off by one"),
     ).toMatchObject({
-      product_evidence: {
-        mode: "product",
-        specs: [],
-        previous_findings: "limit.ts:1 off by one",
-      },
+      code_evidence: { previous_gaps: "limit.ts:1 off by one" },
+      issue_evidence: { previous_gaps: "limit.ts:1 off by one" },
     });
   });
 

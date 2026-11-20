@@ -99,6 +99,7 @@ test("captures committed changes, callers, tests and fixtures from a diverged co
           role: "code",
           before: caller,
           after: caller,
+          context: true,
         },
         {
           path: "src/legacy.test.ts",
@@ -119,6 +120,7 @@ test("captures committed changes, callers, tests and fixtures from a diverged co
           after: fixture,
         },
       ],
+      terms: ["access", "legacy"],
     },
   });
 });

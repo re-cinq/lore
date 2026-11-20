@@ -136,9 +136,6 @@ describe("readFloorMigrations", () => {
         "floor/0014_commit_author_from_settings",
         "floor/0015_models_from_loop_bench",
         "floor/0016_round_closes_test_gaps_first",
-        "floor/0017_review_agents_read_paged_packets",
-        "floor/0018_review_agents_diff_first_and_guard",
-        "floor/0019_review_findings_name_their_line",
       ],
       unshipped: [],
     });
@@ -350,54 +347,6 @@ describe("floor/0016_round_closes_test_gaps_first", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt loop-tdd-round",
-    ]);
-  });
-});
-
-describe("floor/0017_review_agents_read_paged_packets", () => {
-  it("writes the shipped prompts of the five review pass agents, and nothing else", async () => {
-    const { writes } = await everyWrite(
-      "floor/0017_review_agents_read_paged_packets",
-    );
-
-    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
-      "prompt shadow-review-reader",
-      "prompt shadow-compare-intent",
-      "prompt shadow-review-challenge",
-      "prompt shadow-review-product",
-      "prompt code-review-product",
-    ]);
-  });
-});
-
-describe("floor/0018_review_agents_diff_first_and_guard", () => {
-  it("writes the shipped prompt and skills of the five review pass agents, and nothing else", async () => {
-    const { writes } = await everyWrite(
-      "floor/0018_review_agents_diff_first_and_guard",
-    );
-
-    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
-      [
-        "shadow-review-reader",
-        "shadow-compare-intent",
-        "shadow-review-challenge",
-        "shadow-review-product",
-        "code-review-product",
-      ].flatMap((agent) => [`prompt ${agent}`, `skills ${agent}`]),
-    );
-  });
-});
-
-describe("floor/0019_review_findings_name_their_line", () => {
-  it("writes the shipped prompts of the three agents that write findings, and nothing else", async () => {
-    const { writes } = await everyWrite(
-      "floor/0019_review_findings_name_their_line",
-    );
-
-    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
-      "prompt shadow-compare-intent",
-      "prompt shadow-review-product",
-      "prompt code-review-product",
     ]);
   });
 });

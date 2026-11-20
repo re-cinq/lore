@@ -4,6 +4,7 @@ import {
   discussionFor,
   productDocuments,
   productSpecs,
+  specStatements,
 } from "./lore-review-pr-context.mjs";
 
 test("human replies to the Lore thread and linked issue decisions reach the intent reader", async () => {
@@ -47,20 +48,67 @@ test("human replies to the Lore thread and linked issue decisions reach the inte
   assert.doesNotMatch(JSON.stringify(discussion), /PRIOR REVIEW/);
 });
 
-test("the base promise and the proposed replacement travel as distinct evidence", async () => {
-  const path = "specs/queue/spec.md";
+const SPEC = "specs/queue/spec.md";
+const before = [
+  "# Queue",
+  "",
+  "## Limits",
+  "",
+  "- A queue holds up to 25 items.",
+  "- A full queue refuses a new item. ([validated by](../../queue.test.ts#L4))",
+  "- An empty queue costs nothing.",
+].join("\n");
+const after = before.replace("25 items", "50 items");
+
+test("a changed spec travels as the statement it loses and the one it gains, never whole", () => {
+  assert.deepEqual(specStatements(SPEC, before, after, []), [
+    {
+      path: SPEC,
+      heading: "Limits",
+      version: "removed",
+      text: "A queue holds up to 25 items.",
+    },
+    {
+      path: SPEC,
+      heading: "Limits",
+      version: "proposed",
+      text: "A queue holds up to 50 items.",
+    },
+  ]);
+});
+
+test("an unchanged statement travels when it names a file the pull request touches", () => {
+  assert.deepEqual(specStatements(SPEC, before, before, ["queue.test.ts"]), [
+    {
+      path: SPEC,
+      heading: "Limits",
+      version: "existing",
+      text: "A full queue refuses a new item. ([validated by](../../queue.test.ts#L4))",
+    },
+  ]);
+});
+
+test("a spec with no changed statement and none about a touched file sends nothing", () => {
+  assert.deepEqual(specStatements(SPEC, before, before, ["other.ts"]), []);
+});
+
+test("the collector sends the statements of a changed spec at both commits", async () => {
   const git = async ([command, ...args]) =>
     command === "show"
       ? args[0].startsWith("base:")
-        ? "Up to 25 items"
-        : "Up to 50 items"
-      : path + "\0";
-  const specs = await productSpecs(git, "base", "head", [], []);
+        ? before
+        : after
+      : SPEC + "\0";
 
-  assert.deepEqual(specs, [
-    { path, version: "existing", text: "Up to 25 items" },
-    { path, version: "proposed", text: "Up to 50 items" },
-  ]);
+  assert.deepEqual(
+    (await productSpecs(git, "base", "head", [], [])).map(
+      ({ version, text }) => [version, text],
+    ),
+    [
+      ["removed", "A queue holds up to 25 items."],
+      ["proposed", "A queue holds up to 50 items."],
+    ],
+  );
 });
 
 test("changed prompt and UI Markdown reach product evidence separately from specifications", async () => {

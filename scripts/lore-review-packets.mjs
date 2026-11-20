@@ -1,15 +1,9 @@
+import { posix } from "node:path";
 import { z } from "zod";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
 
 const modes = ["code", "tests", "test challenge"];
 
-export const shadowEvidence = [
-  "code_evidence",
-  "test_evidence",
-  "challenge_evidence",
-  "intent_evidence",
-  "product_evidence",
-];
 const snapshot = z.object({
   files: z.array(
     z.object({
@@ -18,8 +12,10 @@ const snapshot = z.object({
       before: z.string().nullable(),
       after: z.string().nullable(),
       diff: z.string().optional(),
+      context: z.boolean().optional(),
     }),
   ),
+  terms: z.array(z.string().min(1)).optional(),
   discussion: z
     .array(
       z.object({
@@ -41,7 +37,10 @@ const snapshot = z.object({
       z.object({
         path: z.string().min(1),
         text: z.string(),
-        version: z.enum(["existing", "proposed"]).default("existing"),
+        heading: z.string().nullable().optional(),
+        version: z
+          .enum(["existing", "proposed", "removed"])
+          .default("existing"),
       }),
     )
     .default([]),
@@ -56,16 +55,72 @@ const snapshot = z.object({
     .optional(),
 });
 
-function packetFile({ path, before, after, diff }) {
-  if (before === after) {
-    return { path, unchanged: after };
-  }
+const MARGIN = 10;
 
-  return diff ? { path, diff, after } : { path, before, after };
+export function referenceStem(path) {
+  const filename = posix.basename(path, posix.extname(path));
+  const stem = filename.replace(
+    /(?:[._-](?:test|spec|tests)|Tests?|^test_)/g,
+    "",
+  );
+
+  return /^(?:index|mod|main|lib)$/.test(stem)
+    ? posix.basename(posix.dirname(path))
+    : stem;
 }
 
-function packetFor(mode, files) {
+/** Where a text names one of the stems: each naming line with its margin, overlapping ranges merged, every line led by its number in the file. */
+function usesOf(text, stems) {
+  const lines = text.split("\n");
+  const named = new RegExp(
+    `\\b(?:${stems.map((stem) => stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`,
+  );
+  const blocks = [];
+
+  lines.forEach((line, index) => {
+    if (!named.test(line)) {
+      return;
+    }
+    const range = [
+      Math.max(0, index - MARGIN),
+      Math.min(lines.length - 1, index + MARGIN),
+    ];
+    const last = blocks.at(-1);
+
+    if (last && range[0] <= last[1] + 1) {
+      last[1] = range[1];
+    } else {
+      blocks.push(range);
+    }
+  });
+
+  return blocks.map(([from, to]) =>
+    lines.slice(from, to + 1).map((line, at) => `${from + at + 1}| ${line}`),
+  );
+}
+
+// A context file goes as its uses of the changed code, and not at all when it names none: whole, such files were four fifths of a packet.
+function packetFile({ path, before, after, diff, context }, terms) {
+  if (before !== after) {
+    return [diff ? { path, diff, after } : { path, before, after }];
+  }
+
+  if (!context || after === null) {
+    return [{ path, unchanged: after }];
+  }
+  const uses = usesOf(after, terms);
+
+  return uses.length ? [{ path, uses }] : [];
+}
+
+function packetFor(mode, files, terms) {
   const selected = [];
+  const named =
+    terms ??
+    files
+      .filter((file) => file.before !== file.after)
+      .map((file) => referenceStem(file.path))
+      .filter(Boolean);
 
   for (const file of files) {
     if (/\.(md|mdx|markdown|mkd|mkdn|mdown)$/i.test(file.path)) {
@@ -79,14 +134,14 @@ function packetFor(mode, files) {
     if ((mode === "code" && test) || (mode === "tests" && !test)) {
       continue;
     }
-    selected.push(packetFile(file));
+    selected.push(...packetFile(file, named));
   }
 
   return { mode, files: selected };
 }
 
 export function reviewPackets(input) {
-  const { files, discussion, specs, documents } = snapshot.parse(input);
+  const { files, terms, discussion, specs, documents } = snapshot.parse(input);
 
   for (const file of files) {
     if (file.role === "test" || isTestFile(file.path)) {
@@ -107,11 +162,29 @@ export function reviewPackets(input) {
       );
     }
   }
-  const packets = modes.map((mode) => packetFor(mode, files));
+  const packets = modes.map((mode) => packetFor(mode, files, terms));
 
   return [
     ...packets,
     { mode: "intent", discussion },
     { mode: "product", specs, ...(documents?.length ? { documents } : {}) },
   ];
+}
+
+/** The three packets of the one-story review: what the tests assert, what the code does, and what the issue, the discussion and the specs ask for. */
+export function storyPackets(input) {
+  const [code, tests, , intent, product] = reviewPackets(input);
+  const { mode: _intent, ...asked } = intent;
+  const { mode: _product, ...promised } = product;
+
+  // What people answered on the pull request reaches both checks: a gap someone declined to fix is not asked for again.
+  const replies = (asked.discussion ?? []).filter(({ source }) =>
+    ["review_thread", "pull_request_comment"].includes(source),
+  );
+
+  return {
+    test_evidence: tests,
+    code_evidence: { ...code, ...(replies.length ? { replies } : {}) },
+    issue_evidence: { mode: "issue", ...asked, ...promised },
+  };
 }

@@ -14,7 +14,6 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
-import { z } from "zod";
 import { preparedEvidence } from "./prepared-evidence.js";
 
 const exec = promisify(execFile);
@@ -75,17 +74,10 @@ function collectorArgs(
   needs: Brief["needs"],
   { repo, prNumber }: ReturnType<typeof parsePullRequestUrl>,
 ): string[] {
-  const paths = needs.review_paths
-    ? z.array(z.string()).parse(JSON.parse(needs.review_paths))
-    : [];
-
   return [
     collector,
-    "--evidence-only",
     "--repo=" + repo,
     "--pr=" + prNumber,
     "--head=" + needs.head_sha,
-    ...(needs.since_sha ? ["--since", needs.since_sha] : []),
-    ...paths.map((path) => "--paths=" + path),
   ];
 }

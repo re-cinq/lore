@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,10 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify, parseArgs } from "node:util";
 import { buildOctokit } from "../libs/shared/dist/outbound/project/lib/platform-github-auth.js";
 import { PlatformGitHub } from "../libs/shared/dist/outbound/project/lib/platform-github.js";
-import {
-  githubHost,
-  githubPullUrl,
-} from "../libs/shared/dist/domain/github-host.js";
+import { githubHost } from "../libs/shared/dist/domain/github-host.js";
 import {
   EvidenceLimit,
   discussionFor,
@@ -17,15 +14,12 @@ import {
   productSpecs,
 } from "./lore-review-pr-context.mjs";
 
-import { reviewPackets, shadowEvidence } from "./lore-review-packets.mjs";
+import { storyPackets } from "./lore-review-packets.mjs";
 
 const exec = promisify(execFile);
 const script = (name) => fileURLToPath(new URL(name, import.meta.url));
 const { values } = parseArgs({
   options: {
-    "evidence-only": { type: "boolean" },
-    since: { type: "string" },
-    paths: { type: "string", multiple: true, default: [] },
     repo: { type: "string" },
     pr: { type: "string" },
     head: { type: "string" },
@@ -34,7 +28,6 @@ const { values } = parseArgs({
 
 function validateTarget() {
   if (
-    (values.since !== undefined && !/^[0-9a-f]{40}$/.test(values.since)) ||
     !/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") ||
     !/^[1-9]\d*$/.test(values.pr ?? "") ||
     !/^[0-9a-f]{40}$/.test(values.head ?? "")
@@ -60,7 +53,6 @@ async function prepare(cwd) {
     per_page: 1,
   });
   const mergeBase = comparison.data.merge_base_commit.sha;
-  const evidenceBase = values.since ?? mergeBase;
   const host = githubHost();
   const token = await new PlatformGitHub().getInstallationToken(values.repo, {
     contents: "read",
@@ -99,7 +91,7 @@ async function prepare(cwd) {
       "--no-tags",
       "--depth=1",
       `https://${host}/${values.repo}.git`,
-      ...new Set([mergeBase, evidenceBase, pr.head.sha, pr.base.sha]),
+      ...new Set([mergeBase, pr.head.sha, pr.base.sha]),
     ],
     { ...options, env: authEnv },
   );
@@ -114,8 +106,7 @@ async function prepare(cwd) {
         "--head",
         pr.head.sha,
         "--github-merge-base",
-        evidenceBase,
-        ...values.paths.flatMap((path) => ["--scope", path]),
+        mergeBase,
       ],
       options,
     ).then(
@@ -145,7 +136,7 @@ async function prepare(cwd) {
               "diff",
               "--no-ext-diff",
               "--no-color",
-              evidenceBase,
+              mergeBase,
               pr.head.sha,
               "--",
               ":(literal)" + file.path,
@@ -155,7 +146,7 @@ async function prepare(cwd) {
   );
   const product = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
-    productDocuments(git, evidenceBase, pr.head.sha, values.paths),
+    productDocuments(git, mergeBase, pr.head.sha),
   ]).catch((error) => {
     if (error instanceof EvidenceLimit) {
       return { status: "whole_diff", reason: error.message };
@@ -180,82 +171,24 @@ async function prepare(cwd) {
   return { snapshot, discussion, specs, documents };
 }
 
-async function launch(cwd, prepared) {
-  const runner = spawn(
-    process.execPath,
-    [
-      script("lore-review-readers.mjs"),
-      "--automatic",
-      ...(prepared ? [] : ["--shadow-incomplete"]),
-      "--shadow-revision",
-      values.head,
-      "--shadow-pr-url",
-      githubPullUrl(values.repo, Number(values.pr)),
-    ],
-    {
-      cwd,
-      env: {
-        PATH: process.env.PATH,
-        HOME: cwd,
-        GITHUB_HOST: githubHost(),
-        FLOOR_API_URL: process.env.FLOOR_API_URL,
-        FLOOR_SERVICE_TOKEN: process.env.FLOOR_SERVICE_TOKEN,
-      },
-      stdio: ["pipe", "inherit", "inherit"],
-    },
-  );
-  const done = new Promise((resolve, reject) => {
-    runner.once("error", reject);
-    runner.stdin.once("error", reject);
-    runner.once("close", (code) =>
-      code === 0 ? resolve() : reject(new Error("Floor shadow start failed")),
-    );
-  });
-
-  runner.stdin.end(
-    prepared
-      ? JSON.stringify({
-          ...prepared.snapshot,
-          discussion: prepared.discussion,
-          specs: prepared.specs,
-          documents: prepared.documents,
-        })
-      : undefined,
-  );
-  await done;
-}
-
 const cwd = await mkdtemp(join(tmpdir(), "lore-review-pr-"));
 
 try {
   validateTarget();
-  const prepared = await prepare(cwd).catch(async (error) => {
-    if (!values["evidence-only"]) {
-      await launch(cwd, null);
-    }
-    throw error;
-  });
+  const prepared = await prepare(cwd);
 
-  if (prepared.status) {
-    console.log(JSON.stringify(prepared));
-  } else if (values["evidence-only"]) {
-    const packets = reviewPackets({
-      ...prepared.snapshot,
-      discussion: prepared.discussion,
-      specs: prepared.specs,
-      documents: prepared.documents,
-    });
-
-    console.log(
-      JSON.stringify(
-        Object.fromEntries(
-          shadowEvidence.map((name, index) => [name, packets[index]]),
-        ),
-      ),
-    );
-  } else {
-    await launch(cwd, prepared);
-  }
+  console.log(
+    JSON.stringify(
+      prepared.status
+        ? prepared
+        : storyPackets({
+            ...prepared.snapshot,
+            discussion: prepared.discussion,
+            specs: prepared.specs,
+            documents: prepared.documents,
+          }),
+    ),
+  );
 } catch (error) {
   console.error(
     JSON.stringify({ status: "incomplete", reason: error.message }),

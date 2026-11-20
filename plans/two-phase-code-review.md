@@ -24,7 +24,7 @@ A focused check on merged PR #4951 used two fresh Codex processes. Given only th
 
 ## Shared skills and local reviews
 
-The local command, formal review and hosted rehearsal share one evidence filter. The formal review collects the PR revision, runs all five stages and updates one progress comment. Issue #4972 tracks the rollout. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
+The local command, formal review and hosted rehearsal share one evidence filter. The formal review collects the PR revision, runs all five stages and updates one progress comment. Issue #4972 tracks the rollout. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · Shared reader (the `lore-review-files` skill, deleted with the five passes on 2026-11-20) · [Reader runner](../scripts/lore-review-readers.mjs)
 
 The organisation skill catalogue is the shared source for the hosted harness and local developers. Lore’s gateway serves catalogue skills to agents, and the local MCP server syncs enabled skills into Claude Code. [Skill catalogue](../libs/shared/src/agent-defaults/skills) · [Gateway](../apps/mcp-server/src/transport/skills-registry.ts) · [Local sync](../apps/mcp-server/src/transport/skills-sync.ts)
 
