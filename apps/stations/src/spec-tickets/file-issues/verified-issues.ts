@@ -106,14 +106,10 @@ function coverageContext(
   { filed, counted, original }: CoverageSources,
 ) {
   const { spec } = context;
-  const tasks = filed.stories.flatMap((story) => story.tasks);
+  const tasks = tasksOf(filed);
   const options = { implementationVerified: true };
   const covered = spec
-    ? issueCoverage(
-        spec.specs,
-        counted.stories.flatMap((story) => story.tasks),
-        presentStatements(original),
-      )
+    ? issueCoverage(spec.specs, tasksOf(counted), presentStatements(original))
     : undefined;
   const coverage =
     covered && spec
@@ -124,6 +120,10 @@ function coverageContext(
     nothingRemaining: tasks.length === 0 && covered?.missing.length === 0,
     story: { ...context.story, coverage },
   };
+}
+
+function tasksOf(decomposition: DecompositionResult) {
+  return decomposition.stories.flatMap((story) => story.tasks);
 }
 
 function filingResult(

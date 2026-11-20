@@ -167,7 +167,6 @@ function scene(
       { ...brief, needs: { ...needs, verified_decomposition: "verified" } },
       tools,
     );
-  /** Files what the dedupe step left of the verified decomposition once it dropped `dropped` as held by another ticket. */
   const fileWithout = (dropped: string) => {
     const verified = JSON.parse(artifacts.verified_decomposition);
     const stories = verified.stories.map(

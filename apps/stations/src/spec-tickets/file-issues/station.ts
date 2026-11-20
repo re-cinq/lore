@@ -50,10 +50,8 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
     try {
       const artifact = filedArtifact(brief.needs);
       const verified = artifact !== "decomposition";
-      const decomposition = (await tools.read(artifact)).toString("utf8");
-      const filing = await filingOf(deps, brief, decomposition);
-      const { project } = filing;
-      const input = await withCounted(filing.input, artifact, brief, tools);
+      const decompositions = await decompositionsOf(artifact, brief, tools);
+      const { input, project } = await filingOf(deps, brief, decompositions);
 
       const result = await (verified
         ? verifiedIssues(input, project, tools)
@@ -81,22 +79,24 @@ function filedArtifact(needs: Brief["needs"]): string {
   return filed ?? "decomposition";
 }
 
+interface Decompositions {
+  feature_decomposition: string;
+  counted_decomposition?: string;
+}
+
 // The story counts the tasks the coverage step counts: a task the dedupe step dropped is held by the ticket it duplicates, and a story listing its statements as uncovered fails that step.
-async function withCounted(
-  input: StationInput,
+async function decompositionsOf(
   artifact: string,
   { needs }: Brief,
   tools: Tools,
-): Promise<StationInput> {
-  if (artifact !== "deduped_decomposition" || !needs.verified_decomposition) {
-    return input;
-  }
-  const counted = (await tools.read("verified_decomposition")).toString("utf8");
+): Promise<Decompositions> {
+  const read = async (name: string) =>
+    (await tools.read(name)).toString("utf8");
+  const filed = { feature_decomposition: await read(artifact) };
 
-  return {
-    ...input,
-    params: { ...input.params, counted_decomposition: counted },
-  };
+  return artifact === "deduped_decomposition" && needs.verified_decomposition
+    ? { ...filed, counted_decomposition: await read("verified_decomposition") }
+    : filed;
 }
 
 async function saveStoryOnSourcePlan(
@@ -115,9 +115,9 @@ async function saveStoryOnSourcePlan(
 async function filingOf(
   deps: SpecTicketsIssuesDeps,
   brief: Brief,
-  decomposition: string,
+  decompositions: Decompositions,
 ) {
-  const unnamed = await stationInputOf(deps, brief, decomposition);
+  const unnamed = await stationInputOf(deps, brief, decompositions);
   const project = await deps.project(unnamed.repo);
 
   return { project, input: await titledAfterSpec(unnamed, project) };
@@ -173,7 +173,7 @@ async function verifiedIssues(
 async function stationInputOf(
   deps: SpecTicketsIssuesDeps,
   { visitId, needs }: Brief,
-  decomposition: string,
+  decompositions: Decompositions,
 ): Promise<StationInput> {
   return {
     assembly_run_id: await runIdOf(deps, visitId),
@@ -182,7 +182,7 @@ async function stationInputOf(
     ...parseGitRef(needs.target),
     task_id: null,
     params: {
-      feature_decomposition: decomposition,
+      ...decompositions,
       filing_key: specFilingKey(needs.spec_path),
       spec_path: needs.spec_path,
     },

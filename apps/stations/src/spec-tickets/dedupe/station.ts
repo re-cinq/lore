@@ -93,12 +93,11 @@ async function dedupeVisit(
   needs: Brief["needs"],
   tools: Tools,
 ): Promise<void> {
-  const { repo } = parseGitRef(needs.target);
   const decomposition = parseDecomposition(
     parseModelJson(await readText(tools, "verified_decomposition")),
   );
-  const own = await ownTicketsOf(deps, repo, needs.spec_path, tools);
-  const visit = { deps, repo, own, tools };
+  const own = await ownTicketsOf(deps, needs, tools);
+  const visit = { deps, repo: parseGitRef(needs.target).repo, own, tools };
   const judged = await pooled(newTasks(decomposition, own), (task) =>
     judgementOf(visit, task),
   );
@@ -118,15 +117,17 @@ async function readText(tools: Tools, name: string): Promise<string> {
 // Read at this visit, not from the load step's file: a round sent back to decompose files tickets the load step never saw, and a task judged a duplicate of its own ticket closes it.
 async function ownTicketsOf(
   deps: DedupeDeps,
-  repo: string,
-  specPath: string | undefined,
+  needs: Brief["needs"],
   tools: Tools,
 ): Promise<OwnTickets> {
   // A line version that hands this step no spec_path has only the load step's listing.
-  if (!specPath) {
+  if (!needs.spec_path) {
     return listedTickets(await readText(tools, "existing_tickets"));
   }
-  const { story, tasks } = await deps.filed(repo, specFilingKey(specPath));
+  const { story, tasks } = await deps.filed(
+    parseGitRef(needs.target).repo,
+    specFilingKey(needs.spec_path),
+  );
   const issues = [...tasks.values(), ...(story ? [story] : [])];
 
   return {
