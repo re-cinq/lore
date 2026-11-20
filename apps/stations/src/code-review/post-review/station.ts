@@ -18,6 +18,8 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { maybePostReview, type ReviewPoster } from "./post-review.js";
 import { reviewModelOf } from "./review-model.js";
+import { loreAppLogin } from "@re-cinq/lore-shared/project/github-installations/lore-app-login.js";
+import { loreReviewerGitHub } from "@re-cinq/lore-shared/project/github-installations/lore-reviewer.js";
 import { parsePullRequestUrl } from "@re-cinq/lore-shared/floor/floor-items.js";
 import {
   findingCountOf,
@@ -31,7 +33,10 @@ export interface ReviewProject {
     resolveReviewThread(threadId: string): Promise<void>;
     get(
       number: number,
-    ): Promise<Pick<PullRef, "headSha" | "baseBranch" | "state"> | null>;
+    ): Promise<Pick<
+      PullRef,
+      "headSha" | "baseBranch" | "state" | "author"
+    > | null>;
     getBranchRule(
       branch: string,
     ): Promise<Pick<BranchRule, "requiredApprovals">>;
@@ -42,6 +47,11 @@ export interface ReviewProject {
 export interface PostReviewDeps {
   project(repo: string): Promise<ReviewProject>;
   reviewModel(visitId: string): Promise<string | undefined>;
+  /** How lore-reviewer posts a review on a pull request `author` opened; nothing when Lore's own App may give the verdict there. */
+  reviewerFor(
+    repo: string,
+    author: string | undefined,
+  ): Promise<ReviewPoster["createReview"] | undefined>;
 }
 
 const productionDeps: PostReviewDeps = {
@@ -54,6 +64,13 @@ const productionDeps: PostReviewDeps = {
     };
   },
   reviewModel: reviewModelOf,
+  reviewerFor: async (repo, author) => {
+    const reviewer = loreReviewerGitHub();
+
+    return reviewer && author !== undefined && author === (await loreAppLogin())
+      ? (number, input) => reviewer.createReview(repo, number, input)
+      : undefined;
+  },
 };
 
 /** The PR state one visit acts on: the head commit the check names. */
@@ -102,6 +119,8 @@ async function settleReview(
 
 interface ReviewVisitState {
   project: ReviewProject;
+  /** Who posts the review: lore-reviewer on a pull request Lore's own App opened, where GitHub takes a verdict and inline comments from no one else of Lore's. */
+  poster: ReviewPoster;
   /** The base branch's rule requires an approval: there the review does not approve, since the auto-merge loop gives the approval that counts (specs/protected-branch-merge). */
   approvalCounts: boolean;
   target: ReviewTarget;
@@ -124,6 +143,7 @@ async function openVisit(
 
   return {
     project,
+    poster: posterFor(project.pulls, await deps.reviewerFor(repo, pull.author)),
     approvalCounts: await approvalCountsOn(project, pull),
     target: { prNumber, headSha },
   };
@@ -135,7 +155,7 @@ async function deliverReview(
   visit: ReviewVisitState,
   { agentOutput }: { agentOutput: string; verdict: ReviewVerdict },
 ): Promise<void> {
-  await postToPullRequest(brief, visit.project.pulls, visit.target.prNumber, {
+  await postToPullRequest(brief, visit.poster, visit.target.prNumber, {
     agentOutput,
     model: await deps.reviewModel(brief.visitId),
     allowApprove: !visit.approvalCounts,
@@ -204,9 +224,26 @@ interface PostOptions {
   commitId: string;
 }
 
+function posterFor(
+  pulls: ReviewPoster,
+  createReview: ReviewPoster["createReview"] | undefined,
+): ReviewPoster {
+  if (!createReview) {
+    return pulls;
+  }
+
+  return {
+    createReview,
+    comment: (number, body) => pulls.comment(number, body),
+    getDiff: (number) => pulls.getDiff(number),
+    listReviews: pulls.listReviews?.bind(pulls),
+    listIssueComments: pulls.listIssueComments?.bind(pulls),
+  };
+}
+
 async function postToPullRequest(
   brief: Brief,
-  pulls: ReviewProject["pulls"],
+  pulls: ReviewPoster,
   prNumber: number,
   opts: PostOptions,
 ): Promise<void> {

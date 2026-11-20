@@ -36,14 +36,16 @@ const toolsReading = (output: string): Tools => ({
 
 interface FakeOverrides {
   requiredApprovals?: number;
+  author?: string;
 }
 
 function fakeProject(
   refusal?: string,
   model?: string,
-  { requiredApprovals = 0 }: FakeOverrides = {},
+  { requiredApprovals = 0, author = "gedaiu" }: FakeOverrides = {},
 ) {
   const reviews: CreateReviewInput[] = [];
+  const reviewerReviews: CreateReviewInput[] = [];
   const comments: string[] = [];
   const checks: CheckRunInput[] = [];
   const repos: string[] = [];
@@ -67,6 +69,7 @@ function fakeProject(
         headSha: "livesha",
         state: "open",
         baseBranch: "main",
+        author,
       }),
       getBranchRule: async (branch: string) => {
         ruleReads.push(branch);
@@ -107,11 +110,18 @@ function fakeProject(
       return project;
     },
     reviewModel: async () => model,
+    reviewerFor: async (_repo: string, opener: string | undefined) =>
+      opener === "lore-agent[bot]"
+        ? async (_number: number, input: CreateReviewInput) => {
+            reviewerReviews.push(input);
+          }
+        : undefined,
   };
 
   return {
     deps,
     reviews,
+    reviewerReviews,
     comments,
     checks,
     repos,
@@ -165,6 +175,30 @@ describe("postReviewHandle", () => {
       resolved: [],
     });
   });
+
+  it.each([
+    ["lore-agent[bot]", [0, 1]],
+    ["gedaiu", [1, 0]],
+  ])(
+    "posts the review of a pull request %s opened as [Lore's App, lore-reviewer] = %j, inline comments included, since GitHub takes no verdict from the account that opened it",
+    async (author, posted) => {
+      const { deps, reviews, reviewerReviews } = fakeProject(
+        undefined,
+        undefined,
+        { author },
+      );
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading(changesRequestedOutput),
+      );
+
+      expect([reviews.length, reviewerReviews.length]).toEqual(posted);
+      expect([...reviews, ...reviewerReviews]).toMatchObject([
+        { event: "REQUEST_CHANGES" },
+      ]);
+    },
+  );
 
   it("looks the head sha up on the pull request when the brief carries none", async () => {
     const { deps, checks } = fakeProject();

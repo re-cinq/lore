@@ -138,6 +138,7 @@ describe("readFloorMigrations", () => {
         "floor/0016_round_closes_test_gaps_first",
         "floor/0017_review_agents_read_paged_packets",
         "floor/0018_review_agents_diff_first_and_guard",
+        "floor/0019_review_findings_name_their_line",
       ],
       unshipped: [],
     });
@@ -384,6 +385,20 @@ describe("floor/0018_review_agents_diff_first_and_guard", () => {
         "code-review-product",
       ].flatMap((agent) => [`prompt ${agent}`, `skills ${agent}`]),
     );
+  });
+});
+
+describe("floor/0019_review_findings_name_their_line", () => {
+  it("writes the shipped prompts of the three agents that write findings, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0019_review_findings_name_their_line",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt shadow-compare-intent",
+      "prompt shadow-review-product",
+      "prompt code-review-product",
+    ]);
   });
 });
 
