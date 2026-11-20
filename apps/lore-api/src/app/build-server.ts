@@ -13,6 +13,9 @@ import { trustedClientAddress } from "../transport/http/client-ip.js";
 import { registerRateLimit } from "../transport/http/rate-limit.js";
 import { registerBearerScope } from "../transport/http/bearer-scope.js";
 import { registerRunRepoGuard } from "../transport/http/run-repo-guard.js";
+import { registerRepoGuard } from "../transport/http/repo-guard.js";
+import { createRepoAccess } from "../work/auth/repo-access.js";
+import { repoAccessPorts } from "../outbound/repo-access-ports.js";
 import { runRepoOf } from "../work/auth/run-repo.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -51,6 +54,7 @@ export function buildServer(
   registerRequestTracing(server, TRACING);
   registerRateLimit(server);
   registerBearerScope(server, getPool);
+  registerRepoGuard(server, createRepoAccess(repoAccessPorts(getPool)));
   registerRunRepoGuard(server, (runId) => runRepoOf(poolOf(getPool), runId));
 
   const routes = registerRoutes(server, getPool, planFloor);

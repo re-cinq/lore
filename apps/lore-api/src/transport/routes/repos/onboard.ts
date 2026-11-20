@@ -11,6 +11,7 @@ import { z } from "zod";
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { enforceRepoOpen } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { OkFalse, OkTrue } from "../../http/ok-schema.js";
@@ -79,6 +80,8 @@ async function serveOnboard(
 ): Promise<ResponseObject> {
   try {
     const { repo, reonboard } = request.payload as OnboardBody;
+
+    await enforceRepoOpen(request, repo);
     const result = await onboardRepo(pool, repo, { reonboard });
 
     // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.

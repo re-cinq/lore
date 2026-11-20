@@ -1,0 +1,121 @@
+import { describe, it, expect, vi } from "vitest";
+import {
+  createRepoAccess,
+  REFUSAL_TTL_MS,
+  SIGN_IN_LIST_ONLY,
+  type Asker,
+} from "./repo-access.js";
+import type { RepoPermission } from "../../outbound/repo-access-ports.js";
+
+function person(repos: string[], tokenHash = "ana-hash"): Asker {
+  return { tokenHash, user: { login: "ana", repos } };
+}
+
+const SERVICE: Asker = { user: null, tokenHash: null };
+
+function access(answer: RepoPermission | Error = "none") {
+  let clock = 1_000;
+  const permissionOf = vi.fn(async () => {
+    if (answer instanceof Error) {
+      throw answer;
+    }
+
+    return answer;
+  });
+  const remember = vi.fn(async () => {});
+
+  return {
+    permissionOf,
+    remember,
+    later: (ms: number) => (clock += ms),
+    ...createRepoAccess({ permissionOf, remember, now: () => clock }),
+  };
+}
+
+describe("repo access", () => {
+  it("lets a service token open any repo without asking GitHub", async () => {
+    const lore = access();
+
+    expect({
+      open: await lore.canOpen(SERVICE, "other/secret"),
+      asked: lore.permissionOf.mock.calls.length,
+    }).toEqual({ open: true, asked: 0 });
+  });
+
+  it("lets a person open a repo of their sign-in list, in any letter case, without asking GitHub", async () => {
+    const lore = access();
+
+    expect({
+      open: await lore.canOpen(person(["Acme/App"]), "acme/app"),
+      asked: lore.permissionOf.mock.calls.length,
+    }).toEqual({ open: true, asked: 0 });
+  });
+
+  it.each(["read", "write", "admin"] as const)(
+    "lets a person open a repo outside their list when GitHub says %s today, and remembers it on their session",
+    async (permission) => {
+      const lore = access(permission);
+
+      expect({
+        open: await lore.canOpen(person([]), "acme/new-repo"),
+        asked: lore.permissionOf.mock.calls,
+        remembered: lore.remember.mock.calls,
+      }).toEqual({
+        open: true,
+        asked: [["ana", "acme/new-repo"]],
+        remembered: [["ana-hash", "acme/new-repo"]],
+      });
+    },
+  );
+
+  it("refuses a repo outside the list when GitHub says none, and remembers nothing", async () => {
+    const lore = access("none");
+
+    expect({
+      open: await lore.canOpen(person([]), "other/secret"),
+      remembered: lore.remember.mock.calls.length,
+    }).toEqual({ open: false, remembered: 0 });
+  });
+
+  it("refuses when GitHub cannot be asked, never granting on an error", async () => {
+    const lore = access(new Error("GitHub is down"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await lore.canOpen(person([]), "acme/app")).toBe(false);
+    warn.mockRestore();
+  });
+
+  it("asks GitHub once for a refused repo, then again after the refusal has aged out", async () => {
+    const lore = access("none");
+    const ana = person([]);
+
+    await lore.canOpen(ana, "other/secret");
+    await lore.canOpen(ana, "Other/Secret");
+    const beforeExpiry = lore.permissionOf.mock.calls.length;
+
+    lore.later(REFUSAL_TTL_MS + 1);
+    await lore.canOpen(ana, "other/secret");
+
+    expect({
+      beforeExpiry,
+      afterExpiry: lore.permissionOf.mock.calls.length,
+    }).toEqual({ beforeExpiry: 1, afterExpiry: 2 });
+  });
+
+  it("keeps one session's refusal from answering for another session or another repo", async () => {
+    const lore = access("none");
+
+    await lore.canOpen(person([], "ana-hash"), "other/secret");
+    await lore.canOpen(person([], "ben-hash"), "other/secret");
+    await lore.canOpen(person([], "ana-hash"), "other/second");
+
+    expect(lore.permissionOf.mock.calls.length).toBe(3);
+  });
+
+  it("answers from the sign-in list alone when a server has no GitHub to ask", async () => {
+    expect({
+      listed: await SIGN_IN_LIST_ONLY.canOpen(person(["acme/app"]), "acme/app"),
+      unlisted: await SIGN_IN_LIST_ONLY.canOpen(person([]), "acme/app"),
+    }).toEqual({ listed: true, unlisted: false });
+  });
+});

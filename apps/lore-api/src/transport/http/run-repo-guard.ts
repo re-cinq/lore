@@ -2,10 +2,10 @@
 
 import type { Request, ResponseToolkit, Server } from "@hapi/hapi";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { repoAllowed } from "../../work/auth/login-grant.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { UserIdentity } from "./auth.js";
 import { principalOf } from "./bearer-scope.js";
+import { enforceRepoOpen } from "./repo-guard.js";
 
 /** The run routes and their older spelling, which serves the same reads. */
 const RUN_ROUTES = ["/api/assembly-runs/", "/api/assembly-lines/"];
@@ -21,7 +21,10 @@ export function registerRunRepoGuard(server: Server, repoOf: RunRepoOf): void {
     if (!user || !runId || !namesRun(request.path)) {
       return h.continue;
     }
-    enforceReadable(user, await repoOf(runId));
+    const repo = await repoOf(runId);
+
+    enforceTrue(repo !== null, apiError(404), "run not found");
+    await enforceRepoOpen(request, repo);
 
     return h.continue;
   });
@@ -33,13 +36,4 @@ function namesRun(path: string): boolean {
 
 function personOf(request: Request): UserIdentity | null {
   return request.auth.isAuthenticated ? principalOf(request).user : null;
-}
-
-function enforceReadable(user: UserIdentity, repo: string | null): void {
-  enforceTrue(repo !== null, apiError(404), "run not found");
-  enforceTrue(
-    repoAllowed({ user }, repo),
-    apiError(403),
-    "repository not allowed",
-  );
 }
