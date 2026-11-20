@@ -142,6 +142,16 @@ jobs:
           LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/outbound/project/settings/settings-rename-mirror.contract.test.ts
 
+      - name: Public mirror knowledge move against real Postgres
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run --root libs/shared src/outbound/project/settings/repo-move.contract.test.ts
+
       - name: Settings route mirror checks against real Postgres
         working-directory: apps/lore-api
         env:

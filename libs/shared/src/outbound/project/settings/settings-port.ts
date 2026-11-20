@@ -2,6 +2,7 @@ import { REPO_COLUMNS, type Repo } from "../../../domain/models/repo.js";
 import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
 import type { LoopPause } from "../../../domain/loops/loop-pause.js";
 import type { RepoSettings } from "../../../domain/models/repo-settings.js";
+import type { KnowledgeMoveCount, KnowledgeMoveOptions } from "./repo-move.js";
 
 /** One lore.repos column per named field, typed off the model. */
 type RepoColumn<K extends keyof Repo> = {
@@ -87,6 +88,14 @@ export interface SettingsPort {
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
   /** Follows a GitHub rename (#2040): the row under `from` takes the name `to`, or, when onboarding already created a `to` row, hands it the agent definitions it lacks and is deleted. */
   renameRepo(from: string, to: string): Promise<RepoRenameOutcome>;
+  /** Moves what Lore stored under a public mirror's name to its private repo, in one transaction; a dry run reports the same counts and changes nothing. */
+  moveKnowledge(
+    mirror: string,
+    privateRepo: string,
+    options: KnowledgeMoveOptions,
+  ): Promise<KnowledgeMoveCount[]>;
+  /** Folds the mirror's repo row into the private repo's, which keeps every setting it has, and deletes the mirror's row. */
+  absorbMirrorRow(mirror: string, privateRepo: string): Promise<void>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
   bumpOutcomeStats(
     repo: string,

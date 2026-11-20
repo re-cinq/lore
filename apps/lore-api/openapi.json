@@ -8568,6 +8568,93 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/mirror/move": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_mirror_move",
+        "summary": "POST /api/repos/{owner}/{repo}/mirror/move",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "What moving the public mirror's stored knowledge to this repository did, per table; a dry run reports the same counts and changes nothing, and a real run needs `confirm` to be the mirror's full name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MirrorMoveResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "string"
+                  },
+                  "dry_run": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/onboarded": {
       "get": {
         "operationId": "get_api_repos_owner_repo_onboarded",
@@ -20660,6 +20747,66 @@
           }
         },
         "required": ["results"],
+        "additionalProperties": false
+      },
+      "MirrorMoveResult": {
+        "type": "object",
+        "properties": {
+          "mirror": {
+            "type": "string"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "moved": {
+                  "type": "number"
+                },
+                "kept_conflict": {
+                  "type": "number"
+                }
+              },
+              "required": ["table", "moved", "kept_conflict"],
+              "additionalProperties": false
+            }
+          },
+          "cancelled_runs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mirror_variable": {
+            "type": "object",
+            "properties": {
+              "set": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": ["set"],
+            "additionalProperties": false
+          },
+          "mirror_row_deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mirror",
+          "dry_run",
+          "tables",
+          "cancelled_runs",
+          "mirror_row_deleted"
+        ],
         "additionalProperties": false
       },
       "NodeLogs": {

@@ -1935,6 +1935,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/mirror/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/mirror/move */
+    post: operations["post_api_repos_owner_repo_mirror_move"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/onboarded": {
     parameters: {
       query?: never;
@@ -4969,6 +4986,21 @@ export interface components {
       results: {
         [key: string]: unknown;
       }[];
+    };
+    MirrorMoveResult: {
+      mirror: string;
+      dry_run: boolean;
+      tables: {
+        table: string;
+        moved: number;
+        kept_conflict: number;
+      }[];
+      cancelled_runs: string[];
+      mirror_variable?: {
+        set: boolean;
+        reason?: string;
+      };
+      mirror_row_deleted: boolean;
     };
     NodeLogs: {
       available: boolean;
@@ -10836,6 +10868,44 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_mirror_move: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          confirm?: string;
+          dry_run?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description What moving the public mirror's stored knowledge to this repository did, per table; a dry run reports the same counts and changes nothing, and a real run needs `confirm` to be the mirror's full name */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MirrorMoveResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

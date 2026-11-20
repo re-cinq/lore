@@ -9,6 +9,12 @@ import type {
   RepoRenameOutcome,
   WorkflowState,
 } from "./settings-port.js";
+import type { KnowledgeMoveCount, KnowledgeMoveOptions } from "./repo-move.js";
+import { InMemoryKnowledge } from "./repo-move-memory.js";
+import {
+  settingsAfterMirrorMerge,
+  settingsWithoutLink,
+} from "./repo-move-row.js";
 import { isMirror, mirrorNameOf } from "./seeded-mirror.js";
 import { toRepoRecord } from "./seeded-repo.js";
 
@@ -52,6 +58,9 @@ export class InMemorySettings implements SettingsPort {
     file: string;
     ref: string;
   }> = [];
+
+  /** The knowledge stored under repository names, seeded by a test that moves a mirror's. */
+  readonly knowledge = new InMemoryKnowledge();
 
   /** Org-wide settings by key, seeded by a test that reads one. */
   readonly org: Record<string, string> = {};
@@ -257,6 +266,32 @@ export class InMemorySettings implements SettingsPort {
       return;
     }
     this.repos.push({ full_name: repo, onboarding_pr_url: url });
+  }
+
+  async moveKnowledge(
+    mirror: string,
+    privateRepo: string,
+    options: KnowledgeMoveOptions,
+  ): Promise<KnowledgeMoveCount[]> {
+    return this.knowledge.move(mirror, privateRepo, options);
+  }
+
+  async absorbMirrorRow(mirror: string, privateRepo: string): Promise<void> {
+    const source = this.row(mirror);
+    const target = this.row(privateRepo);
+
+    if (!source || !target) {
+      return;
+    }
+    this.repointCrossRepoLinks(mirror, privateRepo);
+    target.settings = settingsWithoutLink(
+      settingsAfterMirrorMerge(
+        source.settings ?? null,
+        target.settings ?? null,
+      ),
+      privateRepo,
+    );
+    this.repos.splice(this.repos.indexOf(source), 1);
   }
 
   async renameRepo(from: string, to: string): Promise<RepoRenameOutcome> {

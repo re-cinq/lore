@@ -92,6 +92,7 @@ import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
 import { changelogRoutes } from "./routes/changelog/changelog-routes.js";
+import { mirrorMoveRoute } from "./routes/mirror/mirror-move.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
@@ -242,6 +243,7 @@ function backlogRoutes(
     ...implementationLoopRoutes(getPool),
     ...loopsRoutes(getPool),
     ...changelogRoutes(getPool),
+    mirrorMoveRoute(getPool),
   ];
 }
 
