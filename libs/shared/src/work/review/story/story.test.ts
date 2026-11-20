@@ -240,6 +240,21 @@ describe("formalReview", () => {
     });
   });
 
+  it("shows inline code in a check's note as written, and escapes the prose around it", () => {
+    const noted = answer({
+      status: "complete",
+      summary: "`changes_requested` and `a[0]` hold, but a_b does not.",
+      gaps: [],
+    });
+
+    expect(
+      storyReview({ story, implementation_check: noted }, 2).comment(
+        REVISION,
+        "running",
+      ),
+    ).toContain("`changes_requested` and `a[0]` hold, but a\\_b does not.");
+  });
+
   it("returns nothing until all three passes are complete", () => {
     expect(formalReview({ story, implementation_check: matches })).toBe(
       undefined,
