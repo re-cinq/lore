@@ -138,6 +138,7 @@ describe("readFloorMigrations", () => {
         "floor/0016_round_closes_test_gaps_first",
         "floor/0020_checks_claim_only_what_they_read",
         "floor/0021_issue_check_reads_the_implementation_check",
+        "floor/0022_every_agent_on_gemini",
       ],
       unshipped: [],
     });
@@ -378,6 +379,32 @@ describe("floor/0021_issue_check_reads_the_implementation_check", () => {
   });
 });
 
+describe("floor/0022_every_agent_on_gemini", () => {
+  it("writes the model of every agent a pipeline names that ran on Claude, fifteen of them, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0022_every_agent_on_gemini");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual(
+      [
+        "loop-tdd-round",
+        "loop-test-review",
+        "spec-upkeep-update-specs",
+        "onboard-author",
+        "review-story",
+        "review-implementation",
+        "review-issue",
+        "review-docs",
+        "code-review-refine",
+        "plan-analyze",
+        "plan-sketch",
+        "plan-validate",
+        "spec-analysis",
+        "spec-write",
+        "spec-rework",
+      ].map((agent) => `model ${agent}`),
+    );
+  });
+});
+
 describe("updateSkills", () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -504,13 +531,13 @@ describe("updateModel", () => {
     });
   });
 
-  it("writes loop-tdd-round's shipped claude-sonnet-5-5 and drops the prices it ships none of", async () => {
+  it("writes changelog-intro's shipped gemini-3-flash-preview and drops the prices it ships none of", async () => {
     const { prices: _dropped, ...settings } = {
       ...saved.settings,
-      model: "claude-sonnet-5-5",
+      model: "gemini-3-flash-preview",
     };
 
-    expect(await updated("loop-tdd-round", saved)).toEqual({
+    expect(await updated("changelog-intro", saved)).toEqual({
       ...saved,
       settings,
     });
