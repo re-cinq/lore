@@ -2,9 +2,9 @@
 
 **Proposed for the code-review and code-review-recheck assembly lines.** A PR author sees one evolving GitHub comment and one final verdict for the reviewed commit. Lore first establishes what the implementation does and what the tests prove. It then compares those independent accounts with human intent, challenges the tests, and evaluates the product impact.
 
-The earlier two-phase replay caught a missing refusal test and an unrelated status change, but missed a confirmed parser defect and produced unsupported blockers. Use those cases for calibration. The five-pass replay on fresh cases found incomplete verdicts and false blockers. Keep the production merge decision with the current reviewer while the five-pass line runs in shadow. [Five-pass pilot](../docs/building-lore/five-pass-pilot-2026-11-19.md) [Historical results and example comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
+The earlier two-phase replay caught a missing refusal test and an unrelated status change, but missed a confirmed parser defect and produced unsupported blockers. Use those cases for calibration. The five-pass replay on fresh cases found incomplete verdicts and false blockers. The five-pass workflow now supplies the formal verdict for initial reviews and rechecks. The pilot results below record the earlier shadow evaluation. [Five-pass pilot](../docs/building-lore/five-pass-pilot-2026-11-19.md) [Historical results and example comments](../docs/building-lore/two-phase-review-replay-2026-11-19.md)
 
-The rollout is tracked in [issue #4972](https://github.com/re-cinq/lore/issues/4972). The owning specs cover [review behavior](../specs/auto-review-loop/spec.md#proposed-five-pass-review), [floor execution](../specs/external-floor/spec.md#proposed-five-pass-review-execution) and [shared and local skills](../specs/org-skills/spec.md#proposed-code-review-skills).
+The rollout is tracked in [issue #4972](https://github.com/re-cinq/lore/issues/4972). The owning specs cover [review behavior](../specs/auto-review-loop/spec.md#five-pass-code-review), [floor execution](../specs/external-floor/spec.md#five-pass-review-execution) and [shared and local skills](../specs/org-skills/spec.md#proposed-code-review-skills).
 
 ## What each reviewer sees and produces
 
@@ -24,7 +24,7 @@ A focused check on merged PR #4951 used two fresh Codex processes. Given only th
 
 ## Shared skills and local reviews
 
-The local command and hosted shadow line share one evidence filter. The allowlisted shadow line collects the PR revision, runs all five stages and updates a single PR comment. Issue #4972 tracks production rollout. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
+The local command, formal review and hosted rehearsal share one evidence filter. The formal review collects the PR revision, runs all five stages and updates one progress comment. Issue #4972 tracks the rollout. [Local command](../libs/shared/src/agent-defaults/skills/lore-review.md) · [Shared reader](../libs/shared/src/agent-defaults/skills/lore-review-files.md) · [Reader runner](../scripts/lore-review-readers.mjs)
 
 The organisation skill catalogue is the shared source for the hosted harness and local developers. Lore’s gateway serves catalogue skills to agents, and the local MCP server syncs enabled skills into Claude Code. [Skill catalogue](../libs/shared/src/agent-defaults/skills) · [Gateway](../apps/mcp-server/src/transport/skills-registry.ts) · [Local sync](../apps/mcp-server/src/transport/skills-sync.ts)
 
@@ -41,9 +41,9 @@ Capture the local change once so all five passes review the same snapshot. Each 
 
 ## Delivery and proof
 
-### Automatic shadow reviews
+### Formal reviews
 
-The internal chart opts `re-cinq/lore` into shadow evaluation. Starting its normal review or recheck also starts a shadow run for the PR head. Other installations can opt repositories in through `LORE_REVIEW_SHADOW_REPOS` on the API and stations services. Removing a repository from the list stops new automatic shadow launches. The existing reviewer continues to own the formal GitHub review and check.
+The normal review and recheck lines collect evidence and run all five passes for the reviewed head. A failed or incomplete pass leaves a failed check. The shadow line remains available for manual rehearsal.
 
 The collector reads immutable Git objects from a private temporary bare repository. It includes direct module consumers, related tests and fixtures, and convention-based route handlers for a middleware change. A missing file, unsupported file mode, binary or oversized packet can leave a review incomplete. Human discussion and product documents enter only after the independent readings. [Evidence collector](../scripts/lore-review-pr.mjs)
 

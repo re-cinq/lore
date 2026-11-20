@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { RunView } from "@re-cinq/floor-client";
 import type {
   CheckRunInput,
@@ -203,42 +203,6 @@ describe("startReview", () => {
     expect(comments).toEqual([]);
   });
 
-  it("returns and announces the manual baseline run when its shadow launch fails", async () => {
-    const { deps, comments } = scene();
-    const error = new Error("shadow unavailable");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const startShadow = vi.fn().mockRejectedValue(error);
-
-    try {
-      const runId = await startReview(
-        { ...deps, startShadow },
-        { ...TARGET, forced: true },
-      );
-
-      expect(startShadow).toHaveBeenCalledExactlyOnceWith(
-        "re-cinq/lore",
-        412,
-        "sha-new",
-      );
-      await vi.waitFor(() =>
-        expect(warn).toHaveBeenCalledWith(
-          "[code-review-shadow] Launch failed",
-          {
-            repo: "re-cinq/lore",
-            prNumber: 412,
-            headSha: "sha-new",
-          },
-        ),
-      );
-      expect({ runId, comments }).toEqual({
-        runId: "run-new",
-        comments: [expect.stringContaining("Lore is reviewing this PR")],
-      });
-    } finally {
-      warn.mockRestore();
-    }
-  });
-
   it("starts nothing for a draft pull request", async () => {
     const { deps, requests } = scene({ pr: pull({ draft: true }) });
 
@@ -369,19 +333,13 @@ describe("reviewOrRecheck", () => {
       ],
     });
 
-    const startShadow = vi.fn().mockResolvedValue(undefined);
+    await reviewOrRecheck(deps, TARGET);
 
-    await reviewOrRecheck({ ...deps, startShadow }, TARGET);
-
-    expect(startShadow).toHaveBeenCalledExactlyOnceWith(
-      "re-cinq/lore",
-      412,
-      "sha-new",
-    );
     expect(started(requests)[0]).toMatchObject({
       path: "/assembly-lines/code-review-recheck/start",
       body: {
         startItems: {
+          since_sha: { ref: "sha-old" },
           description: {
             ref: expect.stringContaining(
               "diff --no-ext-diff sha-old..HEAD",
@@ -452,6 +410,9 @@ describe("reviewOrRecheck", () => {
           ref: expect.stringContaining(
             "- src/a.ts:12: the null check is inverted",
           ) as string,
+        },
+        previous_findings: {
+          ref: expect.stringContaining("the null check is inverted"),
         },
         open_threads: { kind: "value", ref: "T1" },
       },

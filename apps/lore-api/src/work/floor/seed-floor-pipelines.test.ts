@@ -108,20 +108,31 @@ function codeReviewOnFloor(held: string[]) {
 }
 
 describe("seedFloorPipelines", () => {
-  it("leaves out agent code-review when the floor already holds it", async () => {
-    const { deps, imported } = codeReviewOnFloor(["code-review"]);
+  it("preserves the installed review agents and seeds the new product reviewer", async () => {
+    const { deps, imported } = codeReviewOnFloor([
+      "shadow-review-reader",
+      "shadow-compare-intent",
+      "shadow-review-challenge",
+    ]);
 
     await seedFloorPipelines(deps);
 
-    expect(imported).toEqual([[]]);
+    expect(imported).toEqual([["code-review-product"]]);
   });
 
-  it("seeds agent code-review from its file on a floor that holds none", async () => {
+  it("seeds all four agent definitions for the five review passes on an empty floor", async () => {
     const { deps, imported } = codeReviewOnFloor([]);
 
     await seedFloorPipelines(deps);
 
-    expect(imported).toEqual([["code-review"]]);
+    expect(imported).toEqual([
+      [
+        "shadow-review-reader",
+        "shadow-compare-intent",
+        "shadow-review-challenge",
+        "code-review-product",
+      ],
+    ]);
   });
 
   it("puts both pipelines and reports only lore-run-settled as changed when the floor holds code-review as written", async () => {

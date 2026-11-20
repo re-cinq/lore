@@ -31,7 +31,7 @@ export interface ReviewProject {
     resolveReviewThread(threadId: string): Promise<void>;
     get(
       number: number,
-    ): Promise<Pick<PullRef, "headSha" | "baseBranch"> | null>;
+    ): Promise<Pick<PullRef, "headSha" | "baseBranch" | "state"> | null>;
     getBranchRule(
       branch: string,
     ): Promise<Pick<BranchRule, "requiredApprovals">>;
@@ -76,7 +76,7 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     await deliverReview(deps, brief, visit, { agentOutput, verdict });
 
     if (verdict === "success") {
-      await resolveHandedThreads(visit.project, brief);
+      await resolveHandedThreads(visit, brief);
     }
     const summary = verdictSummary(verdict, findingCountOf(agentOutput));
 
@@ -106,6 +106,12 @@ async function openVisit(
 
   enforceTrue(headSha, Error, `no head sha for pull request #${prNumber}`);
 
+  enforceTrue(
+    pull?.state === "open" && pull.headSha === headSha,
+    Error,
+    "The reviewed commit is no longer the pull request head",
+  );
+
   return {
     project,
     approvalCounts: await approvalCountsOn(project, pull),
@@ -123,6 +129,7 @@ async function deliverReview(
     agentOutput,
     model: await deps.reviewModel(brief.visitId),
     allowApprove: !visit.approvalCounts,
+    commitId: visit.target.headSha,
   });
 }
 
@@ -141,12 +148,16 @@ async function approvalCountsOn(
 
 /** The threads of Lore's findings the re-check was handed and judged resolved. Best-effort: the verdict is posted either way, and a thread left open only holds the merge for a person. */
 async function resolveHandedThreads(
-  { pulls }: ReviewProject,
+  { project: { pulls }, target }: ReviewVisitState,
   brief: Brief,
 ): Promise<void> {
   const ids = new Map(Object.entries(brief.needs)).get("open_threads");
+
+  if (!ids || (await pulls.get(target.prNumber))?.headSha !== target.headSha) {
+    return;
+  }
   const outcomes = await Promise.allSettled(
-    (ids ?? "")
+    ids
       .split(",")
       .filter(Boolean)
       .map((threadId) => pulls.resolveReviewThread(threadId)),
@@ -176,16 +187,23 @@ function verdictSummary(verdict: ReviewVerdict, findingCount: number): string {
   return `${label}, ${findingCount} ${findingCount === 1 ? "finding" : "findings"}`;
 }
 
+interface PostOptions {
+  agentOutput: string;
+  model?: string;
+  allowApprove: boolean;
+  commitId: string;
+}
+
 async function postToPullRequest(
   brief: Brief,
   pulls: ReviewProject["pulls"],
   prNumber: number,
-  opts: { agentOutput: string; model?: string; allowApprove: boolean },
+  opts: PostOptions,
 ): Promise<void> {
   const diff = await pulls.getDiff(prNumber).catch(() => "");
   const posted = await maybePostReview(pulls, prNumber, opts.agentOutput, {
     positions: commentablePositions(diff),
-    visit: brief,
+    visit: { ...brief, reviewRun: brief.needs.review_run },
     ...opts,
   });
 

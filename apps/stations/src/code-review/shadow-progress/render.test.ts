@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
-import { reviewProgress, type ProgressResults } from "./render.js";
+import {
+  formalReview,
+  reviewProgress,
+  type ProgressResults,
+} from "./render.js";
 
 const REVISION = "a".repeat(40);
 
@@ -93,4 +97,85 @@ it("marks a terminal failure incomplete even if all five outputs are present", (
   expect(reviewProgress(outputs, 5).body(REVISION, "failed")).toContain(
     "**Incomplete**",
   );
+});
+
+it("approves only after all five passes complete and accepts a single final JSON fence after a preamble", () => {
+  const result = {
+    status: "complete",
+    verdict: "approve",
+    summary: "Verified.",
+    findings: [],
+  };
+  const final = [
+    "I checked the supplied evidence.",
+    "```json",
+    JSON.stringify(result),
+    "```",
+    'LORE_NODE_RESULT: {"outcome":"success"}',
+  ].join("\n");
+  const reviewed = { ...outputs, product_review: final };
+
+  expect({
+    complete: formalReview(reviewed),
+    missing: Object.keys(reviewed).map((name) =>
+      formalReview({ ...reviewed, [name]: undefined }),
+    ),
+    incomplete: formalReview({
+      ...reviewed,
+      product_review: agentOutput({ ...result, verdict: "incomplete" }),
+    }),
+    malformed: formalReview({ ...reviewed, test_reading: "{}" }),
+  }).toEqual({
+    complete: { verdict: "approved", summary: "Verified.", findings: [] },
+    missing: Array(5).fill(undefined),
+    incomplete: undefined,
+    malformed: undefined,
+  });
+});
+
+it("requests changes for a blocking intent finding even when product approves and preserves unlocated evidence", () => {
+  const finding = {
+    severity: "blocking",
+    subject: "Quantity",
+    detail: "Negative quantity accepted.",
+    evidence: ["ticket 7"],
+  };
+  const assessment = {
+    ...outputs,
+    intent_comparison: agentOutput({
+      status: "complete",
+      summary: "Mismatch",
+      findings: [finding],
+    }),
+    product_review: agentOutput({
+      status: "complete",
+      verdict: "approve",
+      summary: "Reviewed",
+      findings: [
+        {
+          ...finding,
+          subject: "Negative amount",
+          location: { path: "amount.ts", line: 9 },
+        },
+      ],
+    }),
+  };
+
+  expect(formalReview(assessment)).toMatchObject({
+    verdict: "changes_requested",
+    findings: [
+      {
+        path: "amount.ts",
+        line: 9,
+        subject: "Negative amount",
+        decoration: "blocking",
+      },
+    ],
+    generalFindings: [
+      {
+        subject: "Quantity",
+        discussion: "Negative quantity accepted.\n\nticket 7",
+      },
+    ],
+  });
 });

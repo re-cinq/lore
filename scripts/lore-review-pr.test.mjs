@@ -81,28 +81,49 @@ globalThis.fetch=async (url) => {
   await once(floor, "listening");
   t.after(() => floor.close());
   const run = promisify(execFile);
-  const result = await run(
-    process.execPath,
-    [
-      fileURLToPath(new URL("./lore-review-pr.mjs", import.meta.url)),
-      "--repo",
-      "acme/pilot",
-      "--pr",
-      "42",
-      "--head",
-      head,
-    ],
-    {
-      env: {
-        PATH: root + ":" + process.env.PATH,
-        HOME: root,
-        GITHUB_TOKEN: "fixture-token",
-        NODE_OPTIONS: "--import=" + mock,
-        FLOOR_API_URL: "http://127.0.0.1:" + floor.address().port,
-        FLOOR_SERVICE_TOKEN: "fixture-floor",
-      },
+  const args = [
+    fileURLToPath(new URL("./lore-review-pr.mjs", import.meta.url)),
+    "--repo",
+    "acme/pilot",
+    "--pr",
+    "42",
+    "--head",
+    head,
+  ];
+  const options = {
+    env: {
+      PATH: root + ":" + process.env.PATH,
+      HOME: root,
+      GITHUB_TOKEN: "fixture-token",
+      NODE_OPTIONS: "--import=" + mock,
+      FLOOR_API_URL: "http://127.0.0.1:" + floor.address().port,
+      FLOOR_SERVICE_TOKEN: "fixture-floor",
     },
+  };
+  const collected = await run(
+    process.execPath,
+    [...args, "--evidence-only", "--since", base],
+    options,
   );
+  const evidence = JSON.parse(collected.stdout);
+
+  assert.equal(started, undefined);
+  assert.deepEqual(Object.keys(evidence).sort(), [
+    "challenge_evidence",
+    "code_evidence",
+    "intent_evidence",
+    "product_evidence",
+    "test_evidence",
+  ]);
+  assert.deepEqual(
+    evidence.test_evidence.files.map((file) => file.path),
+    ["limit.test.ts"],
+  );
+  assert.deepEqual(
+    evidence.code_evidence.files.map((file) => file.path),
+    ["limit.ts"],
+  );
+  const result = await run(process.execPath, args, options);
 
   assert.equal(JSON.parse(result.stdout).runId, "run-42");
   assert.equal(started.startItems.revision.ref, head);

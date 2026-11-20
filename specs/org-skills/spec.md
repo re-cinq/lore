@@ -51,7 +51,7 @@ Currently, skills are baked statically into `apps/mcp-server/agent-skills/` and 
 
 ### Proposed code review skills
 
-The catalogue ships `lore-review-files` and `lore-review` through the existing gateway and local Claude Code sync. Developers can invoke the five-pass procedure locally. Using the same readers on the hosted review line is part of the shadow pilot. [Tracking issue #4972](https://github.com/re-cinq/lore/issues/4972) · [Five-pass review contract](../auto-review-loop/spec.md#proposed-five-pass-review)
+The catalogue ships `lore-review-files` and `lore-review` through the existing gateway and local Claude Code sync. Developers can invoke the five-pass procedure locally. Using the same readers on the hosted review line is part of the shadow pilot. [Tracking issue #4972](https://github.com/re-cinq/lore/issues/4972) · [Five-pass review contract](../auto-review-loop/spec.md#five-pass-code-review)
 
 - **`lore-review-files`** reads an assigned file or related group for the code reading, test reading, or independent test challenge. The harness supplies only the pass’s permitted evidence and filters requests for additional files by the same rule. The reader reports what it examined or skipped and cites the behavior or assertion behind each observation.
 - **`/lore-review`** runs the five passes against a single snapshot of a local change, branch comparison, or checked-out PR. Before a PR exists it produces the readings and identifies which intent evidence was available. An unavailable isolated context is reported as an incomplete pass. The local report leaves the working tree intact and makes no GitHub write.

@@ -1,4 +1,8 @@
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
+import type {
+  ReviewOutput,
+  ReviewFinding,
+} from "@re-cinq/lore-shared/review/review-findings.js";
 import { z } from "zod";
 
 const status = z.enum(["complete", "incomplete"]);
@@ -10,6 +14,13 @@ const reading = z.object({
 });
 const finding = z.object({
   severity: z.enum(["blocking", "question", "note"]),
+  location: z
+    .object({
+      path: z.string().trim().min(1),
+      line: z.number().int().positive(),
+      side: z.enum(["LEFT", "RIGHT"]).optional(),
+    })
+    .optional(),
   subject: z.string().trim().min(1),
   detail: z.string().trim().min(1),
   evidence: z.array(z.string().trim().min(1)).min(1),
@@ -55,6 +66,7 @@ type PassResult = {
 export function reviewProgress(
   outputs: ProgressResults,
   stage: number,
+  lineId = "code-review-shadow",
 ): {
   incomplete: string[];
   body(revision: string, state: ProgressState): string;
@@ -67,25 +79,96 @@ export function reviewProgress(
   return {
     incomplete: missing.map((name) => passes[name]),
     body: (revision, state) =>
-      renderReviewProgress(revision, state, results, missing),
+      renderReviewProgress({ revision, state, lineId }, results, missing),
   };
 }
 
+export function formalReview(
+  outputs: ProgressResults,
+): ReviewOutput | undefined {
+  const complete =
+    reviewProgress(outputs, progressNeeds.length - 1).incomplete.length === 0;
+  const comparison = parse(intent, outputs.intent_comparison);
+  const assessment = parse(product, outputs.product_review);
+
+  if (!complete || !comparison || !assessment) {
+    return;
+  }
+
+  const reported = [...assessment.findings, ...comparison.findings];
+  const blocked =
+    assessment.verdict === "request_changes" || reported.some(isBlocking);
+
+  return {
+    verdict: blocked ? "changes_requested" : "approved",
+    summary: escapeMarkdown(assessment.summary),
+    ...formalFindings(reported),
+  };
+}
+
+type PassFinding = z.infer<typeof finding>;
+const labels = {
+  blocking: "issue",
+  question: "question",
+  note: "thought",
+} as const;
+
+function formalFindings(reported: PassFinding[]) {
+  const distinct = new Map(
+    reported.map((finding) => [JSON.stringify(finding), finding]),
+  );
+  const findings: ReviewFinding[] = [];
+  const generalFindings: NonNullable<ReviewOutput["generalFindings"]> = [];
+
+  for (const finding of distinct.values()) {
+    const detail = findingDetail(finding);
+
+    if (!finding.location) {
+      generalFindings.push(detail);
+      continue;
+    }
+    findings.push({ ...detail, ...finding.location });
+  }
+
+  return { findings, ...(generalFindings.length ? { generalFindings } : {}) };
+}
+
+function findingDetail(
+  finding: PassFinding,
+): Omit<ReviewFinding, "path" | "line"> {
+  return {
+    label: labels[finding.severity],
+    decoration: isBlocking(finding) ? "blocking" : "non-blocking",
+    subject: escapeMarkdown(finding.subject),
+    discussion: [finding.detail, ...finding.evidence]
+      .map(escapeMarkdown)
+      .join("\n\n"),
+  };
+}
+
+interface ProgressHeader {
+  revision: string;
+  state: ProgressState;
+  lineId: string;
+}
+
 function renderReviewProgress(
-  revision: string,
-  state: ProgressState,
+  { revision, state, lineId }: ProgressHeader,
   results: Record<PassName, PassResult>,
   incomplete: readonly PassName[],
 ): string {
   const verdict = proposedVerdict(state, results, incomplete);
+  const shadow = lineId === "code-review-shadow";
   const details = progressNeeds.flatMap((name) =>
     renderSection(name, results[name]),
   );
 
   return [
-    "## Lore shadow review",
+    shadow ? "## Lore shadow review" : "## Lore code review",
     `Reviewed revision \`${revision}\` · **${verdict}**`,
-    "The current review and its check carry the merge decision.",
+    ...(shadow
+      ? ["The current review and its check carry the merge decision."]
+      : []),
     ...details,
     ...missingSections(verdict, incomplete),
   ].join("\n\n");
@@ -197,12 +280,13 @@ function parse<T>(
     return;
   }
   const text = resultTextFromOutput(output)
-    .replace(/^LORE_NODE_RESULT: [^\r\n]+$/m, "")
-    .trim()
-    .replace(/^```(?:json)?\s*\r?\n([\s\S]*)\r?\n```$/, "$1");
+    .replace(/(?:^|\n)LORE_NODE_RESULT: [^\r\n]+\s*$/, "")
+    .trim();
+  const fenced =
+    /^(?:[^`]*?\r?\n)?```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/.exec(text);
 
   try {
-    return schema.safeParse(JSON.parse(text)).data;
+    return schema.safeParse(JSON.parse(fenced?.[1] ?? text)).data;
   } catch {
     return;
   }

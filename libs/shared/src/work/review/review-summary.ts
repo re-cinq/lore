@@ -1,5 +1,6 @@
 /** The top-level body of a Lore review — verdict header, severity tally, shared how-to footer — rendered once per review; per-line detail lives in the inline {@link ConventionalComment}s. */
 
+import { ConventionalComment } from "./conventional-comment.js";
 import type { ReviewOutput } from "./review-findings.js";
 import { REVIEW_RERUN_HINT } from "./review-definitions.js";
 
@@ -13,24 +14,26 @@ export function buildReviewSummary(
   output: ReviewOutput,
   opts: { model?: string } = {},
 ): string {
-  const blocks = [
-    output.verdict === "approved"
-      ? "### Lore review — Approved"
-      : CHANGES_SUGGESTED_HEADING,
-  ];
+  const general = (output.generalFindings ?? []).map((finding) =>
+    new ConventionalComment(finding).render(),
+  );
 
-  if (output.summary?.trim()) {
-    blocks.push(output.summary.trim());
-  }
-  blocks.push(tally(output));
+  return [
+    verdictHeading(output.verdict),
+    output.summary?.trim(),
+    ...general,
+    tally(output),
+    opts.model && `_Reviewed by \`${opts.model}\`_`,
+    REVIEW_HELP,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
 
-  // Reviewer model varies per repo (agent-definition rows), affects finding weight.
-  if (opts.model) {
-    blocks.push(`_Reviewed by \`${opts.model}\`_`);
-  }
-  blocks.push(REVIEW_HELP);
-
-  return blocks.join("\n\n");
+function verdictHeading(verdict: ReviewOutput["verdict"]): string {
+  return verdict === "approved"
+    ? "### Lore review — Approved"
+    : CHANGES_SUGGESTED_HEADING;
 }
 
 /** Body when review skipped due to exhausted LLM budget (approves to unblock). */
@@ -48,7 +51,7 @@ export function budgetSkipBody(model?: string): string {
 }
 
 function tally(output: ReviewOutput): string {
-  const { findings } = output;
+  const findings = [...output.findings, ...(output.generalFindings ?? [])];
   const mustFix = findings.filter(
     (f) => f.label === "issue" && f.decoration === "blocking",
   ).length;

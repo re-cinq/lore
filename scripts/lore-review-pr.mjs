@@ -16,10 +16,15 @@ import {
   productSpecs,
 } from "./lore-review-pr-context.mjs";
 
+import { reviewPackets, shadowEvidence } from "./lore-review-packets.mjs";
+
 const exec = promisify(execFile);
 const script = (name) => fileURLToPath(new URL(name, import.meta.url));
 const { values } = parseArgs({
   options: {
+    "evidence-only": { type: "boolean" },
+    since: { type: "string" },
+    paths: { type: "string", multiple: true, default: [] },
     repo: { type: "string" },
     pr: { type: "string" },
     head: { type: "string" },
@@ -28,6 +33,7 @@ const { values } = parseArgs({
 
 function validateTarget() {
   if (
+    (values.since !== undefined && !/^[0-9a-f]{40}$/.test(values.since)) ||
     !/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") ||
     !/^[1-9]\d*$/.test(values.pr ?? "") ||
     !/^[0-9a-f]{40}$/.test(values.head ?? "")
@@ -53,6 +59,7 @@ async function prepare(cwd) {
     per_page: 1,
   });
   const mergeBase = comparison.data.merge_base_commit.sha;
+  const evidenceBase = values.since ?? mergeBase;
   const host = githubHost();
   const token = await new PlatformGitHub().getInstallationToken(values.repo, {
     contents: "read",
@@ -91,7 +98,7 @@ async function prepare(cwd) {
       "--no-tags",
       "--depth=1",
       `https://${host}/${values.repo}.git`,
-      ...new Set([mergeBase, pr.head.sha, pr.base.sha]),
+      ...new Set([mergeBase, evidenceBase, pr.head.sha, pr.base.sha]),
     ],
     { ...options, env: authEnv },
   );
@@ -106,7 +113,8 @@ async function prepare(cwd) {
         "--head",
         pr.head.sha,
         "--github-merge-base",
-        mergeBase,
+        evidenceBase,
+        ...values.paths.flatMap((path) => ["--scope", path]),
       ],
       options,
     ).catch((error) => {
@@ -116,7 +124,7 @@ async function prepare(cwd) {
   const snapshot = JSON.parse(captured.stdout);
   const [specs, documents] = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
-    productDocuments(git, mergeBase, pr.head.sha),
+    productDocuments(git, evidenceBase, pr.head.sha, values.paths),
   ]);
   const latest = await current();
 
@@ -181,12 +189,29 @@ const cwd = await mkdtemp(join(tmpdir(), "lore-review-pr-"));
 try {
   validateTarget();
   const prepared = await prepare(cwd).catch(async (error) => {
-    await launch(cwd, null);
+    if (!values["evidence-only"]) {
+      await launch(cwd, null);
+    }
     throw error;
   });
 
   if (prepared.status) {
     console.log(JSON.stringify(prepared));
+  } else if (values["evidence-only"]) {
+    const packets = reviewPackets({
+      ...prepared.snapshot,
+      discussion: prepared.discussion,
+      specs: prepared.specs,
+      documents: prepared.documents,
+    });
+
+    console.log(
+      JSON.stringify(
+        Object.fromEntries(
+          shadowEvidence.map((name, index) => [name, packets[index]]),
+        ),
+      ),
+    );
   } else {
     await launch(cwd, prepared);
   }

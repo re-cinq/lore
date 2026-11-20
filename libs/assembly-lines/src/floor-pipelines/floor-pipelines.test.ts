@@ -2,7 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
-import { withAgentDefinitions } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import {
+  shippedFloorAgents,
+  withAgentDefinitions,
+} from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import { SPEC_QA_ROUNDS } from "@re-cinq/lore-shared/feature-planning/spec-qa.js";
 
 interface Arg {
@@ -79,6 +82,7 @@ interface Pipeline {
 }
 
 const PIPELINES = loadPipelines();
+const DEFAULT_AGENTS = shippedFloorAgents();
 
 const REPAIRS = ["repair-build", "fix-ci"];
 
@@ -947,62 +951,70 @@ describe("the floor pipelines shipped in this folder", () => {
     );
   });
 
-  it("walks code-review from review through post-review to done, with no refine node", () => {
-    const { line } = pipelineOf("code-review");
+  it("routes both formal reviews through five isolated passes before posting the verdict", () => {
+    const route = [
+      "prepare",
+      "read-code",
+      "publish-code",
+      "read-tests",
+      "publish-tests",
+      "compare-intent",
+      "publish-intent",
+      "challenge-tests",
+      "publish-challenge",
+      "review-product",
+      "publish-product",
+      "post-review",
+      "done",
+    ];
+    const reviewPasses = [
+      ["code_evidence"],
+      ["test_evidence"],
+      ["intent_evidence", "code_reading", "test_reading", "challenge_evidence"],
+      ["challenge_evidence"],
+      [
+        "product_evidence",
+        "intent_evidence",
+        "code_reading",
+        "test_reading",
+        "intent_comparison",
+        "test_challenge",
+        "challenge_evidence",
+      ],
+    ];
 
-    expect({
-      entry: line.entry,
-      exit: line.exit,
-      reviewTargets: edgesOn(line, "review")
-        .filter((edge) => edge.to !== "review")
-        .map((edge) => `${edge.on}->${edge.to}`)
-        .sort(),
-      nodes: line.nodes.map((node) => node.id),
-    }).toEqual({
-      entry: "review",
-      exit: "done",
-      reviewTargets: ["changes_requested->post-review", "success->post-review"],
-      nodes: ["review", "post-review", "done"],
-    });
+    for (const name of ["code-review", "code-review-recheck"]) {
+      const { line, stations } = pipelineOf(name);
+      const agents = line.nodes
+        .map((node) => stations[node.station ?? ""])
+        .filter((station) => station?.kind === "agent");
+      const targets = (nodes: string[], outcome: string) =>
+        nodes.map(
+          (node) => edgesOn(line, node).find((edge) => edge.on === outcome)?.to,
+        );
+
+      expect({
+        entry: line.entry,
+        success: targets(route.slice(0, -1), "success"),
+        failure: targets(route.slice(0, -2), "failed"),
+        incomplete: edgesOn(line, "publish-incomplete"),
+        passes: agents.map((agent) => [
+          agent.conversation,
+          agent.needs.map((need) => need.name),
+        ]),
+      }).toEqual({
+        entry: route[0],
+        success: route.slice(1),
+        failure: route.slice(0, -2).map(() => "publish-incomplete"),
+        incomplete: [
+          { from: "publish-incomplete", on: "always", to: line.fail },
+        ],
+        passes: reviewPasses.map((needs) => ["new", needs]),
+      });
+    }
   });
 
-  it("retries a failed code-review review visit once through an iteration_max of 1", () => {
-    expect(
-      edgesOn(pipelineOf("code-review").line, "review").filter(
-        (edge) => edge.to === "review",
-      ),
-    ).toEqual([
-      { from: "review", to: "review", on: "failed", iteration_max: 1 },
-    ]);
-  });
-
-  it("retries a failed code-review-recheck recheck visit once through an iteration_max of 1", () => {
-    expect(
-      edgesOn(pipelineOf("code-review-recheck").line, "recheck").filter(
-        (edge) => edge.to === "recheck",
-      ),
-    ).toEqual([
-      { from: "recheck", to: "recheck", on: "failed", iteration_max: 1 },
-    ]);
-  });
-
-  it("walks code-review-recheck through recheck, post-review and done on gemini-4-argon with edges for changes_requested, failed and success", () => {
-    const { line, agent_definitions } = pipelineOf("code-review-recheck");
-
-    expect({
-      nodes: line.nodes.map((node) => node.id),
-      model: agent_definitions?.["code-review-recheck"]?.settings.model,
-      recheckOutcomes: edgesOn(line, "recheck")
-        .map((edge) => edge.on)
-        .sort(),
-    }).toEqual({
-      nodes: ["recheck", "post-review", "done"],
-      model: "gemini-4-argon",
-      recheckOutcomes: ["changes_requested", "failed", "success"],
-    });
-  });
-
-  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, review and re-check on gemini-4-argon and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, five review passes and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
@@ -1027,14 +1039,14 @@ describe("the floor pipelines shipped in this folder", () => {
             .map(([, definition]) => definition.settings.model),
         ),
       ],
-      reviewers: modelsOf(["code-review", "code-review-recheck"]),
+      reviewers: [...new Set(modelsOf(["code-review", "code-review-recheck"]))],
       reply: modelsOf(["code-review-reply"]),
     }).toEqual({
       tddRound: "claude-sonnet-5-5",
       testReview: "claude-opus-5-5",
       fixCi: "gemini-4-carbon",
       restOfLoop: ["gemini-4-carbon", "gemini-4-hydrogen"],
-      reviewers: ["gemini-4-argon", "gemini-4-argon"],
+      reviewers: ["claude-sonnet-4-6"],
       reply: ["claude-sonnet-4-6"],
     });
   });
@@ -1105,10 +1117,8 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("declares the optional file need issue at issue.md on every review agent station", () => {
+  it("gives the reply agent the optional issue file and keeps it out of the five review passes", () => {
     const stations = [
-      pipelineOf("code-review").stations["code-review"],
-      pipelineOf("code-review-recheck").stations["code-review-recheck"],
       pipelineOf("code-review-reply").stations["code-review-refine"],
     ];
 
@@ -1699,7 +1709,7 @@ describe("the feature-planning pipeline", () => {
   });
 });
 
-describe("the code-review recipe reads the change as its user first", () => {
+describe("the legacy code-review recipe reads the change as its user first", () => {
   it("asks, for every spec statement the PR adds or changes, what a person using that surface sees differently, and files a mismatch as a question rather than silence", () => {
     const prompt = promptOnOneLine("code-review");
 
@@ -1750,7 +1760,7 @@ describe("the code-review recipe reads the change as its user first", () => {
   });
 });
 
-describe("the code-review-recheck recipe judges the push, not the pull request", () => {
+describe("the legacy code-review-recheck recipe judges the push, not the pull request", () => {
   it("reads the range since the sha the last verdict judged, rather than the whole PR again", () => {
     const prompt = promptOnOneLine("code-review-recheck");
 
@@ -1907,7 +1917,7 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(missing).toEqual([]);
   });
 
-  it("sends a failed post-review or post-reply back to its agent once, and retries a failed read-review and reply visit once, so a second failure settles the run as iteration_max and not as success", () => {
+  it("retries a failed post-review once and gives the reply line one retry, so a second failure settles the run as iteration_max and not as success", () => {
     const retries = [
       ["code-review", "post-review"],
       ["code-review-recheck", "post-review"],
@@ -1921,13 +1931,13 @@ describe("what a review pod is given against the agent CLI's own limits", () => 
     expect(retries).toEqual([
       {
         from: "post-review",
-        to: "review",
+        to: "post-review",
         on: "failed",
         iteration_max: 1,
       },
       {
         from: "post-review",
-        to: "recheck",
+        to: "post-review",
         on: "failed",
         iteration_max: 1,
       },
@@ -1995,13 +2005,11 @@ function needOf(station: Station | undefined, name: string): Need | undefined {
 }
 
 function settingsOf(name: string): AgentSettings {
-  const definition = [...PIPELINES.values()]
-    .map((pipeline) => pipeline.agent_definitions?.[name])
-    .find((candidate) => candidate !== undefined);
+  const settings = DEFAULT_AGENTS.get(name);
 
-  enforceTrue(definition !== undefined, Error, `no agent definition ${name}`);
+  enforceTrue(settings !== undefined, Error, `no agent definition ${name}`);
 
-  return definition.settings;
+  return settings as unknown as AgentSettings;
 }
 
 function promptOnOneLine(name: string): string {

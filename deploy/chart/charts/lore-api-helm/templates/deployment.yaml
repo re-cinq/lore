@@ -200,8 +200,6 @@ spec:
             {{- if .Values.floor.enabled }}
             - name: FLOOR_API_URL
               value: {{ .Values.floor.apiUrl | quote }}
-            - name: LORE_REVIEW_SHADOW_REPOS
-              value: {{ .Values.floor.reviewShadowRepos | quote }}
             - name: LORE_AGENT_IMAGE
               value: {{ .Values.floor.agentImage | quote }}
             {{- if .Values.floor.skillsUrl }}

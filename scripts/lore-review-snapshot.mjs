@@ -59,7 +59,7 @@ function referenceStem(path) {
     : stem;
 }
 
-async function referencedPaths(revision, stems) {
+async function referencedPaths(revision, stems, pathspecs = []) {
   if (stems.length === 0) {
     return [];
   }
@@ -77,6 +77,7 @@ async function referencedPaths(revision, stems) {
         ...stems.flatMap((stem) => ["-e", stem]),
         revision,
         "--",
+        ...pathspecs,
       ],
       { emptyOnNoMatch: true },
     ),
@@ -85,6 +86,49 @@ async function referencedPaths(revision, stems) {
   return paths.map((path) => path.slice(revision.length + 1));
 }
 
+async function changedEnvironmentKeys(base, head, changed) {
+  const yaml = changed.filter((path) => /\.ya?ml$/i.test(path));
+
+  if (!yaml.length) {
+    return [];
+  }
+  const diff = await git([
+    "diff",
+    "--no-ext-diff",
+    "--unified=0",
+    base,
+    head,
+    "--",
+    ...yaml.map((path) => ":(literal)" + path),
+  ]);
+  const declarations =
+    /^[+-]\s*(?:-\s+name:\s*([A-Z][A-Z0-9_]+)\s*$|([A-Z][A-Z0-9_]+):)/gm;
+
+  return [
+    ...new Set(
+      [...decoder.decode(diff).matchAll(declarations)].map(
+        (match) => match[1] ?? match[2],
+      ),
+    ),
+  ];
+}
+
+const sourceGlobs = [
+  "*.ts",
+  "*.tsx",
+  "*.js",
+  "*.jsx",
+  "*.mjs",
+  "*.cjs",
+  "*.py",
+  "*.go",
+  "*.rs",
+  "*.java",
+  "*.kt",
+  "*.rb",
+  "*.sh",
+  "*.cs",
+];
 const jsSource = /\.[cm]?[jt]sx?$/;
 const moduleName = (path) => path.replace(jsSource, "").replace(/\/index$/, "");
 
@@ -237,7 +281,7 @@ async function modulesUsedByChangedTests(changed, entries) {
   return [...imported];
 }
 
-async function capture(base, head, includes, comparisonBase) {
+async function capture(base, head, includes, comparisonBase, scope) {
   for (const [name, sha] of [
     ["base", base],
     ["head", head],
@@ -274,6 +318,7 @@ async function capture(base, head, includes, comparisonBase) {
       mergeBase,
       head,
       "--",
+      ...scope.map((path) => ":(literal)" + path),
     ]),
     tree(mergeBase),
     tree(head),
@@ -292,10 +337,19 @@ async function capture(base, head, includes, comparisonBase) {
   ];
   const otherStems = [
     ...new Set(
-      changed.filter((path) => !jsSource.test(path)).map(referenceStem),
+      changed
+        .filter((path) => !jsSource.test(path))
+        .map((path) =>
+          /\.(?:ya?ml|json)$/.test(path)
+            ? posix.basename(path)
+            : referenceStem(path),
+        ),
     ),
   ].filter(Boolean);
+  const configKeys = await changedEnvironmentKeys(mergeBase, head, changed);
   const related = await Promise.all([
+    referencedPaths(mergeBase, configKeys, sourceGlobs),
+    referencedPaths(head, configKeys, sourceGlobs),
     moduleConsumers(mergeBase, jsPaths),
     moduleConsumers(head, jsPaths),
     referencedPaths(mergeBase, otherStems),
@@ -372,7 +426,8 @@ async function capture(base, head, includes, comparisonBase) {
       );
     }
     totalBytes +=
-      Buffer.byteLength(before ?? "") + Buffer.byteLength(after ?? "");
+      Buffer.byteLength(before ?? "") +
+      (before === after ? 0 : Buffer.byteLength(after ?? ""));
 
     if (totalBytes > maxEvidenceBytes) {
       throw new Error(`Evidence exceeds ${maxEvidenceBytes} bytes`);
@@ -402,6 +457,7 @@ try {
       base: { type: "string" },
       head: { type: "string" },
       "github-merge-base": { type: "string" },
+      scope: { type: "string", multiple: true, default: [] },
       include: { type: "string", multiple: true, default: [] },
     },
   });
@@ -413,6 +469,7 @@ try {
         values.head,
         values.include,
         values["github-merge-base"],
+        values.scope,
       ),
     ),
   );
