@@ -20,6 +20,14 @@ function pausesOf(
     : {};
 }
 
+function mirrorNameOf(
+  settings: Record<string, unknown> | null | undefined,
+): string | undefined {
+  const mirror = settings?.public_mirror;
+
+  return typeof mirror === "string" ? mirror : undefined;
+}
+
 /** A seeded `lore.repos` row for the in-memory settings double. */
 function hasSettings(settings: SeedRepo["settings"]): boolean {
   return Boolean(settings) && Object.keys(settings ?? {}).length > 0;
@@ -143,6 +151,15 @@ export class InMemorySettings implements SettingsPort {
     }
 
     return row.settings ?? null;
+  }
+
+  async mirrorOwner(name: string): Promise<string | null> {
+    const owner = this.repos.find(
+      (repo) =>
+        mirrorNameOf(repo.settings)?.toLowerCase() === name.toLowerCase(),
+    );
+
+    return owner?.full_name ?? null;
   }
 
   async pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void> {

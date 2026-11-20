@@ -43,6 +43,8 @@ export interface SettingsPort {
   record(repo: string): Promise<RepoRecord | null>;
   /** The raw settings JSONB for a repo, or null when there is no row / no settings. */
   rawSettings(repo: string): Promise<Record<string, unknown> | null>;
+  /** The private repo whose `public_mirror` is `name`, compared without regard to case, or null when no repo names it. */
+  mirrorOwner(name: string): Promise<string | null>;
   /** Overwrite the settings JSONB for a repo. */
   updateSettings(
     repo: string,

@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { DigestSettingsSchema } from "./digest-settings.js";
+import {
+  DigestSettingsSchema,
+  TimeOfDay,
+  TimeZone,
+  Weekday,
+} from "./digest-settings.js";
+import type { ReleaseSettings } from "../release-settings.js";
+import type { Assert, Equals } from "./schema-equals.js";
 import { KnowledgeBackendSchema } from "../knowledge-backend.js";
 
 /** The lore.repos.settings JSONB column; SNAKE_CASE keys; unknown keys pass through; every key is optional. */
@@ -52,6 +59,17 @@ export const UtopiaMirrorSettingsSchema = z.object({
 
 export type UtopiaMirrorSettings = z.infer<typeof UtopiaMirrorSettingsSchema>;
 
+/** The scheduled release (specs/scheduled-releases): whether the repo publishes to its public mirror on a schedule, and when. */
+export const ReleaseSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  days: z.array(Weekday).optional(),
+  time: TimeOfDay.optional(),
+  timezone: TimeZone.optional(),
+});
+
+/** The public repository this private one is published to, `owner/name` (specs/public-mirror). */
+export const PublicMirrorSchema = z.string().regex(/^[^/\s]+\/[^/\s]+$/);
+
 export const RepoSettingsSchema = z
   .object({
     trust: TrustSettingsSchema.optional(),
@@ -93,8 +111,15 @@ export const RepoSettingsSchema = z
     utopia: UtopiaMirrorSettingsSchema.optional(),
     // Which store context reads answer from when the request names none (ADR-052 amendment 2026-10-16).
     context_backend: KnowledgeBackendSchema.optional(),
+    public_mirror: PublicMirrorSchema.nullable().optional(),
+    release: ReleaseSettingsSchema.nullable().optional(),
   })
   .passthrough();
 
 export type RepoSettings = z.infer<typeof RepoSettingsSchema>;
 export type TrustSettings = z.infer<typeof TrustSettingsSchema>;
+
+/** Proves the release schema and the plain type in `../release-settings.ts` are one shape; a field added to either side alone fails `tsc`. */
+export type ReleaseSchemaMatchesType = Assert<
+  Equals<z.infer<typeof ReleaseSettingsSchema>, ReleaseSettings>
+>;

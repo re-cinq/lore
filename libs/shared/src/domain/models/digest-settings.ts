@@ -13,8 +13,8 @@ export const DigestSectionSchema = z.enum([
   "summary",
 ]);
 
-const TimeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const Weekday = z.number().int().min(0).max(6);
+export const TimeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+export const Weekday = z.number().int().min(0).max(6);
 
 /** A name `Intl` can format in; anything else would throw inside the tick's due check. */
 export function isIanaTimeZone(timeZone: string): boolean {
@@ -30,7 +30,7 @@ export function isIanaTimeZone(timeZone: string): boolean {
 /** Short on purpose: it rides into the agent's brief every day. */
 const Voice = z.string().max(200);
 
-const TimeZone = z
+export const TimeZone = z
   .string()
   .refine(isIanaTimeZone, { message: "not an IANA timezone" });
 

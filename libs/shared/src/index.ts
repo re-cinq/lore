@@ -259,6 +259,7 @@ export * from "./domain/pack-config.js";
 export * from "./domain/pack-sync-result-line.js";
 export * from "./domain/context-template.js";
 export * from "./domain/digest-settings.js";
+export * from "./domain/release-settings.js";
 export * from "./domain/dod-verdict.js";
 export * from "./domain/github-installation/installation-from-github.js";
 export * from "./domain/key-terms.js";

@@ -5399,6 +5399,13 @@ export interface components {
             };
             /** @enum {string} */
             context_backend?: "lore" | "utopia" | "both";
+            public_mirror?: string | null;
+            release?: {
+              enabled?: boolean;
+              days?: number[];
+              time?: string;
+              timezone?: string;
+            } | null;
           } & {
             [key: string]: unknown;
           })
@@ -5536,6 +5543,13 @@ export interface components {
               };
               /** @enum {string} */
               context_backend?: "lore" | "utopia" | "both";
+              public_mirror?: string | null;
+              release?: {
+                enabled?: boolean;
+                days?: number[];
+                time?: string;
+                timezone?: string;
+              } | null;
             } & {
               [key: string]: unknown;
             })

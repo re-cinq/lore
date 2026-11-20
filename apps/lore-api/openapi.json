@@ -22076,6 +22076,48 @@
                   "context_backend": {
                     "type": "string",
                     "enum": ["lore", "utopia", "both"]
+                  },
+                  "public_mirror": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "release": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "days": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            }
+                          },
+                          "time": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                          },
+                          "timezone": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": {}
@@ -22525,6 +22567,48 @@
                         "context_backend": {
                           "type": "string",
                           "enum": ["lore", "utopia", "both"]
+                        },
+                        "public_mirror": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[^/\\s]+\\/[^/\\s]+$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "release": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "enabled": {
+                                  "type": "boolean"
+                                },
+                                "days": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 6
+                                  }
+                                },
+                                "time": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "timezone": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "additionalProperties": {}

@@ -10,6 +10,26 @@
 
 A private repository's main branch is published to its public mirror as versioned releases, on a schedule or on demand, with release notes, one Slack post and an entry on the Changelog tab. This section covers the store the releases are kept in.
 
+## Release settings
+
+- A repo's schedule is `settings.release` next to `public_mirror`: `enabled`, `days` (JS weekdays, Sunday 0), `time` (`HH:MM`) and `timezone` (IANA). ([validated by accepts enabled, Friday 08:30 in Europe/Berlin @07e64686](libs/shared/src/domain/models/repo-settings.test.ts#L5))
+- `ReleaseSettingsSchema` refuses a weekday outside 0 to 6, a time that is not `HH:MM`, a timezone `Intl` cannot format in and an `enabled` that is not a boolean. ([validated by refuses a weekday of 7, a time of 9am and the timezone Mars/Olympus_Mons @5e65e76d](libs/shared/src/domain/models/repo-settings.test.ts#L16))
+- An absent block resolves to disabled, Monday, 09:00, Europe/Berlin (`resolveReleaseSettings`). ([validated by returns disabled, Monday 09:00 Europe/Berlin when the block is absent @9388e668](libs/shared/src/domain/release-settings.test.ts#L5))
+- A partial block keeps what it says and fills the rest. ([validated by keeps the given time and days and fills the timezone @c2201a52](libs/shared/src/domain/release-settings.test.ts#L14))
+- A key set to `undefined` takes its default. ([validated by ignores a key set to undefined @a05b0569](libs/shared/src/domain/release-settings.test.ts#L25))
+- `releaseEnabled(settings)` is true only for a block with `enabled: true`. ([validated by returns true for a release block with enabled true @89d43253](libs/shared/src/domain/release-settings.test.ts#L39))
+- Settings with no `release` block read as not enabled. ([validated by returns false for settings with no release block @5dd4bc49](libs/shared/src/domain/release-settings.test.ts#L31))
+- A block without `enabled` reads as not enabled. ([validated by returns false for a release block without enabled @1f9a1532](libs/shared/src/domain/release-settings.test.ts#L35))
+- Null settings read as not enabled. ([validated by returns false for null settings @603b675d](libs/shared/src/domain/release-settings.test.ts#L43))
+- A `release` block cleared to `null` reads as not enabled and resolves to the defaults. ([validated by returns false for a release block cleared to null @0abe3925](libs/shared/src/domain/release-settings.test.ts#L47), [resolves a release block cleared to null to disabled, Monday 09:00 Europe/Berlin @141db20c](libs/shared/src/domain/release-settings.test.ts#L51))
+- The settings schema accepts `public_mirror` and `release` cleared to `null`, which is what the settings route stores when either is cleared. ([validated by accepts public_mirror and release cleared to null @20ded66e](libs/shared/src/domain/models/repo-settings.test.ts#L44))
+
+## Saving the release settings
+
+- The settings route refuses a `release` block whose timezone `Intl` cannot format in with 400 and writes nothing. ([validated by returns 400 for a release block with the timezone Mars/Olympus_Mons @ed00c42d](apps/lore-api/src/transport/routes/repos/repo-settings-mirror.test.ts#L232))
+- The settings route refuses a `release` block with a weekday outside 0 to 6 with 400. ([validated by returns 400 for a release block with a weekday of 8 @55a55cf9](apps/lore-api/src/transport/routes/repos/repo-settings-mirror.test.ts#L246))
+- The settings route merges the `release` block key by key, so saving `time` keeps `enabled` and `days`. ([validated by merges the release block key by key, keeping enabled when time is saved @0edc39f2](apps/lore-api/src/transport/routes/repos/repo-settings-mirror.test.ts#L255))
+
 ## Release store
 
 - `lore.changelog_releases` (migration 0132) holds one row per repository and version: the previous tag, the commit, the bump, the range, the summary, the changes, the release URL, where it was published, when it was announced and when it was written. ([validated by reads back v1.3.0 with its change, bump and no announcement @5a66c664](libs/shared/src/outbound/project/changelog-releases/changelog-releases.test.ts#L123), [answers null as the latest release of a repo with none @d1247ed0](libs/shared/src/outbound/project/changelog-releases/changelog-releases.test.ts#L163))

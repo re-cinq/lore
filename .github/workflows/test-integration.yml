@@ -112,6 +112,27 @@ jobs:
           LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/outbound/project/changelog-releases/changelog-releases.test.ts
 
+      - name: Public mirror lookup and index against real Postgres
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run --root libs/shared src/outbound/project/settings/settings-mirror-owner.contract.test.ts
+
+      - name: Settings route mirror checks against real Postgres
+        working-directory: apps/lore-api
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run src/transport/routes/repos/repo-settings-mirror.test.ts
+
       # TEST_PATH_SQL_PATTERN must match the same paths as isTestFile — the
       # acceptance test verifies this against a live Postgres instance. It skips
       # when Postgres is unreachable (unit matrix), so this is the one place it

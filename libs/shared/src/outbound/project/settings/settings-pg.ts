@@ -165,6 +165,15 @@ export class PgSettings implements SettingsPort {
     );
   }
 
+  async mirrorOwner(name: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ full_name: string }>(
+      "SELECT full_name FROM lore.repos WHERE lower(settings->>'public_mirror') = lower($1) LIMIT 1",
+      [name],
+    );
+
+    return rows[0]?.full_name ?? null;
+  }
+
   async pauseLoop(repo: string, key: LoopKey, pause: LoopPause): Promise<void> {
     await this.pool.query(
       `UPDATE lore.repos

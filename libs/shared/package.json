@@ -95,6 +95,10 @@
       "types": "./dist/domain/digest-settings.d.ts",
       "default": "./dist/domain/digest-settings.js"
     },
+    "./release-settings.js": {
+      "types": "./dist/domain/release-settings.d.ts",
+      "default": "./dist/domain/release-settings.js"
+    },
     "./project/leases/lease-backends.js": {
       "types": "./dist/outbound/project/leases/lease-backends.d.ts",
       "default": "./dist/outbound/project/leases/lease-backends.js"

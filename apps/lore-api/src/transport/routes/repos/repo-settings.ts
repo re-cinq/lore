@@ -16,7 +16,12 @@ import { storedBlock } from "@re-cinq/lore-shared/project/settings/settings-sql.
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
 import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
-import { AutoMergeSettingsSchema } from "@re-cinq/lore-shared/models/repo-settings.js";
+import {
+  AutoMergeSettingsSchema,
+  PublicMirrorSchema,
+  ReleaseSettingsSchema,
+} from "@re-cinq/lore-shared/models/repo-settings.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 
 const RepoSettingsBody = z.object({
@@ -56,6 +61,11 @@ async function serveRepoSettings(
   const existingTeam = await loadRepoTeam(pool, repo);
 
   enforceBodyInvariants(body);
+  await enforceMirrorValid(
+    new PgSettings(pool),
+    repo,
+    body.settings?.public_mirror,
+  );
 
   await applyRepoUpdates(pool, repo, body);
   await handleTeamChange(pool, repo, body.team, existingTeam);
@@ -80,6 +90,7 @@ function enforceBodyInvariants(body: RepoSettingsBody): void {
   enforceDigestValid(
     (body.settings as { digest?: unknown } | undefined)?.digest,
   );
+  enforceReleaseValid(body.settings?.release);
   const autoMerge = AutoMergeSettingsSchema.optional();
 
   enforceTrue(
@@ -139,6 +150,91 @@ function digestIssues(
     .join("; ");
 }
 
+/** A null block clears it under the route's merge; only a block that is there is checked. */
+function enforceReleaseValid(release: unknown): void {
+  if (release === undefined || release === null) {
+    return;
+  }
+  const parsed = ReleaseSettingsSchema.safeParse(release);
+
+  enforceTrue(
+    parsed.success,
+    apiError(400),
+    `invalid release settings: ${digestIssues(parsed.error?.issues ?? [])}`,
+  );
+}
+
+/** The public mirror is a repo's own private/public pair, never a chain. */
+async function enforceMirrorValid(
+  settings: PgSettings,
+  repo: string,
+  mirror: unknown,
+): Promise<void> {
+  if (mirror === undefined || mirror === null) {
+    return;
+  }
+  const mirrorName = enforceMirrorShape(repo, mirror);
+
+  await enforceRepoIsNotMirror(settings, repo);
+  await enforceMirrorIsFree(settings, repo, mirrorName);
+  enforceTrue(
+    !hasPublicMirror((await settings.record(mirrorName))?.settings),
+    apiError(400),
+    `${mirrorName} has a public mirror of its own`,
+  );
+}
+
+function enforceMirrorShape(repo: string, mirror: unknown): string {
+  enforceTrue(
+    PublicMirrorSchema.safeParse(mirror).success,
+    apiError(400),
+    "public_mirror must be owner/name",
+  );
+  const mirrorName = String(mirror);
+
+  enforceTrue(
+    mirrorName.toLowerCase() !== repo.toLowerCase(),
+    apiError(400),
+    "public_mirror cannot be the repo itself",
+  );
+
+  return mirrorName;
+}
+
+async function enforceRepoIsNotMirror(
+  settings: PgSettings,
+  repo: string,
+): Promise<void> {
+  const ownerOfRepo = await settings.mirrorOwner(repo);
+
+  enforceTrue(
+    ownerOfRepo === null,
+    apiError(400),
+    `${repo} is already the public mirror of ${ownerOfRepo}`,
+  );
+}
+
+async function enforceMirrorIsFree(
+  settings: PgSettings,
+  repo: string,
+  mirrorName: string,
+): Promise<void> {
+  const ownerOfMirror = await settings.mirrorOwner(mirrorName);
+
+  enforceTrue(
+    ownerOfMirror === null ||
+      ownerOfMirror.toLowerCase() === repo.toLowerCase(),
+    apiError(400),
+    `${mirrorName} is already the public mirror of ${ownerOfMirror}`,
+  );
+}
+
+function hasPublicMirror(
+  settings: Record<string, unknown> | null | undefined,
+): boolean {
+  return typeof settings?.public_mirror === "string";
+}
+
 /** Writes the columns this patch touched; a patch that names none is a client error. */
 async function applyRepoUpdates(
   pool: Pool,
@@ -194,7 +290,12 @@ function settingsMerge(
 }
 
 /** The settings blocks that hold a loop's switch beside the settings page's own keys. */
-const SWITCHED_BLOCKS = ["auto_merge", "digest", "implementation_loop"];
+const SWITCHED_BLOCKS = [
+  "auto_merge",
+  "digest",
+  "implementation_loop",
+  "release",
+];
 
 function isObject(value: unknown): boolean {
   return typeof value === "object" && value !== null;
