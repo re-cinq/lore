@@ -61,7 +61,7 @@ async function serveSkillsPath(
 
   const hooks = /^hooks\/([^/]+)\.tar\.gz$/.exec(path);
 
-  if (hooks) {
+  if (hooks && hooks[1] !== SHARED_HOOKS) {
     await serveTarball(res, resolve(skillsRoot, "hooks"), hooks[1], "home");
 
     return;
@@ -217,7 +217,11 @@ async function serveSettings(
   }
 }
 
+// Every vendor's hook bundle also carries these files: the guard script the Bash hook runs.
+const SHARED_HOOKS = "shared";
+
 // A skill tarball keeps its dir as the top-level member (`<name>/SKILL.md`, extracted into the skills dir); a hook bundle is laid out relative to $HOME (`./.claude/settings.json`), so it tars the dir's contents.
+
 async function serveTarball(
   res: ServerResponse,
   parentDir: string,
@@ -252,7 +256,16 @@ function tarArgs(
 ): string[] {
   return layout === "named"
     ? ["-czf", "-", "-C", parentDir, name]
-    : ["-czf", "-", "-C", resolve(parentDir, name), "."];
+    : [
+        "-czf",
+        "-",
+        "-C",
+        resolve(parentDir, name),
+        ".",
+        "-C",
+        resolve(parentDir, SHARED_HOOKS),
+        ".",
+      ];
 }
 
 // Belt-and-suspenders against traversal: the resolved dir must stay under its parent, whatever the name matched upstream.

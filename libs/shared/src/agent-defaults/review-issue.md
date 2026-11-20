@@ -5,6 +5,7 @@ model: claude-sonnet-5-5
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 15
 config:
+  skills_source: ${LORE_SKILLS_URL}
   env:
     LORE_TEST_POLICY: none
     CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1"

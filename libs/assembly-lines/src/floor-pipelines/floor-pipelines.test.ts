@@ -1043,7 +1043,7 @@ describe("the floor pipelines shipped in this folder", () => {
     },
   );
 
-  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, five review passes and the reply on claude-sonnet-4-6", () => {
+  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, the story review on claude-sonnet-5-5 and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const wholeDiffReviewers = ["code-review", "code-review-recheck"];
     const modelsOf = (ids: string[]): string[] =>
@@ -1076,7 +1076,7 @@ describe("the floor pipelines shipped in this folder", () => {
       testReview: "claude-opus-5-5",
       fixCi: "gemini-4-carbon",
       restOfLoop: ["gemini-4-carbon", "gemini-4-hydrogen"],
-      reviewers: ["claude-sonnet-4-6"],
+      reviewers: ["claude-sonnet-5-5"],
       reply: ["claude-sonnet-4-6"],
     });
   });
@@ -1850,17 +1850,6 @@ describe("a gap is posted on the line it is about, with a proposal", () => {
     expect(promptOnOneLine("review-story")).toContain(
       "A test's title, a variable name and a comment prove nothing: say only what would fail if the behaviour changed.",
     );
-  });
-});
-
-describe("an agent under a test policy has its guard", () => {
-  it("lists the lore-context skill in every shipped agent that declares LORE_TEST_POLICY, since the Bash hook refuses every command when that skill's guard script is missing", () => {
-    const unguarded = [...DEFAULT_AGENTS]
-      .filter(([, { config }]) => config?.env?.LORE_TEST_POLICY)
-      .filter(([, { config }]) => !config?.skills?.includes("lore-context"))
-      .map(([name]) => name);
-
-    expect(unguarded).toEqual([]);
   });
 });
 
