@@ -35,14 +35,14 @@ On the same form, under **Permissions**, open **Repository permissions** and set
 
 | Permission | Access | What Lore does with it |
 | ---------- | ------ | ---------------------- |
-| Actions | Read-only | reads a failed CI job and its log, so an agent fixes what CI reported |
+| Actions | Read and write | reads a failed CI job and its log, so an agent fixes what CI reported. At onboarding, the last station (`onboard-start-ingest`) enables `lore-ingest.yml` and `lore-tests.yml` when they are disabled and dispatches them on the default branch to start the first ingestion; merge-check does the same when an onboarding pull request merges. Without the write access the station reports a gap and does not fail |
 | Checks | Read and write | reads CI results on a pull request, and posts its own review as the `lore/code-review` check |
 | Contents | Read and write | reads code, specs and ADRs; pushes branches and commits; merges pull requests |
 | Issues | Read and write | reads the backlog; files, labels, comments on and closes tickets |
 | Metadata | Read-only | GitHub selects it for every App |
 | Pull requests | Read and write | opens, reviews, comments on, updates and merges pull requests |
-| Secrets | Read and write | at onboarding, sets the repository secret `LORE_INGEST_TOKEN` that the repository's CI uses to post to Lore |
-| Variables | Read and write | at onboarding, sets the repository variable `LORE_INGEST_URL` |
+| Secrets | Read and write | onboarding sets the repository secret `LORE_INGEST_TOKEN` on every run; the repository's CI uses it to post to Lore. Nobody sets it by hand |
+| Variables | Read and write | onboarding sets the repository variable `LORE_INGEST_URL` on every run. Nobody sets it by hand. Its value is the stations deployment's `LORE_INGEST_URL`, the public lore-api URL (for example `https://<api host>`), set from the chart value `stations.ingestUrl` <!-- TODO confirm the chart value name --> |
 | Webhooks | Read and write | creates the repository's webhook at onboarding |
 | Workflows | Read and write | the onboarding pull request adds files under `.github/workflows/`. GitHub refuses any push that changes a workflow file without it |
 
@@ -56,7 +56,9 @@ Leave **Organization permissions** and **Account permissions** at "No access". U
 
 Agents get no credential of their own. For each run Lore gives the agent a short-lived token of this App's installation, for the one repository it works in and narrowed to Contents, Issues, Pull requests and Workflows. An agent never holds the Secrets, Webhooks or Checks permission.
 
-To change a permission later, edit it on the App and save. GitHub then asks the organization to accept the change: an owner opens **Organization settings → GitHub Apps → Configure** on the App and approves the request. Until then the installation keeps the old permissions.
+To change a permission later, edit it on the App and save. GitHub then asks the organization to accept the change: an owner opens **Organization settings → GitHub Apps → Configure** on the App and approves the request. Until then the installation keeps the old permissions. An installation made before Actions became Read and write must accept that change the same way; until it does, onboarding cannot start the first ingestion and says so.
+
+Re-onboarding (`POST /api/onboard` with `reonboard: true`, or "Update setup" in the web UI) rewrites the secret and the variable and starts the ingestion again.
 
 Then:
 

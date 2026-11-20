@@ -67,8 +67,8 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 **Acceptance Criteria:**
 - Home page shows repos, not agents. ([validated by `HomeView.test.tsx@b41d3b8c`](apps/web-ui/src/app/HomeView.test.tsx#L57), [`HomeView.test.tsx@b69a67f2`](apps/web-ui/src/app/HomeView.test.tsx#L70), [`HomeView.test.tsx@587ed414`](apps/web-ui/src/app/HomeView.test.tsx#L79), [`HomeView.test.tsx@401e4c7d`](apps/web-ui/src/app/HomeView.test.tsx#L90), [`HomeView.test.tsx@35ae39ce`](apps/web-ui/src/app/HomeView.test.tsx#L239))
 - Each repo card shows task count, team badge, running-agents count,
-  last-ingested date, ingest-freshness/workflow badges, and a
-  fix-ingest action when repos are misaligned. ([validated by `HomeView.test.tsx@405b9023`](apps/web-ui/src/app/HomeView.test.tsx#L98), [`HomeView.test.tsx@b8cebb83`](apps/web-ui/src/app/HomeView.test.tsx#L104), [`HomeView.test.tsx@f17491f6`](apps/web-ui/src/app/HomeView.test.tsx#L109), [`HomeView.test.tsx@0f79ce92`](apps/web-ui/src/app/HomeView.test.tsx#L115), [`HomeView.test.tsx@1e07f1c5`](apps/web-ui/src/app/HomeView.test.tsx#L120), [`HomeView.test.tsx@f198163e`](apps/web-ui/src/app/HomeView.test.tsx#L127), [`HomeView.test.tsx@1bda5040`](apps/web-ui/src/app/HomeView.test.tsx#L134), [`HomeView.test.tsx@e4036199`](apps/web-ui/src/app/HomeView.test.tsx#L158), [`HomeView.test.tsx@c7914722`](apps/web-ui/src/app/HomeView.test.tsx#L165), [`HomeView.test.tsx@a206b889`](apps/web-ui/src/app/HomeView.test.tsx#L170), [`HomeView.test.tsx@02f7df7b`](apps/web-ui/src/app/HomeView.test.tsx#L182), [`HomeView.test.tsx@32f0b3a5`](apps/web-ui/src/app/HomeView.test.tsx#L195), [`HomeView.test.tsx@7f80c088`](apps/web-ui/src/app/HomeView.test.tsx#L210), [`HomeView.test.tsx@5f6c0845`](apps/web-ui/src/app/HomeView.test.tsx#L217), [`HomeView.test.tsx@1e0c8249`](apps/web-ui/src/app/HomeView.test.tsx#L228), [renders no workflow badge for aligned or unknown ingest status @1bda5040](apps/web-ui/src/app/HomeView.test.tsx#L134), [shows pending-PR when never ingested and PR not merged @c7914722](apps/web-ui/src/app/HomeView.test.tsx#L165), [uses the never-ingested freshness indicator when last_ingested_at is null @7f80c088](apps/web-ui/src/app/HomeView.test.tsx#L210), [renders a fully-populated card with every badge present @35ae39ce](apps/web-ui/src/app/HomeView.test.tsx#L239))
+  last-ingested date, ingest-freshness/workflow badges, and an
+  Update setup action when repos are misaligned *(2026-11-20: was a fix-ingest action, FR-2.14)*. ([validated by `HomeView.test.tsx@405b9023`](apps/web-ui/src/app/HomeView.test.tsx#L98), [`HomeView.test.tsx@b8cebb83`](apps/web-ui/src/app/HomeView.test.tsx#L104), [`HomeView.test.tsx@f17491f6`](apps/web-ui/src/app/HomeView.test.tsx#L109), [`HomeView.test.tsx@0f79ce92`](apps/web-ui/src/app/HomeView.test.tsx#L115), [`HomeView.test.tsx@1e07f1c5`](apps/web-ui/src/app/HomeView.test.tsx#L120), [`HomeView.test.tsx@f198163e`](apps/web-ui/src/app/HomeView.test.tsx#L127), [`HomeView.test.tsx@1bda5040`](apps/web-ui/src/app/HomeView.test.tsx#L134), [`HomeView.test.tsx@e4036199`](apps/web-ui/src/app/HomeView.test.tsx#L158), [`HomeView.test.tsx@c7914722`](apps/web-ui/src/app/HomeView.test.tsx#L165), [`HomeView.test.tsx@a206b889`](apps/web-ui/src/app/HomeView.test.tsx#L170), [`HomeView.test.tsx@02f7df7b`](apps/web-ui/src/app/HomeView.test.tsx#L182), [`HomeView.test.tsx@32f0b3a5`](apps/web-ui/src/app/HomeView.test.tsx#L195), [`HomeView.test.tsx@7f80c088`](apps/web-ui/src/app/HomeView.test.tsx#L210), [`HomeView.test.tsx@5f6c0845`](apps/web-ui/src/app/HomeView.test.tsx#L217), [`HomeView.test.tsx@1e0c8249`](apps/web-ui/src/app/HomeView.test.tsx#L228), [renders no workflow badge for aligned or unknown ingest status @1bda5040](apps/web-ui/src/app/HomeView.test.tsx#L134), [shows pending-PR when never ingested and PR not merged @c7914722](apps/web-ui/src/app/HomeView.test.tsx#L165), [uses the never-ingested freshness indicator when last_ingested_at is null @7f80c088](apps/web-ui/src/app/HomeView.test.tsx#L210), [renders a fully-populated card with every badge present @35ae39ce](apps/web-ui/src/app/HomeView.test.tsx#L239))
 - Repo detail page has tabs whose active state tracks the exact path
   and its sub-routes. ([validated by `TabNav.test.tsx@ebf6a1f2`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L32), [`TabNav.test.tsx@bb8f3ac9`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L38), [`TabNav.test.tsx@8fd89c8c`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L44), [`TabNav.test.tsx@821debc3`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L52))
 - No need to visit separate /pipeline, /search, /audit pages.
@@ -83,8 +83,9 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
    GitHub App installation).
 3. Lore enrols the repo: the `lore`/`lore:*` dispatch labels and the
    priority taxonomy, the GitHub webhook, the ingest callback (repo
-   variable `LORE_INGEST_URL` + secret `LORE_INGEST_TOKEN`), and the
-   verbatim scaffolding committed on the task branch —
+   variable `LORE_INGEST_URL` + secret `LORE_INGEST_TOKEN`, both rewritten
+   on every run), and the verbatim scaffolding committed on the task branch
+   *(2026-11-20: only the files that differ)* —
    `.github/workflows/lore-ingest.yml`, `.github/workflows/lore-trace-impact.yml`,
    `.claude/settings.json` and `.github/ISSUE_TEMPLATE/*.yml`.
 4. The onboarding ticket — the task's GitHub Issue on the target repo —
@@ -95,19 +96,23 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
    it: author → validate → push (opens THE pull request) → review.
 5. User sees the PR link in the UI.
 6. Repo owner reviews and merges the PR.
-7. The merge pushes the scaffolding to the default branch, so the repo's
-   own `lore-ingest.yml` and `lore-tests.yml` run on the merge commit and
-   its content is ingested — no follow-up task.
+7. The merge pushes the scaffolding to the default branch, and Lore then
+   enables and dispatches the repo's `lore-ingest.yml` and `lore-tests.yml`,
+   so its content is ingested *(2026-11-20: was "run on the merge commit and
+   its content is ingested — no follow-up task")*. A run that opened no PR
+   (the scaffolding was already current) starts the same ingestion at its end.
 8. Repo appears in the Lore dashboard.
 
 **Acceptance Criteria:**
 - One-click onboarding from the UI.
 - ONE pull request per onboarding: opened by the line's push node via the
-  GitHub App (lore-agent bot); the dashboard offers no fix-workflow PR
-  while the onboarding PR is unmerged, and no initial-ingestion task follows
-  the merge.
+  GitHub App (lore-agent bot), and only when a file differs; the dashboard
+  offers no update while the onboarding PR is unmerged. *(2026-11-20: was
+  "and no initial-ingestion task follows the merge".)*
 - PR contains all required files with sensible defaults.
-- After merge, repo content is ingested by the merged workflows' own run.
+- After merge, and after a run that needed no PR, the repo's ingest and test
+  workflows are enabled and dispatched, so documents that predate onboarding
+  are ingested *(2026-11-20: was "ingested by the merged workflows' own run")*.
 - Repo appears in dashboard within 24 hours (or immediately if
   manual ingest is triggered).
 
@@ -210,30 +215,20 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   identical bytes, and an up-to-date repo would get an empty pull request.
   Paths are read exactly, so a repo with a `.github/` directory still receives
   its issue templates (#1201). An LLM never retypes these. ([validated by owns the three lore issue templates as lore files and leaves .claude/settings.json and config.yml to the repo @7962cd0d](libs/shared/src/work/onboard-content.test.ts#L197), [validated by commits a Lore-owned file when the branch's copy differs from the canonical content @0146fe34](../../libs/shared/src/work/onboard/onboard-scaffold.acceptance.test.ts#L10), [validated by returns true for a lore-owned file when it differs from canonical content @fd674110](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L14), [validated by returns true for any file when it is absent @efd56338](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L23), [validated by returns false for a lore-owned file when it matches canonical content @9d1a4a59](libs/shared/src/work/onboard/onboard-scaffold.test.ts#L5))
-- FR-2.4: Opens a PR per repo with the canonical onboarding path and
-  content, counting only the repos where a PR was actually opened,
-  reporting each repo where no PR was opened with its reason (a thrown
-  error's message, or an App-not-configured hint on a null) for both the
-  ingest and trace-impact fix actions, and evicting the cached
-  ingest-workflow statuses before revalidating so the re-rendered page
-  refetches them ([validated by `actions.test.ts@8f8b9f99`](apps/web-ui/src/app/actions.test.ts#L31), [`actions.test.ts@9e66c736`](apps/web-ui/src/app/actions.test.ts#L56), [`actions.test.ts@09008166`](apps/web-ui/src/app/actions.test.ts#L90), [`actions.test.ts@ba7f167d`](apps/web-ui/src/app/actions.test.ts#L102))
-- FR-2.4b: *(amended 2026-09-17)* The fix-ingest and fix-trace-impact
-  actions are offered only for repos whose onboarding PR has merged: a repo
-  still being onboarded reads as "missing" because its scaffolding sits on
-  the unmerged onboarding branch, and a fix PR there would be a second PR
-  beside the one onboarding owns. ([validated by offers a fix for an onboarded repo whose workflow is missing or stale, not an aligned one @c13eb548](apps/web-ui/src/lib/workflow-fix.test.ts#L10), [validated by offers no fix for a repo whose onboarding PR has not merged, whatever its workflow status @44c90749](apps/web-ui/src/lib/workflow-fix.test.ts#L25), [validated by offers nothing for a repo with no status read @dbfa8f8e](apps/web-ui/src/lib/workflow-fix.test.ts#L36))
+- FR-2.4: *(2026-11-20: was a fix-ingest and a fix-trace-impact action that opened a PR per repo from the web UI's own copy of the workflow templates; both are replaced by the one Update setup action of FR-2.14, which opens no PR itself.)* The onboard line opens the pull request, from the canonical files of `libs/shared`, only for a repo where a file differs (FR-2.3).
+- FR-2.4b: *(amended 2026-09-17; 2026-11-20: was the fix-ingest and fix-trace-impact actions)* The Update setup action is offered only for repos whose onboarding PR has merged: a repo still being onboarded reads as "missing" because its scaffolding sits on the unmerged onboarding branch, and a second run there would sit beside the one onboarding owns.
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts@854b1dc3`](apps/web-ui/src/lib/onboard.test.ts#L16))
 - The merge-check sweep reads owner, repository and PR number from an onboarding GitHub pull URL; an empty URL or a repository URL without a pull request yields no PR to check. ([validated by reads owner, repo, and PR number from a github.com pull URL @41c33764](apps/stations/src/work/merge-check/merge-check.test.ts#L5), [validated by returns null for a URL that carries no pull request @5ef710ec](apps/stations/src/work/merge-check/merge-check.test.ts#L11), [validated by returns null for an empty string @1c6a1a84](apps/stations/src/work/merge-check/merge-check.test.ts#L15))
 - FR-2.6: After merge, the merge-check station flips the repo to onboarded
-  and the merged workflows ingest on their own push run — no task follows; re-onboarding creates an onboard task and
-  redirects to its run (or returns the refusal error when none is
-  created), from a trigger drawn as a plain button rather than a link, and the fix-ingest control re-triggers ingestion for
-  misaligned repos with a singular/plural PR label plus a failure count
-  and per-repo reasons when some PRs could not be opened; a re-onboard
-  raised while the previous pass is still running lands on that in-flight
-  task's run instead of
-  queueing a duplicate. ([validated by is the plain global button, not the link-styled one @b7b2cfb8](apps/web-ui/src/components/ReonboardButton.test.tsx#L17), [`actions.test.ts@373f8726`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L32), [`actions.test.ts@7472fa61`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L43), [`actions.test.ts@50fd67bd`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L56), [`FixIngestButton.test.tsx@a467387d`](apps/web-ui/src/components/FixIngestButton.test.tsx#L11), [`FixIngestButton.test.tsx@238c230a`](apps/web-ui/src/components/FixIngestButton.test.tsx#L19), [`FixIngestButton.test.tsx@599181b5`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40), [`FixIngestButton.test.tsx@59172195`](apps/web-ui/src/components/FixIngestButton.test.tsx#L54))
+  and calls `startFirstIngest` (FR-2.16), because only then are the workflow
+  files on the default branch. *(2026-11-20: was "the merged workflows ingest
+  on their own push run — no task follows".)* A push run may still ingest; the
+  dispatch makes sure documents that predate onboarding are sent. Re-onboarding
+  creates an onboard task and redirects to its run (or returns the refusal
+  error when none is created), from a trigger drawn as a plain button rather
+  than a link; a re-onboard raised while the previous pass is still running
+  lands on that in-flight task's run instead of queueing a duplicate.
 - FR-2.6.1 *(added 2026-09-22, #2027)*: Flipping the repo to onboarded does
   not stamp `last_ingested_at`; only an ingest does. The stamp used to be set
   on merge although nothing had read the repo, which silenced the
@@ -250,9 +245,12 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
   task with no ticket still audits and dispatches.
 - FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
   secret `LORE_INGEST_TOKEN`) is written before the line is dispatched so
-  its failures reach the ticket; an unset Floor-side value is reported
-  instead of being written as an empty variable, and a rejected secret
-  write is reported with its error.
+  its failures reach the ticket. *(2026-11-20.)* The stations deployment
+  carries the public lore-api URL as `LORE_INGEST_URL`, from a chart value,
+  and `enrol` rewrites both the variable and the secret on every run, with no
+  comparison against what the repo holds. An unset deployment value is
+  reported instead of being written as an empty variable, and a rejected
+  secret write is reported with its error.
 - FR-2.9: An onboard task ALWAYS walks the `onboard` assembly line, dark
   mode or not — only the line's push node opens the PR, so a single-Agent
   dispatch would never produce one; every other task type keeps its rule
@@ -303,6 +301,38 @@ post-merge ingestion task — could leave three PRs open for one onboarding.
 - FR-2.13: *(added 2026-10-02, #2381)* Submitting the onboarding form gives
   feedback. On success the user lands on the repository's page, which shows
   its onboarding state. A refusal keeps the user on the form with the reason. ([validated by redirects to /repos/re-cinq/lore when onboarding queues task-1 @dffb6b49](apps/web-ui/src/app/onboard/page.test.tsx#L58), [stays on the form with the refusal when onboarding is refused @6168d30c](apps/web-ui/src/app/onboard/page.test.tsx#L68), [rejects a malformed repository without calling the API @17bacdf7](apps/web-ui/src/app/onboard/page.test.tsx#L84))
+- FR-2.14: *(added 2026-11-20)* No secret or variable is set by hand
+  anywhere. The home page offers ONE action, **Update setup**, in place of
+  the two fix-workflow buttons: for each selected repo it posts
+  `POST /api/onboard {repo, reonboard: true}`, so the onboard line does the
+  update (the secret, the variable, one pull request only when a file
+  differs, and the first ingestion). The onboard page's "what happens" list
+  names the `LORE_INGEST_TOKEN` secret, the `LORE_INGEST_URL` variable and the
+  first ingestion.
+- FR-2.15: *(added 2026-11-20)* The Settings page's ingest-token note no
+  longer tells people to set `LORE_INGEST_TOKEN` on repos by hand, because
+  onboarding writes it. Regenerating the ingest token there posts the
+  `ingest-secret-repair` sweep once the new token is live
+  (`specs/external-floor` FR11.22), which rewrites the secret of every
+  onboarded repo.
+- FR-2.16: *(added 2026-11-20)* A repo's first ingestion is started by
+  Lore, not left to a merge. `startFirstIngest`
+  (`libs/shared/src/work/onboard/start-first-ingest.ts`) takes
+  `.github/workflows/lore-ingest.yml` and `.github/workflows/lore-tests.yml`
+  on the default branch, and for each reads the workflow's state, enables it
+  when it is disabled, and dispatches it (`workflow_dispatch`). A workflow
+  file that is missing, a workflow without `workflow_dispatch`, and a GitHub
+  refusal (a 403 because the App lacks Actions write, for one) are reported
+  as gaps and never fail the caller. It runs after a merge (FR-2.6) and as
+  the last step of a run that opened no pull request
+  (`specs/external-floor` FR11.12a).
+- FR-2.17: *(added 2026-11-20)* The `lore-ingest.yml` template, version 10,
+  adds `workflow_dispatch`. On a dispatch its ingest job sends every tracked
+  file under the template's paths (`git ls-files`) instead of the `HEAD~1`
+  diff a push sends.
+- FR-2.18: *(added 2026-11-20)* The Lore GitHub App holds Actions: Read and
+  write, which enabling and dispatching a workflow need; Read-only is not
+  enough.
 
 ### FR-3: Repo-Centric UI Layout
 
