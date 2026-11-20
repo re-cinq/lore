@@ -254,7 +254,13 @@ describe("specTicketsIssuesHandle on a spec that came from a plan", () => {
       tools,
     );
 
-    expect(read).toEqual(["deduped_decomposition"]);
+    expect({
+      read,
+      filed: repository.filed.map(({ title }) => title),
+    }).toEqual({
+      read: ["deduped_decomposition", "verified_decomposition"],
+      filed: ["User story: specs/widget/spec.md", "T001: Build the widget"],
+    });
   });
 
   it("saves nothing for a spec with no source plan", async () => {

@@ -51,7 +51,9 @@ export function specTicketsIssuesHandle(deps: SpecTicketsIssuesDeps): Handle {
       const artifact = filedArtifact(brief.needs);
       const verified = artifact !== "decomposition";
       const decomposition = (await tools.read(artifact)).toString("utf8");
-      const { input, project } = await filingOf(deps, brief, decomposition);
+      const filing = await filingOf(deps, brief, decomposition);
+      const { project } = filing;
+      const input = await withCounted(filing.input, artifact, brief, tools);
 
       const result = await (verified
         ? verifiedIssues(input, project, tools)
@@ -77,6 +79,24 @@ function filedArtifact(needs: Brief["needs"]): string {
   );
 
   return filed ?? "decomposition";
+}
+
+// The story counts the tasks the coverage step counts: a task the dedupe step dropped is held by the ticket it duplicates, and a story listing its statements as uncovered fails that step.
+async function withCounted(
+  input: StationInput,
+  artifact: string,
+  { needs }: Brief,
+  tools: Tools,
+): Promise<StationInput> {
+  if (artifact !== "deduped_decomposition" || !needs.verified_decomposition) {
+    return input;
+  }
+  const counted = (await tools.read("verified_decomposition")).toString("utf8");
+
+  return {
+    ...input,
+    params: { ...input.params, counted_decomposition: counted },
+  };
 }
 
 async function saveStoryOnSourcePlan(

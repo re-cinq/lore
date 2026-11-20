@@ -237,6 +237,11 @@ stations:
         access: read
       - name: deduped_decomposition
         kind: file
+      # What the coverage step counts: the story lists as uncovered only the
+      # statements no task of this one names, so a task the dedupe step dropped
+      # still covers its statements.
+      - name: verified_decomposition
+        kind: file
       - name: spec_path
         kind: value
       # The plan whose spec branch the merged pull request came from, whose saved
