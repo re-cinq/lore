@@ -23,6 +23,10 @@ export type {
   IssueRef,
   IssueFilter,
   IssueState,
+  GitHubReleasePort,
+  ReleaseInput,
+  ReleaseEdit,
+  ReleaseRecord,
 } from "./lib/github-port.js";
 export { IssueCollection } from "./issues/issues.js";
 export { RepoFiles } from "./repo/repo-files.js";
@@ -118,3 +122,8 @@ export type { ProjectProviders } from "./lib/providers.js";
 
 export type { GitPort, CloneOpts } from "./workspace/git-port.js";
 export { Workspace } from "./workspace/workspace.js";
+export type {
+  MirrorPushPort,
+  MirrorPushRequest,
+  MirrorPushOutcome,
+} from "./workspace/mirror-push-port.js";

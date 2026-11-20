@@ -266,5 +266,19 @@ describe.each(IMPLEMENTATIONS)(
         (await port.page(repo, { limit: 10 })).map((row) => row.version),
       ).toEqual(["v1.3.0", "v1.2.0", "v1.1.0"]);
     });
+
+    it("keeps the first write time of v1.3.0 when it is written again", async () => {
+      const { port, repo } = make();
+
+      await port.upsert(release("v1.3.0", { repo, summary: "first" }));
+      const firstWrite = (await port.latest(repo))?.writtenAt;
+
+      await port.upsert(release("v1.3.0", { repo, summary: "second" }));
+
+      expect(await port.latest(repo)).toMatchObject({
+        summary: "second",
+        writtenAt: firstWrite,
+      });
+    });
   },
 );

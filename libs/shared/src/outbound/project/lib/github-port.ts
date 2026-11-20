@@ -194,3 +194,36 @@ export interface GitHubPort {
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }
+
+export interface ReleaseInput {
+  tag: string;
+  name: string;
+  body: string;
+  draft?: boolean;
+}
+
+export interface ReleaseEdit {
+  name?: string;
+  body?: string;
+}
+
+export interface ReleaseRecord {
+  id: number;
+  tag: string;
+  name: string;
+  body: string;
+  draft: boolean;
+  url: string;
+}
+
+export interface GitHubReleasePort {
+  createTagRef(repo: string, tag: string, sha: string): Promise<void>;
+  createRelease(repo: string, input: ReleaseInput): Promise<ReleaseRecord>;
+  releaseByTag(repo: string, tag: string): Promise<ReleaseRecord | null>;
+  updateRelease(
+    repo: string,
+    id: number,
+    edit: ReleaseEdit,
+  ): Promise<ReleaseRecord>;
+  repoVariable(repo: string, name: string): Promise<string | null>;
+}

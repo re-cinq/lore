@@ -17,6 +17,10 @@ import type {
 } from "../../../domain/utopia/github/release-text.js";
 import type {
   GitHubPort,
+  GitHubReleasePort,
+  ReleaseEdit,
+  ReleaseInput,
+  ReleaseRecord,
   IssueRef,
   IssueFilter,
   IssueState,
@@ -52,7 +56,7 @@ import * as issueLinks from "./platform-github-issue-links.js";
 import * as repoContent from "./platform-github-repo-content.js";
 import { listBranchHistory } from "./platform-github-history.js";
 import { listTrackerActivity } from "./platform-github-tracker.js";
-import { listReleases, listTags } from "./platform-github-releases.js";
+import * as releases from "./platform-github-releases.js";
 import * as repoConfig from "./platform-github-repo-config.js";
 import * as pullsRead from "./platform-github-pulls-read.js";
 import * as branchRule from "./platform-github-branch-rule.js";
@@ -63,7 +67,9 @@ import * as actionsReads from "./platform-github-actions.js";
 export type { IssueState, CloseReason };
 
 /** One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort (auth relocated from mcp-server/github-client.ts, REST from agent/github.ts); octokit is imported lazily so the module loads where it's absent. Method bodies delegate to the sibling `platform-github-*` modules, grouped by job (issues, repo content/config, PR reads, PR review reads, PR writes). */
-export class PlatformGitHub implements GitHubPort, PullRequestsPort {
+export class PlatformGitHub
+  implements GitHubPort, GitHubReleasePort, PullRequestsPort
+{
   readonly name = "github";
   private client?: Promise<Octokit>;
 
@@ -239,11 +245,38 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   }
 
   async listReleases(repo: string): Promise<ReleaseEntry[]> {
-    return listReleases(await this.octo(), repo);
+    return releases.listReleases(await this.octo(), repo);
   }
 
   async listTags(repo: string): Promise<TagEntry[]> {
-    return listTags(await this.octo(), repo);
+    return releases.listTags(await this.octo(), repo);
+  }
+
+  async createTagRef(repo: string, tag: string, sha: string): Promise<void> {
+    return releases.createTagRef(await this.octo(), repo, tag, sha);
+  }
+
+  async createRelease(
+    repo: string,
+    input: ReleaseInput,
+  ): Promise<ReleaseRecord> {
+    return releases.createRelease(await this.octo(), repo, input);
+  }
+
+  async releaseByTag(repo: string, tag: string): Promise<ReleaseRecord | null> {
+    return releases.releaseByTag(await this.octo(), repo, tag);
+  }
+
+  async updateRelease(
+    repo: string,
+    id: number,
+    edit: ReleaseEdit,
+  ): Promise<ReleaseRecord> {
+    return releases.updateRelease(await this.octo(), repo, id, edit);
+  }
+
+  async repoVariable(repo: string, name: string): Promise<string | null> {
+    return releases.repoVariable(await this.octo(), repo, name);
   }
 
   async branchExists(repo: string, branch: string): Promise<boolean> {
