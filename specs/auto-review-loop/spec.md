@@ -27,7 +27,7 @@ _(Rewritten 2026-11-20: the five passes, which showed five separate accounts of 
 
 - The comment shows the story as soon as it is told, numbered, each line with its test. ([validated by @05a2319d](apps/stations/src/code-review/story-review/story.test.ts#L50))
 - A change with no tests tells no story, and the comment says so. ([validated by @9434f120](apps/stations/src/code-review/story-review/story.test.ts#L82))
-- Each gap is listed under the story with its kind, its subject and where; the detail and the proposal are in the comment on its line. ([validated by @599ad23e](apps/stations/src/code-review/story-review/story.test.ts#L61))
+- Each gap is listed under the story with its kind, its subject and where; the detail and the proposal are in the comment on its line. ([validated by @9bb96675](apps/stations/src/code-review/story-review/story.test.ts#L61))
 - A step that gave no answer is named, and a failed run says the whole diff is reviewed instead. ([validated by @6ca11e07](apps/stations/src/code-review/story-review/story.test.ts#L90))
 - The progress station accepts a told story and fails a step that gave none. ([validated by @32047a71](apps/stations/src/code-review/story-review/station.test.ts#L63), [validated by @343f3587](apps/stations/src/code-review/story-review/station.test.ts#L72))
 
