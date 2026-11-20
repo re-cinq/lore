@@ -136,8 +136,20 @@ test("a PR event collects pinned code and unchanged tests and starts a five-pass
     ["limit.test.ts"],
   );
   assert.deepEqual(
-    evidence.code_evidence.files.map((file) => file.path),
-    ["limit.ts"],
+    evidence.code_evidence.files.map(({ path, before, after, diff }) => ({
+      path,
+      before,
+      after,
+      changed: diff.split("\n").filter((line) => /^[-+]e/.test(line)),
+    })),
+    [
+      {
+        path: "limit.ts",
+        before: undefined,
+        after: "export const limit = 2;",
+        changed: ["-export const limit = 1;", "+export const limit = 2;"],
+      },
+    ],
   );
   const result = await collect();
 
@@ -146,13 +158,12 @@ test("a PR event collects pinned code and unchanged tests and starts a five-pass
   assert.deepEqual(floorRun.packets.get("tests").files, [
     { path: "limit.test.ts", unchanged: "expect(limit).toBe(1);" },
   ]);
-  assert.deepEqual(floorRun.packets.get("code").files, [
-    {
-      path: "limit.ts",
-      before: "export const limit = 1;",
-      after: "export const limit = 2;",
-    },
-  ]);
+  assert.deepEqual(
+    floorRun.packets
+      .get("code")
+      .files.map(({ path, after }) => ({ path, after })),
+    [{ path: "limit.ts", after: "export const limit = 2;" }],
+  );
   assert.equal(
     floorRun.packets.get("intent").discussion[0].text,
     "Adjust limit",

@@ -134,6 +134,25 @@ async function prepare(cwd) {
   if (snapshot.status) {
     return snapshot;
   }
+  // A modified file goes to the readers as its diff and its new text: the old text in full doubles the packet.
+  snapshot.files = await Promise.all(
+    snapshot.files.map(async (file) =>
+      file.before === null || file.after === null || file.before === file.after
+        ? file
+        : {
+            ...file,
+            diff: await git([
+              "diff",
+              "--no-ext-diff",
+              "--no-color",
+              evidenceBase,
+              pr.head.sha,
+              "--",
+              ":(literal)" + file.path,
+            ]),
+          },
+    ),
+  );
   const product = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
     productDocuments(git, evidenceBase, pr.head.sha, values.paths),

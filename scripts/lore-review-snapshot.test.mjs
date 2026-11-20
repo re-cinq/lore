@@ -141,7 +141,7 @@ test("a changed binary asks for the whole-diff reviewer", (t) => {
   });
 });
 
-test("a change with more evidence than a reader can hold asks for the whole-diff reviewer", (t) => {
+test("a change with more than 2 MiB of evidence asks for the whole-diff reviewer", (t) => {
   const { write, commit, snapshot } = repository(t);
 
   write("table.ts", "export const rows = [];\n");
@@ -149,13 +149,13 @@ test("a change with more evidence than a reader can hold asks for the whole-diff
 
   write(
     "table.ts",
-    "export const rows = [\n" + "  1,\n".repeat(80_000) + "];\n",
+    "export const rows = [\n" + "  1,\n".repeat(600_000) + "];\n",
   );
   const head = commit();
 
   assert.deepEqual(snapshot(base, head), {
     exitCode: 1,
-    output: { status: "whole_diff", reason: "Evidence exceeds 307200 bytes" },
+    output: { status: "whole_diff", reason: "Evidence exceeds 2097152 bytes" },
   });
 });
 
