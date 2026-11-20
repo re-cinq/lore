@@ -9,6 +9,9 @@ const markdown = /\.(?:md|mdx|markdown|mkd|mkdn|mdown)$/i;
 const testDirectory = /(?:^|\/)(?:tests?|__mocks__|__fixtures__|fixtures)\//i;
 const maxEvidenceBytes = 2 * 1024 * 1024;
 
+// A change the collector cannot hand to the code and test readers; the whole-diff reviewer takes it.
+class UnsplittableChange extends Error {}
+
 async function git(args, { emptyOnNoMatch = false } = {}) {
   try {
     const { stdout } = await runFile("git", ["--no-replace-objects", ...args], {
@@ -201,23 +204,25 @@ async function source(path, entry) {
   }
 
   if (!/^100(?:644|755)$/.test(entry.mode)) {
-    throw new Error(`Unsupported Git file mode ${entry.mode} for ${path}`);
+    throw new UnsplittableChange(
+      `Unsupported Git file mode ${entry.mode} for ${path}`,
+    );
   }
   const bytes = await git(["cat-file", "blob", entry.hash]);
 
   if (bytes.includes(0)) {
-    throw new Error(`Binary evidence for ${path}`);
+    throw new UnsplittableChange(`Binary evidence for ${path}`);
   }
   let body;
 
   try {
     body = decoder.decode(bytes);
   } catch {
-    throw new Error(`Evidence for ${path} is not UTF-8`);
+    throw new UnsplittableChange(`Evidence for ${path} is not UTF-8`);
   }
 
   if (body.startsWith("version https://git-lfs.github.com/spec/v1\n")) {
-    throw new Error(`Git LFS evidence unavailable for ${path}`);
+    throw new UnsplittableChange(`Git LFS evidence unavailable for ${path}`);
   }
 
   return body;
@@ -400,7 +405,7 @@ async function capture(base, head, includes, comparisonBase, scope) {
     }
 
     if (beforeEntry && afterEntry && beforeEntry.mode !== afterEntry.mode) {
-      throw new Error(`Git file mode changed for ${path}`);
+      throw new UnsplittableChange(`Git file mode changed for ${path}`);
     }
     const before = await source(path, beforeEntry);
     const after =
@@ -421,7 +426,7 @@ async function capture(base, head, includes, comparisonBase, scope) {
               /\bimport\.meta\.vitest\b/.test(body))),
       )
     ) {
-      throw new Error(
+      throw new UnsplittableChange(
         `Mixed code and inline tests require separately filtered evidence in ${path}`,
       );
     }
@@ -430,7 +435,9 @@ async function capture(base, head, includes, comparisonBase, scope) {
       (before === after ? 0 : Buffer.byteLength(after ?? ""));
 
     if (totalBytes > maxEvidenceBytes) {
-      throw new Error(`Evidence exceeds ${maxEvidenceBytes} bytes`);
+      throw new UnsplittableChange(
+        `Evidence exceeds ${maxEvidenceBytes} bytes`,
+      );
     }
     files.push({ path, role, before, after });
   }
@@ -446,6 +453,10 @@ async function capture(base, head, includes, comparisonBase, scope) {
 
   for (const path of [...fixtures].filter((path) => !paths.has(path)).sort()) {
     await addFile(path);
+  }
+
+  if (files.length === 0) {
+    throw new UnsplittableChange("The change has no code or test file");
   }
 
   return { base, head, mergeBase, files };
@@ -474,6 +485,9 @@ try {
     ),
   );
 } catch (error) {
-  console.log(JSON.stringify({ status: "incomplete", reason: error.message }));
+  const status =
+    error instanceof UnsplittableChange ? "whole_diff" : "incomplete";
+
+  console.log(JSON.stringify({ status, reason: error.message }));
   process.exitCode = 1;
 }

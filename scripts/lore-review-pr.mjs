@@ -102,7 +102,7 @@ async function prepare(cwd) {
     ],
     { ...options, env: authEnv },
   );
-  const [discussion, captured] = await Promise.all([
+  const [discussion, snapshot] = await Promise.all([
     discussionFor(api, target, pr),
     exec(
       process.execPath,
@@ -117,11 +117,22 @@ async function prepare(cwd) {
         ...values.paths.flatMap((path) => ["--scope", path]),
       ],
       options,
-    ).catch((error) => {
-      throw new Error(JSON.parse(error.stdout).reason);
-    }),
+    ).then(
+      ({ stdout }) => JSON.parse(stdout),
+      (error) => {
+        const refusal = JSON.parse(error.stdout);
+
+        if (refusal.status === "whole_diff") {
+          return refusal;
+        }
+        throw new Error(refusal.reason);
+      },
+    ),
   ]);
-  const snapshot = JSON.parse(captured.stdout);
+
+  if (snapshot.status) {
+    return snapshot;
+  }
   const [specs, documents] = await Promise.all([
     productSpecs(git, mergeBase, pr.head.sha, discussion, snapshot.files),
     productDocuments(git, evidenceBase, pr.head.sha, values.paths),
