@@ -1,8 +1,7 @@
-// The commit author moved out of six prompts into the GIT_AUTHOR_* / GIT_COMMITTER_* env of their config (LORE_COMMIT_AUTHOR_NAME / _EMAIL, the chart's commitAuthor).
+// The commit author moved out of the prompts of the agents that commit into the GIT_AUTHOR_* / GIT_COMMITTER_* env of their config (LORE_COMMIT_AUTHOR_NAME / _EMAIL, the chart's commitAuthor).
 import type { FloorMigration } from "../floor-migrations.js";
 
 const COMMITTING_AGENTS = [
-  "gap-fill",
   "loop-dod",
   "loop-fix-ci",
   "loop-tdd-round",

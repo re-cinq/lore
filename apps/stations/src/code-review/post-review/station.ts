@@ -79,17 +79,25 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
 
     await deliverReview(deps, brief, visit, { agentOutput, verdict });
 
-    if (verdict === "success") {
-      await resolveHandedThreads(visit, brief);
-    }
-    const summary = verdictSummary(verdict, findingCountOf(agentOutput));
-
-    await visit.project.upsertCheckRun(
-      reviewCheck({ headSha: visit.target.headSha, verdict, summary }),
-    );
-
-    return reported(summary, prUrl);
+    return settleReview(visit, brief, { agentOutput, verdict });
   };
+}
+
+async function settleReview(
+  visit: ReviewVisitState,
+  brief: Brief,
+  { agentOutput, verdict }: { agentOutput: string; verdict: ReviewVerdict },
+): Promise<Report> {
+  if (verdict === "success") {
+    await resolveHandedThreads(visit, brief);
+  }
+  const summary = verdictSummary(verdict, findingCountOf(agentOutput));
+
+  await visit.project.upsertCheckRun(
+    reviewCheck({ headSha: visit.target.headSha, verdict, summary }),
+  );
+
+  return reported(summary, brief.needs.pr_url);
 }
 
 interface ReviewVisitState {

@@ -13,8 +13,9 @@ import {
   parsePullRequestUrl,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
 import { z } from "zod";
-import { pagedPacket, preparedEvidence } from "./prepared-evidence.js";
+import { preparedEvidence } from "./prepared-evidence.js";
 
 const exec = promisify(execFile);
 const collector = fileURLToPath(
