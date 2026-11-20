@@ -80,8 +80,10 @@ describe("storyReview", () => {
         "|---|------|--------------|-------|",
         `| 1 | Missing test | the rule is not in the identity section | \`${TEST}:13\` |`,
       ].join("\n"),
+      "<details><summary>What the checks read</summary>",
       "The implementation matches the story.",
       "One requirement is untold.",
+      "</details>",
     ]);
   });
 
@@ -242,7 +244,7 @@ describe("formalReview", () => {
 
     expect([
       formalReview(review),
-      storyReview(review, 3).comment(REVISION, "complete").split("\n\n").at(-3),
+      storyReview(review, 3).comment(REVISION, "complete").split("\n\n").at(-5),
     ]).toEqual([
       {
         verdict: "approved",

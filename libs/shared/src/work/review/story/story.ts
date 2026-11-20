@@ -77,14 +77,27 @@ function commentOf(
     ...storyLines(review),
     ...gapTable(review.gaps),
     ...declinedList(review.declined),
-    ...review.checks.flatMap((check) =>
-      check ? [escapeMarkdown(check.summary)] : [],
-    ),
+    ...checkNotes(review.checks),
     ...(incomplete.length ? [`Incomplete — ${incomplete.join(", ")}`] : []),
     ...(state === "failed"
       ? ["Lore reviews this revision from its whole diff instead."]
       : []),
   ].join("\n\n");
+}
+
+/** What each check says about how far it went, folded away: the story and the gaps are what the reader came for. */
+function checkNotes(checks: Review["checks"]): string[] {
+  const notes = checks.flatMap((check) =>
+    check ? [escapeMarkdown(check.summary)] : [],
+  );
+
+  return notes.length
+    ? [
+        "<details><summary>What the checks read</summary>",
+        ...notes,
+        "</details>",
+      ]
+    : [];
 }
 
 function verdictOf(
