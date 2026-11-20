@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { Tools } from "@re-cinq/floor-station";
-import { specParts } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
+import {
+  specParts,
+  storyCoverageOf,
+} from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { DecompTask } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import {
   taskMarker,
@@ -80,7 +83,21 @@ function scene(
     readSpec,
     listTree: async () => Object.keys(files),
     visitsOf: async () => visits,
-    filedCoverage: async () => null,
+    filedCoverage: async (_repo, planId) => {
+      const story = filed.find(({ body }) =>
+        body.includes(storyMarker(planId)),
+      );
+
+      return story
+        ? storyCoverageOf(
+            story.body,
+            comments
+              .filter(({ number }) => number === story.number)
+              .map(({ body }) => body),
+            planId,
+          )
+        : null;
+    },
   };
   const project = {
     repo: {
@@ -150,6 +167,33 @@ function scene(
       { ...brief, needs: { ...needs, verified_decomposition: "verified" } },
       tools,
     );
+  const fileWithout = (dropped: string) => {
+    const verified = JSON.parse(artifacts.verified_decomposition);
+    const stories = verified.stories.map(
+      (story: { tasks: { id: string }[] }) => ({
+        ...story,
+        tasks: story.tasks.filter(({ id }) => id !== dropped),
+      }),
+    );
+
+    artifacts.deduped_decomposition = JSON.stringify({ ...verified, stories });
+
+    return specTicketsIssuesHandle({
+      runOf: async () => "run-1",
+      project: async () => project as never,
+      savePlanStory: async () => undefined,
+    })(
+      {
+        ...brief,
+        needs: {
+          ...needs,
+          verified_decomposition: "verified",
+          deduped_decomposition: "deduped",
+        },
+      },
+      tools,
+    );
+  };
   const coverage = () =>
     issueCoverageHandle(deps)(
       { ...brief, needs: { ...needs, verified_decomposition: "verified" } },
@@ -166,6 +210,7 @@ function scene(
     project,
     verify,
     file,
+    fileWithout,
     coverage,
     needs,
   };
@@ -397,6 +442,36 @@ describe("verified spec ticket flow", () => {
         body: expect.stringContaining("/blob/merge123/src/widget.ts#L1-L1"),
       },
     ]);
+  });
+
+  it("files only T002 and settles with 2 of 2 covered on the story when dedupe dropped T001 as held by another ticket", async () => {
+    const raw = decomposition("missing");
+    const [task] = raw.stories[0].tasks;
+
+    raw.stories[0].tasks = [
+      { ...task, spec_lines: [5] },
+      { ...task, id: "T002", description: "Add colour", spec_lines: [6] },
+    ];
+    const run = scene(raw, { [PATH]: SPEC });
+
+    expect([
+      await run.verify(),
+      await run.fileWithout("T001"),
+      await run.coverage(),
+    ]).toEqual([
+      { outcome: "success" },
+      { outcome: "success" },
+      { outcome: "success" },
+    ]);
+    expect({
+      titles: run.filed.map(({ title }) => title),
+      story: run.filed[0].body,
+    }).toEqual({
+      titles: ["User story: Widget", "T002: Add colour"],
+      story: expect.stringContaining(
+        "2 of 2 testable spec statements have a task or verified implementation evidence.",
+      ),
+    });
   });
 
   it("keeps mixed present and missing statements actionable and drops a satisfied dependency without an issue", async () => {

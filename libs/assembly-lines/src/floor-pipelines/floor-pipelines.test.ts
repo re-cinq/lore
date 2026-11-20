@@ -2430,7 +2430,7 @@ it("dedupes the verified decomposition against the filed tickets into a deduped 
       { from: "dedupe", to: "issues", on: "success" },
       { from: "dedupe", to: "failed", on: "failed" },
     ],
-    needs: ["target", "verified_decomposition", "existing_tickets"],
+    needs: ["target", "verified_decomposition", "spec_path"],
     produces: ["deduped_decomposition", "dedupe_report"],
   });
 });
@@ -2453,6 +2453,10 @@ it("routes rejected implementation evidence back three times, gives filing the d
       "implementation_report",
     ),
     filing: needOf(stations["spec-tickets-issues"], "deduped_decomposition"),
+    storyCount: needOf(
+      stations["spec-tickets-issues"],
+      "verified_decomposition",
+    ),
     coverage: needOf(
       stations["spec-tickets-coverage"],
       "verified_decomposition",
@@ -2471,6 +2475,7 @@ it("routes rejected implementation evidence back three times, gives filing the d
     ],
     correction: { name: "implementation_report", optional: true },
     filing: { name: "deduped_decomposition" },
+    storyCount: { name: "verified_decomposition" },
     coverage: { name: "verified_decomposition" },
     summary: [{ name: "ticketing_result", kind: "file" }],
   });
