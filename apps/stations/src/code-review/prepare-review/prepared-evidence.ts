@@ -13,7 +13,7 @@ const unprepared = z.object({
   reason: z.string().optional(),
 });
 
-/** The three packets the collector printed, or the outcome it asks for instead: the report that sends it to the whole-diff reviewer with the reason, or the one that ends it for a commit that is no longer the pull request's head. */
+/** The three packets the collector printed, or the outcome it asks for instead: the report that sends it to the whole-diff reviewer with the reason on the visit, where the run page shows it, or the one that ends it for a commit that is no longer the pull request's head. */
 export function preparedEvidence(
   stdout: string,
   previousFindings?: string,
@@ -21,7 +21,6 @@ export function preparedEvidence(
   const collected = JSON.parse(stdout);
   const refusal = unprepared.safeParse(collected).data;
 
-  // The reason rides on the visit, so the run page says why a pull request got the whole-diff reviewer.
   if (refusal) {
     return {
       outcome: refusal.status,
