@@ -224,7 +224,7 @@ lore-api:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-api
-    tag: "6f8d12f"
+    tag: "35a7270"
   env:
     # Evals on Gemini under the pod's Google identity; gemini-2.5-pro judged a
     # full run on 2026-10-03 and changed no verdict, so no judge model is set.
