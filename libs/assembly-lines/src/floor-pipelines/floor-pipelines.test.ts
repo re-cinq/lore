@@ -1852,6 +1852,28 @@ describe("test_policy on the review agent definitions", () => {
   });
 });
 
+describe("a five-pass finding is posted on the line it is about", () => {
+  it.each([
+    "shadow-compare-intent",
+    "code-review-product",
+    "shadow-review-product",
+  ])(
+    "tells %s to give every finding a location with path, line and side, and to keep what is correct out of the findings",
+    (agent) => {
+      const prompt = promptOnOneLine(agent);
+
+      expect([
+        prompt.includes(
+          "Every finding names the line it is about in a `location` object",
+        ),
+        prompt.includes(
+          "What is correct, complete or aligned belongs in `summary` and is never a finding",
+        ),
+      ]).toEqual([true, true]);
+    },
+  );
+});
+
 describe("an agent under a test policy has its guard", () => {
   it("lists the lore-context skill in every shipped agent that declares LORE_TEST_POLICY, since the Bash hook refuses every command when that skill's guard script is missing", () => {
     const unguarded = [...DEFAULT_AGENTS]
