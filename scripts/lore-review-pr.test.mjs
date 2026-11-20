@@ -141,7 +141,7 @@ test("a Markdown-only PR asks for the whole-diff reviewer", async (t) => {
 
 test("a PR that adds more spec statements than the product evidence limit asks for the whole-diff reviewer", async (t) => {
   const statements = Array.from(
-    { length: 45_000 },
+    { length: 60_000 },
     (_unused, index) => `- Booking ${index} shows its payer and its orderer.\n`,
   ).join("");
   const { collect } = await pullRequest(
