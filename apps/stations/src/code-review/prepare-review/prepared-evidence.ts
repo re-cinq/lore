@@ -22,12 +22,7 @@ export function preparedEvidence(
   const refusal = unprepared.safeParse(collected).data;
 
   if (refusal) {
-    return {
-      outcome: refusal.status,
-      ...(refusal.reason
-        ? { produced: { whole_diff_reason: refusal.reason } }
-        : {}),
-    };
+    return reportOf(refusal);
   }
   const evidence = packets.parse(collected);
 
@@ -37,4 +32,10 @@ export function preparedEvidence(
   }
 
   return evidence;
+}
+
+function reportOf({ status, reason }: z.infer<typeof unprepared>): Report {
+  return reason
+    ? { outcome: status, produced: { whole_diff_reason: reason } }
+    : { outcome: status };
 }
