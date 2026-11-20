@@ -39,6 +39,9 @@ line:
     - id: publish-incomplete
       station: code-review-progress
       bind: { revision: head_sha }
+    - id: review-whole
+      station: code-review
+      bind: { target: repo }
     - id: post-review
       station: post-review
     - id: done
@@ -46,6 +49,11 @@ line:
   edges:
     - { from: prepare, to: read-code, on: success }
     - { from: prepare, to: publish-incomplete, on: failed }
+    # A change the collector cannot split into code and tests (documents only, a binary, a file holding its own tests) is reviewed whole.
+    - { from: prepare, to: review-whole, on: whole_diff }
+    - { from: review-whole, to: post-review, on: success }
+    - { from: review-whole, to: post-review, on: changes_requested }
+    - { from: review-whole, to: review-whole, on: failed, iteration_max: 1 }
     - { from: read-code, to: publish-code, on: success }
     - { from: publish-code, to: read-tests, on: success }
     - { from: read-tests, to: publish-tests, on: success }
@@ -134,6 +142,19 @@ stations:
       - { name: challenge_evidence, kind: file, path: verification.json }
     produces:
       - { name: product_review, kind: file, from: output }
+  code-review:
+    description: An AI agent reviews the pull request's whole diff against the repository's conventions, ADRs, specs and CI result, when the change cannot be split into code and tests.
+    kind: agent
+    agent_definition: code-review
+    conversation: new
+    result_required: true
+    outcomes: [success, changes_requested, failed]
+    needs:
+      - { name: target, kind: git, path: target, access: read }
+      - { name: description, kind: value }
+      - { name: issue, kind: file, path: issue.md, optional: true }
+    produces:
+      - { name: review_output, kind: file, from: output }
   code-review-progress:
     description: Updates the progress comment for this pull request revision.
     kind: service
@@ -151,7 +172,7 @@ stations:
   prepare-code-review:
     description: Collects separate code, test, intent, challenge and product evidence for the pull request revision.
     kind: service
-    outcomes: [success, failed]
+    outcomes: [success, whole_diff, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: head_sha, kind: value }

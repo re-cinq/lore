@@ -986,6 +986,7 @@ describe("the floor pipelines shipped in this folder", () => {
     for (const name of ["code-review", "code-review-recheck"]) {
       const { line, stations } = pipelineOf(name);
       const agents = line.nodes
+        .filter((node) => route.includes(node.id))
         .map((node) => stations[node.station ?? ""])
         .filter((station) => station?.kind === "agent");
       const targets = (nodes: string[], outcome: string) =>
@@ -1014,13 +1015,53 @@ describe("the floor pipelines shipped in this folder", () => {
     }
   });
 
+  it.each([
+    ["code-review", "code-review"],
+    ["code-review-recheck", "code-review-recheck"],
+  ])(
+    "sends a %s run whose change the collector cannot split to the %s agent, which reads the whole diff on gemini-4-argon and hands its verdict to post-review",
+    (name, agent) => {
+      const { line, stations, agent_definitions: agents } = pipelineOf(name);
+      const node = line.nodes.find(({ id }) => id === "review-whole");
+      const station = stations[node?.station ?? ""];
+
+      expect({
+        offered: stations["prepare-code-review"]?.outcomes,
+        route: [...edgesOn(line, "prepare"), ...edgesOn(line, "review-whole")]
+          .filter((edge) => edge.on !== "success" || edge.from !== "prepare")
+          .map((edge) => [edge.from, edge.on, edge.to]),
+        checkout: [node?.bind, needOf(station, "target")],
+        agent: station?.agent_definition,
+        model: agents?.[agent]?.settings.model,
+        verdict: station?.produces,
+      }).toEqual({
+        offered: ["success", "whole_diff", "failed"],
+        route: [
+          ["prepare", "failed", "publish-incomplete"],
+          ["prepare", "whole_diff", "review-whole"],
+          ["review-whole", "success", "post-review"],
+          ["review-whole", "changes_requested", "post-review"],
+          ["review-whole", "failed", "review-whole"],
+        ],
+        checkout: [
+          { target: "repo" },
+          { name: "target", kind: "git", path: "target", access: "read" },
+        ],
+        agent,
+        model: "gemini-4-argon",
+        verdict: [{ name: "review_output", kind: "file", from: "output" }],
+      });
+    },
+  );
+
   it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, five review passes and the reply on claude-sonnet-4-6", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
+    const wholeDiffReviewers = ["code-review", "code-review-recheck"];
     const modelsOf = (ids: string[]): string[] =>
       ids.flatMap((id) =>
-        Object.values(pipelineOf(id).agent_definitions ?? {}).map(
-          (definition) => definition.settings.model,
-        ),
+        Object.entries(pipelineOf(id).agent_definitions ?? {})
+          .filter(([name]) => !wholeDiffReviewers.includes(name))
+          .map(([, definition]) => definition.settings.model),
       );
 
     expect({
