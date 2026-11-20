@@ -14,6 +14,7 @@ const snapshot = z.object({
       diff: z.string().optional(),
     }),
   ),
+  terms: z.array(z.string().min(1)).optional(),
   discussion: z
     .array(
       z.object({
@@ -98,31 +99,36 @@ function usesOf(text, stems) {
 }
 
 // An unchanged file that only uses the changed code goes as those uses: whole, such files were four fifths of a packet.
-function unchangedFile({ path, after }, changedStems) {
-  const uses =
-    after === null || changedStems.includes(referenceStem(path))
-      ? []
-      : usesOf(after, changedStems);
+function unchangedFile({ path, after }, { terms, changed }) {
+  const beside = changed.some(
+    (other) =>
+      posix.dirname(other) === posix.dirname(path) &&
+      referenceStem(other) === referenceStem(path),
+  );
+  const uses = after === null || beside ? [] : usesOf(after, terms);
 
   return uses.length ? { path, uses } : { path, unchanged: after };
 }
 
-function packetFile(file, changedStems) {
+function packetFile(file, named) {
   const { path, before, after, diff } = file;
 
   if (before === after) {
-    return unchangedFile(file, changedStems);
+    return unchangedFile(file, named);
   }
 
   return diff ? { path, diff, after } : { path, before, after };
 }
 
-function packetFor(mode, files) {
+function packetFor(mode, files, terms) {
   const selected = [];
-  const changedStems = files
+  const changed = files
     .filter((file) => file.before !== file.after)
-    .map((file) => referenceStem(file.path))
-    .filter(Boolean);
+    .map((file) => file.path);
+  const named = {
+    changed,
+    terms: terms ?? changed.map(referenceStem).filter(Boolean),
+  };
 
   for (const file of files) {
     if (/\.(md|mdx|markdown|mkd|mkdn|mdown)$/i.test(file.path)) {
@@ -136,14 +142,14 @@ function packetFor(mode, files) {
     if ((mode === "code" && test) || (mode === "tests" && !test)) {
       continue;
     }
-    selected.push(packetFile(file, changedStems));
+    selected.push(packetFile(file, named));
   }
 
   return { mode, files: selected };
 }
 
 export function reviewPackets(input) {
-  const { files, discussion, specs, documents } = snapshot.parse(input);
+  const { files, terms, discussion, specs, documents } = snapshot.parse(input);
 
   for (const file of files) {
     if (file.role === "test" || isTestFile(file.path)) {
@@ -164,7 +170,7 @@ export function reviewPackets(input) {
       );
     }
   }
-  const packets = modes.map((mode) => packetFor(mode, files));
+  const packets = modes.map((mode) => packetFor(mode, files, terms));
 
   return [
     ...packets,

@@ -448,7 +448,13 @@ async function capture(base, head, includes, comparisonBase, scope) {
     throw new UnsplittableChange("The change has no code or test file");
   }
 
-  return { base, head, mergeBase, files };
+  return {
+    base,
+    head,
+    mergeBase,
+    files,
+    terms: [...new Set([...stems, ...otherStems, ...configKeys])],
+  };
 }
 
 try {

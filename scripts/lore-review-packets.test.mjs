@@ -87,3 +87,33 @@ test("two uses closer than their margins travel as one block", () => {
     [["10| // line 10", "38| // line 38"]],
   );
 });
+
+test("a file with the changed file's name in another folder is no test of it, and travels as its uses", () => {
+  const other = lines(40, 30, "import { limit } from '../src/limit';");
+  const { code_evidence: code } = packets({
+    path: "lib/limit.ts",
+    role: "code",
+    before: other,
+    after: other,
+  });
+
+  assert.deepEqual(code.files[1].uses.length, 1);
+});
+
+test("a file found by a changed configuration key travels as the lines that read the key", () => {
+  const reader = lines(40, 30, "const size = process.env.QUEUE_SIZE;");
+  const { code_evidence: code } = storyPackets({
+    files: [
+      limit,
+      { path: "src/env.ts", role: "code", before: reader, after: reader },
+    ],
+    terms: ["limit", "QUEUE_SIZE"],
+    discussion: [],
+    specs: [],
+  });
+
+  assert.equal(
+    code.files[1].uses[0][10],
+    "30| const size = process.env.QUEUE_SIZE;",
+  );
+});

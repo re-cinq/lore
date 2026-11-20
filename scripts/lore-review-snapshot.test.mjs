@@ -119,6 +119,7 @@ test("captures committed changes, callers, tests and fixtures from a diverged co
           after: fixture,
         },
       ],
+      terms: ["access", "legacy"],
     },
   });
 });
