@@ -34,7 +34,10 @@ const snapshot = z.object({
       z.object({
         path: z.string().min(1),
         text: z.string(),
-        version: z.enum(["existing", "proposed"]).default("existing"),
+        heading: z.string().nullable().optional(),
+        version: z
+          .enum(["existing", "proposed", "removed"])
+          .default("existing"),
       }),
     )
     .default([]),

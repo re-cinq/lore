@@ -139,17 +139,20 @@ test("a Markdown-only PR asks for the whole-diff reviewer", async (t) => {
   });
 });
 
-test("a PR whose specs exceed the product evidence limit asks for the whole-diff reviewer", async (t) => {
-  const megabyte = "A booking shows its payer.\n".repeat(45_000);
+test("a PR that adds more spec statements than the product evidence limit asks for the whole-diff reviewer", async (t) => {
+  const statements = Array.from(
+    { length: 45_000 },
+    (_unused, index) => `- Booking ${index} shows its payer and its orderer.\n`,
+  ).join("");
   const { collect } = await pullRequest(
     t,
     {
       "limit.ts": "export const limit = 1;",
-      "specs/booking/spec.md": megabyte,
+      "specs/booking/spec.md": "# Bookings\n",
     },
     {
       "limit.ts": "export const limit = 2;",
-      "specs/booking/spec.md": megabyte + "It ends.\n",
+      "specs/booking/spec.md": "# Bookings\n\n" + statements,
     },
   );
 
