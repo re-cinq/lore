@@ -150,16 +150,16 @@ describe("postReviewHandle", () => {
     ]);
   });
 
-  it("leaves GitHub untouched when the reviewed commit has been superseded", async () => {
+  it("reports superseded and leaves GitHub untouched when the reviewed commit is no longer the pull request head", async () => {
     const { deps, reviews, checks, resolved } = fakeProject();
 
-    await expect(
-      postReviewHandle(deps)(
-        brief({ head_sha: "oldsha", open_threads: "T1" }),
-        toolsReading("REVIEW_RESULT:APPROVED"),
-      ),
-    ).rejects.toThrow("no longer the pull request head");
-    expect({ reviews, checks, resolved }).toEqual({
+    const report = await postReviewHandle(deps)(
+      brief({ head_sha: "oldsha", open_threads: "T1" }),
+      toolsReading("REVIEW_RESULT:APPROVED"),
+    );
+
+    expect({ report, reviews, checks, resolved }).toEqual({
+      report: { outcome: "superseded" },
       reviews: [],
       checks: [],
       resolved: [],

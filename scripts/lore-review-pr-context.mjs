@@ -4,6 +4,9 @@ const markdown = /\.(?:md|mdx|markdown|mkd|mkdn|mdown)$/i;
 const spec = /^specs\/.*\/spec\.md$/;
 const maxProductEvidenceBytes = 2 * 1024 * 1024;
 
+// More specs or documents than the product pass is handed; the whole-diff reviewer takes the change.
+export class EvidenceLimit extends Error {}
+
 function entry(source, item, detail = "") {
   return {
     source,
@@ -123,7 +126,7 @@ export async function productSpecs(git, base, head, discussion, files) {
       .reduce((sum, spec) => sum + Buffer.byteLength(spec.text), size);
 
     if (size > maxProductEvidenceBytes) {
-      throw new Error(
+      throw new EvidenceLimit(
         "Relevant product specifications exceed the review evidence limit",
       );
     }
@@ -174,7 +177,9 @@ export async function productDocuments(git, base, head, scope = []) {
     size += Buffer.byteLength(before ?? "") + Buffer.byteLength(after ?? "");
 
     if (size > maxProductEvidenceBytes) {
-      throw new Error("Changed Markdown exceeds the product evidence limit");
+      throw new EvidenceLimit(
+        "Changed Markdown exceeds the product evidence limit",
+      );
     }
     documents.push({ path, before, after });
   }

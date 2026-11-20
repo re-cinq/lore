@@ -194,3 +194,23 @@ it.each([
     ).toBe(said);
   },
 );
+
+it("reads a complete pass whose JSON follows notes that quote `code` and a fenced example", () => {
+  const comparison = {
+    status: "complete",
+    summary: "The change matches the ticket.",
+    findings: [],
+  };
+  const answer = [
+    "**Alignment:** `claimAnnouncement` returns true once.",
+    "```ts\nclaimAnnouncement(repo, version);\n```",
+    "---",
+    "```json\n" + JSON.stringify(comparison, null, 2) + "\n```",
+    'LORE_NODE_RESULT: {"outcome":"success"}',
+  ].join("\n\n");
+  const intent_comparison = JSON.stringify({ type: "result", result: answer });
+
+  expect(
+    reviewProgress({ ...outputs, intent_comparison }, 2).incomplete,
+  ).toEqual([]);
+});

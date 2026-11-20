@@ -73,19 +73,31 @@ export function postReviewHandle(deps: PostReviewDeps): Handle {
     enforceTrue(verdict, Error, `no review verdict in the output for ${prUrl}`);
     const visit = await openVisit(deps, brief, parsePullRequestUrl(prUrl));
 
+    if (!visit) {
+      return { outcome: "superseded" };
+    }
+
     await deliverReview(deps, brief, visit, { agentOutput, verdict });
 
-    if (verdict === "success") {
-      await resolveHandedThreads(visit, brief);
-    }
-    const summary = verdictSummary(verdict, findingCountOf(agentOutput));
-
-    await visit.project.upsertCheckRun(
-      reviewCheck({ headSha: visit.target.headSha, verdict, summary }),
-    );
-
-    return reported(summary, prUrl);
+    return settleReview(visit, brief, { agentOutput, verdict });
   };
+}
+
+async function settleReview(
+  visit: ReviewVisitState,
+  brief: Brief,
+  { agentOutput, verdict }: { agentOutput: string; verdict: ReviewVerdict },
+): Promise<Report> {
+  if (verdict === "success") {
+    await resolveHandedThreads(visit, brief);
+  }
+  const summary = verdictSummary(verdict, findingCountOf(agentOutput));
+
+  await visit.project.upsertCheckRun(
+    reviewCheck({ headSha: visit.target.headSha, verdict, summary }),
+  );
+
+  return reported(summary, brief.needs.pr_url);
 }
 
 interface ReviewVisitState {
@@ -99,18 +111,16 @@ async function openVisit(
   deps: PostReviewDeps,
   brief: Brief,
   { repo, prNumber }: { repo: string; prNumber: number },
-): Promise<ReviewVisitState> {
+): Promise<ReviewVisitState | undefined> {
   const project = await deps.project(repo);
   const pull = await project.pulls.get(prNumber);
   const headSha = briefedShaOf(brief) ?? pull?.headSha;
 
   enforceTrue(headSha, Error, `no head sha for pull request #${prNumber}`);
 
-  enforceTrue(
-    pull?.state === "open" && pull.headSha === headSha,
-    Error,
-    "The reviewed commit is no longer the pull request head",
-  );
+  if (pull?.state !== "open" || pull.headSha !== headSha) {
+    return undefined;
+  }
 
   return {
     project,

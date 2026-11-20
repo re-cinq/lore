@@ -14,6 +14,7 @@ import {
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { reviewPackets, shadowEvidence } from "./lore-review-packets.mjs";
+import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
 
 async function previousAutomaticRun(floor, repo, reviewKey, preparationFailed) {
   let cursor;
@@ -86,7 +87,7 @@ async function startShadow(revision, requestedPrUrl, automatic, evidence) {
 async function shadowFiles(floor, evidence) {
   const upload = async (packet) => {
     const { hash } = await floor.blobs.put(
-      Buffer.from(JSON.stringify(packet)),
+      Buffer.from(pagedPacket(packet)),
       "application/json",
     );
 

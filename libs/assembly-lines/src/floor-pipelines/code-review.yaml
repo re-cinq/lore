@@ -49,6 +49,9 @@ line:
     - { from: prepare, to: publish-incomplete, on: failed }
     # A change the collector cannot split into code and tests (documents only, a binary, a file holding its own tests) is reviewed whole.
     - { from: prepare, to: review-whole, on: whole_diff }
+    # A commit that is no longer the pull request head is reviewed by the run of the newer one.
+    - { from: prepare, to: done, on: superseded }
+    - { from: post-review, to: done, on: superseded }
     - { from: review-whole, to: post-review, on: success }
     - { from: review-whole, to: post-review, on: changes_requested }
     - { from: review-whole, to: review-whole, on: failed, iteration_max: 1 }
@@ -172,7 +175,7 @@ stations:
   prepare-code-review:
     description: Collects separate code, test, intent, challenge and product evidence for the pull request revision.
     kind: service
-    outcomes: [success, whole_diff, failed]
+    outcomes: [success, whole_diff, superseded, failed]
     needs:
       - { name: pr_url, kind: value }
       - { name: head_sha, kind: value }
@@ -205,6 +208,7 @@ stations:
     kind: service
     outcomes:
       - success
+      - superseded
       - failed
     needs:
       - { name: review_run, kind: value, optional: true }

@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { text } from "node:stream/consumers";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -21,9 +21,10 @@ async function pullRequest(t, before, after) {
     execFileSync("git", args, { cwd: repository, encoding: "utf8" }).trim();
   const commit = async (files, message) => {
     await Promise.all(
-      Object.entries(files).map(([path, body]) =>
-        writeFile(join(repository, path), body),
-      ),
+      Object.entries(files).map(async ([path, body]) => {
+        await mkdir(dirname(join(repository, path)), { recursive: true });
+        await writeFile(join(repository, path), body);
+      }),
     );
     git("add", ".");
     git("commit", "-qm", message);
@@ -173,4 +174,24 @@ test("a Markdown-only PR asks for the whole-diff reviewer and starts no five-pas
     [await collect("--evidence-only"), await collect(), floorRun.started],
     [asked, asked, undefined],
   );
+});
+
+test("a PR whose specs exceed the product evidence limit asks for the whole-diff reviewer", async (t) => {
+  const megabyte = "A booking shows its payer.\n".repeat(45_000);
+  const { collect } = await pullRequest(
+    t,
+    {
+      "limit.ts": "export const limit = 1;",
+      "specs/booking/spec.md": megabyte,
+    },
+    {
+      "limit.ts": "export const limit = 2;",
+      "specs/booking/spec.md": megabyte + "It ends.\n",
+    },
+  );
+
+  assert.deepEqual(await collect("--evidence-only"), {
+    status: "whole_diff",
+    reason: "Relevant product specifications exceed the review evidence limit",
+  });
 });

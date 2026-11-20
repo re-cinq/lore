@@ -1,3 +1,4 @@
+import { jsonCandidates } from "./json-candidates.js";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import type {
   ReviewOutput,
@@ -291,14 +292,10 @@ function parse<T>(
   const text = resultTextFromOutput(output)
     .replace(/(?:^|\n)LORE_NODE_RESULT: [^\r\n]+\s*$/, "")
     .trim();
-  const fenced =
-    /^(?:[^`]*?\r?\n)?```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/.exec(text);
 
-  try {
-    return schema.safeParse(JSON.parse(fenced?.[1] ?? text)).data;
-  } catch {
-    return;
-  }
+  return jsonCandidates(text)
+    .map((candidate) => schema.safeParse(candidate).data)
+    .find((result) => result !== undefined);
 }
 
 function findingBullets(

@@ -13,6 +13,7 @@ import {
   parsePullRequestUrl,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
 import { z } from "zod";
 import { preparedEvidence } from "./prepared-evidence.js";
 
@@ -32,13 +33,13 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
   const stdout = await collect(collectorArgs(needs, target), tools.signal);
   const evidence = preparedEvidence(stdout, needs.previous_findings);
 
-  if (!evidence) {
-    return { outcome: "whole_diff" };
+  if (typeof evidence === "string") {
+    return { outcome: evidence };
   }
 
   await Promise.all(
     Object.entries(evidence).map(([name, packet]) =>
-      tools.produce(name, JSON.stringify(packet)),
+      tools.produce(name, pagedPacket(packet)),
     ),
   );
 
