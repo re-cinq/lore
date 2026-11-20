@@ -1841,6 +1841,8 @@ describe("a gap is posted on the line it is about, with a proposal", () => {
           "`location` (`path`, `line`, and `side`",
           "`proposal` (the change you propose, as code or test code only, ready to paste)",
           "What matches the story belongs in `summary` and is never a gap",
+          "The `location` of a `missing_test` is always in a test file",
+          "search it for an assertion that already proves the behaviour",
         ].filter((rule) => !prompt.includes(rule)),
       ).toEqual([]);
     },
