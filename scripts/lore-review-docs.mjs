@@ -57,34 +57,58 @@ export async function docsEvidence(documents, read) {
 }
 
 function changesOf({ path, before, after }) {
-  const [was, is] = [before, after].map((text) =>
-    segmentStatements(text ?? "").map((statement) => ({
-      ...statement,
-      said: withoutLineLinks(statement.text),
-      shown: withoutTrailingLinkGroup(statement.text),
-    })),
-  );
-  const saidIn = (statements) => new Set(statements.map(({ said }) => said));
+  const [was, is] = [before, after].map((text) => blocksOf(path, text ?? ""));
+  const saidIn = (blocks) => new Set(blocks.map(({ said }) => said));
   const [earlier, later] = [saidIn(was), saidIn(is)];
 
   return {
     written: is
       .filter(({ said }) => !earlier.has(said))
-      .map(({ shown, text, line, enclosingHeading }) => ({
+      .map(({ line, heading, shown, links }) => ({
         path,
         line,
-        heading: enclosingHeading,
+        heading,
         text: shown,
-        links: checkableTestLinks(text, path),
+        links,
       })),
     removed: was
       .filter(({ said }) => !later.has(said))
-      .map(({ shown, enclosingHeading }) => ({
-        path,
-        heading: enclosingHeading,
-        text: shown,
-      })),
+      .map(({ heading, shown }) => ({ path, heading, text: shown })),
   };
+}
+
+/** A document as the blocks its statements start: a paragraph or a list item as written, from its first line to the blank line or the next block. A sentence alone is too little to check: the segmenter cuts `0.1.0` in three. */
+function blocksOf(path, text) {
+  const source = text.split("\n");
+  const statements = segmentStatements(text);
+  const starts = [...new Set(statements.map(({ line }) => line))].sort(
+    (first, second) => first - second,
+  );
+
+  return starts.map((line, index) => {
+    const blank = source.findIndex(
+      (written, at) => at >= line && written.trim() === "",
+    );
+    const end = Math.min(
+      starts[index + 1] ? starts[index + 1] - 1 : source.length,
+      blank === -1 ? source.length : blank,
+    );
+    const written = source
+      .slice(line - 1, end)
+      .join("\n")
+      .trim();
+    const held = statements.filter((statement) => statement.line === line);
+
+    return {
+      line,
+      heading: held[0].enclosingHeading,
+      said: withoutLineLinks(written),
+      shown: withoutTrailingLinkGroup(written),
+      links: held.flatMap((statement) =>
+        checkableTestLinks(statement.text, path),
+      ),
+    };
+  });
 }
 
 async function linkedTest({ path, line, hash }, read) {
