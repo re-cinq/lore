@@ -1,16 +1,15 @@
 import Link from "next/link";
-import type {
-  ChangelogChange,
-  ChangelogPage,
-  ChangelogWeek,
-} from "@/lib/api/changelog";
+import type { ChangelogPage, ChangelogWeek } from "@/lib/api/changelog";
 import Markdown from "@/components/Markdown";
-import { groupByPerson, weekTitle } from "./group-changes";
+import Changes, { type Grouping } from "./Changes";
+import { weekTitle } from "./group-changes";
 import styles from "./ChangelogView.module.scss";
+import ReleaseNowButton from "./ReleaseNowButton";
+import type { ReleaseNow } from "./release-now-outcome";
+import ReleasesView from "./ReleasesView";
 import WriteIntroButton, { type WriteIntro } from "./WriteIntroButton";
 
-/** One list per week, or one list per person inside each week. */
-export type Grouping = "list" | "person";
+export type { Grouping };
 
 interface ChangelogViewProps {
   base: string;
@@ -20,26 +19,68 @@ interface ChangelogViewProps {
   before?: string;
   /** Starts a finished week's introduction again, for a week left without one. */
   writeIntro: WriteIntro;
+  /** Starts a release for the repository; without it the page offers none. */
+  releaseNow?: ReleaseNow;
 }
 
-/** The repository's weeks newest first, each opening with what it delivered (specs/repo-changelog FR6). */
+/** The repository's weeks newest first, each opening with what it delivered (specs/repo-changelog FR6), or its releases once it has them (FR7). */
 export default function ChangelogView(props: ChangelogViewProps) {
-  const { base, page, grouping, before, writeIntro } = props;
+  const { base, page, grouping, before } = props;
 
   return (
     <div>
       <GroupingSwitch base={base} grouping={grouping} before={before} />
-      {page.weeks.map((week) => (
-        <WeekSection key={week.weekKey} {...{ week, grouping, writeIntro }} />
-      ))}
+      <Sections {...props} />
       {page.next && (
         <div className={styles.older}>
           <Link href={hrefOf(base, { before: page.next, grouping })}>
-            Older weeks
+            {page.mode === "releases" ? "Older releases" : "Older weeks"}
           </Link>
         </div>
       )}
     </div>
+  );
+}
+
+function Sections({
+  page,
+  grouping,
+  writeIntro,
+  releaseNow,
+}: ChangelogViewProps) {
+  if (page.mode === "releases") {
+    return (
+      <ReleasesView page={page} grouping={grouping} releaseNow={releaseNow} />
+    );
+  }
+
+  return (
+    <>
+      <FirstRelease releaseNow={releaseNow} />
+      {page.weeks.map((week) => (
+        <WeekSection key={week.weekKey} {...{ week, grouping, writeIntro }} />
+      ))}
+    </>
+  );
+}
+
+/** A repository with no release yet can make its first on demand, with no schedule. */
+function FirstRelease({ releaseNow }: { releaseNow?: ReleaseNow }) {
+  if (!releaseNow) {
+    return null;
+  }
+
+  return (
+    <section className={styles.week} aria-label="Release">
+      <p className={styles.note}>
+        From the first release on, this page lists releases instead of weeks.
+      </p>
+      <ReleaseNowButton
+        unreleased={null}
+        latestVersion={null}
+        releaseNow={releaseNow}
+      />
+    </section>
   );
 }
 
@@ -106,22 +147,8 @@ function WeekSection({
         {week.current && <span className={styles.current}>this week</span>}
       </h3>
       <WeekIntro week={week} writeIntro={writeIntro} />
-      <WeekChanges changes={week.changes} grouping={grouping} />
+      <Changes changes={week.changes} grouping={grouping} />
     </section>
-  );
-}
-
-function WeekChanges({
-  changes,
-  grouping,
-}: {
-  changes: ChangelogChange[];
-  grouping: Grouping;
-}) {
-  return grouping === "person" ? (
-    <PeopleLists changes={changes} />
-  ) : (
-    <ChangeList changes={changes} metaOf={numberAndPeople} />
   );
 }
 
@@ -154,43 +181,4 @@ function missingIntro(week: ChangelogWeek): string {
   return week.current
     ? "No introduction yet: it is written when the week ends."
     : "No introduction was written for this week.";
-}
-
-function PeopleLists({ changes }: { changes: ChangelogChange[] }) {
-  return groupByPerson(changes).map(({ person, changes: owned }) => (
-    <div key={person}>
-      <h4 className={styles.person}>{person}</h4>
-      <ChangeList changes={owned} metaOf={numberOnly} />
-    </div>
-  ));
-}
-
-function numberOnly(change: ChangelogChange): string {
-  return `#${change.number}${change.kind === "issue" ? " (issue)" : ""}`;
-}
-
-function numberAndPeople(change: ChangelogChange): string {
-  const people = change.people.join(", ");
-
-  return people ? `${numberOnly(change)} · ${people}` : numberOnly(change);
-}
-
-function ChangeList(props: {
-  changes: ChangelogChange[];
-  metaOf: (change: ChangelogChange) => string;
-}) {
-  if (props.changes.length === 0) {
-    return null;
-  }
-
-  return (
-    <ul className={styles.changes}>
-      {props.changes.map((change) => (
-        <li key={`${change.kind}-${change.number}`}>
-          <a href={change.url}>{change.title}</a>{" "}
-          <span className={styles.meta}>{props.metaOf(change)}</span>
-        </li>
-      ))}
-    </ul>
-  );
 }

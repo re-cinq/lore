@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupByPerson, weekTitle } from "./group-changes";
+import { groupByPerson, releaseRange, weekTitle } from "./group-changes";
 
 const change = (number: number, people: string[]) => ({
   kind: "pr" as const,
@@ -42,5 +42,31 @@ describe("weekTitle", () => {
         to: "2026-10-26T00:00:00.000Z",
       }),
     ).toBe("Week 43 · 19 Oct – 25 Oct");
+  });
+});
+
+describe("releaseRange", () => {
+  it("returns 8 Oct – 15 Oct between two days", () => {
+    expect(
+      releaseRange({
+        from: "2026-10-08T11:00:00.000Z",
+        to: "2026-10-15T11:00:00.000Z",
+      }),
+    ).toBe("8 Oct – 15 Oct");
+  });
+
+  it("returns Up to 15 Oct for the first release, which has no start", () => {
+    expect(releaseRange({ from: null, to: "2026-10-15T11:00:00.000Z" })).toBe(
+      "Up to 15 Oct",
+    );
+  });
+
+  it("returns 15 Oct for a release that started and ended the same day", () => {
+    expect(
+      releaseRange({
+        from: "2026-10-15T08:00:00.000Z",
+        to: "2026-10-15T11:00:00.000Z",
+      }),
+    ).toBe("15 Oct");
   });
 });

@@ -5,14 +5,14 @@ import {
 } from "@/lib/api/changelog";
 import type { ApiResult } from "@/lib/api/result";
 import ChangelogView from "./ChangelogView";
-import { writeIntroAction } from "./actions";
+import { releaseNowAction, writeIntroAction } from "./actions";
 
 interface ChangelogPageProps {
   params: Promise<{ owner: string; repo: string }>;
   searchParams: Promise<{ before?: string; by?: string }>;
 }
 
-/** The Changelog tab: a page of the repository's weeks from lore-api (specs/repo-changelog FR6). */
+/** The Changelog tab: a page of the repository's weeks, or of its releases once it has them, from lore-api (specs/repo-changelog FR6, FR7). */
 export default async function ChangelogPage(props: ChangelogPageProps) {
   const [{ owner, repo }, { before, by }] = await Promise.all([
     props.params,
@@ -31,9 +31,16 @@ export default async function ChangelogPage(props: ChangelogPageProps) {
       page={result.data}
       grouping={by === "person" ? "person" : "list"}
       before={before}
-      writeIntro={writeIntroAction.bind(null, fullName)}
+      {...repoActions(fullName)}
     />
   );
+}
+
+function repoActions(fullName: string) {
+  return {
+    writeIntro: writeIntroAction.bind(null, fullName),
+    releaseNow: releaseNowAction.bind(null, fullName),
+  };
 }
 
 function LoadFailure({

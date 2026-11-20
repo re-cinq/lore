@@ -46,3 +46,21 @@ export function weekTitle({
 
   return `Week ${Number(number)} · ${DAY_MONTH.format(new Date(from))} – ${DAY_MONTH.format(sunday)}`;
 }
+
+/** `8 Oct – 15 Oct` for a release; `Up to 15 Oct` for the first, which reaches back to the beginning; one day when it started and ended on it. */
+export function releaseRange({
+  from,
+  to,
+}: {
+  from: string | null;
+  to: string;
+}): string {
+  const end = DAY_MONTH.format(new Date(to));
+
+  if (from === null) {
+    return `Up to ${end}`;
+  }
+  const start = DAY_MONTH.format(new Date(from));
+
+  return start === end ? end : `${start} – ${end}`;
+}

@@ -9,6 +9,9 @@ export type ChangelogWeek = ChangelogPage["weeks"][number];
 export type ChangelogChange = ChangelogWeek["changes"][number];
 export type ChangelogIntroStarted =
   components["schemas"]["ChangelogIntroStarted"];
+export type ChangelogRelease = NonNullable<ChangelogPage["releases"]>[number];
+export type ChangelogUnreleased = NonNullable<ChangelogPage["unreleased"]>;
+export type ReleaseStarted = components["schemas"]["ReleaseStarted"];
 
 export function getChangelog(
   repo: string,
@@ -25,6 +28,13 @@ export function writeChangelogIntro(
   week: string,
 ): Promise<ApiResult<ChangelogIntroStarted>> {
   return apiFetch("lore-api", `/api/repos/${repo}/changelog/${week}/intro`, {
+    method: "POST",
+  });
+}
+
+/** Starts the release line for the repository's current head, or joins the run already open for that commit. */
+export function startRelease(repo: string): Promise<ApiResult<ReleaseStarted>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/release`, {
     method: "POST",
   });
 }

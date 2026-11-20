@@ -3659,6 +3659,41 @@ export interface components {
       runId: string;
     };
     ChangelogPage: {
+      /** @constant */
+      mode?: "releases";
+      releases?: {
+        version: string;
+        previousTag: string | null;
+        /** @enum {string} */
+        bump: "major" | "minor" | "patch";
+        from: string | null;
+        to: string;
+        summary: string;
+        changes: {
+          /** @enum {string} */
+          kind: "pr" | "issue";
+          number: number;
+          title: string;
+          url: string;
+          people: string[];
+          at: string;
+        }[];
+        releaseUrl: string | null;
+        publishedTo: string | null;
+      }[];
+      unreleased?: {
+        latestVersion: string | null;
+        since: string | null;
+        changes: {
+          /** @enum {string} */
+          kind: "pr" | "issue";
+          number: number;
+          title: string;
+          url: string;
+          people: string[];
+          at: string;
+        }[];
+      } | null;
       weeks: {
         weekKey: string;
         from: string;
@@ -9900,7 +9935,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. */
+      /** @description A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. A repository with releases answers mode releases instead: its releases newest first and, on the first page, what is unreleased. */
       200: {
         headers: {
           [name: string]: unknown;

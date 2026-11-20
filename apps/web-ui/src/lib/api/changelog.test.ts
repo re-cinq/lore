@@ -49,3 +49,36 @@ describe("writeChangelogIntro", () => {
     });
   });
 });
+
+describe("startRelease", () => {
+  it("posts to re-cinq/lore's release", async () => {
+    const { startRelease } = await import("./changelog");
+
+    await startRelease("re-cinq/lore");
+
+    expect({
+      url: String(fetchMock.mock.calls[0][0]),
+      method: fetchMock.mock.calls[0][1].method,
+    }).toEqual({
+      url: "http://api:3000/api/repos/re-cinq/lore/release",
+      method: "POST",
+    });
+  });
+});
+
+describe("startRelease refused", () => {
+  it("answers the error with code 409 when lore-api refuses a public mirror", async () => {
+    const { startRelease } = await import("./changelog");
+
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "is the public mirror" }), {
+        status: 409,
+      }),
+    );
+
+    expect(await startRelease("re-cinq/lore-public")).toMatchObject({
+      status: "error",
+      code: 409,
+    });
+  });
+});

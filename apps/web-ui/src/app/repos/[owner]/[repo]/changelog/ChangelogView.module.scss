@@ -93,3 +93,31 @@
   display: flex;
   justify-content: center;
 }
+
+.releaseNow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+// The global button skin (accent fill, accent-hover on hover, text-on-accent throughout), as a pill; disabled drops to a muted outline.
+.releaseButton {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+
+  &:disabled,
+  &:disabled:hover {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: default;
+  }
+}
+
+.refusal {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger);
+}

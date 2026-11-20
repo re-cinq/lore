@@ -6340,7 +6340,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended.",
+            "description": "A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. A repository with releases answers mode releases instead: its releases newest first and, on the first page, what is unreleased.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6388,8 +6388,16 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$"
+                }
+              ]
             }
           },
           {
@@ -15705,6 +15713,157 @@
       "ChangelogPage": {
         "type": "object",
         "properties": {
+          "mode": {
+            "type": "string",
+            "const": "releases"
+          },
+          "releases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "previousTag": {
+                  "type": ["string", "null"]
+                },
+                "bump": {
+                  "type": "string",
+                  "enum": ["major", "minor", "patch"]
+                },
+                "from": {
+                  "type": ["string", "null"]
+                },
+                "to": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": ["pr", "issue"]
+                      },
+                      "number": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "people": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "number",
+                      "title",
+                      "url",
+                      "people",
+                      "at"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "releaseUrl": {
+                  "type": ["string", "null"]
+                },
+                "publishedTo": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "version",
+                "previousTag",
+                "bump",
+                "from",
+                "to",
+                "summary",
+                "changes",
+                "releaseUrl",
+                "publishedTo"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "unreleased": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "latestVersion": {
+                    "type": ["string", "null"]
+                  },
+                  "since": {
+                    "type": ["string", "null"]
+                  },
+                  "changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": ["pr", "issue"]
+                        },
+                        "number": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "people": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "number",
+                        "title",
+                        "url",
+                        "people",
+                        "at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["latestVersion", "since", "changes"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weeks": {
             "type": "array",
             "items": {
@@ -15782,8 +15941,16 @@
           "next": {
             "anyOf": [
               {
-                "type": "string",
-                "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d+-W(0[1-9]|[1-4]\\d|5[0-3])$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$"
+                  }
+                ]
               },
               {
                 "type": "null"
