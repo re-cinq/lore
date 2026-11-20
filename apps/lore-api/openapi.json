@@ -10020,6 +10020,74 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/release": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_release",
+        "summary": "POST /api/repos/{owner}/{repo}/release",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "Starts the release line for the repository's current head, or joins the open run for that commit; a head with nothing new ends the run without a release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/sessions": {
       "get": {
         "operationId": "get_api_repos_owner_repo_sessions",
@@ -21850,6 +21918,19 @@
           }
         },
         "required": ["embedded", "failed", "remaining", "stopped"],
+        "additionalProperties": false
+      },
+      "ReleaseStarted": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "joined": {
+            "type": "boolean"
+          }
+        },
+        "required": ["runId", "joined"],
         "additionalProperties": false
       },
       "Repo": {

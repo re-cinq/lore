@@ -18,9 +18,9 @@ export async function runChangelogTick(
 
   return changelogTick(params, {
     floor: floorClient(),
-    repos: async () =>
-      (await settings().onboardedRepos()).map((repo) => repo.full_name).sort(),
+    repoSettings: () => settings().onboardedRepoSettings(),
     weeks: pipeline().changelogWeeks,
+    releases: pipeline().changelogReleases,
     now: () => new Date(),
   });
 }

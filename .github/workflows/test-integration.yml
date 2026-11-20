@@ -112,6 +112,16 @@ jobs:
           LORE_REQUIRE_PG_CONTRACT: "1"
         run: npx vitest run --root libs/shared src/outbound/project/changelog-releases/changelog-releases.test.ts
 
+      - name: Release schedule attempts against real Postgres
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: lore
+          PGPASSWORD: test
+          PGDATABASE: lore
+          LORE_REQUIRE_PG_CONTRACT: "1"
+        run: npx vitest run --root libs/shared src/outbound/project/changelog-releases/changelog-release-attempts.test.ts
+
       - name: Public mirror lookup and index against real Postgres
         env:
           PGHOST: localhost

@@ -5,6 +5,9 @@ import {
   type RepoWeek,
 } from "@re-cinq/lore-shared/changelog/floor-changelog-week.js";
 import { finishedWeeks } from "@re-cinq/lore-shared/changelog/changelog-week.js";
+import { releaseEnabled } from "@re-cinq/lore-shared/release-settings.js";
+import type { ChangelogReleasesPort } from "@re-cinq/lore-shared/project/changelog-releases/changelog-releases-port.js";
+import type { OnboardedRepoSettings } from "@re-cinq/lore-shared/project/settings/settings-port.js";
 import type { ChangelogWeeksPort } from "@re-cinq/lore-shared/project/changelog-weeks/changelog-weeks-port.js";
 
 const MAX_WEEKS = 12;
@@ -13,8 +16,9 @@ type Floor = ReturnType<typeof floorClient>;
 
 export interface ChangelogTickDeps {
   floor: { lines: Pick<Floor["lines"], "start"> };
-  repos(): Promise<string[]>;
+  repoSettings(): Promise<OnboardedRepoSettings[]>;
   weeks: Pick<ChangelogWeeksPort, "writtenWeeks">;
+  releases: Pick<ChangelogReleasesPort, "latest">;
   now(): Date;
 }
 
@@ -24,8 +28,7 @@ export async function changelogTick(
   deps: ChangelogTickDeps,
 ): Promise<string> {
   const weeks = finishedWeeks(deps.now(), weekCount(params.weeks));
-  const repos =
-    typeof params.repo === "string" ? [params.repo] : await deps.repos();
+  const repos = await weeklyRepos(params, deps);
   const missing = (
     await Promise.all(repos.map((repo) => missingWeeks(repo, weeks, deps)))
   ).flat();
@@ -34,6 +37,47 @@ export async function changelogTick(
   );
 
   return `started ${started.filter(Boolean).length} of ${missing.length} week(s) without a changelog`;
+}
+
+/** A repo with releases, switched on or already stored, has releases in place of weeks (specs/scheduled-releases). */
+async function weeklyRepos(
+  params: Readonly<Record<string, unknown>>,
+  deps: ChangelogTickDeps,
+): Promise<string[]> {
+  const onboarded = await deps.repoSettings();
+  const named =
+    typeof params.repo === "string"
+      ? [onboardedOrBare(onboarded, params.repo)]
+      : onboarded;
+  const withoutReleases = await Promise.all(
+    named.map(async (entry) => !(await usesReleases(entry, deps))),
+  );
+
+  return named
+    .filter((_entry, index) => withoutReleases[index])
+    .map((entry) => entry.full_name)
+    .sort();
+}
+
+function onboardedOrBare(
+  onboarded: OnboardedRepoSettings[],
+  repo: string,
+): OnboardedRepoSettings {
+  return (
+    onboarded.find((entry) => entry.full_name === repo) ?? {
+      full_name: repo,
+      settings: null,
+    }
+  );
+}
+
+async function usesReleases(
+  { full_name, settings }: OnboardedRepoSettings,
+  deps: ChangelogTickDeps,
+): Promise<boolean> {
+  return (
+    releaseEnabled(settings) || (await deps.releases.latest(full_name)) !== null
+  );
 }
 
 async function startOrLog(

@@ -20,6 +20,7 @@ export const NOT_A_LOOP: readonly string[] = [
   "lore-run-settled",
   "merge",
   "weekly-changelog",
+  "release",
 ];
 
 /** The loop a floor line's runs belong to, or null for a line no loop switch owns. */

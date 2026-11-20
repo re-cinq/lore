@@ -8,6 +8,7 @@ import {
 
 export class InMemoryChangelogReleases implements ChangelogReleasesPort {
   readonly rows: ChangelogRelease[] = [];
+  private readonly scheduledAttempts = new Map<string, Date>();
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
@@ -55,6 +56,14 @@ export class InMemoryChangelogReleases implements ChangelogReleasesPort {
     release.announcedAt = this.now();
 
     return true;
+  }
+
+  async markScheduledAttempt(repo: string, at: Date): Promise<void> {
+    this.scheduledAttempts.set(repo, at);
+  }
+
+  async lastScheduledAttempt(repo: string): Promise<Date | null> {
+    return this.scheduledAttempts.get(repo) ?? null;
   }
 
   private find(repo: string, version: string): ChangelogRelease | undefined {

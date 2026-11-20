@@ -41,6 +41,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/maintenance/{job}",
   // The repo and the week are the path params; the week's changes are read from GitHub by the run.
   "POST /api/repos/{owner}/{repo}/changelog/{week}/intro",
+  // The repo is the path param; the head to release is read from its default branch, and what merged since the last release is the line's collect step to find.
+  "POST /api/repos/{owner}/{repo}/release",
   // The run to upgrade is the path param; its inputs and the line's newest version are read from the floor.
   "POST /api/assembly-runs/{id}/upgrade",
   // The repo is the path param; what to mirror is read from its default branch.

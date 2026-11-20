@@ -1,0 +1,257 @@
+# One release of a private repository's default branch to its public mirror
+# (specs/scheduled-releases). A station collects what merged since the previous
+# release; an agent writes the release notes and classifies the change as major,
+# minor or patch; stations tag the version, push it to the mirror, publish the
+# GitHub release, store the release for the Changelog tab and announce it.
+#
+# Started by the stations service's release tick on a repository's schedule, or
+# over HTTP by Release now, one run per repository and head commit, keyed on
+# both, so a second start for the same commit joins the run.
+#
+# A day with nothing merged ends at `collect` as empty and stores no release. An
+# unreadable classification is written again once, and a second one fails the
+# run, because a release must not guess its version. A refused push is not
+# retried: `publish` failing ends the run as failed. Every other step is retried
+# once, and a second failure settles the run as iteration_max.
+line:
+  id: release
+  entry: collect
+  exit: done
+  # A refused push ends the run here, as failed, so the run list stops reporting it as done.
+  fail: failed
+  args:
+    release_key:
+      kind: value
+      subject: true
+    release_repo:
+      kind: value
+  nodes:
+    - id: collect
+      station: release-collect
+    - id: write
+      station: release-write
+    - id: tag
+      station: release-tag
+    - id: publish
+      station: release-publish
+    - id: github-release
+      station: release-github-release
+    - id: store
+      station: release-store
+    - id: announce
+      station: release-announce
+    - id: done
+    - id: failed
+  edges:
+    - from: collect
+      to: write
+      on: success
+    - from: collect
+      to: done
+      on: empty
+    - from: collect
+      to: collect
+      on: failed
+      iteration_max: 1
+    - from: write
+      to: tag
+      on: success
+    - from: write
+      to: write
+      on: failed
+      iteration_max: 1
+    - from: tag
+      to: publish
+      on: success
+    - from: tag
+      to: write
+      on: changes_requested
+      iteration_max: 1
+    - from: tag
+      to: tag
+      on: failed
+      iteration_max: 1
+    - from: publish
+      to: github-release
+      on: success
+    # No retry: a push the mirror refused, for a main that is not an ancestor, must never be tried again.
+    - from: publish
+      to: failed
+      on: failed
+    - from: github-release
+      to: store
+      on: success
+    - from: github-release
+      to: github-release
+      on: failed
+      iteration_max: 1
+    - from: store
+      to: announce
+      on: success
+    - from: store
+      to: store
+      on: failed
+      iteration_max: 1
+    - from: announce
+      to: done
+      on: success
+    - from: announce
+      to: announce
+      on: failed
+      iteration_max: 1
+stations:
+  release-collect:
+    description: Finds the repository's head commit and the previous release, and lists the pull requests merged and the issues closed since. A range with nothing in it ends the run.
+    kind: service
+    outcomes:
+      - success
+      - empty
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+    produces:
+      - name: release_sha
+        kind: value
+      - name: range_to
+        kind: value
+      - name: previous_tag
+        kind: value
+        optional: true
+      - name: range_from
+        kind: value
+        optional: true
+      - name: release_changes
+        kind: file
+  release-write:
+    description: An AI agent writes the release notes for the people who use the product and classifies the release as major, minor or patch.
+    kind: agent
+    agent_definition: release-notes
+    conversation: new
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: release_changes
+        kind: file
+        path: release-changes.json
+    produces:
+      - name: release_notes
+        kind: file
+        path: release.md
+      - name: release_bump
+        kind: file
+        path: bump.json
+  release-tag:
+    description: Computes the next version from the previous tag and the agent's classification, and tags the pinned commit. An unreadable classification is sent back to the agent.
+    kind: service
+    outcomes:
+      - success
+      - changes_requested
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+      - name: release_sha
+        kind: value
+      - name: previous_tag
+        kind: value
+        optional: true
+      - name: release_bump
+        kind: file
+    produces:
+      - name: release_version
+        kind: value
+      - name: release_bump_kind
+        kind: value
+  release-publish:
+    description: Fast-forwards the public mirror's main to the release commit and pushes the tag. A main that is not an ancestor is never overwritten, and the run fails.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+      - name: release_sha
+        kind: value
+      - name: release_version
+        kind: value
+    produces:
+      - name: published_to
+        kind: value
+        optional: true
+  release-github-release:
+    description: Publishes the GitHub release for the version with the release notes as its body.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+      - name: release_version
+        kind: value
+      - name: release_sha
+        kind: value
+      - name: published_to
+        kind: value
+        optional: true
+      - name: release_notes
+        kind: file
+    produces:
+      - name: release_url
+        kind: value
+  release-store:
+    description: Stores the release, its notes and its changes on the repository's Changelog page.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+      - name: release_version
+        kind: value
+      - name: release_sha
+        kind: value
+      - name: release_bump_kind
+        kind: value
+      - name: range_to
+        kind: value
+      - name: previous_tag
+        kind: value
+        optional: true
+      - name: range_from
+        kind: value
+        optional: true
+      - name: published_to
+        kind: value
+        optional: true
+      - name: release_url
+        kind: value
+      - name: release_changes
+        kind: file
+      - name: release_notes
+        kind: file
+    produces: []
+  release-announce:
+    description: Posts the release once to the repository's Slack channel.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: release_repo
+        kind: value
+      - name: release_version
+        kind: value
+      - name: release_url
+        kind: value
+        optional: true
+      - name: published_to
+        kind: value
+        optional: true
+      - name: release_notes
+        kind: file
+    produces: []

@@ -150,6 +150,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "release",
       "spec-tickets",
       "spec-upkeep",
       "weekly-changelog",

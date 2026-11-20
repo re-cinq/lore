@@ -9,6 +9,7 @@ import { mergeCheck } from "./merge-check/manifest.js";
 import { specUpkeepTickStation } from "./spec-upkeep-tick/manifest.js";
 import { digestTickStation } from "./digest-tick/manifest.js";
 import { changelogTickStation } from "./changelog-tick/manifest.js";
+import { releaseTickStation } from "./release-tick/manifest.js";
 import { loopTickStation } from "./loop-tick/manifest.js";
 import { loopReap } from "./loop-reap/manifest.js";
 import { blockedReason } from "./blocked-reason/manifest.js";
@@ -46,6 +47,7 @@ export const STATION_NAMES = [
   "pack-sync-tick",
   "pr-blocked-reasons-prune",
   "pr-ready-check",
+  "release-tick",
   "spec-upkeep-tick",
   "telemetry-prune",
   "utopia-backfill-tick",
@@ -74,6 +76,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "pack-sync-tick": packSyncTickStation,
   "pr-blocked-reasons-prune": prBlockedReasonsPrune,
   "pr-ready-check": prReadyCheck,
+  "release-tick": releaseTickStation,
   "spec-upkeep-tick": specUpkeepTickStation,
   "telemetry-prune": telemetryPrune,
   "utopia-backfill-tick": utopiaBackfillTickStation,

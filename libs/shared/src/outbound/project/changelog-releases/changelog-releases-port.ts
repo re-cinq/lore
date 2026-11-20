@@ -18,6 +18,10 @@ export interface ChangelogReleasesPort {
   ): Promise<ChangelogRelease[]>;
   latest(repo: string): Promise<ChangelogRelease | null>;
   claimAnnouncement(repo: string, version: string): Promise<boolean>;
+  /** Records that the repo's schedule started a release run at `at`, replacing the earlier mark. */
+  markScheduledAttempt(repo: string, at: Date): Promise<void>;
+  /** When the repo's schedule last started a release run, null when it never did. */
+  lastScheduledAttempt(repo: string): Promise<Date | null>;
 }
 
 export async function latestRelease(

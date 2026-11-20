@@ -53,4 +53,14 @@ describe("cronTickEventNames", () => {
       CRON_EMITTERS.find((emitter) => emitter.name === "utopia_backfill"),
     ).toMatchObject({ schedule: "30 2 * * 0" });
   });
+
+  it("schedules release every 15 minutes and names cron.release.tick", () => {
+    expect({
+      emitter: CRON_EMITTERS.find((emitter) => emitter.name === "release"),
+      named: cronTickEventNames().includes("cron.release.tick"),
+    }).toMatchObject({
+      emitter: { schedule: "*/15 * * * *" },
+      named: true,
+    });
+  });
 });

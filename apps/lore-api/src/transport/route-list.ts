@@ -91,8 +91,7 @@ import { planLifecycleRoutes } from "./routes/plans/plan-lifecycle.js";
 import type { PlanVerbSeams } from "./routes/plans/plan-verbs-for.js";
 import { implementationLoopRoutes } from "./routes/backlog/backlog.js";
 import { loopsRoutes } from "./routes/loops/loops.js";
-import { changelogIntroRoute } from "./routes/changelog/changelog-intro.js";
-import { changelogRoute } from "./routes/changelog/changelog.js";
+import { changelogRoutes } from "./routes/changelog/changelog-routes.js";
 import { openApiJsonRoute, docsRoute } from "./routes/openapi/openapi.js";
 import { floorGitCredentialRoute } from "./routes/floor/git-credential.js";
 import { reviewStartRoute } from "./routes/floor/review-start.js";
@@ -242,8 +241,7 @@ function backlogRoutes(
     ...planLifecycleRoutes({ ...plans, service: plans.service!, getPool }),
     ...implementationLoopRoutes(getPool),
     ...loopsRoutes(getPool),
-    changelogRoute(getPool),
-    changelogIntroRoute(),
+    ...changelogRoutes(getPool),
   ];
 }
 

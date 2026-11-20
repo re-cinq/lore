@@ -268,6 +268,7 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
       "lore-run-settled",
       "merge",
       "onboard",
+      "release",
       "spec-tickets",
       "spec-upkeep",
       "weekly-changelog",

@@ -77,4 +77,22 @@ export class PgChangelogReleases implements ChangelogReleasesPort {
 
     return rows.length === 1;
   }
+
+  async markScheduledAttempt(repo: string, at: Date): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO lore.release_schedule_attempts (repo, attempted_at)
+       VALUES ($1, $2)
+       ON CONFLICT (repo) DO UPDATE SET attempted_at = EXCLUDED.attempted_at`,
+      [repo, at],
+    );
+  }
+
+  async lastScheduledAttempt(repo: string): Promise<Date | null> {
+    const { rows } = await this.pool.query<{ attempted_at: Date }>(
+      `SELECT attempted_at FROM lore.release_schedule_attempts WHERE repo = $1`,
+      [repo],
+    );
+
+    return rows.at(0)?.attempted_at ?? null;
+  }
 }

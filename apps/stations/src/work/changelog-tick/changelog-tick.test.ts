@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryChangelogReleases } from "@re-cinq/lore-shared/project/changelog-releases/changelog-releases-memory.js";
 import { InMemoryChangelogWeeks } from "@re-cinq/lore-shared/project/changelog-weeks/changelog-weeks-memory.js";
 import { changelogTick, type ChangelogTickDeps } from "./changelog-tick.js";
 
 const MONDAY_0600 = new Date("2026-10-26T06:00:00Z");
 
-function scene(repos: string[], refusing: string[] = []) {
+function scene(
+  repos: string[],
+  refusing: string[] = [],
+  settingsOf: Record<string, Record<string, unknown>> = {},
+) {
   const started: Array<{ line: string; repo: unknown; values: unknown }> = [];
   const weeks = new InMemoryChangelogWeeks();
+  const releases = new InMemoryChangelogReleases();
   const deps: ChangelogTickDeps = {
-    repos: () => Promise.resolve(repos),
+    repoSettings: () =>
+      Promise.resolve(
+        repos.map((full_name) => ({
+          full_name,
+          settings: settingsOf[full_name] ?? null,
+        })),
+      ),
     weeks,
+    releases,
     now: () => MONDAY_0600,
     floor: {
       lines: {
@@ -35,7 +48,7 @@ function scene(repos: string[], refusing: string[] = []) {
     },
   };
 
-  return { deps, started, weeks };
+  return { deps, started, weeks, releases };
 }
 
 describe("the changelog tick", () => {
@@ -108,5 +121,63 @@ describe("the changelog tick", () => {
         ),
       ],
     }).toEqual({ count: 12, repos: ["re-cinq/otto"] });
+  });
+
+  it("starts nothing for re-cinq/lore-security, which has release.enabled, and still starts re-cinq/otto", async () => {
+    const { deps, started } = scene(
+      ["re-cinq/lore-security", "re-cinq/otto"],
+      [],
+      { "re-cinq/lore-security": { release: { enabled: true } } },
+    );
+
+    await changelogTick({}, deps);
+
+    expect(
+      started.map(
+        (s) => (s.values as { changelog_repo: string }).changelog_repo,
+      ),
+    ).toEqual(["re-cinq/otto"]);
+  });
+
+  it("starts nothing for re-cinq/lore-security, which has a stored release v1.0.0 and release.enabled off", async () => {
+    const { deps, started, releases } = scene(["re-cinq/lore-security"], [], {
+      "re-cinq/lore-security": { release: { enabled: false } },
+    });
+
+    await releases.upsert({
+      repo: "re-cinq/lore-security",
+      version: "v1.0.0",
+      previousTag: null,
+      sha: "a".repeat(40),
+      bump: "minor",
+      rangeFrom: null,
+      rangeTo: new Date("2026-11-20T09:00:00Z"),
+      summary: "",
+      changes: [],
+      releaseUrl: null,
+      publishedTo: null,
+    });
+
+    expect({
+      summary: await changelogTick({}, deps),
+      started: started.length,
+    }).toEqual({
+      summary: "started 0 of 0 week(s) without a changelog",
+      started: 0,
+    });
+  });
+
+  it("starts re-cinq/otto, whose settings carry no release block and which has no stored release, as before", async () => {
+    const { deps, started } = scene(["re-cinq/otto"], [], {
+      "re-cinq/otto": { auto_review: true },
+    });
+
+    await changelogTick({}, deps);
+
+    expect(
+      started.map(
+        (s) => (s.values as { changelog_repo: string }).changelog_repo,
+      ),
+    ).toEqual(["re-cinq/otto"]);
   });
 });
