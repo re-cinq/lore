@@ -13,7 +13,7 @@ Every spec, ADR and other markdown document lore-api ingests is also written int
 
 ## Background
 
-Dgraph holds the traceability graph today and is to be retired. Utopia already runs in the cluster and keeps a typed graph, but it cannot yet answer two of the reads Lore's checks make, so the chain is mirrored there beside Dgraph rather than moved. The mirror is a copy: nothing in Lore reads it yet, and its failure never fails an ingest.
+Dgraph holds the traceability graph today and is to be retired. Utopia already runs in the cluster and keeps a typed graph. When this spec was written it could not answer two of the reads Lore's checks make, so the chain is mirrored there beside Dgraph rather than moved; it answers both since `0.1.0-re.37`, and moving the reads is planned in ADR-052's amendment of 2026-11-20 (#5071). The mirror is a copy: context assembly reads it, the spec pages and the detectors do not yet, and its failure never fails an ingest.
 
 ## The ontology
 
@@ -288,7 +288,7 @@ The side-by-side experiment of the ADR-052 amendment of 2026-10-16: every ingest
 
 ## Out of scope
 
-- Reading the mirror: the spec pages, the detectors and `query_trace` keep reading Dgraph, and only the `repo` and `adrs` sections of context assembly read through the client of FR11 (FR13).
+- Reading the mirror: the spec pages, the detectors and `query_trace` keep reading Dgraph until the trace port has a Utopia adapter (#5071); context assembly reads through the client of FR11 (FR13).
 - Statement items orphaned before migration 0123: their document has no recorded ids, so nothing tombstones them.
 - The text of code: a source file and its definitions are named and linked by their GitHub permalinks, and their contents are not copied into Utopia. Documents are the other way round: every markdown document goes in whole (FR17).
 - The files a commit changed, and what it changed inside them: they are read from the repository.
