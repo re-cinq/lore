@@ -1,68 +1,184 @@
 line:
   id: code-review
-  entry: review
+  entry: prepare
   exit: done
+  fail: failed
   args:
-    repo:
-      kind: git
-    pr_url:
-      kind: value
-      subject: true
-    description:
-      kind: value
+    repo: { kind: git }
+    pr_url: { kind: value, subject: true }
+    head_sha: { kind: value }
+    description: { kind: value }
   nodes:
-    - id: review
-      station: code-review
-      bind:
-        target: repo
+    - id: prepare
+      station: prepare-code-review
+    - id: read-code
+      station: code-review-read-code
+    - id: publish-code
+      station: code-review-progress
+      bind: { revision: head_sha }
+    - id: read-tests
+      station: code-review-read-tests
+    - id: publish-tests
+      station: code-review-progress
+      bind: { revision: head_sha }
+    - id: compare-intent
+      station: code-review-compare-intent
+    - id: publish-intent
+      station: code-review-progress
+      bind: { revision: head_sha }
+    - id: challenge-tests
+      station: code-review-challenge-tests
+    - id: publish-challenge
+      station: code-review-progress
+      bind: { revision: head_sha }
+    - id: review-product
+      station: code-review-product
+    - id: publish-product
+      station: finalize-code-review
+      bind: { revision: head_sha }
+    - id: publish-incomplete
+      station: code-review-progress
+      bind: { revision: head_sha }
     - id: post-review
       station: post-review
     - id: done
+    - id: failed
   edges:
-    - from: review
-      to: post-review
-      on: success
-    - from: review
-      to: post-review
-      on: changes_requested
-    - from: review
-      to: review
-      on: failed
-      iteration_max: 1
-    - from: post-review
-      to: done
-      on: success
-    # A post that fails is usually an agent that ended without a verdict; posting again reads the same output, so the agent runs again instead.
-    - from: post-review
-      to: review
-      on: failed
-      iteration_max: 1
+    - { from: prepare, to: read-code, on: success }
+    - { from: prepare, to: publish-incomplete, on: failed }
+    - { from: read-code, to: publish-code, on: success }
+    - { from: publish-code, to: read-tests, on: success }
+    - { from: read-tests, to: publish-tests, on: success }
+    - { from: publish-tests, to: compare-intent, on: success }
+    - { from: compare-intent, to: publish-intent, on: success }
+    - { from: publish-intent, to: challenge-tests, on: success }
+    - { from: challenge-tests, to: publish-challenge, on: success }
+    - { from: publish-challenge, to: review-product, on: success }
+    - { from: review-product, to: publish-product, on: success }
+    - { from: publish-product, to: post-review, on: success }
+    - { from: post-review, to: done, on: success }
+    - { from: post-review, to: post-review, on: failed, iteration_max: 1 }
+    - { from: read-code, to: publish-incomplete, on: failed }
+    - { from: read-tests, to: publish-incomplete, on: failed }
+    - { from: compare-intent, to: publish-incomplete, on: failed }
+    - { from: challenge-tests, to: publish-incomplete, on: failed }
+    - { from: review-product, to: publish-incomplete, on: failed }
+    - { from: publish-code, to: publish-incomplete, on: failed }
+    - { from: publish-tests, to: publish-incomplete, on: failed }
+    - { from: publish-intent, to: publish-incomplete, on: failed }
+    - { from: publish-challenge, to: publish-incomplete, on: failed }
+    - { from: publish-product, to: publish-incomplete, on: failed }
+    - { from: publish-incomplete, to: failed, on: always }
 stations:
-  code-review:
-    description: An AI agent reviews the pull request's diff against the repository's conventions, ADRs, specs and CI result, and returns a verdict with its findings.
+  code-review-read-code:
+    description: Describes the changed behavior from implementation evidence.
     kind: agent
-    agent_definition: code-review
+    agent_definition: shadow-review-reader
     conversation: new
-    outcomes:
-      - success
-      - changes_requested
-      - failed
     result_required: true
+    outcomes: [success, failed]
     needs:
-      - name: target
-        kind: git
-        path: target
-        access: read
-      - name: description
-        kind: value
-      - name: issue
-        kind: file
-        path: issue.md
-        optional: true
+      - { name: code_evidence, kind: file, path: evidence.json }
     produces:
-      - name: review_output
-        kind: file
-        from: output
+      - { name: code_reading, kind: file, from: output }
+  code-review-read-tests:
+    description: Describes the assertions and mocks from test evidence.
+    kind: agent
+    agent_definition: shadow-review-reader
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: test_evidence, kind: file, path: evidence.json }
+    produces:
+      - { name: test_reading, kind: file, from: output }
+  code-review-compare-intent:
+    description: Compares the independent readings to the human discussion and verifies material disagreements.
+    kind: agent
+    agent_definition: shadow-compare-intent
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: intent_evidence, kind: file, path: intent.json }
+      - { name: code_reading, kind: file, path: code-reading.txt }
+      - { name: test_reading, kind: file, path: test-reading.txt }
+      - { name: challenge_evidence, kind: file, path: verification.json }
+    produces:
+      - { name: intent_comparison, kind: file, from: output }
+  code-review-challenge-tests:
+    description: Identifies behavior the supplied tests would let through.
+    kind: agent
+    agent_definition: shadow-review-challenge
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: challenge_evidence, kind: file, path: evidence.json }
+    produces:
+      - { name: test_challenge, kind: file, from: output }
+  code-review-product:
+    description: Checks shipped promises and agreed scope against the observed behavior and judges outstanding findings for the formal verdict.
+    kind: agent
+    agent_definition: code-review-product
+    conversation: new
+    result_required: true
+    outcomes: [success, failed]
+    needs:
+      - { name: product_evidence, kind: file, path: product.json }
+      - { name: intent_evidence, kind: file, path: intent.json }
+      - { name: code_reading, kind: file, path: code-reading.txt }
+      - { name: test_reading, kind: file, path: test-reading.txt }
+      - { name: intent_comparison, kind: file, path: intent-comparison.txt }
+      - { name: test_challenge, kind: file, path: test-challenge.txt }
+      - { name: challenge_evidence, kind: file, path: verification.json }
+    produces:
+      - { name: product_review, kind: file, from: output }
+  code-review-progress:
+    description: Updates the progress comment for this pull request revision.
+    kind: service
+    outcomes: [success, failed]
+    needs:
+      - { name: revision, kind: value }
+      - { name: pr_url, kind: value, optional: true }
+      - { name: preparation_failed, kind: value, optional: true }
+      - { name: code_reading, kind: file, optional: true }
+      - { name: test_reading, kind: file, optional: true }
+      - { name: intent_comparison, kind: file, optional: true }
+      - { name: test_challenge, kind: file, optional: true }
+      - { name: product_review, kind: file, optional: true }
+    produces: []
+  prepare-code-review:
+    description: Collects separate code, test, intent, challenge and product evidence for the pull request revision.
+    kind: service
+    outcomes: [success, failed]
+    needs:
+      - { name: pr_url, kind: value }
+      - { name: head_sha, kind: value }
+      - { name: since_sha, kind: value, optional: true }
+      - { name: review_paths, kind: value, optional: true }
+      - { name: previous_findings, kind: value, optional: true }
+    produces:
+      - { name: code_evidence, kind: file }
+      - { name: test_evidence, kind: file }
+      - { name: challenge_evidence, kind: file }
+      - { name: intent_evidence, kind: file }
+      - { name: product_evidence, kind: file }
+  finalize-code-review:
+    description: Validates all five pass results and produces the formal review for GitHub.
+    kind: service
+    outcomes: [success, failed]
+    needs:
+      - { name: pr_url, kind: value }
+      - { name: revision, kind: value }
+      - { name: code_reading, kind: file }
+      - { name: test_reading, kind: file }
+      - { name: intent_comparison, kind: file }
+      - { name: test_challenge, kind: file }
+      - { name: product_review, kind: file }
+    produces:
+      - { name: review_output, kind: file }
+      - { name: review_run, kind: value }
   post-review:
     description: Posts the review agent's verdict and comments on the pull request on GitHub. If the agent ended without a verdict, it fails so the agent runs again.
     kind: service
@@ -70,6 +186,7 @@ stations:
       - success
       - failed
     needs:
+      - { name: review_run, kind: value, optional: true }
       - name: review_output
         kind: file
       - name: pr_url

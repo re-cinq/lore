@@ -133,7 +133,10 @@ async function settleBrokenReview(
 ): Promise<void> {
   const failure = await deps.failedAgentVisit(run.id);
 
-  if (!isOutOfBudget(failure)) {
+  if (
+    !isOutOfBudget(failure) ||
+    !["review", "recheck"].includes(failure.nodeId)
+  ) {
     await project.upsertCheckRun(brokenReviewCheck(headSha, run));
 
     return;

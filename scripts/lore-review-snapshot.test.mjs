@@ -190,3 +190,29 @@ test("a test-only change includes its unchanged implementation as verification e
     ["src/rate.test.ts", "src/rate.ts"],
   );
 });
+
+test("a removed YAML environment key includes unchanged code and tests that read it", (t) => {
+  const { write, commit, snapshot } = repository(t);
+
+  write("deploy.yaml", "env:\n  PACK_REPO: example/pack\n");
+  write("src/config.ts", "export const pack = env => env.PACK_REPO || null;");
+  write(
+    "src/config.test.ts",
+    "expect(pack({PACK_REPO: 'example/pack'})).toBe('example/pack');",
+  );
+  const base = commit();
+
+  write("deploy.yaml", "env: {}\n");
+  const head = commit();
+  const { exitCode, output } = snapshot(base, head);
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(
+    output.files.map(({ path, role }) => [path, role]),
+    [
+      ["deploy.yaml", "code"],
+      ["src/config.test.ts", "test"],
+      ["src/config.ts", "code"],
+    ],
+  );
+});

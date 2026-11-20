@@ -37,12 +37,21 @@ export type ReviewReads = Pick<
 
 /** One visit of the post-review station: its identity keys the dedupe marker and signs every body. */
 export interface ReviewVisit {
+  reviewRun?: string;
   visitId: string;
   iteration: number;
 }
 
 /** Per-visit identity stamped into every posted review; probing for it makes a redelivered visit a no-op. */
-export function reviewVisitMarker({ visitId, iteration }: ReviewVisit): string {
+export function reviewVisitMarker({
+  visitId,
+  iteration,
+  reviewRun,
+}: ReviewVisit): string {
+  if (reviewRun) {
+    return `${LORE_REVIEW_MARKER}${reviewRun} -->`;
+  }
+
   return `${LORE_REVIEW_MARKER}${visitId}/${iteration} -->`;
 }
 
@@ -90,6 +99,7 @@ export type ReviewPostDelivery =
 
 /** How a review reaches the PR: where inline comments may land, the visit that signs and dedupes it, and the model the disclosure names. */
 export interface ReviewDelivery {
+  commitId?: string;
   positions: CommentablePositions;
   visit: ReviewVisit;
   model?: string;
@@ -150,7 +160,7 @@ async function postSummaryReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  { visit, model, allowApprove }: ReviewDelivery,
+  { visit, model, allowApprove, commitId }: ReviewDelivery,
 ): Promise<void> {
   const event =
     allowApprove === false
@@ -158,6 +168,7 @@ async function postSummaryReview(
       : reviewEvent(output);
 
   await pulls.createReview(prNumber, {
+    ...(commitId ? { commitId } : {}),
     event,
     body: signed(
       composeBody(output, output.findings, model, STEPPED_DOWN_HEADING),
@@ -172,7 +183,7 @@ async function postCommentReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  { visit, model }: ReviewDelivery,
+  { visit, model, commitId }: ReviewDelivery,
 ): Promise<void> {
   const body = composeBody(
     output,
@@ -182,6 +193,7 @@ async function postCommentReview(
   );
 
   await pulls.createReview(prNumber, {
+    ...(commitId ? { commitId } : {}),
     event: "COMMENT",
     body: signed(`${COMMENT_NOTE}\n\n${body}`, visit),
     comments: [],
@@ -192,7 +204,7 @@ async function postInlineReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  { positions, visit, model, allowApprove }: ReviewDelivery,
+  { positions, visit, model, allowApprove, commitId }: ReviewDelivery,
 ): Promise<void> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
   const event =
@@ -201,6 +213,7 @@ async function postInlineReview(
       : reviewEvent(output);
 
   await pulls.createReview(prNumber, {
+    ...(commitId ? { commitId } : {}),
     event,
     body: signed(composeBody(output, overflow, model), visit),
     comments: inline.map(toReviewComment),

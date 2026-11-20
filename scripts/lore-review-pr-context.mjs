@@ -132,7 +132,7 @@ export async function productSpecs(git, base, head, discussion, files) {
   return specs;
 }
 
-export async function productDocuments(git, base, head) {
+export async function productDocuments(git, base, head, scope = []) {
   const entries = (
     await git([
       "diff",
@@ -150,7 +150,11 @@ export async function productDocuments(git, base, head) {
   for (let index = 0; index < entries.length - 1; index += 2) {
     const path = entries[index + 1];
 
-    if (!markdown.test(path) || spec.test(path)) {
+    if (
+      !markdown.test(path) ||
+      spec.test(path) ||
+      (scope.length && !scope.includes(path))
+    ) {
       continue;
     }
     const [beforeMode, afterMode, beforeHash, afterHash] = entries[index]

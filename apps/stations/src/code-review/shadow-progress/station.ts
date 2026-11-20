@@ -22,6 +22,7 @@ import {
 } from "@re-cinq/lore-shared/review/review-progress.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
+  formalReview,
   progressNeeds,
   reviewProgress,
   type ProgressResults,
@@ -58,11 +59,11 @@ interface ProgressDeps {
   ): Promise<void>;
 }
 
-export function startShadowReviewProgressStation(): RunningStation {
-  return defineStation(
-    "shadow-review-progress",
-    shadowReviewProgressHandle(productionDeps),
-  );
+export function startReviewProgressStation(
+  name:
+    "code-review-progress" | "finalize-code-review" | "shadow-review-progress",
+): RunningStation {
+  return defineStation(name, shadowReviewProgressHandle(productionDeps));
 }
 
 export function shadowReviewProgressHandle(deps: ProgressDeps): Handle {
@@ -72,21 +73,52 @@ export function shadowReviewProgressHandle(deps: ProgressDeps): Handle {
       readOutputs(brief.needs, tools),
     ]);
 
-    const stage = stageOf(visit.nodeId);
-    const state = progressState(visit.nodeId);
-    const progress = reviewProgress(outputs, stage);
+    const publication = publicationOf(visit, outputs);
+    const { state, progress } = publication;
 
     if (state !== "failed" && progress.incomplete.length > 0) {
       return failedEvidence(progress.incomplete);
     }
 
-    return reportProgress(
-      deps,
-      brief.needs,
-      { visit, stage, state, progress },
-      tools.signal,
-    );
+    if (visit.lineId !== "code-review-shadow" && state === "complete") {
+      await produceFormalReview(outputs, tools);
+    }
+
+    return reportProgress(deps, brief.needs, publication, tools.signal);
   };
+}
+
+function publicationOf(
+  visit: ProgressVisit,
+  outputs: ProgressResults,
+): Publication {
+  const stage = stageOf(visit.nodeId);
+
+  return {
+    visit,
+    stage,
+    state: progressState(visit.nodeId),
+    progress: reviewProgress(outputs, stage, visit.lineId),
+  };
+}
+
+async function produceFormalReview(
+  outputs: ProgressResults,
+  tools: Tools,
+): Promise<void> {
+  const review = formalReview(outputs);
+
+  enforceTrue(
+    review,
+    Error,
+    "A formal verdict requires five complete review passes",
+  );
+  const json = JSON.stringify(review).replaceAll("`", "\\u0060");
+
+  await tools.produce(
+    "review_output",
+    ["```REVIEW_FINDINGS", json, "```"].join("\n"),
+  );
 }
 
 type Publication = {
@@ -116,7 +148,14 @@ async function reportProgress(
     );
   }
 
-  return SUCCESS;
+  return progressReport(visit, state);
+}
+
+// Posting retries share the run marker so GitHub receives the verdict only once.
+function progressReport(visit: ProgressVisit, state: ProgressState): Report {
+  return state === "complete" && visit.lineId !== "code-review-shadow"
+    ? { outcome: "success", produced: { review_run: visit.runId } }
+    : SUCCESS;
 }
 
 function preparationNote(state: ProgressState, failed: string): string {
@@ -143,9 +182,13 @@ async function readShadowVisit(
   const visit = await deps.visit(visitId);
 
   enforceTrue(
-    visit?.lineId === "code-review-shadow" && Number.isFinite(visit.startedAt),
+    visit &&
+      ["code-review", "code-review-recheck", "code-review-shadow"].includes(
+        visit.lineId,
+      ) &&
+      Number.isFinite(visit.startedAt),
     Error,
-    "Shadow review progress requires a shadow review visit",
+    "Review progress requires a code review visit",
   );
 
   return visit;
@@ -169,12 +212,12 @@ function hostedTarget(
   enforceTrue(
     /^[a-f0-9]{40}$/.test(revision),
     Error,
-    "Shadow review requires a full commit SHA",
+    "Review progress requires a full commit SHA",
   );
   enforceTrue(
     visit.repo === floorRepoOf(target.repo),
     Error,
-    "Shadow review visit must belong to the pull request repository",
+    "Review visit must belong to the pull request repository",
   );
 
   return target;
@@ -191,11 +234,7 @@ async function publishHosted(
     deps.appLogin(),
   ]);
 
-  enforceTrue(
-    appLogin,
-    Error,
-    "Shadow review publication requires Lore's GitHub App",
-  );
+  enforceTrue(appLogin, Error, "Review publication requires Lore's GitHub App");
 
   await deps.serialize(repo, prNumber, () =>
     publishReviewProgress(project, { ...progress, prNumber, appLogin }, signal),

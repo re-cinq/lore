@@ -13,85 +13,7 @@ import {
   pullRequestUrl,
   valueItem,
 } from "@re-cinq/lore-shared/floor/floor-items.js";
-import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
-
-const modes = ["code", "tests", "test challenge"];
-const shadowEvidence = [
-  "code_evidence",
-  "test_evidence",
-  "challenge_evidence",
-  "intent_evidence",
-  "product_evidence",
-];
-const snapshot = z.object({
-  files: z.array(
-    z.object({
-      path: z.string().min(1),
-      role: z.enum(["code", "test"]),
-      before: z.string().nullable(),
-      after: z.string().nullable(),
-    }),
-  ),
-  discussion: z
-    .array(
-      z.object({
-        source: z.enum([
-          "pull_request",
-          "issue",
-          "issue_comment",
-          "pull_request_comment",
-          "review_thread",
-        ]),
-        url: z.url(),
-        author: z.string().optional(),
-        text: z.string(),
-      }),
-    )
-    .default([]),
-  specs: z
-    .array(
-      z.object({
-        path: z.string().min(1),
-        text: z.string(),
-        version: z.enum(["existing", "proposed"]).default("existing"),
-      }),
-    )
-    .default([]),
-  documents: z
-    .array(
-      z.object({
-        path: z.string().min(1),
-        before: z.string().nullable(),
-        after: z.string().nullable(),
-      }),
-    )
-    .optional(),
-});
-
-function packetFor(mode, files) {
-  const selected = [];
-
-  for (const file of files) {
-    if (/\.(md|mdx|markdown|mkd|mkdn|mdown)$/i.test(file.path)) {
-      continue;
-    }
-    const test =
-      file.role === "test" ||
-      isTestFile(file.path) ||
-      /(?:^|\/)(?:tests?|__mocks__|__fixtures__)\//i.test(file.path);
-
-    if ((mode === "code" && test) || (mode === "tests" && !test)) {
-      continue;
-    }
-    selected.push(
-      file.before === file.after
-        ? { path: file.path, unchanged: file.after }
-        : { path: file.path, before: file.before, after: file.after },
-    );
-  }
-
-  return { mode, files: selected };
-}
+import { reviewPackets, shadowEvidence } from "./lore-review-packets.mjs";
 
 async function previousAutomaticRun(floor, repo, reviewKey, preparationFailed) {
   let cursor;
@@ -307,30 +229,7 @@ async function run() {
 
     return;
   }
-  const { files, discussion, specs, documents } = snapshot.parse(
-    JSON.parse(await text(process.stdin)),
-  );
-
-  for (const file of files) {
-    if (file.role === "test" || isTestFile(file.path)) {
-      continue;
-    }
-    const inlineTests = [file.before, file.after].some(
-      (source) =>
-        source &&
-        (isTestFile(file.path, source) ||
-          (file.path.endsWith(".rs") && /#\[cfg\(test\)\]/.test(source)) ||
-          (/\.[cm]?[jt]sx?$/.test(file.path) &&
-            /\bimport\.meta\.vitest\b/.test(source))),
-    );
-
-    if (inlineTests) {
-      throw new Error(
-        `Separate the code and inline test regions in ${file.path}`,
-      );
-    }
-  }
-  const packets = modes.map((mode) => packetFor(mode, files));
+  const evidence = reviewPackets(JSON.parse(await text(process.stdin)));
 
   if (revision !== undefined) {
     if (values["reader-model"] || values["reader-effort"]) {
@@ -338,15 +237,7 @@ async function run() {
     }
     console.log(
       JSON.stringify(
-        await startShadow(revision, prUrl, values.automatic, [
-          ...packets,
-          { mode: "intent", discussion },
-          {
-            mode: "product",
-            specs,
-            ...(documents?.length ? { documents } : {}),
-          },
-        ]),
+        await startShadow(revision, prUrl, values.automatic, evidence),
       ),
     );
 
@@ -360,7 +251,9 @@ async function run() {
   const skillFile = join(configDir, "skills", "lore-review-files", "SKILL.md");
   const instructions = await readFile(skillFile, "utf8");
   const readings = await Promise.all(
-    packets.map((packet) => readPass(packet, instructions, values)),
+    evidence
+      .slice(0, 3)
+      .map((packet) => readPass(packet, instructions, values)),
   );
   const complete = readings.every((reading) => reading.status === "complete");
 

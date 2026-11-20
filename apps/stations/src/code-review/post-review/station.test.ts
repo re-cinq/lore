@@ -65,6 +65,7 @@ function fakeProject(
       getDiff: async () => "",
       get: async () => ({
         headSha: "livesha",
+        state: "open",
         baseBranch: "main",
       }),
       getBranchRule: async (branch: string) => {
@@ -125,7 +126,7 @@ describe("postReviewHandle", () => {
     const { deps, reviews, checks } = fakeProject();
 
     const report = await postReviewHandle(deps)(
-      brief({ head_sha: "abc123" }),
+      brief({ head_sha: "livesha" }),
       toolsReading(changesRequestedOutput),
     );
 
@@ -136,15 +137,33 @@ describe("postReviewHandle", () => {
         review_url: prUrl,
       },
     });
-    expect(reviews).toMatchObject([{ event: "REQUEST_CHANGES" }]);
+    expect(reviews).toMatchObject([
+      { event: "REQUEST_CHANGES", commitId: "livesha" },
+    ]);
     expect(checks).toMatchObject([
       {
-        headSha: "abc123",
+        headSha: "livesha",
         name: "lore/code-review",
         status: "completed",
         conclusion: "neutral",
       },
     ]);
+  });
+
+  it("leaves GitHub untouched when the reviewed commit has been superseded", async () => {
+    const { deps, reviews, checks, resolved } = fakeProject();
+
+    await expect(
+      postReviewHandle(deps)(
+        brief({ head_sha: "oldsha", open_threads: "T1" }),
+        toolsReading("REVIEW_RESULT:APPROVED"),
+      ),
+    ).rejects.toThrow("no longer the pull request head");
+    expect({ reviews, checks, resolved }).toEqual({
+      reviews: [],
+      checks: [],
+      resolved: [],
+    });
   });
 
   it("looks the head sha up on the pull request when the brief carries none", async () => {
@@ -291,11 +310,11 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
       const handle = postReviewHandle(deps);
 
       await handle(
-        brief({ head_sha: "abc123" }),
+        brief({ head_sha: "livesha" }),
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
       await handle(
-        brief({ head_sha: "abc123" }),
+        brief({ head_sha: "livesha" }),
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
 

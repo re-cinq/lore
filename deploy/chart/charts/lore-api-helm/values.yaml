@@ -147,7 +147,6 @@ commitAuthor:
 floor:
   enabled: false
   # Comma-separated owner/name repositories opted into shadow PR review.
-  reviewShadowRepos: ""
   apiUrl: http://floor-api.floor.svc.cluster.local:8080
   # The image a floor agent's pod runs in: node:22-bookworm plus the tools the agents
   # lean on (jq, yq, rg, python3, make, a Temurin 21 JDK ...), built from apps/agent-image. The subsystem
