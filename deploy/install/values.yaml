@@ -293,6 +293,10 @@ lore-platform:
   lore-stations:
     podDisruptionBudget:
       enabled: false
+    # The public lore-api URL (https://<the lore-api ingress host>): onboarding
+    # writes it to each repo's LORE_INGEST_URL variable for the GitHub runners.
+    # Empty: onboarding reports it as a gap.
+    ingestUrl: ""
     # Courier jobs are CronJobs (lore-stations-courier-<name>) that each send one
     # HTTP request to the stations service on a schedule; the service does the
     # work: memory-ttl (hourly, deletes expired memories), importance-decay and

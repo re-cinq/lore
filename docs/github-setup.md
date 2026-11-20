@@ -42,7 +42,7 @@ On the same form, under **Permissions**, open **Repository permissions** and set
 | Metadata | Read-only | GitHub selects it for every App |
 | Pull requests | Read and write | opens, reviews, comments on, updates and merges pull requests |
 | Secrets | Read and write | onboarding sets the repository secret `LORE_INGEST_TOKEN` on every run; the repository's CI uses it to post to Lore. Nobody sets it by hand |
-| Variables | Read and write | onboarding sets the repository variable `LORE_INGEST_URL` on every run. Nobody sets it by hand. Its value is the stations deployment's `LORE_INGEST_URL`, the public lore-api URL (for example `https://<api host>`), set from the chart value `stations.ingestUrl` <!-- TODO confirm the chart value name --> |
+| Variables | Read and write | onboarding sets the repository variable `LORE_INGEST_URL` on every run. Nobody sets it by hand. Its value is the stations deployment's `LORE_INGEST_URL`, the public lore-api URL (for example `https://<api host>`), set from the chart value `lore-stations.ingestUrl` (the stations subchart value in the umbrella chart; the install chart sets it under `lore-platform.lore-stations.ingestUrl`) |
 | Webhooks | Read and write | creates the repository's webhook at onboarding |
 | Workflows | Read and write | the onboarding pull request adds files under `.github/workflows/`. GitHub refuses any push that changes a workflow file without it |
 
