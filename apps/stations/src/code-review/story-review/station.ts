@@ -6,7 +6,6 @@ import {
   type RunningStation,
   type Tools,
 } from "@re-cinq/floor-station";
-import type { Pool } from "pg";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
@@ -22,6 +21,7 @@ import {
   type ReviewProgress,
 } from "@re-cinq/lore-shared/review/review-progress.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { withProgressLock } from "./progress-lock.js";
 import {
   formalReview,
   reviewPasses,
@@ -86,7 +86,9 @@ export function reviewProgressHandle(deps: ProgressDeps): Handle {
       await produceFormalReview(outputs, publication.required, tools);
     }
 
-    return reportProgress(deps, brief.needs, publication, tools.signal);
+    await publishProgress(deps, brief.needs, publication, tools.signal);
+
+    return progressReport(visit, state, brief.needs);
   };
 }
 
@@ -151,14 +153,12 @@ type Publication = {
   progress: ReturnType<typeof storyReview>;
 };
 
-async function reportProgress(
+async function publishProgress(
   deps: ProgressDeps,
-  needs: Record<string, string>,
+  { pr_url: url, revision, preparation_failed }: Record<string, string>,
   { visit, stage, state, progress }: Publication,
   signal: AbortSignal,
-): Promise<Report> {
-  const { pr_url: url, revision, preparation_failed } = needs;
-
+): Promise<void> {
   if (url) {
     const target = hostedTarget(url, revision, visit);
     const body =
@@ -172,8 +172,6 @@ async function reportProgress(
       signal,
     );
   }
-
-  return progressReport(visit, state, needs);
 }
 
 // Posting retries share the run marker so GitHub receives the verdict only once. After both checks, a pull request that changes documents goes to the documents check.
@@ -327,28 +325,5 @@ async function progressVisit(
       repo: run.repo,
       startedAt: Date.parse(run.createdAt),
     };
-  }
-}
-
-async function withProgressLock(
-  pool: Pool,
-  key: string,
-  publish: () => Promise<void>,
-): Promise<void> {
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-      [key],
-    );
-    await publish();
-  } finally {
-    // The transaction only holds the cross-worker lock. Discard the connection if release fails.
-    await client.query("ROLLBACK").then(
-      () => client.release(),
-      () => client.release(new Error("Could not release shadow review lock")),
-    );
   }
 }

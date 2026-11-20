@@ -40,7 +40,7 @@ line:
   edges:
     - { from: prepare, to: tell-story, on: success }
     - { from: prepare, to: publish-incomplete, on: failed }
-    # A change the collector cannot split into code and tests (documents only, a binary, a file holding its own tests) is reviewed whole.
+    # A change the collector cannot split into code and tests (a binary, a file holding its own tests) is reviewed whole.
     - { from: prepare, to: review-whole, on: whole_diff }
     # A commit that is no longer the pull request head is reviewed by the run of the newer one.
     - { from: prepare, to: done, on: superseded }

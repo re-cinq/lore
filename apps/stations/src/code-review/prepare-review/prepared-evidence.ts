@@ -45,19 +45,25 @@ export function preparedEvidence(
     : packets.parse(collected);
 
   return {
-    report: {
-      outcome: alone ? "docs_only" : "success",
-      produced: {
-        review_mode: alone ? "docs" : "story",
-        docs_changed: String(hasChanges(evidence.docs_evidence)),
-      },
-    },
+    report: reviewable(alone ? "docs" : "story", evidence.docs_evidence),
     packets: withPreviousGaps(evidence, previousFindings),
   };
 }
 
-function hasChanges({ statements, removed }: z.infer<typeof docs>): boolean {
-  return statements.length + removed.length > 0;
+/** The report of a change an agent reviews: its route, and for the gate after both checks whether its documents changed. */
+function reviewable(
+  mode: "docs" | "story",
+  documents: z.infer<typeof docs>,
+): Report {
+  return {
+    outcome: mode === "docs" ? "docs_only" : "success",
+    produced: {
+      review_mode: mode,
+      docs_changed: String(
+        documents.statements.length + documents.removed.length > 0,
+      ),
+    },
+  };
 }
 
 /** A re-check's checks are handed the gaps still open; the story is told from the tests alone. */
