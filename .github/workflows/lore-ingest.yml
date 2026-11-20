@@ -1,7 +1,8 @@
-# lore-ingest-version: 9
+# lore-ingest-version: 10
 name: Lore Context Ingest
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -24,9 +25,15 @@ jobs:
       - name: Get changed files
         id: changes
         run: |
-          # --no-renames: a moved file must arrive as its old path (a delete)
-          # plus its new path, or the old path's chunks outlive the file.
-          FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # A dispatch run has no diff to read: it posts every tracked file
+            # under the push paths above (keep the two lists identical).
+            FILES=$(git ls-files -- 'CLAUDE.md' 'AGENTS.md' 'adrs/**' 'runbooks/**' 'specs/**' 'teams/**' '.specify/**' | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          else
+            # --no-renames: a moved file must arrive as its old path (a delete)
+            # plus its new path, or the old path's chunks outlive the file.
+            FILES=$(git diff --name-only --no-renames HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          fi
           echo "files=${FILES}" >> "$GITHUB_OUTPUT"
 
       - name: Notify Lore to ingest

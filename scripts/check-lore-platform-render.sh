@@ -139,6 +139,11 @@ rendered_has "$(render --set platform.dgraph.storageClass=fast)" "Dgraph uses pl
 	'.kind == "StatefulSet" and .spec.volumeClaimTemplates[0].spec.storageClassName == "fast"'
 rendered_lacks "$neutral" "the gcp-cost-sync courier is off without a Google project" \
 	'.kind == "CronJob" and (.metadata.name | endswith("gcp-cost-sync"))'
+stations_ingest_url='.kind == "Deployment" and .metadata.name == "lore-stations" and any(.spec.template.spec.containers[].env[]?; .name == "LORE_INGEST_URL")'
+rendered_has "$(render --set lore-stations.ingestUrl=https://lore-api.example.com)" "lore-stations.ingestUrl reaches the stations Deployment as LORE_INGEST_URL" \
+	"$stations_ingest_url"
+rendered_lacks "$(render --set lore-stations.ingestUrl=)" "an empty lore-stations.ingestUrl renders no LORE_INGEST_URL" \
+	"$stations_ingest_url"
 rendered_has "$neutral" "the azure-cost-sync courier is rendered by default (our own cluster)" \
 	'.kind == "CronJob" and (.metadata.name | endswith("azure-cost-sync"))'
 rendered_lacks "$(render --set 'lore-stations.skipCourierJobs={azure-cost-sync}')" "skipCourierJobs leaves a courier job out" \

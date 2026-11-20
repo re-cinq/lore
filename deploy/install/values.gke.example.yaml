@@ -108,6 +108,7 @@ lore-platform:
       # GITHUB_HOST: ghe.example.com
       # LORE_DB_HOST: CHANGE-ME
   lore-stations:
+    ingestUrl: https://lore-api.example.com   # the lore-api ingress host
     env:
       LORE_UI_URL: https://lore.example.com
       # GITHUB_HOST: ghe.example.com

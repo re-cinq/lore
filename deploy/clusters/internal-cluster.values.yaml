@@ -312,6 +312,7 @@ lore-db-helm:
 # ---- Stations (lore-stations namespace)
 lore-stations:
   gcpProject: re-cinq-internal
+  ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
     repository: ghcr.io/re-cinq/lore-stations
     tag: "69be082"

@@ -21,7 +21,7 @@ Onboarding opens one PR on the target repo. Lore commits its own workflows and t
 1. Go to `LORE_UI_DOMAIN/onboard`
 2. Enter `owner/repo` (e.g. `re-cinq/my-service`)
 3. Click **Onboard Repository**
-4. Lore creates the dispatch labels and sets the repo's ingest variable and secret (`LORE_INGEST_URL`, `LORE_INGEST_TOKEN`), before the PR opens
+4. Lore creates the dispatch labels and sets the repo's ingest variable and secret (`LORE_INGEST_URL`, `LORE_INGEST_TOKEN`), before the PR opens. Nobody sets them by hand; re-onboarding ("Update setup") rewrites them
 5. Lore commits its own files on the onboarding branch, and the agent writes the rest (tables below)
 6. A PR appears on the target repo. Anything Lore could not set is listed in it. Review and merge it
 
@@ -61,7 +61,7 @@ claude "ingest CLAUDE.md and the ADRs into Lore"
 
 Onboarding never writes `CLAUDE.md`: the repo's owners author it.
 
-The ingest variable and secret are set before the PR opens, so context ingestion starts with the first push to `main` after the merge.
+The ingest variable and secret are set before the PR opens, so the last onboarding station dispatches the ingest workflows to start the first ingestion at once (merge-check does it again when the PR merges), and every later push to `main` ingests incrementally. This needs the GitHub App's Actions permission set to Read and write; without it the station reports a gap.
 
 ## Monitor the pipeline
 
@@ -118,8 +118,8 @@ Each onboarded repo has configurable settings at `LORE_UI_DOMAIN/repos/{owner}/{
 Platform configuration lives at `LORE_UI_DOMAIN/settings`:
 
 - **API URL** — the external Lore API endpoint (`LORE_API_URL`); the local MCP adapter proxies every operation to it
-- **Ingest Token** — shared auth token for API calls (legacy single-token mode)
-- **Regenerate Token** — rotates the token (invalidates all existing)
+- **Ingest Token** — shared auth token for API calls (legacy single-token mode). Onboarding writes each repo's `LORE_INGEST_TOKEN` secret and `LORE_INGEST_URL` variable
+- **Update setup** — on the home page, for onboarded repos whose ingest or spec-impact workflow is missing or stale: re-onboards each one, which rewrites the variable and secret, opens a PR only for Lore files that differ, and starts the ingest workflows
 - **Dev Install Command** — copy-paste for new developer onboarding
 - **Approval Gates** — require human approval before agents process tasks (per-repo or global)
 

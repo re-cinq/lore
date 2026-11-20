@@ -3,11 +3,13 @@ import type { RunningStation } from "@re-cinq/floor-station";
 import { startEnrolStation } from "./enrol/station.js";
 import { startOpenOnboardPrStation } from "./open-pr/station.js";
 import { startRequestReviewStation } from "./request-review/station.js";
+import { startStartIngestStation } from "./start-ingest/station.js";
 
 export function startOnboardStations(): RunningStation[] {
   return [
     startEnrolStation(),
     startOpenOnboardPrStation(),
     startRequestReviewStation(),
+    startStartIngestStation(),
   ];
 }

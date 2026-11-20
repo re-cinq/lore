@@ -14,8 +14,11 @@ import {
   getIngestStatuses,
   getWorkflowStatuses,
 } from "@/lib/ingest-status-cache";
-import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
-import { reposNeedingWorkflowFix } from "@/lib/workflow-fix";
+import { updateSetup } from "./actions";
+import {
+  reposNeedingSetupUpdate,
+  reposNeedingWorkflowFix,
+} from "@/lib/workflow-fix";
 import HomeView, { type Repo } from "./HomeView";
 import { parseRepoFilter } from "./HomeView.filters";
 
@@ -33,17 +36,14 @@ export default async function HomePage(props: HomePageProps) {
   const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
 
   const { ingestStatus, impactStatus } = await readWorkflowStatuses(repos);
-  const misaligned = reposNeedingWorkflowFix(repos, ingestStatus);
-  const impactMisaligned = reposNeedingWorkflowFix(repos, impactStatus);
 
   return (
     <HomeView
       repos={repos}
       ingestStatus={ingestStatus}
-      impactMisaligned={impactMisaligned}
-      fixTraceImpactWorkflows={fixTraceImpactWorkflows}
-      misaligned={misaligned}
-      fixIngestWorkflows={fixIngestWorkflows}
+      impactMisaligned={reposNeedingWorkflowFix(repos, impactStatus)}
+      needsUpdate={reposNeedingSetupUpdate(repos, ingestStatus, impactStatus)}
+      updateSetup={updateSetup}
       filter={parseRepoFilter(filter)}
     />
   );

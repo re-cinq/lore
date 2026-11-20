@@ -38,17 +38,16 @@ interface HomeOptions {
 const renderHome = (
   repos: Repo[],
   status: Record<string, IngestWorkflowStatus> = {},
-  misaligned: string[] = [],
+  needsUpdate: string[] = [],
   { impactMisaligned = [], filter }: HomeOptions = {},
 ) =>
   render(
     <HomeView
       repos={repos}
       ingestStatus={new Map(Object.entries(status))}
-      misaligned={misaligned}
-      fixIngestWorkflows={action}
+      needsUpdate={needsUpdate}
+      updateSetup={action}
       impactMisaligned={impactMisaligned}
-      fixTraceImpactWorkflows={action}
       filter={filter}
     />,
   );
@@ -214,25 +213,25 @@ describe("HomeView", () => {
     ).toBe("var(--text-muted)");
   });
 
-  it("renders the Fix-ingest button wired to the injected action when repos are misaligned", () => {
+  it("renders the Update setup button with the count of repos needing an update", () => {
     renderHome(
       [repo({ full_name: "re-cinq/lore" })],
       { "re-cinq/lore": "missing" },
       ["re-cinq/lore"],
     );
     expect(
-      screen.getByRole("button", { name: "Fix ingest workflow (1)" }),
+      screen.getByRole("button", { name: "Update setup (1)" }),
     ).toBeInTheDocument();
   });
 
-  it("hides the Fix-ingest button when no repos are misaligned", () => {
+  it("hides the Update setup button when no repo needs an update", () => {
     renderHome(
       [repo({ full_name: "re-cinq/lore" })],
       { "re-cinq/lore": "aligned" },
       [],
     );
     expect(
-      screen.queryByRole("button", { name: /Fix ingest workflow/ }),
+      screen.queryByRole("button", { name: /Update setup/ }),
     ).not.toBeInTheDocument();
   });
 
