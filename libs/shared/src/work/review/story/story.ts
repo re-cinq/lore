@@ -111,13 +111,28 @@ function storyLines({ parts }: Review): string[] {
     ...(list.length
       ? [list.map((entry) => `- ${escapeMarkdown(entry)}`).join("\n")]
       : []),
-    ...(tests.length ? [`Tests: ${tests.map(placeOf).join(", ")}`] : []),
+    ...(tests.length ? [`Tests: ${testsOf(tests)}`] : []),
   ]);
 
   return [
     "### The story the tests tell",
     ...(told.length ? told : ["The tests tell nothing about this change."]),
   ];
+}
+
+/** Each test file once, with the lines its tests start on. */
+function testsOf(tests: Place[]): string {
+  const paths = [...new Set(tests.map(({ path }) => path))];
+
+  return paths
+    .map((path) => {
+      const starts = tests
+        .filter((test) => test.path === path)
+        .map(({ line }) => line);
+
+      return `\`${path}\` (${starts.join(", ")})`;
+    })
+    .join(", ");
 }
 
 function gapTable(gaps: Gap[]): string[] {
@@ -261,6 +276,6 @@ function escapeMarkdown(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("@", "&#64;")
-    .replace(/[\\`*_[\]~]/g, "\\$&")
+    .replace(/[\\*_[\]~]/g, "\\$&")
     .replace(/\r?\n/g, " ");
 }

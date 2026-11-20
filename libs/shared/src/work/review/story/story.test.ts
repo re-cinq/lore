@@ -51,7 +51,7 @@ describe("storyReview", () => {
         `Reviewed revision \`${REVISION}\` · **In progress** · 0 gaps`,
         "### The story the tests tell",
         "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
-        `Tests: \`${TEST}:6\``,
+        `Tests: \`${TEST}\` (6)`,
       ].join("\n\n"),
     );
   });
@@ -66,7 +66,7 @@ describe("storyReview", () => {
       `Reviewed revision \`${REVISION}\` · **Changes requested** · 1 gap`,
       "### The story the tests tell",
       "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
-      `Tests: \`${TEST}:6\``,
+      `Tests: \`${TEST}\` (6)`,
       "### Gaps",
       [
         "| # | Kind | What differs | Where |",
@@ -78,16 +78,19 @@ describe("storyReview", () => {
     ]);
   });
 
-  it("writes a real enumeration as a list under its paragraph, and tells several themes as several paragraphs", () => {
+  it("writes a real enumeration as a list under its paragraph, keeps inline code, and names each test file once with its lines", () => {
     const told = answer({
       status: "complete",
       story: [
         {
           text: "A person who cannot read a repository is refused wherever the request names it:",
           list: ["in the path", "in the query"],
-          tests: [{ path: TEST, line: 27 }],
+          tests: [
+            { path: TEST, line: 27 },
+            { path: TEST, line: 40 },
+          ],
         },
-        { text: "A service token reaches every repository.", tests: [] },
+        { text: "A `service` token reaches every repository.", tests: [] },
       ],
     });
 
@@ -99,8 +102,8 @@ describe("storyReview", () => {
     ).toEqual([
       "A person who cannot read a repository is refused wherever the request names it:",
       "- in the path\n- in the query",
-      `Tests: \`${TEST}:27\``,
-      "A service token reaches every repository.",
+      `Tests: \`${TEST}\` (27, 40)`,
+      "A `service` token reaches every repository.",
     ]);
   });
 
