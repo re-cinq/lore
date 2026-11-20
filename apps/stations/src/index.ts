@@ -37,6 +37,7 @@ import { startMergeStations } from "./merge/index.js";
 import { startAutoMergeStations } from "./auto-merge/station.js";
 import { startDigestStations } from "./digest/index.js";
 import { startChangelogStations } from "./changelog/index.js";
+import { startReleaseStations } from "./release/index.js";
 import { startOnboardStations } from "./onboard/index.js";
 import { startSpecUpkeepStations } from "./spec-upkeep/index.js";
 import { startSpecTicketsStations } from "./spec-tickets/index.js";
@@ -119,6 +120,7 @@ function startFloorStations() {
         ...startAutoMergeStations(),
         ...startDigestStations(),
         ...startChangelogStations(),
+        ...startReleaseStations(),
         ...startOnboardStations(),
         ...startSpecUpkeepStations(),
         ...startImplementationLoopStations(),
