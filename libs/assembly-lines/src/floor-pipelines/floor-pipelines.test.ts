@@ -1852,6 +1852,17 @@ describe("test_policy on the review agent definitions", () => {
   });
 });
 
+describe("an agent under a test policy has its guard", () => {
+  it("lists the lore-context skill in every shipped agent that declares LORE_TEST_POLICY, since the Bash hook refuses every command when that skill's guard script is missing", () => {
+    const unguarded = [...DEFAULT_AGENTS]
+      .filter(([, { config }]) => config?.env?.LORE_TEST_POLICY)
+      .filter(([, { config }]) => !config?.skills?.includes("lore-context"))
+      .map(([name]) => name);
+
+    expect(unguarded).toEqual([]);
+  });
+});
+
 describe("the review definitions' findings block", () => {
   it("shows a whole finding with path, line, label, decoration and subject in code-review and code-review-recheck, so no model guesses the shape (#2143's recheck lost every finding)", () => {
     const shapes = ["code-review", "code-review-recheck"].map((name) => {
