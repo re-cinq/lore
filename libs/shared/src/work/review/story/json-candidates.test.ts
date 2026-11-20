@@ -17,3 +17,17 @@ it("reads a bare JSON answer with no fence", () => {
     { status: "complete" },
   ]);
 });
+
+it("reads a bare JSON answer that follows a line of notes", () => {
+  const answer = [
+    "Still working: I have the audit test details and am writing up the result now.",
+    '{"status":"complete","story":[{"text":"It stores {entries} unchanged."}]}',
+  ].join("\n\n");
+
+  expect(jsonCandidates(answer)).toEqual([
+    {
+      status: "complete",
+      story: [{ text: "It stores {entries} unchanged." }],
+    },
+  ]);
+});
