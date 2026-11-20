@@ -21,12 +21,34 @@ describe("preparedEvidence", () => {
     });
   });
 
-  it.each(["whole_diff", "superseded"])(
-    "returns the outcome %s when the collector answers it in place of packets",
-    (status) => {
-      expect(
-        preparedEvidence(JSON.stringify({ status, reason: "a.bin" })),
-      ).toBe(status);
-    },
-  );
+  it("reports the outcome whole_diff with the collector's reason, a.bin is binary, as whole_diff_reason in place of packets", () => {
+    expect(
+      preparedEvidence(
+        JSON.stringify({ status: "whole_diff", reason: "a.bin is binary" }),
+      ),
+    ).toEqual({
+      outcome: "whole_diff",
+      produced: { whole_diff_reason: "a.bin is binary" },
+    });
+  });
+
+  it("reports the outcome whole_diff alone when the collector's reason is empty", () => {
+    expect(
+      preparedEvidence(JSON.stringify({ status: "whole_diff", reason: "" })),
+    ).toEqual({ outcome: "whole_diff" });
+  });
+
+  it("reports the outcome superseded for a commit that is no longer the head", () => {
+    expect(preparedEvidence(JSON.stringify({ status: "superseded" }))).toEqual({
+      outcome: "superseded",
+    });
+  });
+
+  it("reports the outcome superseded alone when the collector adds a reason, which belongs to whole_diff only", () => {
+    expect(
+      preparedEvidence(
+        JSON.stringify({ status: "superseded", reason: "head moved" }),
+      ),
+    ).toEqual({ outcome: "superseded" });
+  });
 });

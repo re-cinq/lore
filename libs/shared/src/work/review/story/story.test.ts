@@ -165,7 +165,7 @@ describe("formalReview", () => {
           discussion: [
             "FR-027 says so; no test tells it.",
             "Proposed:\n\n```\ninIdentity: false,\n```",
-            "specs/support-agent-prompt-and-model/spec.md FR-027",
+            "Evidence: specs/support-agent-prompt-and-model/spec.md FR-027",
           ].join("\n\n"),
         },
       ],
@@ -181,7 +181,7 @@ describe("formalReview", () => {
       suggestion: "inIdentity: false,",
       discussion: [
         "FR-027 says so; no test tells it.",
-        "specs/support-agent-prompt-and-model/spec.md FR-027",
+        "Evidence: specs/support-agent-prompt-and-model/spec.md FR-027",
       ].join("\n\n"),
     });
   });
@@ -207,8 +207,11 @@ describe("formalReview", () => {
     });
   });
 
-  it("keeps a gap whose evidence is given as path, line and note objects, written as one line each", () => {
-    const evidence = [{ path: "limit.ts", line: 4, spec: "caps at 2" }];
+  it("keeps a gap whose evidence is given as path, line and note objects, and names all of it on one line marked Evidence", () => {
+    const evidence = [
+      { path: "limit.ts", line: 4, spec: "caps at 2" },
+      "limit.test.ts 9",
+    ];
 
     expect(
       formalReview(outputs(issueGaps({ ...missingTest, evidence })))
@@ -217,9 +220,39 @@ describe("formalReview", () => {
       [
         "FR-027 says so; no test tells it.",
         "Proposed:\n\n```\ninIdentity: false,\n```",
-        "limit.ts 4 caps at 2",
+        "Evidence: limit.ts 4 caps at 2; limit.test.ts 9",
       ].join("\n\n"),
     );
+  });
+
+  it("leaves inline code as written, so changes_requested and a[0] carry no backslash, and escapes the prose around it", () => {
+    const named = {
+      ...missingTest,
+      subject: "`changes_requested` is never told",
+      detail: "The reply reads `a[0]` and then a_b *twice*.",
+    };
+
+    expect(formalReview(outputs(issueGaps(named)))?.findings[0]).toMatchObject({
+      subject: "Missing test: `changes_requested` is never told",
+      discussion: expect.stringContaining(
+        "The reply reads `a[0]` and then a\\_b \\*twice\\*.",
+      ),
+    });
+  });
+
+  it("shows inline code in a check's note as written, and escapes the prose around it", () => {
+    const noted = answer({
+      status: "complete",
+      summary: "`changes_requested` and `a[0]` hold, but a_b does not.",
+      gaps: [],
+    });
+
+    expect(
+      storyReview({ story, implementation_check: noted }, 2).comment(
+        REVISION,
+        "running",
+      ),
+    ).toContain("`changes_requested` and `a[0]` hold, but a\\_b does not.");
   });
 
   it("returns nothing until all three passes are complete", () => {

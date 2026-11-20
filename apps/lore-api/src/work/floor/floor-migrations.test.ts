@@ -136,6 +136,7 @@ describe("readFloorMigrations", () => {
         "floor/0014_commit_author_from_settings",
         "floor/0015_models_from_loop_bench",
         "floor/0016_round_closes_test_gaps_first",
+        "floor/0020_checks_claim_only_what_they_read",
       ],
       unshipped: [],
     });
@@ -347,6 +348,19 @@ describe("floor/0016_round_closes_test_gaps_first", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt loop-tdd-round",
+    ]);
+  });
+});
+
+describe("floor/0020_checks_claim_only_what_they_read", () => {
+  it("writes the shipped prompts of review-implementation and review-issue, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0020_checks_claim_only_what_they_read",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt review-implementation",
+      "prompt review-issue",
     ]);
   });
 });
