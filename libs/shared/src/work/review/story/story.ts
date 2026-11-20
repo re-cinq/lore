@@ -241,6 +241,15 @@ function reviewOf(outputs: PassOutputs): Review {
     short: story?.summary,
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
+    ...settledOf(checks),
+    complete: [story, ...checks].map((answer) => answer?.status === "complete"),
+  };
+}
+
+function settledOf(
+  checks: Review["checks"],
+): Pick<Review, "declined" | "closed"> {
+  return {
     declined: once(
       checks.flatMap((check) => check?.declined ?? []),
       ({ reply }) => reply,
@@ -249,7 +258,6 @@ function reviewOf(outputs: PassOutputs): Review {
       checks.flatMap((check) => check?.closed ?? []),
       wording,
     ),
-    complete: [story, ...checks].map((answer) => answer?.status === "complete"),
   };
 }
 

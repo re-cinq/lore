@@ -118,7 +118,7 @@ describe("recheckHandOff", () => {
       [openThread("T1", 50)],
     );
 
-    expect(brief.split("fix 50")).toHaveLength(2);
+    expect(brief.match(/fix 50/g)).toEqual(["fix 50"]);
   });
 
   it("names inline comment 51 of review 5 once when a person resolved its thread T2", () => {
@@ -128,6 +128,6 @@ describe("recheckHandOff", () => {
       [resolvedThread("T2", 51)],
     );
 
-    expect(brief.split("fix 51")).toHaveLength(2);
+    expect(brief.match(/fix 51/g)).toEqual(["fix 51"]);
   });
 });

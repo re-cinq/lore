@@ -23,7 +23,13 @@ const STEPS = [
   {
     pass: "issue_check",
     agent: "review-issue",
-    reads: ["story.txt", "issue.json", "code.json", "tests.json"],
+    reads: [
+      "story.txt",
+      "implementation-check.txt",
+      "issue.json",
+      "code.json",
+      "tests.json",
+    ],
   },
 ];
 
@@ -90,6 +96,7 @@ async function answersOf(files, model) {
       break;
     }
     files["story.txt"] ??= outputs.story;
+    files["implementation-check.txt"] ??= outputs.implementation_check;
   }
 
   return outputs;

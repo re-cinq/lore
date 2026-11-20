@@ -318,19 +318,28 @@ describe("formalReview", () => {
     );
   });
 
-  it("lists a gap both checks found closed once", () => {
-    const closing = answer({
-      status: "complete",
-      summary: "All earlier gaps are closed.",
-      gaps: [],
-      closed: ["The rule is not in the  identity section"],
-    });
+  it("lists a gap both checks found closed once, in the words of the first, when the second differs only in case and spacing", () => {
+    const closing = (subject: string) =>
+      answer({
+        status: "complete",
+        summary: "All earlier gaps are closed.",
+        gaps: [],
+        closed: [subject],
+      });
     const comment = storyReview(
-      { story, implementation_check: closing, issue_check: closing },
+      {
+        story,
+        implementation_check: closing(
+          "the rule is not in the identity section",
+        ),
+        issue_check: closing("The rule is  not in the identity section"),
+      },
       3,
     ).comment(REVISION, "complete");
 
-    expect(comment.split("identity section")).toHaveLength(2);
+    expect(comment.match(/the rule is +not in the identity section/gi)).toEqual(
+      ["the rule is not in the identity section"],
+    );
   });
 
   it("keeps the closed gaps out of the review GitHub is given, which the next re-check is handed as the gaps left open", () => {

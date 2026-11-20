@@ -137,6 +137,7 @@ describe("readFloorMigrations", () => {
         "floor/0015_models_from_loop_bench",
         "floor/0016_round_closes_test_gaps_first",
         "floor/0020_checks_claim_only_what_they_read",
+        "floor/0021_issue_check_reads_the_implementation_check",
       ],
       unshipped: [],
     });
@@ -360,6 +361,18 @@ describe("floor/0020_checks_claim_only_what_they_read", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt review-implementation",
+      "prompt review-issue",
+    ]);
+  });
+});
+
+describe("floor/0021_issue_check_reads_the_implementation_check", () => {
+  it("writes the shipped prompt of review-issue, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0021_issue_check_reads_the_implementation_check",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt review-issue",
     ]);
   });
