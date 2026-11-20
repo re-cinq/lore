@@ -659,7 +659,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(policies).toEqual(["none", "none"]);
   });
 
-  it("walks onboard from enrol through author, open-pr, await-ci and request-review to done", () => {
+  it("walks onboard from enrol through author, open-pr, await-ci and request-review to done, and an up-to-date repository through start-ingest to done", () => {
     const { line } = pipelineOf("onboard");
     const forward = line.edges
       .filter((edge) => edge.on === "success" && edge.from !== "fix-ci")
@@ -670,6 +670,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "enrol>author",
       "author>open-pr",
       "open-pr>await-ci",
+      "start-ingest>done",
       "await-ci>request-review",
       "request-review>done",
     ]);
@@ -697,12 +698,25 @@ describe("the floor pipelines shipped in this folder", () => {
     ]);
   });
 
-  it("ends an onboard run at done when open-pr found nothing on the branch to open a pull request from", () => {
+  it("sends an onboard run to start-ingest and then done when open-pr found nothing on the branch to open a pull request from", () => {
+    const { line } = pipelineOf("onboard");
+
     expect(
-      edgesOn(pipelineOf("onboard").line, "open-pr").find(
-        (edge) => edge.on === "changes_requested",
-      ),
-    ).toEqual({ from: "open-pr", to: "done", on: "changes_requested" });
+      edgesOn(line, "open-pr").find((edge) => edge.on === "changes_requested"),
+    ).toEqual({
+      from: "open-pr",
+      to: "start-ingest",
+      on: "changes_requested",
+    });
+    expect(edgesOn(line, "start-ingest")).toEqual([
+      { from: "start-ingest", to: "done", on: "success" },
+      {
+        from: "start-ingest",
+        to: "start-ingest",
+        on: "failed",
+        iteration_max: 1,
+      },
+    ]);
   });
 
   it("sends no failed outcome of onboard to the exit, and retries every failed station once", () => {
@@ -717,6 +731,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "enrol>enrol:1",
       "author>author:1",
       "open-pr>open-pr:1",
+      "start-ingest>start-ingest:1",
       "fix-ci>fix-ci:1",
       "request-review>request-review:1",
     ]);
