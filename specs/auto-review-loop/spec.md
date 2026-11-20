@@ -165,7 +165,7 @@ Each behaviour below is pinned to its test.
 
 ### `libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts`
 
-- Initial reviews and rechecks prepare evidence at the pinned head, tell the story, check it twice, and post one verdict. A newer head supersedes the review. ([validated by @a5f52c78](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L943), [validated by reports superseded and leaves GitHub untouched when the reviewed commit is no longer the pull request head @35bd1c94](apps/stations/src/code-review/post-review/station.test.ts#L163))
+- Initial reviews and rechecks prepare evidence at the pinned head, tell the story, check it twice, and post one verdict. A newer head supersedes the review. ([validated by @a5f52c78](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L944), [validated by reports superseded and leaves GitHub untouched when the reviewed commit is no longer the pull request head @35bd1c94](apps/stations/src/code-review/post-review/station.test.ts#L163))
 - `code-review` keys its runs on `pr_url`, `code-review-recheck` on `head_sha` and `code-review-reply` on `review_id`, so a re-check never joins an open review and a push that lands while a review or reply is open still gets its own verdict (`specs/external-floor` FR2.3). ([validated by keys code-review on pr_url, code-review-recheck on head_sha and code-review-reply on review_id, so a re-check never joins an open review, two re-checks of one sha are one run, and one review is answered once @74cf4ee3](libs/assembly-lines/src/floor-pipelines/floor-pipelines.test.ts#L1161))
 
 ### `libs/shared/src/outbound/project/assembly-runs/assembly-runs.test.ts`
