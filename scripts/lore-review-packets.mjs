@@ -115,3 +115,16 @@ export function reviewPackets(input) {
     { mode: "product", specs, ...(documents?.length ? { documents } : {}) },
   ];
 }
+
+/** The three packets of the one-story review: what the tests assert, what the code does, and what the issue, the discussion and the specs ask for. */
+export function storyPackets(input) {
+  const [code, tests, , intent, product] = reviewPackets(input);
+  const { mode: _intent, ...asked } = intent;
+  const { mode: _product, ...promised } = product;
+
+  return {
+    test_evidence: tests,
+    code_evidence: code,
+    issue_evidence: { mode: "issue", ...asked, ...promised },
+  };
+}

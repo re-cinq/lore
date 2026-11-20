@@ -81,7 +81,6 @@ function collectorArgs(
 
   return [
     collector,
-    "--evidence-only",
     "--repo=" + repo,
     "--pr=" + prNumber,
     "--head=" + needs.head_sha,
