@@ -39,12 +39,9 @@ async function definitionOf(agent) {
     new URL(`../libs/shared/src/agent-defaults/${agent}.md`, import.meta.url),
     "utf8",
   );
-  const [frontmatter, ...body] = file.split("\n---\n");
+  const [, ...body] = file.split("\n---\n");
 
-  return {
-    model: /^model: (\S+)$/m.exec(frontmatter)[1],
-    prompt: body.join("\n---\n"),
-  };
+  return { prompt: body.join("\n---\n") };
 }
 
 // Each step runs in a directory of its own, so the story cannot borrow from the code or the issue.
@@ -62,8 +59,8 @@ async function ask({ agent, reads }, files, model) {
       [
         "-p",
         definition.prompt.replaceAll("/workspace/", cwd + "/"),
-        "--model",
-        model ?? definition.model,
+        // The hosted agents run on Gemini; a local review runs on the developer's own Claude Code, on its default model unless one is asked for.
+        ...(model ? ["--model", model] : []),
         "--allowedTools",
         "Read,Grep,Glob",
         "--output-format",
