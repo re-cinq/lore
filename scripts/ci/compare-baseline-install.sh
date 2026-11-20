@@ -37,7 +37,7 @@ start_postgres() {
   shift
   docker run -d --name "$name" -e POSTGRES_PASSWORD=postgres "$@" "$IMAGE" >/dev/null
   for _ in $(seq 1 60); do
-    docker exec "$name" pg_isready -U postgres >/dev/null 2>&1 && return 0
+    docker exec "$name" pg_isready -U postgres -h 127.0.0.1 >/dev/null 2>&1 && return 0
     sleep 1
   done
   echo "[lore] ERROR: $name did not become ready" >&2
