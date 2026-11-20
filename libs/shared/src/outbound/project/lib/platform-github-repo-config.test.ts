@@ -19,7 +19,9 @@ function fakeOctokit(state: string | Error) {
     getWorkflow: async (params: WorkflowParams) => {
       calls.push({ op: "get", params });
 
-      if (state instanceof Error) {throw state;}
+      if (state instanceof Error) {
+        throw state;
+      }
 
       return { data: { state } };
     },

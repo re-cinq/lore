@@ -297,7 +297,9 @@ describe("the ingest job's changed-files step", () => {
     expect(stepResult.status).toBe(0);
 
     return JSON.parse(
-      readFileSync(outputFile, "utf8").replace(/^files=/, "").trim(),
+      readFileSync(outputFile, "utf8")
+        .replace(/^files=/, "")
+        .trim(),
     );
   };
 

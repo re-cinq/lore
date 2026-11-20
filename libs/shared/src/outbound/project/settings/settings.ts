@@ -1,4 +1,8 @@
-import type { SettingsPort, RepoRecord, WorkflowState } from "./settings-port.js";
+import type {
+  SettingsPort,
+  RepoRecord,
+  WorkflowState,
+} from "./settings-port.js";
 
 /** Repo-bound settings over SettingsPort. */
 export class Settings {

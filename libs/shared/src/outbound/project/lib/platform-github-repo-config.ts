@@ -114,7 +114,9 @@ export async function workflowState(
 
     return workflow.state === "active" ? "active" : "disabled";
   } catch (error) {
-    if ((error as { status?: number }).status === 404) {return "missing";}
+    if ((error as { status?: number }).status === 404) {
+      return "missing";
+    }
     throw error;
   }
 }
