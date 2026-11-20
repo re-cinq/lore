@@ -38,6 +38,7 @@ env:
 
 jobs:
   sha:
+    if: vars.LORE_MIRROR != 'true'
     runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.sha.outputs.short_sha }}
@@ -46,6 +47,7 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
   build:
+    if: vars.LORE_MIRROR != 'true'
     needs: sha
     uses: ./.github/workflows/_build-image.yml
     permissions:
@@ -64,7 +66,7 @@ jobs:
       group: deploy-lore-mcp-gateway
       cancel-in-progress: true
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: vars.LORE_MIRROR != 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write

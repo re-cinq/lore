@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   build:
+    if: vars.LORE_MIRROR != 'true'
     uses: ./.github/workflows/_build-image.yml
     permissions:
       contents: read
@@ -43,7 +44,7 @@ jobs:
       group: deploy-lore-agent
       cancel-in-progress: true
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: vars.LORE_MIRROR != 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write

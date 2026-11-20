@@ -13,6 +13,8 @@ on:
       - 'scripts/check-charts.sh'
       - 'scripts/ci/render-assertions.sh'
       - 'scripts/ci/package-install-chart.sh'
+      - 'scripts/ci/check-install-pins.sh'
+      - 'scripts/ci/stamp-image-tags.sh'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'
       - '.github/workflows/helm-render.yml'
@@ -46,3 +48,5 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: Package the install chart
         run: bash scripts/ci/package-install-chart.sh v0.0.0 "$RUNNER_TEMP/install-chart"
+      - name: Packaged install chart pins the stamped version
+        run: bash scripts/ci/check-install-pins.sh v0.0.0 "$RUNNER_TEMP/install-chart/lore-install-0.0.0.tgz"

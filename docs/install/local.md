@@ -68,8 +68,10 @@ Follow [GitHub setup](../github-setup.md) with these values: `<ui host>` is `lor
 
 ## 4. Fill in the values file
 
+These commands install the latest release. To install a known one, add `--version X.Y.Z` to every command that names `lore-databases` or `lore-install`, the same version for both; the releases page of the Lore repository lists them, and a release `vX.Y.Z` is chart version `X.Y.Z`.
+
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --untar
 cp lore-install/values.local.example.yaml my-values.yaml
 grep -n CHANGE-ME my-values.yaml
 ```
@@ -96,7 +98,7 @@ defaults:
 
 ```bash
 kubectl config current-context
-helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.1 \
+helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases \
   -n lore-db --create-namespace -f databases-values.yaml
 kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db --timeout=300s
 ```
@@ -104,7 +106,7 @@ kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db -
 The wait prints `cluster.postgresql.cnpg.io/lore-db condition met` and the same for `floor-db`. Then install Lore. The release must be named `lore` and live in `lore-floor`, or the chart refuses it.
 
 ```bash
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install \
   -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 9m
 ```
 

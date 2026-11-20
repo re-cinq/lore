@@ -58,8 +58,10 @@ It shows `READY True`. The chart's NetworkPolicies let the ingress controller re
 
 The databases chart creates two PostgreSQL 16 clusters with pgvector and the Secrets that hold their passwords. Use the cluster's default StorageClass, or set `defaults.storageClass`. A `databases-values.yaml` is optional; the defaults are 20 GiB and 2 GiB of memory per cluster.
 
+These commands install the latest release. To install a known one, add `--version X.Y.Z` to every command that names `lore-databases` or `lore-install`, the same version for both; the releases page of the Lore repository lists them, and a release `vX.Y.Z` is chart version `X.Y.Z`.
+
 ```bash
-helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.1 \
+helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases \
   -n lore-db --create-namespace
 kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db --timeout=300s
 ```
@@ -71,7 +73,7 @@ The wait prints `condition met` for both. To keep Lore's own pods off the agents
 ## 3. Fill in the values file
 
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --untar
 cp lore-install/values.aks.example.yaml my-values.yaml
 grep -n CHANGE-ME my-values.yaml
 ```
@@ -94,14 +96,14 @@ For an Anthropic key instead of Foundry for Lore's own calls, set `secrets.anthr
 Check the file offline:
 
 ```bash
-helm template lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 -n lore-floor -f my-values.yaml > /dev/null && echo ok
+helm template lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor -f my-values.yaml > /dev/null && echo ok
 ```
 
 ## 4. Install Lore
 
 ```bash
 kubectl config current-context
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install \
   -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 15m
 ```
 

@@ -64,36 +64,38 @@ helm lint deploy/chart
 ## Releasing Lore
 
 A release is a git tag `vX.Y.Z` on a commit of `main`. The tag gives every Lore
-image that version, and the install chart (`deploy/install`) at the tag pins
-the images to it. The same tag publishes that chart, with the Lore, floor and
-Utopia charts inside, as `oci://ghcr.io/re-cinq/charts/lore-install` at the
-version without the `v`. No image is rebuilt: the tag is added to the images our own
-cluster runs, as recorded in `deploy/clusters/internal-cluster.values.yaml`.
+image that version, and publishes the install chart (`deploy/install`) with the
+Lore, floor and Utopia charts inside, as `oci://ghcr.io/re-cinq/charts/lore-install`
+at the version without the `v`. No image is rebuilt: the tag is added to the
+images our own cluster runs, as recorded in
+`deploy/clusters/internal-cluster.values.yaml`. No commit carries the version:
+`scripts/ci/package-install-chart.sh` stamps it into the image tags of the
+staged copy of `deploy/install/values.yaml`, so the committed file and the
+install guide name no release.
 
 1. Wait until the `deploy(...)` pull requests of the build workflows for the
    commits you want have merged to `main`. Those values are what gets released.
-2. Open a pull request that sets the new version in `deploy/install/values.yaml`
-   (the four `tag:` values and `agentImage`) and in every `--version` of the
-   `lore-install` and `lore-databases` commands in `docs/install/*.md`. Check
-   it with
-   `bash scripts/ci/check-install-pins.sh vX.Y.Z`.
-3. After it merges, tag the merge commit and push the tag:
-   `git tag vX.Y.Z <merge commit> && git push origin vX.Y.Z`.
-4. `.github/workflows/release.yml` checks the tag and the pins, runs
-   `scripts/ci/release-images.sh`, verifies the digests, packages and pushes
-   the install chart (`scripts/ci/package-install-chart.sh`) and creates the
-   GitHub release with the chart address and the image table. Utopia's chart
+2. Tag the commit and push the tag:
+   `git tag vX.Y.Z <commit of main> && git push origin vX.Y.Z`.
+3. `.github/workflows/release.yml` checks the tag, runs
+   `scripts/ci/release-images.sh`, verifies the digests, packages the install
+   chart, checks that the archive pins every image to the version
+   (`scripts/ci/check-install-pins.sh`), pushes it, and completes the GitHub
+   release: it appends the chart address and the image table to the release of
+   that tag if one exists, and creates the release otherwise. Utopia's chart
    comes from the git tag `v<utopia.image.tag>` of re-cinq/utopia, so that tag
    must exist, and the floor chart version in `deploy/install/Chart.yaml` must
    be published.
 
 To check the packaging before tagging, run
-`bash scripts/ci/package-install-chart.sh v0.0.0 /tmp/chart`. To see what a
+`bash scripts/ci/package-install-chart.sh v0.0.0 /tmp/chart` and then
+`bash scripts/ci/check-install-pins.sh v0.0.0 /tmp/chart/lore-install-0.0.0.tgz`
+(the pull request check of the install chart does both). To see what a
 release would tag, run
 `bash scripts/ci/release-images.sh vX.Y.Z --dry-run` from the commit.
 
 When it fails: a check that fails before any image is tagged (bad tag, commit
-not on `main`, install chart pinned elsewhere) is fixed by deleting the tag
+not on `main`) is fixed by deleting the tag
 (`git push origin :refs/tags/vX.Y.Z`), fixing the cause and tagging again. A
 version tag already on an image with another digest is an error on purpose, as
 a version is never moved: pick the next version instead. A permission error

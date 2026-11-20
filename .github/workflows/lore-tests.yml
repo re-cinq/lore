@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   test-report:
+    if: vars.LORE_MIRROR != 'true'
     runs-on: ubuntu-latest
     # The whole suite with per-file coverage took ~24 minutes when 45 was
     # chosen; by 2026-10-02 it took 40 on a quiet runner and was cancelled at 45

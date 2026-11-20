@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Fails unless deploy/install/values.yaml pins all five Lore images to <version>,
-# so a release tag can never ship an install chart that points elsewhere.
-# Usage: check-install-pins.sh <vMAJOR.MINOR.PATCH>
+# Fails unless the packaged lore-install archive pins all five Lore images to
+# <version>, so a release tag can never publish an install chart that points
+# elsewhere. It reads the archive only: no checkout, no committed values file.
+# Usage: check-install-pins.sh <vMAJOR.MINOR.PATCH> <lore-install-X.Y.Z.tgz>
 set -euo pipefail
 
 VERSION="${1:?version, e.g. v1.0.0}"
-VALUES="${VALUES:-deploy/install/values.yaml}"
+ARCHIVE="${2:?lore-install archive}"
 PLATFORM='.["lore-platform"]'
+
+[[ -f "$ARCHIVE" ]] || {
+  echo "[lore] ${ARCHIVE} is not a file" >&2
+  exit 1
+}
+values="$(tar xzOf "$ARCHIVE" lore-install/values.yaml)"
 
 failed=0
 check() {
@@ -17,13 +24,11 @@ check() {
   fi
 }
 
-check lore-api "$(yq "${PLATFORM}.\"lore-api\".image.tag" "$VALUES")"
-check lore-mcp "$(yq "${PLATFORM}.\"lore-mcp-gateway\".image.tag" "$VALUES")"
-check lore-ui "$(yq "${PLATFORM}.\"lore-ui\".image.tag" "$VALUES")"
-check lore-stations "$(yq "${PLATFORM}.\"lore-stations\".image.tag" "$VALUES")"
-check lore-agent "$(yq "${PLATFORM}.\"lore-api\".floor.agentImage | sub(\"^.*:\"; \"\")" "$VALUES")"
-guide_versions="$(sed -nE 's#.*oci://ghcr.io/re-cinq/charts/lore-(install|databases) --version ([0-9][0-9.]*).*#v\2#p' docs/install/*.md | sort -u)"
-check "every lore-install and lore-databases --version in docs/install/*.md" "$(paste -sd' ' <<<"$guide_versions")"
+check lore-api "$(yq "${PLATFORM}.\"lore-api\".image.tag" <<<"$values")"
+check lore-mcp "$(yq "${PLATFORM}.\"lore-mcp-gateway\".image.tag" <<<"$values")"
+check lore-ui "$(yq "${PLATFORM}.\"lore-ui\".image.tag" <<<"$values")"
+check lore-stations "$(yq "${PLATFORM}.\"lore-stations\".image.tag" <<<"$values")"
+check lore-agent "$(yq "${PLATFORM}.\"lore-api\".floor.agentImage | sub(\"@.*\$\"; \"\") | sub(\"^.*:\"; \"\")" <<<"$values")"
 
-[[ "$failed" == 0 ]] && echo "[lore] ${VALUES} pins every image to ${VERSION}"
+[[ "$failed" == 0 ]] && echo "[lore] ${ARCHIVE} pins every image to ${VERSION}"
 exit "$failed"

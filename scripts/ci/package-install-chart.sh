@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Packages deploy/install (lore-install) with its three dependencies inside the
 # archive, and deploy/databases (lore-databases) beside it, and checks both.
-# It never pushes. With LORE_IMAGE_DIGESTS set to the table release-images.sh
-# prints, the packaged values pin each of the five images by digest too. Utopia's chart is read from
-# the git tag of the Utopia image the values file pins, or from UTOPIA_CHART_DIR.
+# It never pushes. The packaged values name <version> as the tag of each of the
+# five images, whatever the committed values say (stamp-image-tags.sh). With
+# LORE_IMAGE_DIGESTS set to the table release-images.sh prints, they pin each
+# image by digest too. Utopia's chart is read from the git tag of the Utopia
+# image the values file pins, or from UTOPIA_CHART_DIR.
 # Usage: package-install-chart.sh <vMAJOR.MINOR.PATCH> <destination dir>
 set -euo pipefail
 
@@ -66,6 +68,8 @@ pin_image_digests() {
     esac
   done
 }
+
+bash "$REPO/scripts/ci/stamp-image-tags.sh" "$STAGE/deploy/install/values.yaml" "$TAG" >/dev/null
 
 if [[ -n "${LORE_IMAGE_DIGESTS:-}" ]]; then
   pin_image_digests "$STAGE/deploy/install/values.yaml" "$LORE_IMAGE_DIGESTS"

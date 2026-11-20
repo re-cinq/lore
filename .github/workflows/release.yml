@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   verify:
+    if: vars.LORE_MIRROR != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,12 +43,8 @@ jobs:
             exit 1
           fi
 
-      - name: Install chart pins this version
-        env:
-          TAG: ${{ github.ref_name }}
-        run: bash scripts/ci/check-install-pins.sh "$TAG"
-
   images:
+    if: vars.LORE_MIRROR != 'true'
     needs: verify
     runs-on: ubuntu-latest
     permissions:
@@ -85,6 +82,7 @@ jobs:
 
   # After the images: a published chart never names an image that is missing.
   chart:
+    if: vars.LORE_MIRROR != 'true'
     needs: images
     runs-on: ubuntu-latest
     permissions:
@@ -108,6 +106,11 @@ jobs:
           LORE_IMAGE_DIGESTS: ${{ needs.images.outputs.table }}
         run: bash scripts/ci/package-install-chart.sh "$TAG" dist
 
+      - name: Packaged install chart pins this version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/ci/check-install-pins.sh "$TAG" "dist/lore-install-${TAG#v}.tgz"
+
       - name: Push the install chart and the databases chart
         env:
           TAG: ${{ github.ref_name }}
@@ -116,6 +119,7 @@ jobs:
           helm push "dist/lore-databases-${TAG#v}.tgz" oci://ghcr.io/re-cinq/charts
 
   release:
+    if: vars.LORE_MIRROR != 'true'
     needs: [images, chart]
     runs-on: ubuntu-latest
     permissions:
@@ -125,10 +129,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Notes are generated only from the release before this one. With no
-      # earlier release GitHub lists the whole history, which passed its
-      # 125000 character limit and failed v1.0.0's release.
-      - name: Create the GitHub release
+      # A release the automated line made already holds the summary: the chart
+      # and image lines are appended to its body. With none, it is created, with
+      # notes generated only from the release before this one. With no earlier
+      # release GitHub lists the whole history, which passed its 125000
+      # character limit and failed v1.0.0's release.
+      - name: Create or complete the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -136,6 +142,12 @@ jobs:
         run: |
           printf 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`, version `%s`. Databases chart: `oci://ghcr.io/re-cinq/charts/lore-databases`, same version.\n\n' "${TAG#v}" > notes.md
           printf 'Images, all at `%s`:\n\n%s\n' "$TAG" "$TABLE" >> notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release view "$TAG" --json body --jq .body > body.md
+            grep -qF 'Install chart: `oci://ghcr.io/re-cinq/charts/lore-install`' body.md \
+              || { printf '\n\n' >> body.md; cat notes.md >> body.md; gh release edit "$TAG" --notes-file body.md; }
+            exit 0
+          fi
           previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)
           if [ -n "$previous" ]; then
             gh release create "$TAG" --title "$TAG" --verify-tag --notes-file notes.md \

@@ -94,3 +94,55 @@ test("pull requests that change the install chart package it with the release sc
     { watchesScript: true, runsScript: true },
   );
 });
+
+function stepIndex(job, text) {
+  return job.steps.findIndex((step) => String(step.run ?? "").includes(text));
+}
+
+test("the release workflow checks the pins on the packaged archive after packaging and before pushing, and not in verify", () => {
+  const job = releaseJobs.chart;
+
+  assert.deepEqual(
+    {
+      verifyChecksPins: stepRuns(releaseJobs.verify, "check-install-pins.sh"),
+      packagesBeforeCheck:
+        stepIndex(job, "package-install-chart.sh") <
+        stepIndex(job, "check-install-pins.sh"),
+      checksBeforePush:
+        stepIndex(job, "check-install-pins.sh") < stepIndex(job, "helm push"),
+    },
+    {
+      verifyChecksPins: false,
+      packagesBeforeCheck: true,
+      checksBeforePush: true,
+    },
+  );
+});
+
+test("the release job appends to a release that exists, creates one otherwise and keeps --verify-tag", () => {
+  const script = releaseJobs.release.steps
+    .map((step) => String(step.run ?? ""))
+    .join("\n");
+
+  assert.deepEqual(
+    {
+      looksForRelease: script.includes('gh release view "$TAG"'),
+      editsIt: script.includes('gh release edit "$TAG" --notes-file'),
+      createsIt: script.includes('gh release create "$TAG"'),
+      verifiesTag: script.includes("--verify-tag"),
+    },
+    {
+      looksForRelease: true,
+      editsIt: true,
+      createsIt: true,
+      verifiesTag: true,
+    },
+  );
+});
+
+test("pull requests that change the install chart check the pins of the v0.0.0 archive they package", () => {
+  const job = parse(readFileSync(".github/workflows/helm-render.yml", "utf-8"))
+    .jobs["install-chart-package"];
+
+  assert.equal(stepRuns(job, "check-install-pins.sh v0.0.0 "), true);
+});
