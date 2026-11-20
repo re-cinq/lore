@@ -1,4 +1,3 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { z } from "zod";
 
 const packet = z.object({ mode: z.string() }).passthrough();
@@ -10,21 +9,18 @@ const packets = z.object({
   product_evidence: packet,
 });
 
-/** The five packets the collector printed; nothing when it asks for the whole-diff reviewer. */
+const unprepared = z.enum(["whole_diff", "superseded"]);
+
+/** The five packets the collector printed, or the outcome it asks for instead: the whole-diff reviewer, or nothing for a commit that is no longer the pull request's head. */
 export function preparedEvidence(
   stdout: string,
   previousFindings?: string,
-): z.infer<typeof packets> | undefined {
+): z.infer<typeof packets> | z.infer<typeof unprepared> {
   const collected = JSON.parse(stdout);
+  const outcome = unprepared.safeParse(collected.status).data;
 
-  enforceTrue(
-    collected.status !== "superseded",
-    Error,
-    "The pull request changed during evidence preparation",
-  );
-
-  if (collected.status === "whole_diff") {
-    return undefined;
+  if (outcome) {
+    return outcome;
   }
   const evidence = packets.parse(collected);
 

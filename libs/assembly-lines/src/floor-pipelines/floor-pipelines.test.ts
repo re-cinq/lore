@@ -1032,10 +1032,12 @@ describe("the floor pipelines shipped in this folder", () => {
         ["prepare", "success", "read-code"],
         ["prepare", "failed", "publish-incomplete"],
         ["prepare", "whole_diff", "review-whole"],
+        ["prepare", "superseded", "done"],
         ["publish-incomplete", "always", "review-whole"],
         ["review-whole", "success", "post-review"],
         ["review-whole", "changes_requested", "post-review"],
         ["review-whole", "failed", "review-whole"],
+        ["post-review", "superseded", "done"],
         ["post-review", "success", "done"],
         ["post-review", "failed", "review-whole"],
       ]);
@@ -1047,7 +1049,7 @@ describe("the floor pipelines shipped in this folder", () => {
         },
         stations: {
           "prepare-code-review": {
-            outcomes: ["success", "whole_diff", "failed"],
+            outcomes: ["success", "whole_diff", "superseded", "failed"],
           },
           [agent]: {
             agent_definition: agent,

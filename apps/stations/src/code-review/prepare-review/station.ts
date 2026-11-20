@@ -32,8 +32,8 @@ const prepareReview: Handle = async ({ needs, visitId }, tools) => {
   const stdout = await collect(collectorArgs(needs, target), tools.signal);
   const evidence = preparedEvidence(stdout, needs.previous_findings);
 
-  if (!evidence) {
-    return { outcome: "whole_diff" };
+  if (typeof evidence === "string") {
+    return { outcome: evidence };
   }
 
   await Promise.all(

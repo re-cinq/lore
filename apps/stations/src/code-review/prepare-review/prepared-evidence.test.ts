@@ -16,28 +16,24 @@ describe("preparedEvidence", () => {
 
   it("adds the previous findings to the product packet of a re-check", () => {
     expect(
-      preparedEvidence(JSON.stringify(collected), "limit.ts:1 off by one")
-        ?.product_evidence,
-    ).toEqual({
-      mode: "product",
-      specs: [],
-      previous_findings: "limit.ts:1 off by one",
+      preparedEvidence(JSON.stringify(collected), "limit.ts:1 off by one"),
+    ).toMatchObject({
+      product_evidence: {
+        mode: "product",
+        specs: [],
+        previous_findings: "limit.ts:1 off by one",
+      },
     });
   });
 
-  it("returns nothing when the collector asks for the whole-diff reviewer", () => {
-    const asked = { status: "whole_diff", reason: "Binary evidence for a.bin" };
-
-    expect(preparedEvidence(JSON.stringify(asked))).toBeUndefined();
-  });
-
-  it("throws The pull request changed during evidence preparation when the collector reports superseded", () => {
-    expect(() =>
-      preparedEvidence(JSON.stringify({ status: "superseded" })),
-    ).toThrow(
-      new Error("The pull request changed during evidence preparation"),
-    );
-  });
+  it.each(["whole_diff", "superseded"])(
+    "returns the outcome %s when the collector answers it in place of packets",
+    (status) => {
+      expect(
+        preparedEvidence(JSON.stringify({ status, reason: "a.bin" })),
+      ).toBe(status);
+    },
+  );
 });
 
 describe("pagedPacket", () => {
