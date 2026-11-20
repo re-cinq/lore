@@ -177,9 +177,14 @@ export function storyPackets(input) {
   const { mode: _intent, ...asked } = intent;
   const { mode: _product, ...promised } = product;
 
+  // What people answered on the pull request reaches both checks: a gap someone declined to fix is not asked for again.
+  const replies = (asked.discussion ?? []).filter(({ source }) =>
+    ["review_thread", "pull_request_comment"].includes(source),
+  );
+
   return {
     test_evidence: tests,
-    code_evidence: code,
+    code_evidence: { ...code, ...(replies.length ? { replies } : {}) },
     issue_evidence: { mode: "issue", ...asked, ...promised },
   };
 }

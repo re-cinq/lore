@@ -216,6 +216,45 @@ describe("formalReview", () => {
     );
   });
 
+  it("approves when the only gap left is one a person declined to fix, and says who declined it where", () => {
+    const declining = answer({
+      status: "complete",
+      summary: "One gap was declined.",
+      gaps: [],
+      declined: [
+        {
+          subject: "the rule is not in the identity section",
+          reply: "https://github.com/re-cinq/Otto/pull/794#discussion_r1",
+        },
+      ],
+    });
+    const review = outputs(declining);
+
+    expect([
+      formalReview(review),
+      storyReview(review, 3).comment(REVISION, "complete").split("\n\n").at(-3),
+    ]).toEqual([
+      {
+        verdict: "approved",
+        summary:
+          "The implementation and the issue tell the story the tests tell. Declined by a person and not blocking: the rule is not in the identity section.",
+        findings: [],
+      },
+      "Declined by a person, not blocking:\n- the rule is not in the identity section ([reply](https://github.com/re-cinq/Otto/pull/794#discussion_r1))",
+    ]);
+  });
+
+  it("drops a check's answer whose declined gap links no reply, so nothing is waived on a model's word alone", () => {
+    const unproven = answer({
+      status: "complete",
+      summary: "One gap was declined.",
+      gaps: [],
+      declined: [{ subject: "the rule is not in the identity section" }],
+    });
+
+    expect(formalReview(outputs(unproven))).toBe(undefined);
+  });
+
   it("lists the earlier gaps a re-check found closed", () => {
     const closing = answer({
       status: "complete",

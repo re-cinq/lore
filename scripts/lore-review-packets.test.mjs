@@ -115,3 +115,26 @@ test("a file found by a changed configuration key travels as the lines that read
     "30| const size = process.env.QUEUE_SIZE;",
   );
 });
+
+test("both checks are handed what people answered on the pull request, so a declined gap can be told from an open one", () => {
+  const reply = {
+    source: "review_thread",
+    url: "https://github.com/acme/pilot/pull/42#discussion_r7",
+    text: "src/limit.ts 1 reply to #3\n\nIntended, we will not change this.",
+  };
+  const asked = {
+    source: "issue",
+    url: "https://github.com/acme/pilot/issues/2",
+    text: "Raise the limit.",
+  };
+  const { code_evidence: code, issue_evidence: issue } = storyPackets({
+    files: [limit],
+    discussion: [asked, reply],
+    specs: [],
+  });
+
+  assert.deepEqual(
+    [code.replies, issue.discussion.length],
+    [[{ source: reply.source, url: reply.url, text: reply.text }], 2],
+  );
+});

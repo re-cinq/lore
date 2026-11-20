@@ -47,12 +47,14 @@ export const checked = z.object({
   summary: text,
   gaps: z.array(gap),
   closed: z.array(text).default([]),
+  declined: z.array(z.object({ subject: text, reply: z.url() })).default([]),
 });
 
 export type Place = z.infer<typeof place>;
 export type StoryPart = z.infer<typeof told>["story"][number];
 export type Gap = z.infer<typeof gap>;
 export type Check = z.infer<typeof checked>;
+export type Declined = Check["declined"][number];
 
 /** An agent's answer text as its schema reads it; nothing when the text holds no such answer. */
 export function answerOf<T>(

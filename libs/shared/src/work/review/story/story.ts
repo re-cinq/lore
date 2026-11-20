@@ -5,6 +5,7 @@ import {
   checked,
   told,
   type Check,
+  type Declined,
   type Gap,
   type Place,
   type StoryPart,
@@ -36,6 +37,8 @@ interface Review {
   parts: StoryPart[] | undefined;
   checks: Array<Check | undefined>;
   gaps: Gap[];
+  /** Earlier gaps a person answered that they will not fix; they are shown and do not request changes. */
+  declined: Declined[];
   /** The passes, in order, that gave a complete answer. */
   complete: boolean[];
 }
@@ -71,6 +74,7 @@ function commentOf(
     `Reviewed revision \`${revision}\` · **${verdictOf(review, state, incomplete)}** · ${counted(review.gaps.length, "gap")}`,
     ...storyLines(review),
     ...gapTable(review.gaps),
+    ...declinedList(review.declined),
     ...review.checks.flatMap((check) =>
       check ? [escapeMarkdown(check.summary)] : [],
     ),
@@ -135,6 +139,17 @@ function gapTable(gaps: Gap[]): string[] {
   ];
 }
 
+function declinedList(declined: Declined[]): string[] {
+  if (declined.length === 0) {
+    return [];
+  }
+  const entries = declined.map(
+    ({ subject, reply }) => `- ${escapeMarkdown(subject)} ([reply](${reply}))`,
+  );
+
+  return [["Declined by a person, not blocking:", ...entries].join("\n")];
+}
+
 /** The review GitHub is given once all three passes are complete: one finding per gap on its line, the rest in the body, and changes requested for any gap but an untold one. */
 export function formalReview(outputs: PassOutputs): ReviewOutput | undefined {
   const review = reviewOf(outputs);
@@ -167,20 +182,30 @@ function reviewOf(outputs: PassOutputs): Review {
     parts: story?.story,
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
+    declined: checks.flatMap((check) => check?.declined ?? []),
     complete: [story, ...checks].map((answer) => answer?.status === "complete"),
   };
 }
 
-function summaryOf({ gaps, checks }: Review): string {
-  const closed = checks.flatMap((check) => check?.closed ?? []);
+function summaryOf({ gaps, checks, declined }: Review): string {
   const story =
     gaps.length === 0
       ? "The implementation and the issue tell the story the tests tell."
       : `${counted(gaps.length, "gap")} ${gaps.length === 1 ? "separates" : "separate"} the story the tests tell from the implementation and the issue.`;
+  const subjects = (label: string, named: string[]) =>
+    named.length ? [`${label}: ${named.map(escapeMarkdown).join("; ")}.`] : [];
 
-  return closed.length
-    ? `${story} Closed since the last review: ${closed.map(escapeMarkdown).join("; ")}.`
-    : story;
+  return [
+    story,
+    ...subjects(
+      "Closed since the last review",
+      checks.flatMap((check) => check?.closed ?? []),
+    ),
+    ...subjects(
+      "Declined by a person and not blocking",
+      declined.map(({ subject }) => subject),
+    ),
+  ].join(" ");
 }
 
 function findingOf(found: Gap): Omit<ReviewFinding, "path" | "line"> {
