@@ -2,7 +2,6 @@ line:
   id: code-review-recheck
   entry: prepare
   exit: done
-  fail: failed
   args:
     repo: { kind: git }
     pr_url: { kind: value }
@@ -45,7 +44,6 @@ line:
     - id: post-review
       station: post-review
     - id: done
-    - id: failed
   edges:
     - { from: prepare, to: read-code, on: success }
     - { from: prepare, to: publish-incomplete, on: failed }
@@ -65,7 +63,8 @@ line:
     - { from: review-product, to: publish-product, on: success }
     - { from: publish-product, to: post-review, on: success }
     - { from: post-review, to: done, on: success }
-    - { from: post-review, to: post-review, on: failed, iteration_max: 1 }
+    # A post that fails is usually a review without a verdict; posting again reads the same output, so the whole-diff reviewer writes one.
+    - { from: post-review, to: review-whole, on: failed, iteration_max: 1 }
     - { from: read-code, to: publish-incomplete, on: failed }
     - { from: read-tests, to: publish-incomplete, on: failed }
     - { from: compare-intent, to: publish-incomplete, on: failed }
@@ -76,7 +75,8 @@ line:
     - { from: publish-intent, to: publish-incomplete, on: failed }
     - { from: publish-challenge, to: publish-incomplete, on: failed }
     - { from: publish-product, to: publish-incomplete, on: failed }
-    - { from: publish-incomplete, to: failed, on: always }
+    # A review the five passes could not finish is still owed: the whole-diff reviewer gives it.
+    - { from: publish-incomplete, to: review-whole, on: always }
 stations:
   code-review-read-code:
     description: Describes the changed behavior from implementation evidence.

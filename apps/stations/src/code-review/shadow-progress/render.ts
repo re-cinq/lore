@@ -153,25 +153,34 @@ interface ProgressHeader {
 }
 
 function renderReviewProgress(
-  { revision, state, lineId }: ProgressHeader,
+  header: ProgressHeader,
   results: Record<PassName, PassResult>,
   incomplete: readonly PassName[],
 ): string {
-  const verdict = proposedVerdict(state, results, incomplete);
-  const shadow = lineId === "code-review-shadow";
+  const verdict = proposedVerdict(header.state, results, incomplete);
   const details = progressNeeds.flatMap((name) =>
     renderSection(name, results[name]),
   );
 
   return [
-    shadow ? "## Lore shadow review" : "## Lore code review",
-    `Reviewed revision \`${revision}\` · **${verdict}**`,
-    ...(shadow
-      ? ["The current review and its check carry the merge decision."]
-      : []),
+    header.lineId === "code-review-shadow"
+      ? "## Lore shadow review"
+      : "## Lore code review",
+    `Reviewed revision \`${header.revision}\` · **${verdict}**`,
+    ...lineNote(header),
     ...details,
     ...missingSections(verdict, incomplete),
   ].join("\n\n");
+}
+
+function lineNote({ state, lineId }: ProgressHeader): string[] {
+  if (lineId === "code-review-shadow") {
+    return ["The current review and its check carry the merge decision."];
+  }
+
+  return state === "failed"
+    ? ["Lore reviews this revision from its whole diff instead."]
+    : [];
 }
 
 function parseResults(outputs: ProgressResults): Record<PassName, PassResult> {
