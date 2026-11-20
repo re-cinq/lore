@@ -6,6 +6,11 @@ import {
   type RunView,
 } from "@re-cinq/floor-client";
 import { enforceTrue } from "../../lib/enforce.js";
+import {
+  MirrorRefusal,
+  withMirrorRefusal,
+  type MirrorOwnerOf,
+} from "./mirror-refusal.js";
 
 export type { RunView };
 
@@ -32,9 +37,26 @@ export function floorClientFrom(env: FloorEnv): FloorClient {
 }
 
 let client: FloorClient | undefined;
+let mirrorOwnerOf: MirrorOwnerOf | null = null;
 
+/** How this process learns which repo publishes to a given one: the process that owns a database hands its settings in at boot, since this package opens no pool. */
+export function useMirrorOwner(ownerOf: MirrorOwnerOf | null): void {
+  mirrorOwnerOf = ownerOf;
+}
+
+const mirrorOwnerNow: MirrorOwnerOf = (repo) => {
+  enforceTrue(
+    mirrorOwnerOf,
+    MirrorRefusal,
+    "no mirror lookup was given to this process: the floor starts nothing until it has one",
+  );
+
+  return mirrorOwnerOf(repo);
+};
+
+/** The one floor client a line is started through: it refuses a start for a repo that is another repo's public mirror. */
 export function floorClient(): FloorClient {
-  client ??= floorClientFrom(process.env);
+  client ??= withMirrorRefusal(floorClientFrom(process.env), mirrorOwnerNow);
 
   return client;
 }

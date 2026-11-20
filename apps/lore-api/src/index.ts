@@ -6,6 +6,8 @@ import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.
 import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { useMirrorOwner } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { enforceBootEnv } from "./app/boot-env.js";
 import { startHttpServer } from "./app/http-server.js";
@@ -71,7 +73,7 @@ async function migrateAndReport(pool: Pool): Promise<void> {
   await reportServiceStart(new PgServiceVersions(pool), LORE_API_REPORT);
 }
 
-/** One pool reaches four consumers: the three server-core module singletons plus the LLM usage sink. */
+/** One pool reaches five consumers: the three server-core module singletons, the LLM usage sink and the floor client's mirror lookup. */
 function connectDatabase(dbHost: string): Pool {
   const dbPool = createPool();
 
@@ -79,6 +81,9 @@ function connectDatabase(dbHost: string): Pool {
   setMemoryPool(dbPool);
   setPipelinePool(dbPool);
   Llm.configure({ usage: new PgUsage(dbPool) });
+  const settings = new PgSettings(dbPool);
+
+  useMirrorOwner((repo) => settings.mirrorOwner(repo));
   registerBilledCostGauge(dbPool);
   console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
 

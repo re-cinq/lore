@@ -16,6 +16,7 @@ import {
   eventProxy,
   eventReporter,
   pipeline,
+  settings,
   usage,
 } from "./outbound/queues.js";
 import { CRON_EMITTERS } from "@re-cinq/lore-shared/scheduler/cron-emitters.js";
@@ -26,7 +27,10 @@ import {
 import { DEFAULT_DRAIN_TIMEOUT_MS } from "@re-cinq/lore-shared/project/events/event-tuning.js";
 import { startDeliveryReaper } from "@re-cinq/lore-shared/housekeeping/delivery-reaper.js";
 import { requiredPort } from "@re-cinq/lore-shared/lib/required-env.js";
-import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import {
+  floorConfigured,
+  useMirrorOwner,
+} from "@re-cinq/lore-shared/floor/floor-client.js";
 import { startCodeReviewStations } from "./code-review/index.js";
 import { startPlanningStations } from "./planning/index.js";
 import { startMergeStations } from "./merge/index.js";
@@ -59,6 +63,7 @@ async function main(): Promise<void> {
   const metrics = startServiceMetrics();
 
   initPool();
+  useMirrorOwner((repo) => settings().mirrorOwner(repo));
   await reportServiceStart(new PgServiceVersions(getPool()), STATIONS_REPORT);
   observeBusQueueDepth(() => deliveries().pendingCount(STATIONS_SUBSCRIBER));
   // Service-run stations may call a model (the retrospective's Haiku curation); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
