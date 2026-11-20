@@ -8,6 +8,8 @@ import type {
 import {
   judgeRebase,
   scopeAfterRebase,
+  type RecheckRange,
+  recheckEvidenceItems,
   type CarryChecks,
   type CarryReads,
 } from "./carry-approval.js";
@@ -41,6 +43,7 @@ import {
   headShaOf,
   isOpen,
   reviewRunsForPr,
+  type PullRequestRef,
 } from "./floor-review-runs.js";
 import { startLine } from "./floor-line-start.js";
 import { REVIEW_HELP } from "./review-summary.js";
@@ -76,15 +79,8 @@ export interface ReviewStartDeps {
   loreAppLogin?: string;
 }
 
-export interface PullRequestTarget {
-  repo: string;
-  prNumber: number;
-  autoReview: boolean;
-}
-
-export interface StartReviewInput extends PullRequestTarget {
-  forced?: boolean;
-}
+export type PullRequestTarget = PullRequestRef & { autoReview: boolean };
+export type StartReviewInput = PullRequestTarget & { forced?: boolean };
 
 export interface StartReplyInput extends PullRequestTarget {
   reviewId: number;
@@ -182,7 +178,11 @@ async function carryOrRecheck(
   }
   const scope = scopeAfterRebase(rebase, judged, pr.baseBranch ?? "main");
 
-  return supersedeAndRecheck(deps, target, pr, { sinceSha, scope });
+  return supersedeAndRecheck(deps, target, pr, {
+    sinceSha,
+    scope,
+    paths: "differing" in rebase ? rebase.differing : null,
+  });
 }
 
 /** An open re-check of an older sha is judging code the branch no longer has, and its verdict would land beside the new one. One already judging the head sha is left alone: two deliveries of the same push can reach here together, and the second must join the first, not cancel it. */
@@ -253,26 +253,20 @@ async function cancelOpenRuns(
   return open.map((run) => run.id);
 }
 
-/** What a re-check judges: the commits since the sha its last verdict judged, or after a rebase the files whose change differs. */
-interface RecheckRange {
-  sinceSha?: string;
-  scope: string;
-}
-
 async function startRecheckLine(
   deps: ReviewStartDeps,
   target: PullRequestTarget,
   pr: PullRef,
-  { sinceSha, scope }: RecheckRange,
+  range: RecheckRange,
 ): Promise<string> {
   const handOff = await readRecheckHandOff(deps.pulls, target.prNumber);
   const { repo, prNumber } = target;
-  const description = `${recheckDescription(repo, prNumber, pr.branch, sinceSha)}${scope}${handOff.brief}`;
-  const { floor } = deps;
-  const started = await startLine(floor.lines, RECHECK_LINE, {
+  const description = `${recheckDescription(repo, prNumber, pr.branch, range.sinceSha)}${range.scope}${handOff.brief}`;
+  const started = await startLine(deps.floor.lines, RECHECK_LINE, {
     repo: floorRepoOf(target.repo),
     startItems: {
       ...(await reviewItems(deps, pr, description)),
+      ...recheckEvidenceItems(range, handOff.brief),
       ...openThreadsItem(handOff.threadIds),
     },
   });

@@ -8,10 +8,9 @@
 # lore-databases chart. Every CHANGE-ME must be replaced; the install stops
 # while one is left. The filled file holds secrets: keep it out of git. Tokens
 # and passwords not listed here are generated on the first install and kept.
-# To run every controller on one node pool: --set global.nodeSelector.pool=management
+# To run every Lore pod on one node pool: --set global.nodeSelector.pool=management
 
-# One identity provider for Utopia (Lore does not use it yet and will read the
-# same block). Microsoft Entra ID shown; any OpenID Connect issuer works.
+# The identity provider Utopia signs people in with. Microsoft Entra ID shown; any OpenID Connect issuer works.
 global:
   oidc:
     issuer: https://login.microsoftonline.com/CHANGE-ME/v2.0   # <tenant id>
@@ -35,7 +34,8 @@ secrets:
     clientSecret: CHANGE-ME
   # The Foundry resource key for Lore's own model calls and embeddings (not the
   # agents' keys: see the tutorial). With an Anthropic key instead, set
-  # anthropicApiKey and drop the OPENAI_* and LORE_*_PROVIDER entries below.
+  # anthropicApiKey, delete this line, and delete OPENAI_BASE_URL and every line
+  # ending in _PROVIDER or _MODEL under lore-api and lore-stations below.
   openaiApiKey: CHANGE-ME
   # The OIDC client (app registration) of Utopia's sign-in, and its secret.
   # Leave both empty to create Secret utopia-oauth (keys client-id,
@@ -47,7 +47,7 @@ secrets:
 utopia:
   enabled: true
   hostname: utopia.example.com
-  # Repeats global.oidc until Utopia reads the shared block.
+  # Must repeat global.oidc above; the install stops when the two differ.
   oidc:
     issuer: https://login.microsoftonline.com/CHANGE-ME/v2.0
     allowedDomains: CHANGE-ME
@@ -72,7 +72,8 @@ lore-platform:
       - { name: lore-api, namespace: lore-api, host: lore-api.example.com, service: lore-api, port: 3000 }
       - { name: lore-mcp, namespace: lore-api, host: lore-mcp.example.com, service: lore-mcp-gateway, port: 8080 }
       - { name: lore-ui, namespace: lore-ui, host: lore.example.com, service: lore-ui, port: 3000 }
-      # The live socket on the UI's own host, so the session cookie rides the upgrade.
+      # The live run page's WebSocket, on the UI's own host so that the browser
+      # sends the sign-in cookie when it opens the connection.
       # Prefix, not Exact: Traefik 3 ranks an Exact path below the UI's "/" prefix.
       - { name: lore-ui-live, namespace: lore-api, host: lore.example.com, path: /api/ws, pathType: Prefix, service: lore-api, port: 3000 }
 
@@ -89,12 +90,12 @@ lore-platform:
       # Lore's own model calls and embeddings on a Microsoft Foundry resource.
       OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
       LORE_LLM_PROVIDER: openai
-      LORE_FACT_MODEL: CHANGE-ME        # the chat model deployment
+      LORE_FACT_MODEL: CHANGE-ME        # the chat deployment for Lore's own calls
       LORE_EVAL_LLM_PROVIDER: openai
-      LORE_EVAL_LLM_MODEL: CHANGE-ME    # the chat model deployment
-      LORE_CONTEXT_LLM_PROVIDER: openai
+      LORE_EVAL_LLM_MODEL: CHANGE-ME    # the chat deployment that scores built context; may be the same
+      LORE_CONTEXT_LLM_PROVIDER: openai # building context for agents; uses LORE_FACT_MODEL
       LORE_EMBEDDING_PROVIDER: openai
-      LORE_EMBEDDING_MODEL: text-embedding-3-small   # must serve 768 dimensions
+      LORE_EMBEDDING_MODEL: text-embedding-3-small   # must accept the dimensions parameter (Lore asks for 768)
   lore-ui:
     env:
       GITHUB_APP_SLUG: CHANGE-ME
@@ -104,7 +105,10 @@ lore-platform:
       # GITHUB_HOST: ghe.example.com
       # LORE_DB_HOST: CHANGE-ME.postgres.database.azure.com
   lore-stations:
-    skipCourierJobs: []   # schedule the Azure cost sync (needs LORE_AZURE_COST_SCOPE)
+    ingestUrl: https://lore-api.example.com   # the lore-api ingress host
+    # Schedules every courier job (the CronJobs that trigger the stations'
+    # scheduled work), the Azure cost sync included; it needs LORE_AZURE_COST_SCOPE.
+    skipCourierJobs: []
     env:
       LORE_UI_URL: https://lore.example.com
       OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1

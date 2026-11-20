@@ -33,7 +33,7 @@ describe("seedSkillDefaults (Acceptance)", () => {
     await pool.end();
   });
 
-  it("seeds the 29 shipped skills with a valid Help block into lore.skill_definitions", async () => {
+  it("seeds the shipped skills with a valid Help block into lore.skill_definitions", async () => {
     await seedSkillDefaults(pool, skills);
 
     const { rows } = await pool.query<{ name: string; content: string }>(
@@ -47,7 +47,9 @@ describe("seedSkillDefaults (Acceptance)", () => {
         .filter((row) => !hasValidHelpBlock(row.content))
         .map((row) => row.name),
     }).toEqual({ names: skillNames, withoutValidHelp: [] });
-    expect(skillNames).toHaveLength(29);
+    expect(skillNames).toEqual(
+      expect.arrayContaining(["lore-review", "lore-review-files"]),
+    );
   });
 
   it("keeps an edited and disabled skill when the shipped skills are seeded again", async () => {

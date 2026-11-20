@@ -48,6 +48,7 @@ export async function createReview(
     repo: name,
     pull_number: number,
     body: input.body,
+    ...(input.commitId ? { commit_id: input.commitId } : {}),
     event: input.event,
     comments: input.comments.map(toReviewComment),
   });

@@ -69,15 +69,15 @@ Follow [GitHub setup](../github-setup.md) with these values: `<ui host>` is `lor
 ## 4. Fill in the values file
 
 ```bash
-helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 --untar
+helm pull oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 --untar
 cp lore-install/values.local.example.yaml my-values.yaml
 grep -n CHANGE-ME my-values.yaml
 ```
 
-The last command lists eight places: the App ID, the installation ID, the private key (paste the whole PEM under `privateKey: |`, indented like the placeholder), the OAuth client ID and secret, `anthropicApiKey`, `GITHUB_ORG` and `GITHUB_APP_SLUG`. Replace each. The file holds secrets, so keep it out of git. Check it:
+The last command lists the header comment and eight places: the App ID, the installation ID, the private key (paste the whole PEM under `privateKey: |`, indented like the placeholder), the OAuth client ID and secret, `anthropicApiKey`, `GITHUB_ORG` and `GITHUB_APP_SLUG`. Replace each. The file holds secrets, so keep it out of git. Check it:
 
 ```bash
-grep -c CHANGE-ME my-values.yaml
+grep -v '^ *#' my-values.yaml | grep -c CHANGE-ME
 ```
 
 It prints `0`. The chart stops the install while a `CHANGE-ME` is left, and also for a token you set shorter than 32 characters. The images are public, so no registry credential is needed.
@@ -96,7 +96,7 @@ defaults:
 
 ```bash
 kubectl config current-context
-helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.0 \
+helm upgrade --install lore-databases oci://ghcr.io/re-cinq/charts/lore-databases --version 1.1.1 \
   -n lore-db --create-namespace -f databases-values.yaml
 kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db --timeout=300s
 ```
@@ -104,7 +104,7 @@ kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db -
 The wait prints `cluster.postgresql.cnpg.io/lore-db condition met` and the same for `floor-db`. Then install Lore. The release must be named `lore` and live in `lore-floor`, or the chart refuses it.
 
 ```bash
-helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 \
+helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
   -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 9m
 ```
 
@@ -130,7 +130,7 @@ The first command waits for you to paste the key and press Enter. The patch prin
 kubectl get pods -A
 ```
 
-Every pod is `Running` or `Completed`. The ones to look for are `lore-floor-api`, `lore-floor-cluster-agent` and `agent-controller` in `lore-floor`, `lore-api` and `lore-mcp-gateway` in `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph-alpha-0`, and `lore-db-1` and `floor-db-1` in `lore-db`. Then the front doors:
+Every pod is `Running` or `Completed`. The ones to look for are `lore-floor-api`, `lore-floor-cluster-agent` and `agent-controller` in `lore-floor`, `lore-api` and `lore-mcp-gateway` in `lore-api`, `lore-ui`, `lore-stations`, `lore-dgraph-alpha-0`, and `lore-db-1` and `floor-db-1` in `lore-db`. Then the public addresses:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://lore.localtest.me/
@@ -151,7 +151,7 @@ Last, open `http://lore.localtest.me` and sign in with GitHub. You land in the U
 
 ### Add search by meaning
 
-Without an embedding endpoint, search is keyword-only. To add one, set `secrets.openaiApiKey` and, under `lore-platform.lore-api.env` and `lore-platform.lore-stations.env`, `OPENAI_BASE_URL` and `LORE_EMBEDDING_MODEL` for any OpenAI-compatible API (the model must return 768 dimensions). `values.aks.example.yaml` shows the exact lines. Run the upgrade of the next section. Vectors of two models cannot be compared, so choose before you store data you care about.
+Without an embedding endpoint, search is keyword-only. To add one, set `secrets.openaiApiKey` and, under `lore-platform.lore-api.env` and `lore-platform.lore-stations.env`, `OPENAI_BASE_URL` and `LORE_EMBEDDING_MODEL` for any OpenAI-compatible API (Lore asks for 768 dimensions, so the model must accept the `dimensions` parameter). `values.aks.example.yaml` shows the exact lines. Run the upgrade of the next section. Vectors of two models cannot be compared, so choose before you store data you care about.
 
 ## Upgrade
 
@@ -181,7 +181,7 @@ kind delete cluster --name lore-trial
 | ------- | ------------- |
 | `lore-platform.lore-api.env.GITHUB_ORG still holds the placeholder CHANGE-ME` (the value path differs) | A placeholder is left in `my-values.yaml`. Run `grep -n CHANGE-ME my-values.yaml` and replace it. |
 | `Secret lore-api/github-app-credentials does not exist: set secrets.githubApp, or create it yourself with the keys app-id, installation-id, private-key` | You emptied a credential group and made no Secret of your own. Fill the group, or create the Secret with those keys and run the install again. |
-| `install as: helm upgrade --install lore deploy/install -n lore-floor --create-namespace -f <values>` | The release name or the namespace is not `lore` and `lore-floor`. Use `-n lore-floor` and the name `lore`. |
+| `the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor --create-namespace -f <values>` | The release name or the namespace is not `lore` and `lore-floor`. Use `-n lore-floor` and the name `lore`. |
 
 A pod stuck in `Pending` or `OOMKilled` means Docker has too little memory. Raise Docker's limit and run the install again.
 

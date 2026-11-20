@@ -10,6 +10,10 @@ Usage:
 - name: {{ $key }}
   value: {{ $val | quote }}
 {{- end }}
+{{- if .Values.ingestUrl }}
+- name: LORE_INGEST_URL
+  value: {{ .Values.ingestUrl | quote }}
+{{- end }}
 - name: LORE_DB_PASSWORD
   valueFrom:
     secretKeyRef:

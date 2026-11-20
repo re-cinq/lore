@@ -36,14 +36,16 @@ const toolsReading = (output: string): Tools => ({
 
 interface FakeOverrides {
   requiredApprovals?: number;
+  author?: string;
 }
 
 function fakeProject(
   refusal?: string,
   model?: string,
-  { requiredApprovals = 0 }: FakeOverrides = {},
+  { requiredApprovals = 0, author = "gedaiu" }: FakeOverrides = {},
 ) {
   const reviews: CreateReviewInput[] = [];
+  const reviewerReviews: CreateReviewInput[] = [];
   const comments: string[] = [];
   const checks: CheckRunInput[] = [];
   const repos: string[] = [];
@@ -65,7 +67,9 @@ function fakeProject(
       getDiff: async () => "",
       get: async () => ({
         headSha: "livesha",
+        state: "open",
         baseBranch: "main",
+        author,
       }),
       getBranchRule: async (branch: string) => {
         ruleReads.push(branch);
@@ -106,11 +110,18 @@ function fakeProject(
       return project;
     },
     reviewModel: async () => model,
+    reviewerFor: async (_repo: string, opener: string | undefined) =>
+      opener === "lore-agent[bot]"
+        ? async (_number: number, input: CreateReviewInput) => {
+            reviewerReviews.push(input);
+          }
+        : undefined,
   };
 
   return {
     deps,
     reviews,
+    reviewerReviews,
     comments,
     checks,
     repos,
@@ -125,7 +136,7 @@ describe("postReviewHandle", () => {
     const { deps, reviews, checks } = fakeProject();
 
     const report = await postReviewHandle(deps)(
-      brief({ head_sha: "abc123" }),
+      brief({ head_sha: "livesha" }),
       toolsReading(changesRequestedOutput),
     );
 
@@ -136,16 +147,58 @@ describe("postReviewHandle", () => {
         review_url: prUrl,
       },
     });
-    expect(reviews).toMatchObject([{ event: "REQUEST_CHANGES" }]);
+    expect(reviews).toMatchObject([
+      { event: "REQUEST_CHANGES", commitId: "livesha" },
+    ]);
     expect(checks).toMatchObject([
       {
-        headSha: "abc123",
+        headSha: "livesha",
         name: "lore/code-review",
         status: "completed",
         conclusion: "neutral",
       },
     ]);
   });
+
+  it("reports superseded and leaves GitHub untouched when the reviewed commit is no longer the pull request head", async () => {
+    const { deps, reviews, checks, resolved } = fakeProject();
+
+    const report = await postReviewHandle(deps)(
+      brief({ head_sha: "oldsha", open_threads: "T1" }),
+      toolsReading("REVIEW_RESULT:APPROVED"),
+    );
+
+    expect({ report, reviews, checks, resolved }).toEqual({
+      report: { outcome: "superseded" },
+      reviews: [],
+      checks: [],
+      resolved: [],
+    });
+  });
+
+  it.each([
+    ["lore-agent[bot]", [0, 1]],
+    ["gedaiu", [1, 0]],
+  ])(
+    "posts the review of a pull request %s opened as [Lore's App, lore-reviewer] = %j, inline comments included, since GitHub takes no verdict from the account that opened it",
+    async (author, posted) => {
+      const { deps, reviews, reviewerReviews } = fakeProject(
+        undefined,
+        undefined,
+        { author },
+      );
+
+      await postReviewHandle(deps)(
+        brief(),
+        toolsReading(changesRequestedOutput),
+      );
+
+      expect([reviews.length, reviewerReviews.length]).toEqual(posted);
+      expect([...reviews, ...reviewerReviews]).toMatchObject([
+        { event: "REQUEST_CHANGES" },
+      ]);
+    },
+  );
 
   it("looks the head sha up on the pull request when the brief carries none", async () => {
     const { deps, checks } = fakeProject();
@@ -291,11 +344,11 @@ describe("Feature Specification: Lore merges on protected repos, and every PR kn
       const handle = postReviewHandle(deps);
 
       await handle(
-        brief({ head_sha: "abc123" }),
+        brief({ head_sha: "livesha" }),
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
       await handle(
-        brief({ head_sha: "abc123" }),
+        brief({ head_sha: "livesha" }),
         toolsReading("REVIEW_RESULT:APPROVED"),
       );
 

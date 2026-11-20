@@ -49,6 +49,10 @@ line:
         target: repo
     - id: request-review
       station: onboard-request-review
+    - id: start-ingest
+      station: onboard-start-ingest
+      bind:
+        target: repo
     - id: done
   edges:
     - from: enrol
@@ -75,13 +79,20 @@ line:
       to: await-ci
       on: success
     # Nothing on the branch: the Lore setup is already current, there is no
-    # pull request to open, and that is how a hand-triggered update of an
-    # up-to-date repository ends.
+    # pull request to open and no merge that would start an ingestion, so the
+    # run starts the first one itself.
     - from: open-pr
-      to: done
+      to: start-ingest
       on: changes_requested
     - from: open-pr
       to: open-pr
+      on: failed
+      iteration_max: 1
+    - from: start-ingest
+      to: done
+      on: success
+    - from: start-ingest
+      to: start-ingest
       on: failed
       iteration_max: 1
     - from: await-ci
@@ -158,7 +169,7 @@ stations:
         path: ticket.md
     produces: []
   onboard-open-pr:
-    description: Opens the one onboarding pull request from the branch. When nothing changed because the repository's Lore setup is already current, the run ends here.
+    description: Opens the one onboarding pull request from the branch. When nothing changed because the repository's Lore setup is already current, the run goes on to start its first ingestion.
     kind: service
     outcomes:
       - success
@@ -229,5 +240,19 @@ stations:
       - failed
     needs:
       - name: pr_url
+        kind: value
+    produces: []
+  onboard-start-ingest:
+    description: Starts the repository's first full ingestion by dispatching its ingest and test workflows on the default branch, for a setup that was already current and so has no pull request to merge.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      - name: task_id
         kind: value
     produces: []

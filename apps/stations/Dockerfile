@@ -26,10 +26,11 @@ WORKDIR /app
 
 ARG GIT_SHA=dev
 ENV LORE_BUILD_SHA=$GIT_SHA
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY scripts/lore-review-pr.mjs scripts/lore-review-pr-context.mjs scripts/lore-review-snapshot.mjs scripts/lore-review-readers.mjs scripts/lore-review-packets.mjs ./scripts/
 COPY --from=builder /app/libs/assembly-lines/dist ./libs/assembly-lines/dist
 COPY --from=builder /app/libs/assembly-lines/package.json ./libs/assembly-lines/
 # The whole lib, not just dist + package.json: npm nests some of shared's runtime

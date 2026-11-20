@@ -80,7 +80,7 @@ one still open. ([validated by blocks an already-onboarded repo without creating
 
 The `pr-open` block is self-healing: `lore.repos.onboarding_pr_url` is set when the
 onboarding PR opens and cleared by the Floor's merge-check when that PR is closed
-without merging, so a rejected onboarding does not refuse the repo forever. ([validated by nulls the onboarding PR url by row id when that PR closed unmerged @6a9b140a](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L67))
+without merging, so a rejected onboarding does not refuse the repo forever. ([validated by nulls the onboarding PR url by row id when that PR closed unmerged @6a9b140a](libs/shared/src/outbound/project/settings/settings-pg.test.ts#L95))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
 through their own mirror of the guard, which decides identically.

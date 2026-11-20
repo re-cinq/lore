@@ -1,18 +1,18 @@
-# Defaults of the lore-install chart. A client copies the example for their cluster
+# Defaults of the lore-install chart. Copy the example for your cluster
 # (values.aks.example.yaml, values.gke.example.yaml, values.local.example.yaml)
-# and fills it in; this file holds what is the same on every install.
+# and fill it in; this file holds what is the same on every install.
 #
 # A value set to CHANGE-ME anywhere stops the install: replace every one.
 #
 # Install, always with this release name and namespace (the chart refuses
 # others, because in-cluster addresses below are derived from them):
 #
-#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.0 \
+#   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
 #     -n lore-floor --create-namespace -f my-values.yaml
 
 # Placement and policy for every workload of the three charts.
 global:
-  # Run every controller on one pool, for example a management node pool:
+  # Run every Lore pod on one pool, for example a management node pool:
   #   nodeSelector: { pool: management }
   #   tolerations: [{ key: pool, operator: Equal, value: management, effect: NoSchedule }]
   # Agent run pods are the floor's and keep no scheduling rule.
@@ -48,7 +48,7 @@ namespaces: [lore-api, lore-ui, lore-stations]
 # names the Secret and its keys. (helm template cannot read the cluster, so it
 # skips that check and renders no Secret for an empty group.)
 #
-# Tokens are never your problem: a token left empty is generated on the first
+# You do not have to choose tokens: a token left empty is generated on the first
 # install and kept after, and an upgrade reads the Secret that is there, so a
 # rotation done with kubectl survives. A token you set must be at least 32
 # characters. A Secret this chart wrote carries the label
@@ -83,7 +83,8 @@ secrets:
     visitTokenSecret: ""
     gitCredentialToken: ""
   # REQUIRED. The GitHub App Lore acts as. Secret github-app-credentials in
-  # lore-api and lore-ui, lore-stations-github-app in lore-stations.
+  # lore-api and lore-ui, lore-stations-github-app in lore-stations. The two ids
+  # are numbers; quoted or not, they are written as plain digits.
   githubApp:
     appId: ""
     privateKey: ""
@@ -147,8 +148,8 @@ floor:
     enabled: true
     allowedNamespaces: [lore-api, lore-stations]
   agentNetworkPolicy:
-    # The one in-cluster door agent pods need beyond the floor: Lore's MCP
-    # gateway and skills registry.
+    # The one in-cluster address agent pods reach besides the floor: Lore's MCP
+    # gateway, which also serves the agents' skills.
     extraEgress:
       - to:
           - namespaceSelector:
@@ -212,10 +213,10 @@ utopia:
 # ServiceMonitors and the Lore Grafana dashboards the sidecar picks up.
 #
 # Images. Every image comes from ghcr.io/re-cinq at the version of this chart:
-# the chart published for release v1.1.0 pins all five images (the four tags below and
-# agentImage) to v1.1.0, so an install does not depend on what `latest` is that
+# the chart published for release v1.1.1 pins all five images (the four tags below and
+# agentImage) to v1.1.1, so an install does not depend on what `latest` is that
 # day. They are public, so no pull secret is set. To move to a newer release,
-# upgrade with its chart version (--version 1.1.0); do not edit the tags by hand.
+# upgrade with its chart version (--version 1.1.1); do not edit the tags by hand.
 #
 # Every app is locked down (hardened: non-root, read-only root, no capabilities,
 # RuntimeDefault seccomp), and NetworkPolicies allow only the traffic the
@@ -267,7 +268,7 @@ lore-platform:
     #   env: { LORE_PACK_REPO: acme/lore-assembly-lines, LORE_PACK_REF: main }
     image:
       repository: ghcr.io/re-cinq/lore-api
-      tag: "v1.1.0"
+      tag: "v1.1.1"
     githubOAuthSecret:
       name: lore-github-oauth
     utopia:
@@ -280,7 +281,7 @@ lore-platform:
       apiUrl: http://lore-floor-api.lore-floor.svc.cluster.local:8080
       skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
       # The image agent pods work in. Public.
-      agentImage: ghcr.io/re-cinq/lore-agent:v1.1.0
+      agentImage: ghcr.io/re-cinq/lore-agent:v1.1.1
   lore-ui:
     podDisruptionBudget:
       enabled: false
@@ -288,19 +289,29 @@ lore-platform:
     imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-ui
-      tag: "v1.1.0"
+      tag: "v1.1.1"
   lore-stations:
     podDisruptionBudget:
       enabled: false
-    # The Azure cost sync skips itself without LORE_AZURE_COST_SCOPE, so it is
-    # not scheduled here; values.aks.example.yaml schedules it (skipCourierJobs: []).
+    # The public lore-api URL (https://<the lore-api ingress host>): onboarding
+    # writes it to each repo's LORE_INGEST_URL variable for the GitHub runners.
+    # Empty: onboarding reports it as a gap.
+    ingestUrl: ""
+    # Courier jobs are CronJobs (lore-stations-courier-<name>) that each send one
+    # HTTP request to the stations service on a schedule; the service does the
+    # work: memory-ttl (hourly, deletes expired memories), importance-decay and
+    # consolidation (daily, remove low-value memories and summarize the week's facts),
+    # anthropic-cost-sync and azure-cost-sync (daily, costs for the Spend page).
+    # A name listed here is not scheduled. The Azure cost sync does nothing
+    # without LORE_AZURE_COST_SCOPE, so it is left out; values.aks.example.yaml
+    # schedules it with an empty list.
     skipCourierJobs: [azure-cost-sync]
     env:
       LORE_EMBEDDING_PROVIDER: openai   # see lore-api above
     imagePullSecrets: []
     image:
       repository: ghcr.io/re-cinq/lore-stations
-      tag: "v1.1.0"
+      tag: "v1.1.1"
     floor:
       enabled: true
       # Must equal floor.api.baseUrl.
@@ -313,7 +324,7 @@ lore-platform:
       name: lore-mcp-auth-token
     image:
       repository: ghcr.io/re-cinq/lore-mcp
-      tag: "v1.1.0"
+      tag: "v1.1.1"
     # Where agent pods run: the release namespace, since the floor's bundled
     # subsystem runs them there.
     agentPods:

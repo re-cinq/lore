@@ -1,4 +1,8 @@
-import type { SettingsPort, RepoRecord } from "./settings-port.js";
+import type {
+  SettingsPort,
+  RepoRecord,
+  WorkflowState,
+} from "./settings-port.js";
 
 /** Repo-bound settings over SettingsPort. */
 export class Settings {
@@ -13,6 +17,18 @@ export class Settings {
 
   setRepoSecret(name: string, value: string): Promise<void> {
     return this.settings.setRepoSecret(this.repo, name, value);
+  }
+
+  workflowState(file: string): Promise<WorkflowState> {
+    return this.settings.workflowState(this.repo, file);
+  }
+
+  enableWorkflow(file: string): Promise<void> {
+    return this.settings.enableWorkflow(this.repo, file);
+  }
+
+  dispatchWorkflow(file: string, ref: string): Promise<void> {
+    return this.settings.dispatchWorkflow(this.repo, file, ref);
   }
 
   /** The whole `lore.repos` row — the read the UI's repo pages share. */

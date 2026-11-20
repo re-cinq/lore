@@ -61,6 +61,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ARG GIT_SHA=dev
 ENV LORE_BUILD_SHA=$GIT_SHA
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git \
+  && rm -rf /var/lib/apt/lists/*
 # /app/libs mirrors the repo so the workspace symlinks in node_modules resolve,
 # and libs/server-core/templates is reachable from the compiled package.
 COPY --from=builder /app/libs ./libs
@@ -70,6 +72,7 @@ COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
 COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 COPY --from=builder /app/apps/lore-api/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
+COPY scripts/lore-review-pr.mjs scripts/lore-review-pr-context.mjs scripts/lore-review-snapshot.mjs scripts/lore-review-readers.mjs scripts/lore-review-packets.mjs ./scripts/
 COPY --from=builder /app/apps/lore-api/dist ./dist
 # Served at GET /dist/lore-code-trace/<os>-<arch> (+ /checksums.txt).
 COPY --from=gobuilder /out ./dist-bin

@@ -48,7 +48,6 @@ export interface SettingsViewProps {
   /** The org setting `session_length_hours`; empty when nothing is saved. */
   sessionLengthHours: string;
   saveSessionLength: (formData: FormData) => void | Promise<void>;
-  regenerateToken: (formData: FormData) => void | Promise<void>;
   /** What the last sync of the client's pack repo did; null while no pack is configured, which hides the Pack card. */
   packSync: PackSync | null;
   /** The web address of the GitHub this install talks to, for the Pack card's link to the pack repo. */
@@ -72,7 +71,6 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: "set-session", label: "Sign-in session" },
   { id: "set-context", label: "Context builder" },
   { id: "set-install", label: "Developer install" },
-  { id: "set-danger", label: "Danger zone", danger: true },
 ];
 
 /** Each section declares the slice of the settings it consumes in its own props type, so the whole bag is handed down and narrowed there rather than re-listed here. */
@@ -91,7 +89,6 @@ export default function SettingsView(props: SettingsViewProps) {
         <SlackPeopleForm {...props} />
         <ServiceForms {...props} />
         <InstallCommand {...props} />
-        <RegenerateTokenSection regenerateToken={props.regenerateToken} />
       </SettingsLayout>
     </div>
   );
@@ -249,39 +246,10 @@ function IngestTokenNote() {
   return (
     <p className={styles.fieldNote}>
       Shared token for authenticating ingest and task API calls. Set this in
-      developer installs via <code>git config --global lore.ingest-token</code>{" "}
-      and on repos as the <code>LORE_INGEST_TOKEN</code> GitHub Actions secret.
+      developer installs via <code>git config --global lore.ingest-token</code>.
+      Onboarding writes each repo's <code>LORE_INGEST_TOKEN</code> secret and{" "}
+      <code>LORE_INGEST_URL</code> variable, and Update setup rewrites them.
     </p>
-  );
-}
-
-/** Its own form and card, not another button beside Save: regenerating invalidates every existing token at once, so it must not ride a submit someone meant as a save. */
-function RegenerateTokenSection({
-  regenerateToken,
-}: Pick<SettingsViewProps, "regenerateToken">) {
-  return (
-    <SettingsCard
-      id="set-danger"
-      title="Regenerate ingest token"
-      description="Warning: invalidates all existing tokens. Every repo and developer install needs the new one."
-      danger
-      action={<RegenerateTokenForm regenerateToken={regenerateToken} />}
-    />
-  );
-}
-
-function RegenerateTokenForm({
-  regenerateToken,
-}: Pick<SettingsViewProps, "regenerateToken">) {
-  return (
-    <form action={regenerateToken}>
-      <SubmitButton
-        className={`danger ${styles.regenerateButton}`}
-        pendingLabel="Regenerating…"
-      >
-        Regenerate token
-      </SubmitButton>
-    </form>
   );
 }
 

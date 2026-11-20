@@ -37,6 +37,7 @@ export function brokenReviewCheck(
 
 /** The agent visit a broken review died on: what its error says decides whether the review was owed at all. */
 export interface FailedAgentVisit {
+  nodeId: string;
   visitId: string;
   iteration: number;
   error: string;
@@ -54,6 +55,7 @@ export function failedAgentVisitOf(
 
   return failed
     ? {
+        nodeId: failed.nodeId,
         visitId: failed.id,
         iteration: failed.iteration,
         error: failed.report?.error ?? "",

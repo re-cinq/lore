@@ -20,11 +20,19 @@ export interface OnboardViewProps {
   ) => Promise<OnboardState>;
 }
 
-/** What the onboarding pull request adds to the target repository. */
-const PR_FILES = [
+/** What onboarding does to the target repository: the PR's files, the variable and secret it sets, and the first ingestion it starts. */
+const ONBOARDING_STEPS = [
   { file: "CLAUDE.md, AGENTS.md", what: "Conventions and context for agents" },
   { file: "PR template", what: "What every pull request describes" },
   { file: "CI workflows", what: "Ingest and test tracing on push to main" },
+  {
+    file: "LORE_INGEST_URL variable, LORE_INGEST_TOKEN secret",
+    what: "Set on the repo on every run, not through the PR",
+  },
+  {
+    file: "First ingestion",
+    what: "Started by dispatching the ingest workflows",
+  },
 ];
 
 const ONBOARD_LEDE =
@@ -140,9 +148,9 @@ function RepoHint() {
 function PrFiles() {
   return (
     <div className={styles.field}>
-      <span className={styles.groupLabel}>The PR adds</span>
+      <span className={styles.groupLabel}>Onboarding does</span>
       <ul className={styles.files}>
-        {PR_FILES.map(({ file, what }) => (
+        {ONBOARDING_STEPS.map(({ file, what }) => (
           <li key={file} className={styles.fileCard}>
             <span className={styles.fileName}>{file}</span>
             <span className={styles.fileWhat}>{what}</span>

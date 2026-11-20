@@ -1,15 +1,21 @@
 // The stations the external floor dispatches for the code-review lines. Each claims its own work from the floor's queue, so starting them is all the wiring there is.
 import type { RunningStation } from "@re-cinq/floor-station";
+import { startPrepareReviewStation } from "./prepare-review/station.js";
 import { startPostReplyStation } from "./post-reply/station.js";
 import { startPostReviewStation } from "./post-review/station.js";
 import { startReadReviewStation } from "./read-review/station.js";
 import { startRunSettledStation } from "./run-settled/station.js";
+import { startReviewProgressStation } from "./shadow-progress/station.js";
 
 export function startCodeReviewStations(): RunningStation[] {
   return [
+    startPrepareReviewStation(),
+    startReviewProgressStation("finalize-code-review"),
+    startReviewProgressStation("code-review-progress"),
     startPostReviewStation(),
     startReadReviewStation(),
     startPostReplyStation(),
     startRunSettledStation(),
+    startReviewProgressStation("shadow-review-progress"),
   ];
 }

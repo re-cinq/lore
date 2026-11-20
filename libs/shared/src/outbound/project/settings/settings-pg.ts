@@ -13,13 +13,18 @@ import type {
   PendingOnboardingRepo,
   RepoRecord,
   RepoRenameOutcome,
+  WorkflowState,
 } from "./settings-port.js";
 
 /** The repo-config writes the settings adapter delegates to (the GitHub adapter). */
-export interface RepoConfigWriter {
-  setRepoVariable(repo: string, name: string, value: string): Promise<void>;
-  setRepoSecret(repo: string, name: string, value: string): Promise<void>;
-}
+export type RepoConfigWriter = Pick<
+  SettingsPort,
+  | "setRepoVariable"
+  | "setRepoSecret"
+  | "workflowState"
+  | "enableWorkflow"
+  | "dispatchWorkflow"
+>;
 
 interface LockedRenameRow {
   id: string;
@@ -163,6 +168,18 @@ export class PgSettings implements SettingsPort {
 
   setRepoSecret(repo: string, name: string, value: string): Promise<void> {
     return this.writer().setRepoSecret(repo, name, value);
+  }
+
+  workflowState(repo: string, file: string): Promise<WorkflowState> {
+    return this.writer().workflowState(repo, file);
+  }
+
+  enableWorkflow(repo: string, file: string): Promise<void> {
+    return this.writer().enableWorkflow(repo, file);
+  }
+
+  dispatchWorkflow(repo: string, file: string, ref: string): Promise<void> {
+    return this.writer().dispatchWorkflow(repo, file, ref);
   }
 
   // Case-insensitive: the one lookup web-ui's repo layout uses to find the canonical casing of a URL typed or bookmarked with the wrong case.

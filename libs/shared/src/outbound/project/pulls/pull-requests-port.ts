@@ -12,6 +12,7 @@ export interface ReviewCommentInput {
 
 /** A single review carrying a body + an array of inline comments (reviews API). */
 export interface CreateReviewInput {
+  commitId?: string;
   event: PRReviewEvent;
   body: string;
   comments: ReviewCommentInput[];

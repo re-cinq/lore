@@ -8,6 +8,7 @@ import type {
   PendingOnboardingRepo,
   RepoRecord,
   RepoRenameOutcome,
+  WorkflowState,
 } from "./settings-port.js";
 import { isMirror, mirrorNameOf } from "./seeded-mirror.js";
 
@@ -94,6 +95,15 @@ export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
   readonly secrets: Array<{ repo: string; name: string; value: string }> = [];
 
+  /** Workflow states keyed `<repo>/<file>`, seeded by a test; an unseeded workflow is `missing`, and enabling one makes it `active`. */
+  readonly workflowStates = new Map<string, WorkflowState>();
+  readonly enabledWorkflows: Array<{ repo: string; file: string }> = [];
+  readonly dispatchedWorkflows: Array<{
+    repo: string;
+    file: string;
+    ref: string;
+  }> = [];
+
   /** Org-wide settings by key, seeded by a test that reads one. */
   readonly org: Record<string, string> = {};
 
@@ -121,6 +131,23 @@ export class InMemorySettings implements SettingsPort {
     value: string,
   ): Promise<void> {
     this.secrets.push({ repo, name, value });
+  }
+
+  async workflowState(repo: string, file: string): Promise<WorkflowState> {
+    return this.workflowStates.get(`${repo}/${file}`) ?? "missing";
+  }
+
+  async enableWorkflow(repo: string, file: string): Promise<void> {
+    this.enabledWorkflows.push({ repo, file });
+    this.workflowStates.set(`${repo}/${file}`, "active");
+  }
+
+  async dispatchWorkflow(
+    repo: string,
+    file: string,
+    ref: string,
+  ): Promise<void> {
+    this.dispatchedWorkflows.push({ repo, file, ref });
   }
 
   // Case-insensitive, mirroring PgSettings.record: the lookup web-ui's repo layout uses to find the canonical casing of a wrong-case URL.

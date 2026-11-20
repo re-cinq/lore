@@ -1,4 +1,5 @@
 // A push that only rebased a pull request keeps Lore's approval (#3499): when the pull request changes the same lines at the new head as at the head Lore approved, the approval is published on the new head instead of a re-check judging the same change again. Over the weekend of 2026-10-23, 170 re-checks followed a rebase-only push and 149 gave the verdict before them.
+import { valueItem } from "../../outbound/floor/floor-items.js";
 import type { CheckRunInput } from "../../outbound/project/lib/github-port.js";
 import type {
   CheckRun,
@@ -155,5 +156,26 @@ export function carriedApprovalCheck(
     conclusion: "success",
     title: "Approved: the rebase changed nothing Lore reviewed",
     summary: `Lore approved ${approvedSha.slice(0, 7)} and this push is a rebase of the same change: every file and line the pull request changes is as it was, so the approval carries over without a re-check.`,
+  };
+}
+
+export interface RecheckRange {
+  sinceSha?: string;
+  scope: string;
+  paths: string[] | null;
+}
+
+export function recheckEvidenceItems(
+  { sinceSha, paths }: RecheckRange,
+  previousFindings: string,
+) {
+  return {
+    ...(sinceSha ? { since_sha: valueItem(sinceSha) } : {}),
+    ...(paths?.length
+      ? { review_paths: valueItem(JSON.stringify(paths)) }
+      : {}),
+    ...(previousFindings
+      ? { previous_findings: valueItem(previousFindings) }
+      : {}),
   };
 }

@@ -30,7 +30,9 @@ secrets:
 lore-platform:
   platform:
     ingressClassName: traefik
-    ingressTls: false   # true, with TLS Secrets of yours or platform.clusterIssuer, off a laptop
+    # Plain HTTP, for a trial. For real hostnames delete this line, set
+    # platform.clusterIssuer or bring the TLS Secrets, and use https:// and wss:// below.
+    ingressTls: false
     ingresses:
       - { name: lore-api, namespace: lore-api, host: lore-api.example.com, service: lore-api, port: 3000 }
       - { name: lore-mcp, namespace: lore-api, host: lore-mcp.example.com, service: lore-mcp-gateway, port: 8080 }
@@ -49,5 +51,6 @@ lore-platform:
       LORE_API_PUBLIC_URL: http://lore-api.example.com
       LORE_WS_URL: ws://lore.example.com/api/ws
   lore-stations:
+    ingestUrl: http://lore-api.example.com   # the lore-api ingress host
     env:
       LORE_UI_URL: http://lore.example.com
