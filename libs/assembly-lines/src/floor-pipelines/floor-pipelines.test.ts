@@ -954,7 +954,13 @@ describe("the floor pipelines shipped in this folder", () => {
     const reads = [
       ["test_evidence"],
       ["story", "code_evidence", "test_evidence"],
-      ["story", "issue_evidence", "code_evidence", "test_evidence"],
+      [
+        "story",
+        "implementation_check",
+        "issue_evidence",
+        "code_evidence",
+        "test_evidence",
+      ],
     ];
 
     for (const name of ["code-review", "code-review-recheck"]) {
@@ -1849,6 +1855,27 @@ describe("a gap is posted on the line it is about, with a proposal", () => {
           "Never write that a file could not be opened or checked unless a command you ran on it failed",
         ].filter((rule) => !prompt.includes(rule)),
       ).toEqual([]);
+    },
+  );
+
+  it.each(["code-review", "code-review-recheck"])(
+    "hands the issue check of %s what the implementation check found, and tells it to report no gap that check already reports",
+    (pipeline) => {
+      const { stations } = pipelineOf(pipeline);
+
+      expect({
+        need: needOf(stations["review-issue"], "implementation_check"),
+        told: promptOnOneLine("review-issue").includes(
+          "Read /workspace/implementation-check.txt before you report a gap: it holds the gaps the implementation check already reported on this revision. Never report a difference it already reports, in other words, as another kind or at another line",
+        ),
+      }).toEqual({
+        need: {
+          name: "implementation_check",
+          kind: "file",
+          path: "implementation-check.txt",
+        },
+        told: true,
+      });
     },
   );
 

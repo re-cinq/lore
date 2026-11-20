@@ -41,6 +41,8 @@ interface Review {
   gaps: Gap[];
   /** Earlier gaps a person answered that they will not fix; they are shown and do not request changes. */
   declined: Declined[];
+  /** The subjects of earlier gaps a re-check found closed. */
+  closed: string[];
   /** The passes, in order, that gave a complete answer. */
   complete: boolean[];
 }
@@ -77,6 +79,7 @@ function commentOf(
     ...storyLines(review),
     ...gapTable(review.gaps),
     ...declinedList(review.declined),
+    ...closedList(review.closed),
     ...checkNotes(review.checks),
     ...(incomplete.length ? [`Incomplete — ${incomplete.join(", ")}`] : []),
     ...(state === "failed"
@@ -193,6 +196,18 @@ function declinedList(declined: Declined[]): string[] {
   return [["Declined by a person, not blocking:", ...entries].join("\n")];
 }
 
+// The comment names them and the review GitHub is given does not: a re-check is handed that review as the gaps left open.
+function closedList(closed: string[]): string[] {
+  return closed.length
+    ? [
+        [
+          "Closed since the last review:",
+          ...closed.map((subject) => `- ${escapeMarkdown(subject)}`),
+        ].join("\n"),
+      ]
+    : [];
+}
+
 /** The review GitHub is given once all three passes are complete: one finding per gap on its line, the rest in the body, and changes requested for any gap but an untold one. */
 export function formalReview(outputs: PassOutputs): ReviewOutput | undefined {
   const review = reviewOf(outputs);
@@ -226,12 +241,38 @@ function reviewOf(outputs: PassOutputs): Review {
     short: story?.summary,
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
-    declined: checks.flatMap((check) => check?.declined ?? []),
+    ...settledOf(checks),
     complete: [story, ...checks].map((answer) => answer?.status === "complete"),
   };
 }
 
-function summaryOf({ gaps, checks, declined }: Review): string {
+function settledOf(
+  checks: Review["checks"],
+): Pick<Review, "declined" | "closed"> {
+  return {
+    declined: once(
+      checks.flatMap((check) => check?.declined ?? []),
+      ({ reply }) => reply,
+    ),
+    closed: once(
+      checks.flatMap((check) => check?.closed ?? []),
+      wording,
+    ),
+  };
+}
+
+/** Both checks are handed the same earlier gaps and replies, so both name the same closed or declined one: the first of each is kept. */
+function once<T>(entries: T[], keyOf: (entry: T) => string): T[] {
+  const keys = entries.map(keyOf);
+
+  return entries.filter((_entry, index) => keys.indexOf(keys[index]) === index);
+}
+
+function wording(subject: string): string {
+  return subject.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function summaryOf({ gaps, declined }: Review): string {
   const story =
     gaps.length === 0
       ? "The implementation and the issue tell the story the tests tell."
@@ -241,10 +282,6 @@ function summaryOf({ gaps, checks, declined }: Review): string {
 
   return [
     story,
-    ...subjects(
-      "Closed since the last review",
-      checks.flatMap((check) => check?.closed ?? []),
-    ),
     ...subjects(
       "Declined by a person and not blocking",
       declined.map(({ subject }) => subject),

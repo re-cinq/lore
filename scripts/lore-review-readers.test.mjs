@@ -108,7 +108,7 @@ test("a local review tells the story, runs both checks against it and prints the
   );
 });
 
-test("the story is told from the tests packet alone, and each check is handed the story", (t) => {
+test("the story is told from the tests packet alone, each check is handed the story, and the issue check what the implementation check found", (t) => {
   const { calls } = review(t);
 
   assert.deepEqual(
@@ -116,7 +116,13 @@ test("the story is told from the tests packet alone, and each check is handed th
     [
       ["tests.json"],
       ["code.json", "story.txt", "tests.json"],
-      ["code.json", "issue.json", "story.txt", "tests.json"],
+      [
+        "code.json",
+        "implementation-check.txt",
+        "issue.json",
+        "story.txt",
+        "tests.json",
+      ],
     ],
   );
 });

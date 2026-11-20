@@ -91,6 +91,7 @@ stations:
     outcomes: [success, failed]
     needs:
       - { name: story, kind: file, path: story.txt }
+      - { name: implementation_check, kind: file, path: implementation-check.txt }
       - { name: issue_evidence, kind: file, path: issue.json }
       - { name: code_evidence, kind: file, path: code.json }
       - { name: test_evidence, kind: file, path: tests.json }
