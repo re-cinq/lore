@@ -57,7 +57,7 @@ _(Rewritten 2026-11-20: the five-pass procedure and its `lore-review-files` read
 
 The local command invokes the runner from the installed Lore checkout, which reads the three prompts from the same agent files the floor is seeded with, so a local review and a hosted one cannot drift apart. [Local runner](../../scripts/lore-review-readers.mjs)
 
-- The runner tells the story from the tests packet alone, hands the story to both checks, and prints the comment and the verdict the hosted review would give; a step that fails leaves the review incomplete and is named. ([validated by @0307bacb](../../scripts/lore-review-readers.test.mjs#L74), [validated by @af0802d4](../../scripts/lore-review-readers.test.mjs#L111), [validated by @006e3960](../../scripts/lore-review-readers.test.mjs#L130))
+- The runner tells the story from the tests packet alone, hands the story to both checks, and prints the comment and the verdict the hosted review would give; a step that fails leaves the review incomplete and is named. ([validated by @104f8c4d](../../scripts/lore-review-readers.test.mjs#L74), [validated by @af0802d4](../../scripts/lore-review-readers.test.mjs#L111), [validated by @006e3960](../../scripts/lore-review-readers.test.mjs#L130))
 
 For acceptance, run both entry points on the same revision and discussion. Verify that both code readers can follow an affected unchanged caller, both test readers can identify a mocked boundary, and only the intent and product passes can consult the discussion.
 
