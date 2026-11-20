@@ -41,7 +41,7 @@ A spike on 2026-10-14 pushed a hand-built sample of the chain into a Utopia know
 
 1. ~~Store the ordinals of the last push per document so a deletion tombstones every item.~~ Done, amendment 2026-11-02.
 2. Push tests from the test ingest (`lore-code-trace`) so a Test entity carries `covers` with its line ranges, and code definitions from the code projection.
-3. Switch the spec pages to read Utopia once relations resolve to properties; then the detectors; then retire Dgraph.
+3. Switch the spec pages to read Utopia once relations resolve to properties; then the detectors; then retire Dgraph. Planned in the amendment of 2026-11-20.
 
 ## Amendment 2026-10-15: Lore creates the base itself on a repo's first ingest
 
@@ -226,3 +226,23 @@ Lore therefore pushes every commit, pull request, issue, tag and release a secon
 
 **2026-11-04 (coupling items carry their lines):** Utopia holds the link from a statement to its test and from a test to the lines it covers, never the code: on 8 lore tickets the honest judge credited Lore for "already exists in file X" and Utopia for the link alone. Until Utopia resolves a code node's body where it lives (deeplethe/utopia#1470), the Utopia arm finishes each coupling item from the repository's own files at its default branch: the test from its first line to its last and each covered range, at most three spans of forty lines, each read once per assembly (FR13.8b). Code is still never pushed.
 
+## Amendment 2026-11-20: Utopia answers both reads, and Dgraph's removal is planned
+
+The two reads the Context names as missing are in Utopia `0.1.0-re.37`, the version Lore deploys. A read returns a statement's qualifiers (since re.16), on an entity's detail and on a graph edge. One call lists the entities of a type that lack a relation, with a total (since re.7): the statements with no `validated_by`. Two notes above are out of date with them: a re-push now replaces a qualifier's value (re.33), and search takes a source filter (re.15). Nothing in Utopia holds Dgraph's removal back any more.
+
+What holds it back is in Lore, and #5071 is the work:
+
+- **Lore's Utopia client searches and fetches one item by id, nothing else.** The trace port still has the Dgraph adapter and the null one. The client gains typed reads of entities, relations and the instance list of a type, and a Utopia adapter answers every read of the port behind `providers.trace`, chosen by the same `lore`, `utopia` or `both` the context reads use. Under `both` Dgraph answers and every difference is logged.
+- **Ingestion stops needing Dgraph first.** The delta route answers 503 with no graph client before it writes anything, so the mirror stops with it, and the test-report mirror asks Dgraph which definition a covered line belongs to. Both go before any read moves.
+- **The mirror gains what the reads need and it lacks:** a test's covered line ranges, a section's heading and order, a statement's kind and testability, a link's label and hash, and a backfill for code and tests. A field Lore can derive from the mirrored markdown or from `pipeline.test_reports` is derived, not pushed.
+- **Then production reads Utopia, Dgraph is no longer written, and its code, chart template, schema scripts and namespace are deleted.**
+
+Three things follow from how Utopia reads:
+
+- It has no query language and no numeric or range filter, so "the tests covering lines 40 to 60 of a file" is several reads with the overlap computed in Lore.
+- A graph read sees a push only after Utopia's background extraction of the item, where fetching the item by id is current at once. The lag is measured on the internal cluster before production switches.
+- A read needs a personal access token of a person who can view the base, which `UTOPIA_TOKEN` is; a source's push key reads nothing.
+
+Not carried into Utopia, because nothing writes them any more: the failure records `failures_touching` reads, and a statement's `drifted` flag. Both reads are removed. Agent memory stays in Postgres: the memory store on Dgraph was never switched on in any deployment, its code is deleted, and `specs/memory-dgraph-migration` is Rejected with that deletion.
+
+Open, to be decided in the tickets and recorded here: whether a branch's coverage (Dgraph's overlays) is kept in Postgres or the `branch` argument of `testsCovering` goes; whether the impact comment keeps its orphan footprint; and whether covered line ranges live in Utopia's `ranges` attribute or in a Postgres table.
