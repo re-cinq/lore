@@ -16,6 +16,7 @@ const reference = z.union([
 
 export const told = z.object({
   status,
+  summary: text.optional(),
   story: z.array(
     z.object({
       text,

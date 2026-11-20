@@ -35,6 +35,8 @@ const kinds: Record<Gap["kind"], string> = {
 interface Review {
   /** The story's paragraphs; absent until tell-story has answered. */
   parts: StoryPart[] | undefined;
+  /** The story in a few plain sentences, the version the comment shows. */
+  short: string | undefined;
   checks: Array<Check | undefined>;
   gaps: Gap[];
   /** Earlier gaps a person answered that they will not fix; they are shown and do not request changes. */
@@ -102,7 +104,7 @@ function verdictOf(
 }
 
 // Prose, a paragraph a theme: a list only where the story itself enumerates, and the tests that prove a paragraph under it.
-function storyLines({ parts }: Review): string[] {
+function storyLines({ parts, short }: Review): string[] {
   if (!parts) {
     return [];
   }
@@ -114,10 +116,23 @@ function storyLines({ parts }: Review): string[] {
     ...(tests.length ? [`Tests: ${testsOf(tests)}`] : []),
   ]);
 
-  return [
-    "### The story the tests tell",
-    ...(told.length ? told : ["The tests tell nothing about this change."]),
-  ];
+  return ["### The story the tests tell", ...shortened(short, told)];
+}
+
+/** The short story on top and the full one folded under it; a story told without a short version is shown in full. */
+function shortened(short: string | undefined, told: string[]): string[] {
+  if (told.length === 0) {
+    return ["The tests tell nothing about this change."];
+  }
+
+  return short
+    ? [
+        escapeMarkdown(short),
+        "<details><summary>The full story, with its tests</summary>",
+        ...told,
+        "</details>",
+      ]
+    : told;
 }
 
 /** Each test file once, with the lines its tests start on. */
@@ -195,6 +210,7 @@ function reviewOf(outputs: PassOutputs): Review {
 
   return {
     parts: story?.story,
+    short: story?.summary,
     checks,
     gaps: checks.flatMap((check) => check?.gaps ?? []),
     declined: checks.flatMap((check) => check?.declined ?? []),

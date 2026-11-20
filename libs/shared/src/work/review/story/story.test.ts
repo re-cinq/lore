@@ -14,6 +14,7 @@ function answer(result: object): string {
 
 const story = answer({
   status: "complete",
+  summary: "The system prompt gains a rule for mask tokens.",
   story: [
     {
       text: "The system prompt carries MASK_TOKEN_RULE among its response guidelines.",
@@ -44,14 +45,17 @@ const outputs = (issue_check: string): PassOutputs => ({
 });
 
 describe("storyReview", () => {
-  it("shows the story as prose with its tests under it, as In progress, once tell-story has answered", () => {
+  it("shows the short story, with the full story and its tests folded under it, as In progress once tell-story has answered", () => {
     expect(storyReview({ story }, 1).comment(REVISION, "running")).toBe(
       [
         "## Lore code review",
         `Reviewed revision \`${REVISION}\` · **In progress** · 0 gaps`,
         "### The story the tests tell",
+        "The system prompt gains a rule for mask tokens.",
+        "<details><summary>The full story, with its tests</summary>",
         "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
         `Tests: \`${TEST}\` (6)`,
+        "</details>",
       ].join("\n\n"),
     );
   });
@@ -65,8 +69,11 @@ describe("storyReview", () => {
     expect(comment.split("\n\n").slice(1)).toEqual([
       `Reviewed revision \`${REVISION}\` · **Changes requested** · 1 gap`,
       "### The story the tests tell",
+      "The system prompt gains a rule for mask tokens.",
+      "<details><summary>The full story, with its tests</summary>",
       "The system prompt carries MASK\\_TOKEN\\_RULE among its response guidelines.",
       `Tests: \`${TEST}\` (6)`,
+      "</details>",
       "### Gaps",
       [
         "| # | Kind | What differs | Where |",
@@ -78,7 +85,7 @@ describe("storyReview", () => {
     ]);
   });
 
-  it("writes a real enumeration as a list under its paragraph, keeps inline code, and names each test file once with its lines", () => {
+  it("shows a story told without a short version in full: a real enumeration as a list under its paragraph, inline code kept, each test file named once with its lines", () => {
     const told = answer({
       status: "complete",
       story: [
