@@ -5,7 +5,7 @@ import { startPostReplyStation } from "./post-reply/station.js";
 import { startPostReviewStation } from "./post-review/station.js";
 import { startReadReviewStation } from "./read-review/station.js";
 import { startRunSettledStation } from "./run-settled/station.js";
-import { startReviewProgressStation } from "./shadow-progress/station.js";
+import { startReviewProgressStation } from "./story-review/station.js";
 
 export function startCodeReviewStations(): RunningStation[] {
   return [
@@ -16,6 +16,5 @@ export function startCodeReviewStations(): RunningStation[] {
     startReadReviewStation(),
     startPostReplyStation(),
     startRunSettledStation(),
-    startReviewProgressStation("shadow-review-progress"),
   ];
 }
