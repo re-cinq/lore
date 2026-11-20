@@ -171,6 +171,16 @@ describe("ChangelogView with releases", () => {
       "/repos/re-cinq/lore/changelog?before=2026-10-08T11%3A00%3A00.000Z&by=person",
     );
   });
+
+  it("puts Release now above pull request 3055 in the unreleased block, so a long list does not hide it", () => {
+    releases({ releases: [V120], unreleased: UNRELEASED });
+    const button = screen.getByRole("button", { name: "Release now" });
+    const change = screen.getByRole("link", { name: PR_3055.title });
+
+    expect(
+      button.compareDocumentPosition(change) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toEqual(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });
 
 describe("ChangelogView weeks with a Release now", () => {

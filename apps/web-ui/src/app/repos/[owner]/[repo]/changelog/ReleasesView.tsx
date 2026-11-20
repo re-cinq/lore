@@ -43,7 +43,6 @@ function UnreleasedSection(props: {
   return (
     <section className={styles.week} aria-label="Unreleased">
       <UnreleasedHeading latestVersion={latestVersion} />
-      <Changes changes={changes} grouping={props.grouping} />
       {props.releaseNow && (
         <ReleaseNowButton
           unreleased={changes.length}
@@ -51,6 +50,7 @@ function UnreleasedSection(props: {
           releaseNow={props.releaseNow}
         />
       )}
+      <Changes changes={changes} grouping={props.grouping} />
     </section>
   );
 }

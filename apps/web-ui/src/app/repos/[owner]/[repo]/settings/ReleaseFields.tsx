@@ -51,10 +51,17 @@ function ReleaseSchedule({ release }: { release: Required<ReleaseBlock> }) {
 
 function ReleaseSwitch({ enabled }: { enabled: boolean }) {
   return (
-    <label className={styles.choice}>
-      <input type="checkbox" name="release_enabled" defaultChecked={enabled} />{" "}
-      Release on the schedule below
-    </label>
+    <fieldset className={styles.choices}>
+      <legend>Schedule</legend>
+      <label className={styles.choice}>
+        <input
+          type="checkbox"
+          name="release_enabled"
+          defaultChecked={enabled}
+        />{" "}
+        Release on the schedule below
+      </label>
+    </fieldset>
   );
 }
 

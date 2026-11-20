@@ -100,4 +100,13 @@ describe("ReleaseFields", () => {
       screen.getByText(/"Release now" is on the Changelog tab/),
     ).toBeInTheDocument();
   });
+
+  it("keeps the release switch in a group titled Schedule, where a checkbox is not stretched like a text field", () => {
+    renderFields();
+    const group = screen
+      .getByLabelText("Release on the schedule below")
+      .closest("fieldset");
+
+    expect(group?.querySelector("legend")?.textContent).toEqual("Schedule");
+  });
 });
