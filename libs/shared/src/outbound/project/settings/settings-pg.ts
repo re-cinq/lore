@@ -1,7 +1,7 @@
 import { enforceTrue } from "../../../lib/enforce.js";
 import type { LoopKey } from "../../../domain/loops/loop-kinds.js";
 import type { LoopPause } from "../../../domain/loops/loop-pause.js";
-import { storedBlock } from "./settings-sql.js";
+import { NOT_A_MIRROR_SQL, storedBlock } from "./settings-sql.js";
 import { selectList, fromRow } from "../../../lib/row.js";
 import { REPO_COLUMNS } from "../../../domain/models/repo.js";
 import type { PgPool } from "../../memory-store.js";
@@ -212,7 +212,7 @@ export class PgSettings implements SettingsPort {
 
   async onboardedRepos(): Promise<OnboardedRepo[]> {
     const { rows } = await this.pool.query<OnboardedRepo>(
-      "SELECT full_name, last_ingested_at FROM lore.repos WHERE onboarding_pr_merged = true",
+      `SELECT full_name, last_ingested_at FROM lore.repos WHERE onboarding_pr_merged = true AND ${NOT_A_MIRROR_SQL}`,
     );
 
     return rows as OnboardedRepo[];
@@ -220,7 +220,7 @@ export class PgSettings implements SettingsPort {
 
   async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
     const { rows } = await this.pool.query<OnboardedRepoSettings>(
-      "SELECT full_name, settings FROM lore.repos WHERE onboarding_pr_merged = true ORDER BY full_name",
+      `SELECT full_name, settings FROM lore.repos WHERE onboarding_pr_merged = true AND ${NOT_A_MIRROR_SQL} ORDER BY full_name`,
     );
 
     return rows;
@@ -228,7 +228,7 @@ export class PgSettings implements SettingsPort {
 
   async allRepos(): Promise<string[]> {
     const { rows } = await this.pool.query<{ full_name: string }>(
-      "SELECT full_name FROM lore.repos ORDER BY full_name",
+      `SELECT full_name FROM lore.repos WHERE ${NOT_A_MIRROR_SQL} ORDER BY full_name`,
     );
 
     return rows.map((r) => r.full_name);
@@ -236,7 +236,7 @@ export class PgSettings implements SettingsPort {
 
   async isOnboarded(repo: string): Promise<boolean> {
     const { rows } = await this.pool.query(
-      "SELECT 1 FROM lore.repos WHERE full_name = $1 AND onboarding_pr_merged = true",
+      `SELECT 1 FROM lore.repos WHERE full_name = $1 AND onboarding_pr_merged = true AND ${NOT_A_MIRROR_SQL}`,
       [repo],
     );
 
@@ -255,7 +255,8 @@ export class PgSettings implements SettingsPort {
       `SELECT id, full_name, onboarding_pr_url
          FROM lore.repos
         WHERE onboarding_pr_merged = false
-          AND onboarding_pr_url IS NOT NULL`,
+          AND onboarding_pr_url IS NOT NULL
+          AND ${NOT_A_MIRROR_SQL}`,
     );
 
     return rows as PendingOnboardingRepo[];

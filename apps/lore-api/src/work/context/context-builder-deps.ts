@@ -18,6 +18,7 @@ import {
   PRIMER_DOCUMENTS,
   writePrimer,
 } from "@re-cinq/lore-shared/context-builder/repo-primer.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import {
   assemblyScope,
@@ -216,7 +217,7 @@ async function relatedFor(
   return relatedRepos(request.repo, {
     manifests: async () => manifestsOf(project, await tree()),
     registryRepository,
-    onboarded: () => onboardedRepos(pool),
+    onboarded: () => new PgSettings(pool).allRepos(),
     linked: crossRepo ? (scope.settings.linkedRepos ?? []) : [],
   });
 }
@@ -251,14 +252,6 @@ async function registryRepository(packageName: string): Promise<string | null> {
   return typeof repository === "string"
     ? repository
     : ((repository as { url?: string } | undefined)?.url ?? null);
-}
-
-async function onboardedRepos(pool: Pool): Promise<string[]> {
-  const { rows } = await pool.query<{ full_name: string }>(
-    `SELECT full_name FROM lore.repos`,
-  );
-
-  return rows.map((row) => row.full_name);
 }
 
 function once<T>(read: () => Promise<T>): () => Promise<T> {

@@ -132,7 +132,7 @@ describe("isOnboarded", () => {
     expect(await isOnboarded(pool, "re-cinq/otto")).toBe(true);
     expect(asked).toEqual([
       {
-        text: "SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1)",
+        text: expect.stringContaining("LOWER($1) AND NOT EXISTS"),
         values: ["re-cinq/otto"],
       },
     ]);

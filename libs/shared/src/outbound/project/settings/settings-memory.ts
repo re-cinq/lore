@@ -28,6 +28,14 @@ function mirrorNameOf(
   return typeof mirror === "string" ? mirror : undefined;
 }
 
+function isMirror(repos: SeedRepo[], repo: SeedRepo): boolean {
+  return repos.some(
+    (publisher) =>
+      mirrorNameOf(publisher.settings)?.toLowerCase() ===
+      repo.full_name.toLowerCase(),
+  );
+}
+
 /** A seeded `lore.repos` row for the in-memory settings double. */
 function hasSettings(settings: SeedRepo["settings"]): boolean {
   return Boolean(settings) && Object.keys(settings ?? {}).length > 0;
@@ -205,31 +213,38 @@ export class InMemorySettings implements SettingsPort {
     return this.repos.find((r) => r.team === team)?.full_name ?? null;
   }
 
+  private onboardedRows(): SeedRepo[] {
+    return this.repos.filter(
+      (r) => r.onboarding_pr_merged === true && !isMirror(this.repos, r),
+    );
+  }
+
   async onboardedRepos(): Promise<OnboardedRepo[]> {
-    return this.repos
-      .filter((r) => r.onboarding_pr_merged === true)
-      .map((r) => ({
-        full_name: r.full_name,
-        last_ingested_at: r.last_ingested_at ?? null,
-      }));
+    return this.onboardedRows().map((r) => ({
+      full_name: r.full_name,
+      last_ingested_at: r.last_ingested_at ?? null,
+    }));
   }
 
   async onboardedRepoSettings(): Promise<OnboardedRepoSettings[]> {
-    return this.repos
-      .filter((r) => r.onboarding_pr_merged === true)
-      .map((r) => ({
-        full_name: r.full_name,
-        settings: (r.settings ?? null) as OnboardedRepoSettings["settings"],
-      }));
+    return this.onboardedRows().map((r) => ({
+      full_name: r.full_name,
+      settings: (r.settings ?? null) as OnboardedRepoSettings["settings"],
+    }));
   }
 
   async allRepos(): Promise<string[]> {
-    return this.repos.map((r) => r.full_name);
+    return this.repos
+      .filter((r) => !isMirror(this.repos, r))
+      .map((r) => r.full_name);
   }
 
   async isOnboarded(repo: string): Promise<boolean> {
     return this.repos.some(
-      (r) => r.full_name === repo && r.onboarding_pr_merged === true,
+      (r) =>
+        r.full_name === repo &&
+        r.onboarding_pr_merged === true &&
+        !isMirror(this.repos, r),
     );
   }
 
@@ -244,7 +259,10 @@ export class InMemorySettings implements SettingsPort {
   async pendingOnboardingRepos(): Promise<PendingOnboardingRepo[]> {
     return this.repos
       .filter(
-        (r) => r.onboarding_pr_merged !== true && r.onboarding_pr_url != null,
+        (r) =>
+          r.onboarding_pr_merged !== true &&
+          r.onboarding_pr_url != null &&
+          !isMirror(this.repos, r),
       )
       .map((r) => ({
         id: r.id ?? "",

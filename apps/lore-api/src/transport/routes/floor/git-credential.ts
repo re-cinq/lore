@@ -13,6 +13,7 @@ import {
   zodResponse,
   type DeclaredErrorStatus,
 } from "../../http/zod-response.js";
+import { NOT_A_MIRROR_SQL } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   githubHost,
@@ -124,7 +125,7 @@ export async function isOnboarded(
   repo: string,
 ): Promise<boolean> {
   const found = await pool?.query(
-    "SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1)",
+    `SELECT 1 FROM lore.repos WHERE LOWER(full_name) = LOWER($1) AND ${NOT_A_MIRROR_SQL}`,
     [repo],
   );
 

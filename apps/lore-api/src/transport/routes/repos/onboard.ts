@@ -8,6 +8,8 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
+import { enforceNotAMirror } from "../../../work/repo/enforce-not-a-mirror.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
@@ -82,6 +84,7 @@ async function serveOnboard(
     const { repo, reonboard } = request.payload as OnboardBody;
 
     await enforceRepoOpen(request, repo);
+    await enforceNotAMirror(new PgSettings(pool), repo);
     const result = await onboardRepo(pool, repo, { reonboard });
 
     // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.

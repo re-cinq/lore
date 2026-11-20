@@ -21,6 +21,7 @@ import {
   PublicMirrorSchema,
   ReleaseSettingsSchema,
 } from "@re-cinq/lore-shared/models/repo-settings.js";
+import { enforceNotAMirror } from "../../../work/repo/enforce-not-a-mirror.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { KnowledgeBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 
@@ -175,7 +176,7 @@ async function enforceMirrorValid(
   }
   const mirrorName = enforceMirrorShape(repo, mirror);
 
-  await enforceRepoIsNotMirror(settings, repo);
+  await enforceNotAMirror(settings, repo);
   await enforceMirrorIsFree(settings, repo, mirrorName);
   enforceTrue(
     !hasPublicMirror((await settings.record(mirrorName))?.settings),
@@ -199,19 +200,6 @@ function enforceMirrorShape(repo: string, mirror: unknown): string {
   );
 
   return mirrorName;
-}
-
-async function enforceRepoIsNotMirror(
-  settings: PgSettings,
-  repo: string,
-): Promise<void> {
-  const ownerOfRepo = await settings.mirrorOwner(repo);
-
-  enforceTrue(
-    ownerOfRepo === null,
-    apiError(400),
-    `${repo} is already the public mirror of ${ownerOfRepo}`,
-  );
 }
 
 async function enforceMirrorIsFree(

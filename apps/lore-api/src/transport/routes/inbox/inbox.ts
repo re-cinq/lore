@@ -7,6 +7,7 @@ import type {
 } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
+import { NOT_A_MIRROR_SQL } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { withPool } from "../with-pool.js";
@@ -81,6 +82,12 @@ function countByKind(
   return counts;
 }
 
+const OPEN_ONBOARDING_PRS_SQL = `SELECT id, full_name, onboarding_pr_url, onboarded_at
+       FROM lore.repos
+       WHERE onboarding_pr_merged = false
+         AND onboarding_pr_url IS NOT NULL
+         AND ${NOT_A_MIRROR_SQL}`;
+
 async function aggregateInboxItems(pool: Pool) {
   const [planRows, repoRows] = await Promise.all([
     pool.query(
@@ -89,12 +96,7 @@ async function aggregateInboxItems(pool: Pool) {
        WHERE status = 'in-review'
        ORDER BY updated_at DESC`,
     ),
-    pool.query(
-      `SELECT id, full_name, onboarding_pr_url, onboarded_at
-       FROM lore.repos
-       WHERE onboarding_pr_merged = false
-         AND onboarding_pr_url IS NOT NULL`,
-    ),
+    pool.query(OPEN_ONBOARDING_PRS_SQL),
   ]);
 
   return [

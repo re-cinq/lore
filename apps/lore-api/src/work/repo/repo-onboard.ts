@@ -18,6 +18,10 @@ import {
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
 import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
+import {
+  NOT_A_MIRROR_SQL,
+  isMirrorSql,
+} from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 
 import {
   getInstallationRepos,
@@ -59,6 +63,7 @@ const REPOS_WITH_COUNTS_SQL = `SELECT ${selectList(REPO_COLUMNS, "r")},
         COALESCE(tc.active_agents, 0)::int AS active_agents
  FROM lore.repos r
  LEFT JOIN (${TASK_COUNTS_SQL}) tc ON tc.target_repo = r.full_name
+ WHERE NOT ${isMirrorSql("r.full_name")}
  ORDER BY r.onboarded_at DESC LIMIT $1 OFFSET $2`;
 
 /** Returns a page of repos with pipeline task counts plus the unpaged total. */
@@ -72,7 +77,7 @@ export async function getOnboardedReposWithCounts(
     [limit, offset],
   );
   const { rows: countRows } = await pool.query<{ total: number }>(
-    `SELECT count(*)::int as total FROM lore.repos`,
+    `SELECT count(*)::int as total FROM lore.repos WHERE ${NOT_A_MIRROR_SQL}`,
   );
 
   const repos = rows.map((row) => ({
