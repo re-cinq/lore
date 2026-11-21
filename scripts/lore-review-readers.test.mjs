@@ -219,3 +219,21 @@ test("a local review hands the issue check a changed document whole and leaves a
     "docs/rate.md",
   ]);
 });
+
+test("a local review of a code change that only moves spec links runs the story's checks and no documents check", (t) => {
+  const { report, calls } = review(t, "", {
+    ...snapshot,
+    documents: [
+      {
+        path: "specs/rate/spec.md",
+        before: "- The rate is 3. ([validated by](src/rate.test.ts#L1))\n",
+        after: "- The rate is 3. ([validated by](src/rate.test.ts#L2))\n",
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    [calls.map(({ step }) => step), report.status],
+    [["story", "implementation", "issue"], "complete"],
+  );
+});
