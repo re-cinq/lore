@@ -1,3 +1,4 @@
+import { apiSegment } from "../../shared/api-segment.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
   textResult,
@@ -49,7 +50,7 @@ export async function readRun(read: RunRead): Promise<ToolText> {
 }
 
 export function runPath(runId: string, suffix = ""): string {
-  return `/api/assembly-runs/${encodeURIComponent(runId)}${suffix}`;
+  return `/api/assembly-runs/${apiSegment(runId)}${suffix}`;
 }
 
 export function queryString(

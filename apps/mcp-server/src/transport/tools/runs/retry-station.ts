@@ -1,6 +1,6 @@
+import { apiSegment, idParam } from "../shared/api-segment.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { userInfo } from "node:os";
-import { z } from "zod";
 import type { ProxyResult } from "../shared/deps.js";
 import type { ServerMode } from "../shared/repo-scope.js";
 import {
@@ -16,10 +16,9 @@ export const RETRY_STATION_DESCRIPTION =
 
 const RETRY_STATION_INPUT = {
   run_id: RUN_ID,
-  node: z
-    .string()
-    .min(1)
-    .describe("The node id of the station to run again, e.g. tdd-round."),
+  node: idParam.describe(
+    "The node id of the station to run again, e.g. tdd-round.",
+  ),
 };
 
 const OPEN_STATUSES = ["queued", "running"];
@@ -72,11 +71,8 @@ function retry(
   ask: Ask,
   mode: ServerMode,
 ): Promise<ProxyResult> {
-  return post(
-    runPath(ask.run_id, `/nodes/${encodeURIComponent(ask.node)}/run`),
-    {
-      requested_by:
-        mode === "agent" ? "lore-mcp:agent" : `lore-mcp:${userInfo().username}`,
-    },
-  );
+  return post(runPath(ask.run_id, `/nodes/${apiSegment(ask.node)}/run`), {
+    requested_by:
+      mode === "agent" ? "lore-mcp:agent" : `lore-mcp:${userInfo().username}`,
+  });
 }

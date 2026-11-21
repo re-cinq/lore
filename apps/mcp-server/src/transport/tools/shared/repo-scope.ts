@@ -39,7 +39,14 @@ export function resolveRepo(
     return isRepoName(explicit) ? explicit : null;
   }
 
-  return mode === "agent" ? null : detectCurrentRepo();
+  return mode === "agent" ? null : detectedRepo();
+}
+
+/** The checkout's repo, held to the same shape as a named one: the remote's address is input too, and it goes into the same paths. */
+function detectedRepo(): string | null {
+  const detected = detectCurrentRepo();
+
+  return detected && isRepoName(detected) ? detected : null;
 }
 
 export function resolveBranch(

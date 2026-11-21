@@ -125,6 +125,24 @@ describe("an explicit repo is validated before any API path is built from it", (
     });
   });
 
+  it.each(["../settings?", "owner/..", "owner/repo/extra", "owner/re po"])(
+    "treats a checkout whose remote reads %j as no repo detected, and never calls the read",
+    async (remote) => {
+      vi.mocked(detectCurrentRepo).mockReturnValueOnce(remote);
+      const read = vi.fn();
+
+      const answer = await withRepo({}, "full", read);
+
+      expect({
+        text: (answer as { content: { text: string }[] }).content[0].text,
+        reads: read.mock.calls.length,
+      }).toEqual({
+        text: "Could not detect repo. Specify repo parameter (e.g., 're-cinq/my-service').",
+        reads: 0,
+      });
+    },
+  );
+
   it("answers that no repo could be detected on a laptop outside a checkout, instead of sending an empty repo", async () => {
     vi.mocked(detectCurrentRepo).mockReturnValueOnce(null);
     const read = vi.fn();
