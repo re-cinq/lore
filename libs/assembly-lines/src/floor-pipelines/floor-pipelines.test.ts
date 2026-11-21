@@ -1906,6 +1906,14 @@ describe("test_policy on the review agent definitions", () => {
   });
 });
 
+describe("a change that adds and changes no test", () => {
+  it("tells review-story to say in its summary that the tests cannot show what the change does, and to tell unchanged tests only as what already holds", () => {
+    expect(promptOnOneLine("review-story")).toContain(
+      "When no file in /workspace/tests.json has a `diff`, the change adds and changes no test, and the tests cannot show what it does: say so in the first sentence of `summary` and nowhere in `story`, whose every paragraph names the tests it tells, and tell what the unchanged tests assert as what already holds, never as what the change does",
+    );
+  });
+});
+
 describe("a gap is posted on the line it is about, with a proposal", () => {
   it.each(["review-implementation", "review-issue"])(
     "tells %s to give every gap a kind, a location with path, line and side, and a proposal ready to paste, and to keep what matches out of the gaps",
