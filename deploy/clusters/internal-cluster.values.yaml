@@ -321,7 +321,7 @@ lore-stations:
   ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
     repository: ghcr.io/re-cinq/lore-security-stations
-    tag: "0d681eb"
+    tag: "5a50b18"
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: lore-stations@re-cinq-internal.iam.gserviceaccount.com
