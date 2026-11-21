@@ -37,8 +37,11 @@ ownershipReconciler:
   # relation in it as `postgres`. `pipeline` is the original case
   # (job_runs.log_path migration); add new entries when introducing a
   # ui-helm/migrations/ file that DDLs another postgres-owned schema.
+  # `lore`: lore.repos was created by postgres on clusters bootstrapped
+  # before the baseline ran as `lore`, and 0131 indexes it.
   schemas:
     - pipeline
+    - lore
   # Role that should own the schemas after reconciliation. The
   # ui-helm migration runner connects as this role.
   targetRole: lore
