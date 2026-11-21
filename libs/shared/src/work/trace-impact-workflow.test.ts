@@ -42,6 +42,12 @@ describe("TRACE_IMPACT_WORKFLOW_CONTENT", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("conclusion: 'neutral'");
   });
 
+  it("checks out with persist-credentials: false, so the write token is not left in git config", () => {
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
+      "      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n          persist-credentials: false\n",
+    );
+  });
+
   it("grants the permissions needed to post checks and PR comments", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("checks: write");
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("pull-requests: write");
