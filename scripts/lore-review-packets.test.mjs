@@ -60,6 +60,24 @@ test("an unchanged file the change is about, such as its own test or a fixture, 
   ]);
 });
 
+test("a generated file travels as its diff, marked generated, with no text on either side", () => {
+  const diff = "@@ -2 +2 @@\n-  listed: string;\n+  archived: string;";
+  const { code_evidence: code } = packets({
+    path: "api/schema.d.ts",
+    role: "code",
+    generated: true,
+    before: null,
+    after: null,
+    diff,
+  });
+
+  assert.deepEqual(code.files[1], {
+    path: "api/schema.d.ts",
+    generated: true,
+    diff,
+  });
+});
+
 test("a context file that names nothing the pull request changes is left out", () => {
   const unrelated = lines(40, 30, "import { enforce } from './enforce';");
   const { code_evidence: code } = packets({

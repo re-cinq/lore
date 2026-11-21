@@ -142,6 +142,7 @@ describe("readFloorMigrations", () => {
         "floor/0023_code_writers_back_on_claude",
         "floor/0024_review_back_on_claude",
         "floor/0025_story_without_test_changes",
+        "floor/0026_review_reads_generated_files_as_diff",
       ],
       unshipped: [],
     });
@@ -451,6 +452,20 @@ describe("floor/0025_story_without_test_changes", () => {
 
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt review-story",
+    ]);
+  });
+});
+
+describe("floor/0026_review_reads_generated_files_as_diff", () => {
+  it("writes the shipped prompts of review-story, review-implementation and review-issue, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0026_review_reads_generated_files_as_diff",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt review-story",
+      "prompt review-implementation",
+      "prompt review-issue",
     ]);
   });
 });

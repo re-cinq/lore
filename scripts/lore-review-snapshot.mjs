@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { posix } from "node:path";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, posix } from "node:path";
 import { promisify, parseArgs } from "node:util";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
 import { referenceStem } from "./lore-review-packets.mjs";
@@ -13,12 +15,12 @@ const maxEvidenceBytes = 2 * 1024 * 1024;
 // A change the collector cannot hand to the code and test readers; the whole-diff reviewer takes it.
 class UnsplittableChange extends Error {}
 
-async function git(args, { emptyOnNoMatch = false } = {}) {
+async function git(args, { emptyOnNoMatch = false, env = {} } = {}) {
   try {
     const { stdout } = await runFile("git", ["--no-replace-objects", ...args], {
       encoding: "buffer",
       maxBuffer: 8 * 1024 * 1024,
-      env: { ...process.env, GIT_NO_LAZY_FETCH: "1" },
+      env: { ...process.env, GIT_NO_LAZY_FETCH: "1", ...env },
     });
 
     return stdout;
@@ -34,6 +36,43 @@ async function git(args, { emptyOnNoMatch = false } = {}) {
 
 function records(bytes) {
   return decoder.decode(bytes).split("\0").slice(0, -1);
+}
+
+// The paths the revision's .gitattributes marks linguist-generated. Read through a throwaway index: the image's git (2.39) has no check-attr --source.
+async function generatedPaths(revision, paths) {
+  if (paths.length === 0) {
+    return new Set();
+  }
+  const env = {
+    GIT_INDEX_FILE: join(tmpdir(), `lore-review-attributes-${process.pid}`),
+  };
+
+  try {
+    await git(["read-tree", revision], { env });
+    const fields = records(
+      await git(
+        ["check-attr", "--cached", "-z", "linguist-generated", "--", ...paths],
+        { env },
+      ),
+    );
+    const generated = new Set();
+
+    for (let index = 0; index < fields.length; index += 3) {
+      if (["set", "true"].includes(fields[index + 2])) {
+        generated.add(fields[index]);
+      }
+    }
+
+    return generated;
+  } finally {
+    await rm(env.GIT_INDEX_FILE, { force: true });
+  }
+}
+
+function enforceEvidenceLimit(bytes) {
+  if (bytes > maxEvidenceBytes) {
+    throw new UnsplittableChange(`Evidence exceeds ${maxEvidenceBytes} bytes`);
+  }
 }
 
 async function tree(revision) {
@@ -318,6 +357,7 @@ async function capture(base, head, includes, comparisonBase, scope) {
     tree(head),
   ]);
   const changed = records(changedBytes).filter((path) => !markdown.test(path));
+  const generated = await generatedPaths(head, changed);
   const stems = [...new Set(changed.map(referenceStem))].filter(Boolean);
   const imported = await Promise.all([
     modulesUsedByChangedTests(changed, beforeTree),
@@ -399,6 +439,34 @@ async function capture(base, head, includes, comparisonBase, scope) {
     if (beforeEntry && afterEntry && beforeEntry.mode !== afterEntry.mode) {
       throw new UnsplittableChange(`Git file mode changed for ${path}`);
     }
+
+    // A generated file is read for what changed in it: whole, one API schema is three quarters of a packet.
+    if (generated.has(path)) {
+      const diff = decoder.decode(
+        await git([
+          "diff",
+          "--no-ext-diff",
+          "--no-color",
+          mergeBase,
+          head,
+          "--",
+          ":(literal)" + path,
+        ]),
+      );
+
+      totalBytes += Buffer.byteLength(diff);
+      enforceEvidenceLimit(totalBytes);
+      files.push({
+        path,
+        role: "code",
+        generated: true,
+        before: null,
+        after: null,
+        diff,
+      });
+
+      return;
+    }
     const before = await source(path, beforeEntry);
     const after =
       beforeEntry?.hash === afterEntry?.hash &&
@@ -426,11 +494,7 @@ async function capture(base, head, includes, comparisonBase, scope) {
       Buffer.byteLength(before ?? "") +
       (before === after ? 0 : Buffer.byteLength(after ?? ""));
 
-    if (totalBytes > maxEvidenceBytes) {
-      throw new UnsplittableChange(
-        `Evidence exceeds ${maxEvidenceBytes} bytes`,
-      );
-    }
+    enforceEvidenceLimit(totalBytes);
     files.push({
       path,
       role,

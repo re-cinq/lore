@@ -161,6 +161,43 @@ test("a change with more than 2 MiB of evidence asks for the whole-diff reviewer
   });
 });
 
+test("a 1.6 MB file .gitattributes marks linguist-generated goes as its diff alone", (t) => {
+  const { write, commit, snapshot } = repository(t);
+  const schema = (field) =>
+    "export interface paths {\n" +
+    "  /** generated */\n".repeat(80_000) +
+    `  ${field}: string;\n}\n`;
+
+  write(".gitattributes", "api/schema.d.ts linguist-generated\n");
+  write("api/schema.d.ts", schema("listed"));
+  write("routes.ts", "export const routes = [];\n");
+  const base = commit();
+
+  write("api/schema.d.ts", schema("archived"));
+  write("routes.ts", 'export const routes = ["archive"];\n');
+  const head = commit();
+  const { exitCode, output } = snapshot(base, head);
+  const generated = output.files?.find(
+    ({ path }) => path === "api/schema.d.ts",
+  );
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(
+    {
+      ...generated,
+      diff: generated?.diff?.split("\n").filter((line) => /^[-+] /.test(line)),
+    },
+    {
+      path: "api/schema.d.ts",
+      role: "code",
+      generated: true,
+      before: null,
+      after: null,
+      diff: ["-  listed: string;", "+  archived: string;"],
+    },
+  );
+});
+
 test("a Markdown-only change asks for the whole-diff reviewer", (t) => {
   const { write, commit, snapshot } = repository(t);
 
