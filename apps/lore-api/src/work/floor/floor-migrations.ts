@@ -26,6 +26,15 @@ export interface FloorMigrationApi {
 
 export type FloorMigration = (floor: FloorMigrationApi) => Promise<void>;
 
+/** A migration that writes each named agent's model and prices from its own shipped file, <agent>.md. */
+export function shippedModelsOf(agents: readonly string[]): FloorMigration {
+  return async ({ updateModel }) => {
+    for (const agent of agents) {
+      await updateModel(agent, `${agent}.md`);
+    }
+  };
+}
+
 export interface NamedFloorMigration {
   version: string;
   migrate: FloorMigration;
