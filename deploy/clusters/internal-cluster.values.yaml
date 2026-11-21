@@ -272,7 +272,7 @@ lore-api:
     enabled: true
     skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
     # Bumped by build-agent-image.yml; the release script reads the tag from here.
-    agentImage: ghcr.io/re-cinq/lore-agent:62eef95
+    agentImage: ghcr.io/re-cinq/lore-agent:49085c8
   utopia:
     enabled: true
     apiUrl: http://utopia.utopia.svc.cluster.local
