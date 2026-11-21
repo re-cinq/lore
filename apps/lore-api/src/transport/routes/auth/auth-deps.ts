@@ -5,7 +5,7 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { Pool } from "pg";
 import {
   exchangeCode,
-  fetchUserRepos,
+  fetchInstallationRepos,
   fetchOrgRole,
   fetchViewer,
   type GithubRepo,
@@ -47,7 +47,7 @@ export function authDeps(
       exchangeCode,
       fetchViewer,
       fetchOrgRole,
-      fetchUserRepos,
+      fetchUserRepos: installationRepos,
     },
     config: injected.config ?? (() => oauthConfigFrom(process.env)),
     getPool,
@@ -61,6 +61,19 @@ export function requireConfig(deps: AuthDeps): OAuthConfig {
   enforceTrue(config, apiError(503), "github oauth not configured");
 
   return config;
+}
+
+/** The repositories of the App's installation the person can open, asked with their token. */
+async function installationRepos(token: string): Promise<GithubRepo[]> {
+  const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
+
+  enforceTrue(
+    installationId,
+    apiError(503),
+    "github app installation not configured",
+  );
+
+  return fetchInstallationRepos(token, installationId);
 }
 
 function poolOf(getPool: () => Pool | null): Pool {

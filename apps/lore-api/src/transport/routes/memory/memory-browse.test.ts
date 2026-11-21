@@ -183,8 +183,8 @@ describe("memory browse reads", () => {
       await get("/api/memory-search?q=cache", pool);
 
       expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([
-        ["cache", null],
-        ["cache", null],
+        ["cache", null, null],
+        ["cache", null, null],
       ]);
       expect(pool.query.mock.calls[0][0]).not.toContain("NULL as repo");
       expect(pool.query.mock.calls[1][0]).toContain("COALESCE(m.repo,");
@@ -244,8 +244,8 @@ describe("memory browse reads", () => {
       await get("/api/memory-search?q=cache&repo=re-cinq%2Flore", pool);
 
       expect(pool.query.mock.calls.map(([, params]) => params)).toEqual([
-        ["cache", "re-cinq/lore"],
-        ["cache", "re-cinq/lore"],
+        ["cache", "re-cinq/lore", null],
+        ["cache", "re-cinq/lore", null],
       ]);
       expect(pool.query.mock.calls[0][0]).toContain(
         "AND ($2::text IS NULL OR repo IS NULL OR repo = $2)",

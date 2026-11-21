@@ -9,6 +9,11 @@ import { z } from "zod";
 import { getAvailableRepos } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import {
+  readableReposOf,
+  repoLevel,
+  SPANS_REPOS,
+} from "../../http/repo-guard.js";
 import { withPool } from "../with-pool.js";
 import { githubFailureResponse } from "./github-read.js";
 
@@ -24,7 +29,7 @@ export function availableReposRoute(getPool: () => Pool | null): ServerRoute {
     method: "GET",
     path: "/api/repos/available",
     options: zodResponse(
-      { ...bearerScope("read") },
+      { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
       z.array(AvailableRepoWire),
       {
         name: "AvailableRepos",
@@ -37,12 +42,28 @@ export function availableReposRoute(getPool: () => Pool | null): ServerRoute {
 
 async function serveAvailableRepos(
   pool: Pool,
-  _request: Request,
+  request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    return h.response(await getAvailableRepos(pool));
+    const available = await getAvailableRepos(pool);
+
+    return h.response(visibleTo(available, readableReposOf(request)));
   } catch (err) {
     return githubFailureResponse(err, h, "installation repositories");
   }
+}
+
+function visibleTo<T extends { full_name: string }>(
+  repos: T[],
+  readable: string[] | null,
+): T[] {
+  if (readable === null) {
+    return repos;
+  }
+  const allowed = readable.map((name) => name.toLowerCase());
+
+  return repos.filter(({ full_name }) =>
+    allowed.includes(full_name.toLowerCase()),
+  );
 }

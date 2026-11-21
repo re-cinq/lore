@@ -2,7 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /** Bearer-token scope auth as a hapi scheme + strategy (ADR-033). */
 
 import Boom from "@hapi/boom";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { apiError, rethrowBoom } from "@re-cinq/lore-shared/http/api-error.js";
 import type {
   Server,
   ServerAuthScheme,
@@ -76,6 +76,7 @@ async function principalFor(
   try {
     return await resolvePrincipal(pool, bearer);
   } catch (err) {
+    rethrowBoom(err);
     request.log(["error", "db"], err as Error);
     throw apiError(503)("database unavailable");
   }

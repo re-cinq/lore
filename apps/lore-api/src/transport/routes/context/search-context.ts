@@ -13,6 +13,7 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { readableReposOf, repoLevel } from "../../http/repo-guard.js";
 import { clampedLimit } from "../common-schemas.js";
 import {
   KnowledgeBackendSchema,
@@ -53,23 +54,22 @@ type SearchContextResult = z.infer<
 
 type SearchContextQuery = z.infer<typeof SearchContextQuery>;
 
+const searchContextAuth = {
+  ...bearerScope("read"),
+  ...repoLevel("read", { from: "query", name: "repo" }),
+  validate: { query: zodValidate(SearchContextQuery) },
+};
+
 export function searchContextRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/search-context",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(SearchContextQuery) },
-      },
-      SearchContextResultSchema,
-      {
-        name: "SearchContextResults",
-        description:
-          "Hybrid vector + BM25 passages from the ingested corpus, highest-scoring first",
-        errors: [400],
-      },
-    ),
+    options: zodResponse(searchContextAuth, SearchContextResultSchema, {
+      name: "SearchContextResults",
+      description:
+        "Hybrid vector + BM25 passages from the ingested corpus, highest-scoring first",
+      errors: [400],
+    }),
     handler: (request, h) => serveSearchContext(getPool(), request, h),
   };
 }
@@ -81,17 +81,31 @@ async function serveSearchContext(
 ): Promise<ResponseObject> {
   const { query, team, limit, backend, repo } =
     request.query as SearchContextQuery;
+  const readable = readableReposOf(request);
   const arm = await utopiaArmFor(pool, repo);
-  const labelLore = backend === "both" ? labelledLore : toWire;
+  const loreArm = () =>
+    searchLoreArm({ query, team, limit, readable, backend });
   const { results, notes } = await searchBackend(
     backend,
     "search_context",
-    async () =>
-      (await searchWithOrgSharedFallback(query, team, limit)).map(labelLore),
+    loreArm,
     arm && (() => searchDocsSource(arm, query, limit)),
   );
 
   return h.response(notes.length > 0 ? { results, notes } : { results });
+}
+
+async function searchLoreArm(args: {
+  query: string;
+  team: string | undefined;
+  limit: number;
+  readable: string[] | null;
+  backend: string;
+}): Promise<SearchContextResult[]> {
+  const { query, team, limit, readable, backend } = args;
+  const found = await searchWithOrgSharedFallback(query, team, limit, readable);
+
+  return found.map(backend === "both" ? labelledLore : toWire);
 }
 
 async function utopiaArmFor(pool: Pool | null, repo: string | undefined) {
@@ -105,15 +119,16 @@ async function searchWithOrgSharedFallback(
   query: string,
   team: string | undefined,
   limit: number,
+  readable: string[] | null,
 ): Promise<SearchResult[]> {
   const schema = team || "org_shared";
-  const results = await hybridSearch(query, schema, limit);
+  const results = await hybridSearch(query, schema, limit, readable);
 
   if (results.length > 0 || !team || team === "org_shared") {
     return results;
   }
 
-  return hybridSearch(query, "org_shared", limit);
+  return hybridSearch(query, "org_shared", limit, readable);
 }
 
 function toWire(result: SearchResult): SearchContextResult {

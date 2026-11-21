@@ -13,6 +13,15 @@ export function buildHybridCorpusBoundSQL(schema: string): string {
   return buildCorpusSQL(schema, `WHERE repo = $4`, `AND repo = $4`);
 }
 
+/** Corpus search over the repos a person may read — $1=embedding, $2=keyword terms, $3=LIMIT, $4=lower-cased repo names. Rows with no repo are left out. */
+export function buildHybridCorpusReadableSQL(schema: string): string {
+  return buildCorpusSQL(
+    schema,
+    `WHERE lower(repo) = ANY($4::text[])`,
+    `AND lower(repo) = ANY($4::text[])`,
+  );
+}
+
 // eslint-disable-next-line max-lines-per-function -- one SQL statement returned whole: the two CTEs and the RRF join are read together as a query, and cutting them into string fragments would hide the join they exist for
 function buildCorpusSQL(
   schema: string,

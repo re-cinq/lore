@@ -530,6 +530,7 @@ async function malformedCallbackAndRedeemStatuses(
 
 function configureAppSignInEnv(): void {
   process.env.GITHUB_APP_ID = "99999";
+  process.env.GITHUB_APP_INSTALLATION_ID = "12345";
   process.env.GITHUB_APP_CLIENT_ID = "Iv1.app-client-1";
   process.env.GITHUB_APP_CLIENT_SECRET = "app-secret-1";
   process.env.GITHUB_OAUTH_CLIENT_ID = "oauth-client-1";
@@ -647,8 +648,12 @@ function githubGetReply(url: string, stubOptions: GithubStubOptions): Response {
       { state: "active", role: "member" },
     ],
     [
-      "https://api.github.com/user/repos",
-      [{ full_name: "re-cinq/lore", owner: { login: "re-cinq" } }],
+      "https://api.github.com/user/installations/12345/repositories",
+      {
+        repositories: [
+          { full_name: "re-cinq/lore", owner: { login: "re-cinq" } },
+        ],
+      },
     ],
     ["https://api.github.com/user", viewer],
   ];

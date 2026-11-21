@@ -101,6 +101,32 @@ export function fetchUserRepos(
   );
 }
 
+/** Every repo of the installation the person can open, read to its last page; a failing page throws so no partial list is ever taken for the whole. */
+export async function fetchInstallationRepos(
+  token: string,
+  installationId: string,
+  fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
+): Promise<GithubRepo[]> {
+  const repos: GithubRepo[] = [];
+  let url: string | null =
+    `${githubUrls(host).api}/user/installations/${encodeURIComponent(installationId)}/repositories?per_page=100`;
+
+  while (url) {
+    const res = await getJson(url, token, fetchImpl);
+
+    if (!res.ok) {
+      throw new Error(`GitHub answered ${res.status} for ${url}`);
+    }
+    const body = (await res.json()) as { repositories?: GithubRepo[] };
+
+    repos.push(...(body.repositories ?? []));
+    url = nextPageUrl(res.headers.get("link"));
+  }
+
+  return repos;
+}
+
 async function reposFrom(
   url: string | null,
   token: string,

@@ -12,6 +12,7 @@ import { extractKeyTerms } from "@re-cinq/lore-shared/project/knowledge/context-
 import {
   buildHybridCorpusOrgWideSQL,
   buildHybridCorpusBoundSQL,
+  buildHybridCorpusReadableSQL,
 } from "@re-cinq/lore-shared/project/knowledge/hybrid-rrf-core.js";
 
 // Re-exported from shared embedding-service singleton for back-compat.
@@ -84,11 +85,14 @@ export interface SearchResult {
 
 // ── Hybrid search (RRF) ──────────────────────────────────────────────
 
+/** A repo name binds the search to that repo ("" to repo-less rows); a list restricts it to those repos; undefined or null leaves it org-wide. */
+export type SearchScope = string | string[] | null | undefined;
+
 export async function hybridSearch(
   query: string,
   schema: string,
   limit: number = 8,
-  repo?: string,
+  scope?: SearchScope,
 ): Promise<SearchResult[]> {
   if (!(await isDbAvailable())) {
     return [];
@@ -98,8 +102,8 @@ export async function hybridSearch(
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
 
   return embedding
-    ? runHybridSQL({ embedding, keywordQuery, schema: resolved, limit, repo })
-    : keywordOnlySearch(query, resolved, limit, repo);
+    ? runHybridSQL({ embedding, keywordQuery, schema: resolved, limit, scope })
+    : keywordOnlySearch({ query, schema: resolved, limit, scope });
 }
 
 async function runHybridSQL(options: {
@@ -107,44 +111,80 @@ async function runHybridSQL(options: {
   keywordQuery: string;
   schema: string;
   limit: number;
-  repo?: string;
+  scope: SearchScope;
 }): Promise<SearchResult[]> {
-  const { embedding, keywordQuery, schema, limit, repo } = options;
-  const embeddingStr = `[${embedding.join(",")}]`;
-  const sql =
-    repo !== undefined
-      ? buildHybridCorpusBoundSQL(schema)
-      : buildHybridCorpusOrgWideSQL(schema);
-  const params: unknown[] = [embeddingStr, keywordQuery, limit];
-
-  if (repo) {
-    params.push(repo);
-  }
+  const { embedding, keywordQuery, schema, limit, scope } = options;
+  const params: unknown[] = [`[${embedding.join(",")}]`, keywordQuery, limit];
+  const sql = hybridSqlFor(schema, scope, params);
   const { rows } = await getPool().query(sql, params);
 
   return normalizeSearchScores(rows as SearchResult[]);
 }
 
-// Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
-async function keywordOnlySearch(
-  query: string,
+function hybridSqlFor(
   schema: string,
-  limit: number,
-  repo?: string,
-): Promise<SearchResult[]> {
-  const params: unknown[] = repo ? [query, limit, repo] : [query, limit];
-  const { rows } = await getPool().query(
-    `
-      SELECT id, content, metadata,
-             ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
-      FROM ${schema}.chunks
-      WHERE search_tsv @@ plainto_tsquery($1) ${repo ? "AND repo = $3" : ""}
-      ORDER BY rrf_score DESC
-      LIMIT $2;`,
-    params,
-  );
+  scope: SearchScope,
+  params: unknown[],
+): string {
+  if (typeof scope === "string") {
+    pushIfSet(scope, params);
+
+    return buildHybridCorpusBoundSQL(schema);
+  }
+
+  if (!scope) {
+    return buildHybridCorpusOrgWideSQL(schema);
+  }
+  params.push(lowered(scope));
+
+  return buildHybridCorpusReadableSQL(schema);
+}
+
+// Keyword-only, for when no embedding could be obtained. Degraded rather than empty: a repo whose embeddings are unavailable still answers a search, and the caller cannot tell the difference except in ranking.
+async function keywordOnlySearch(options: {
+  query: string;
+  schema: string;
+  limit: number;
+  scope: SearchScope;
+}): Promise<SearchResult[]> {
+  const { query, schema, limit, scope } = options;
+  const params: unknown[] = [query, limit];
+  const filter = keywordFilter(scope, params);
+  const sql = `
+    SELECT id, content, metadata,
+           ts_rank(search_tsv, plainto_tsquery($1)) AS rrf_score
+    FROM ${schema}.chunks
+    WHERE search_tsv @@ plainto_tsquery($1) ${filter}
+    ORDER BY rrf_score DESC
+    LIMIT $2;`;
+  const { rows } = await getPool().query(sql, params);
 
   return rows as SearchResult[];
+}
+
+function keywordFilter(scope: SearchScope, params: unknown[]): string {
+  if (typeof scope === "string") {
+    pushIfSet(scope, params);
+
+    return scope ? "AND repo = $3" : "";
+  }
+
+  if (!scope) {
+    return "";
+  }
+  params.push(lowered(scope));
+
+  return "AND lower(repo) = ANY($3::text[])";
+}
+
+function pushIfSet(value: string, params: unknown[]): void {
+  if (value) {
+    params.push(value);
+  }
+}
+
+function lowered(names: string[]): string[] {
+  return names.map((name) => name.toLowerCase());
 }
 
 function normalizeSearchScores(rows: SearchResult[]): SearchResult[] {

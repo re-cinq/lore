@@ -2,6 +2,7 @@
 
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
+import { refreshedRepos } from "../../work/auth/session-repo-refresh.js";
 import { verifyIdentityToken } from "./ci-identity-token.js";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
@@ -113,6 +114,9 @@ export interface Principal {
 }
 
 interface TokenRow {
+  id: string;
+  reposRefreshedAt?: Date | null;
+  encryptedTokens?: string | null;
   scopes: TokenScope[];
   kind?: string;
   login?: string | null;
@@ -171,25 +175,52 @@ export async function resolveTokenScopes(
 }
 
 // One UPDATE…RETURNING so a lookup also stamps last_used
+const LOOKUP_PRINCIPAL_SQL = `UPDATE pipeline.api_tokens SET last_used = now()
+       WHERE token_hash = $1 AND revoked_at IS NULL
+         AND (expires_at IS NULL OR expires_at > now())
+       RETURNING id, scopes, kind, login, display_name AS "displayName",
+                 avatar_url AS "avatarUrl", repos,
+                 repos_refreshed_at AS "reposRefreshedAt",
+                 (SELECT encrypted_tokens FROM pipeline.user_session_tokens
+                   WHERE token_id = pipeline.api_tokens.id) AS "encryptedTokens",
+                 created_at AS "startedAt", expires_at AS "expiresAt"`;
+
 async function lookupPrincipal(
   pool: Pool,
   tokenHash: string,
 ): Promise<Principal | null> {
-  const { rows } = await pool.query<TokenRow>(
-    `UPDATE pipeline.api_tokens SET last_used = now()
-       WHERE token_hash = $1 AND revoked_at IS NULL
-         AND (expires_at IS NULL OR expires_at > now())
-       RETURNING scopes, kind, login, display_name AS "displayName",
-                 avatar_url AS "avatarUrl", repos,
-                 created_at AS "startedAt", expires_at AS "expiresAt"`,
-    [tokenHash],
-  );
+  const { rows } = await pool.query<TokenRow>(LOOKUP_PRINCIPAL_SQL, [
+    tokenHash,
+  ]);
 
   if (rows.length === 0) {
     return null;
   }
 
-  return { scopes: rows[0].scopes, user: userOf(rows[0]), tokenHash };
+  const user = await userWithFreshRepos(pool, rows[0]);
+
+  return { scopes: rows[0].scopes, user, tokenHash };
+}
+
+async function userWithFreshRepos(
+  pool: Pool,
+  row: TokenRow,
+): Promise<UserIdentity | null> {
+  const user = userOf(row);
+
+  if (user) {
+    user.repos = await refreshedRepos(
+      pool,
+      {
+        id: row.id,
+        reposRefreshedAt: row.reposRefreshedAt ?? null,
+        encryptedTokens: row.encryptedTokens ?? null,
+      },
+      user.repos,
+    );
+  }
+
+  return user;
 }
 
 function userOf(row: TokenRow): UserIdentity | null {
