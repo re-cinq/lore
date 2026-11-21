@@ -1120,7 +1120,7 @@ describe("the floor pipelines shipped in this folder", () => {
     },
   );
 
-  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, and the story review and the reply on gemini-4-argon", () => {
+  it("runs the implementation loop on claude-sonnet-5-5 for tdd-round, claude-opus-5-5 for test-review, gemini-4-carbon for fix-ci and sync and gemini-4-hydrogen for dod, and the story review and the reply on claude-sonnet-5-5", () => {
     const loop = pipelineOf("implementation-loop").agent_definitions ?? {};
     const wholeDiffReviewers = ["code-review", "code-review-recheck"];
     const modelsOf = (ids: string[]): string[] =>
@@ -1153,8 +1153,8 @@ describe("the floor pipelines shipped in this folder", () => {
       testReview: "claude-opus-5-5",
       fixCi: "gemini-4-carbon",
       restOfLoop: ["gemini-4-carbon", "gemini-4-hydrogen"],
-      reviewers: ["gemini-4-argon"],
-      reply: ["gemini-4-argon"],
+      reviewers: ["claude-sonnet-5-5"],
+      reply: ["claude-sonnet-5-5"],
     });
   });
 
@@ -2175,19 +2175,24 @@ function promptOnOneLine(name: string): string {
 }
 
 describe("the models the shipped agents run on", () => {
-  it("names a Gemini model in every agent file but the three that write code and the six that plan and write specs, on claude-sonnet-5-5, and loop-test-review, on claude-opus-5-5", () => {
+  it("names a Gemini model in every agent file but the three that write code, the six that plan and write specs and the five that review and reply, on claude-sonnet-5-5, and loop-test-review, on claude-opus-5-5", () => {
     expect(
       [...DEFAULT_AGENTS.entries()]
         .map(([agent, settings]) => [agent, String(settings.model)])
         .filter(([, model]) => !model.startsWith("gemini-"))
         .sort(),
     ).toEqual([
+      ["code-review-refine", "claude-sonnet-5-5"],
       ["loop-tdd-round", "claude-sonnet-5-5"],
       ["loop-test-review", "claude-opus-5-5"],
       ["onboard-author", "claude-sonnet-5-5"],
       ["plan-analyze", "claude-sonnet-5-5"],
       ["plan-sketch", "claude-sonnet-5-5"],
       ["plan-validate", "claude-sonnet-5-5"],
+      ["review-docs", "claude-sonnet-5-5"],
+      ["review-implementation", "claude-sonnet-5-5"],
+      ["review-issue", "claude-sonnet-5-5"],
+      ["review-story", "claude-sonnet-5-5"],
       ["spec-analysis", "claude-sonnet-5-5"],
       ["spec-rework", "claude-sonnet-5-5"],
       ["spec-upkeep-update-specs", "claude-sonnet-5-5"],

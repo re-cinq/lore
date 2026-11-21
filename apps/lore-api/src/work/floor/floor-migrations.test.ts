@@ -140,6 +140,7 @@ describe("readFloorMigrations", () => {
         "floor/0021_issue_check_reads_the_implementation_check",
         "floor/0022_every_agent_on_gemini",
         "floor/0023_code_writers_back_on_claude",
+        "floor/0024_review_back_on_claude",
       ],
       unshipped: [],
     });
@@ -423,6 +424,20 @@ describe("floor/0023_code_writers_back_on_claude", () => {
       "model spec-analysis",
       "model spec-write",
       "model spec-rework",
+    ]);
+  });
+});
+
+describe("floor/0024_review_back_on_claude", () => {
+  it("writes the model of the four story review agents and of code-review-refine, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0024_review_back_on_claude");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "model review-story",
+      "model review-implementation",
+      "model review-issue",
+      "model review-docs",
+      "model code-review-refine",
     ]);
   });
 });
