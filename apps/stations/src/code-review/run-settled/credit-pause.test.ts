@@ -22,7 +22,7 @@ const NOW = new Date("2026-10-30T10:00:00.000Z");
 
 function scene(lineId: string, outcome: string, visits: VisitView[]) {
   const pauses: Array<{ repo: string; key: LoopKey; pause: LoopPause }> = [];
-  let nextCalled = false;
+  let pausesWhenHandedOn: number | null = null;
   const handle = pausingLoopsOnCredit(
     {
       run: () =>
@@ -36,7 +36,7 @@ function scene(lineId: string, outcome: string, visits: VisitView[]) {
       now: () => NOW,
     },
     (): Promise<Report> => {
-      nextCalled = true;
+      pausesWhenHandedOn = pauses.length;
 
       return Promise.resolve({ outcome: "success" });
     },
@@ -51,7 +51,11 @@ function scene(lineId: string, outcome: string, visits: VisitView[]) {
       TOOLS,
     );
 
-  return { settle, pauses, nextCalled: () => nextCalled };
+  return {
+    settle,
+    pauses,
+    pausesWhenHandedOn: () => pausesWhenHandedOn,
+  };
 }
 
 describe("pausingLoopsOnCredit", () => {
@@ -122,13 +126,25 @@ describe("pausingLoopsOnCredit", () => {
     expect(pauses).toEqual([]);
   });
 
-  it("hands the settled run on to the next step after pausing", async () => {
-    const { settle, nextCalled } = scene("issue-triage", "failed", [
+  it("pauses nothing when check-issue ran out of credit and review-whole reviewed the pull request instead", async () => {
+    const { settle, pauses } = scene("code-review", "success", [
+      planVisit("check-issue", { outcome: "failed", error: CREDIT }),
+      planVisit("publish-incomplete", { outcome: "success" }),
+      planVisit("review-whole", { outcome: "success" }),
+    ]);
+
+    await settle();
+
+    expect(pauses).toEqual([]);
+  });
+
+  it("hands the settled run on to the next step once the triage pause is written", async () => {
+    const { settle, pausesWhenHandedOn } = scene("issue-triage", "failed", [
       planVisit("triage", { outcome: "failed", error: CREDIT }),
     ]);
 
     expect(await settle()).toEqual({ outcome: "success" });
-    expect(nextCalled()).toBe(true);
+    expect(pausesWhenHandedOn()).toBe(1);
   });
 
   it("pauses the triage loop when reproduce ran out of credit and the run ended green through label-failed", async () => {
