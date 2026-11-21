@@ -2175,7 +2175,7 @@ function promptOnOneLine(name: string): string {
 }
 
 describe("the models the shipped agents run on", () => {
-  it("names a Gemini model in every agent file but the three that write code, on claude-sonnet-5-5, and loop-test-review, on claude-opus-5-5", () => {
+  it("names a Gemini model in every agent file but the three that write code and the six that plan and write specs, on claude-sonnet-5-5, and loop-test-review, on claude-opus-5-5", () => {
     expect(
       [...DEFAULT_AGENTS.entries()]
         .map(([agent, settings]) => [agent, String(settings.model)])
@@ -2185,7 +2185,13 @@ describe("the models the shipped agents run on", () => {
       ["loop-tdd-round", "claude-sonnet-5-5"],
       ["loop-test-review", "claude-opus-5-5"],
       ["onboard-author", "claude-sonnet-5-5"],
+      ["plan-analyze", "claude-sonnet-5-5"],
+      ["plan-sketch", "claude-sonnet-5-5"],
+      ["plan-validate", "claude-sonnet-5-5"],
+      ["spec-analysis", "claude-sonnet-5-5"],
+      ["spec-rework", "claude-sonnet-5-5"],
       ["spec-upkeep-update-specs", "claude-sonnet-5-5"],
+      ["spec-write", "claude-sonnet-5-5"],
     ]);
   });
 });

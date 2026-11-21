@@ -407,7 +407,7 @@ describe("floor/0022_every_agent_on_gemini", () => {
 });
 
 describe("floor/0023_code_writers_back_on_claude", () => {
-  it("writes the model of the three agents that write code and of loop-test-review, and nothing else", async () => {
+  it("writes the model of the three agents that write code, of loop-test-review and of the six planning and spec-writing agents, and nothing else", async () => {
     const { writes } = await everyWrite(
       "floor/0023_code_writers_back_on_claude",
     );
@@ -417,6 +417,12 @@ describe("floor/0023_code_writers_back_on_claude", () => {
       "model loop-test-review",
       "model spec-upkeep-update-specs",
       "model onboard-author",
+      "model plan-analyze",
+      "model plan-sketch",
+      "model plan-validate",
+      "model spec-analysis",
+      "model spec-write",
+      "model spec-rework",
     ]);
   });
 });
