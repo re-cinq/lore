@@ -105,7 +105,10 @@ async function orgUpdateOutcome(
 }
 
 /** A pack-managed org default is the pack repo's to change (specs/client-packs). */
-async function enforceNotPackManaged(pool: Pool, name: string): Promise<void> {
+export async function enforceNotPackManaged(
+  pool: Pool,
+  name: string,
+): Promise<void> {
   enforceTrue(
     !(await packManagedNames(pool)).includes(name),
     apiError(409),
@@ -180,7 +183,7 @@ function withoutClearedRequired(
   );
 }
 
-async function audit(
+export async function audit(
   pool: Pool,
   eventType: string,
   payload: unknown,
