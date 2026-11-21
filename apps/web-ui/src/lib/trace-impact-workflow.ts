@@ -3,7 +3,7 @@
 export const TRACE_IMPACT_WORKFLOW_PATH =
   ".github/workflows/lore-trace-impact.yml";
 
-export const TRACE_IMPACT_WORKFLOW_VERSION = 2;
+export const TRACE_IMPACT_WORKFLOW_VERSION = 3;
 
 export type TraceImpactWorkflowStatus = "missing" | "stale" | "aligned";
 

@@ -3,9 +3,9 @@
 export const TRACE_IMPACT_WORKFLOW_PATH =
   ".github/workflows/lore-trace-impact.yml";
 
-export const TRACE_IMPACT_WORKFLOW_VERSION = 2;
+export const TRACE_IMPACT_WORKFLOW_VERSION = 3;
 
-export const TRACE_IMPACT_WORKFLOW_CONTENT = `# lore-trace-impact-version: 2
+export const TRACE_IMPACT_WORKFLOW_CONTENT = `# lore-trace-impact-version: 3
 name: Lore Spec Impact
 
 on:
@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Read graph baseline
         id: baseline
