@@ -22,6 +22,7 @@ describe("repository level declarations and guard", () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    globalThis.fetch = originalFetch;
   });
 
   it("refuses a person a repository named in a payload, a query, or a record with 403 before the handler runs", async () => {
@@ -390,9 +391,15 @@ function isBlockedHandlerQuery(sql: string): boolean {
   );
 }
 
+const originalFetch = globalThis.fetch;
+
 function createLoreServer(failsOn: (sql: string) => boolean = () => false) {
   const pool = makePool();
   const sqlCalls: string[] = [];
+
+  process.env.GITHUB_TOKEN = "ghs_test_installation";
+  delete process.env.GITHUB_APP_ID;
+  globalThis.fetch = githubPermissionStub as typeof fetch;
 
   pool.query.mockImplementation((rawSql: string, params?: unknown[]) => {
     const sql = String(rawSql);
@@ -424,6 +431,23 @@ function createLoreServer(failsOn: (sql: string) => boolean = () => false) {
         headers: { authorization: `Bearer ${token}` },
       }),
   };
+}
+
+function githubPermissionStub(input: RequestInfo | URL): Promise<Response> {
+  const { pathname } = new URL(
+    typeof input === "string" ? input : input.toString(),
+  );
+  const body =
+    pathname === "/repos/acme/app/collaborators/ben/permission"
+      ? { status: 200, json: { permission: "write" } }
+      : { status: 404, json: { message: "not found" } };
+
+  return Promise.resolve(
+    new Response(JSON.stringify(body.json), {
+      status: body.status,
+      headers: { "content-type": "application/json" },
+    }),
+  );
 }
 
 const QUERY_HANDLERS: Array<{

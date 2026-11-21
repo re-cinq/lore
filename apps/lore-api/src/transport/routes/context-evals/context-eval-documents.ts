@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Pool } from "pg";
 import type { ResponseObject, ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
@@ -29,6 +30,7 @@ export function contextEvalDocumentsRoute(
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(DocumentsQuery) },
       },
       EvalDocumentsSchema,

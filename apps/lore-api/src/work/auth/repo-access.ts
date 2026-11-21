@@ -1,10 +1,13 @@
-// Whether the person behind a session can open a repository. The list GitHub gave at sign-in answers first; a repo it does not hold is asked of GitHub as it stands now, so a repository created or shared after the sign-in is not refused for the life of the session (ADR-053).
+// Whether the person behind a session may reach a repository at the level a route declares: the sign-in list answers reads first, while write, admin and unlisted reads ask GitHub as Lore's App (ADR-053, ADR-054).
 
 import type {
   RepoAccessPorts,
   RepoPermission,
 } from "../../outbound/repo-access-ports.js";
 import { repoAllowed } from "./login-grant.js";
+
+/** GitHub's permission level on a repository (FR-001). */
+export type RepoLevel = "read" | "write" | "admin";
 
 /** Who is asking: a person's session with its sign-in list, or a service token, which has no person. */
 export interface Asker {
@@ -13,74 +16,109 @@ export interface Asker {
 }
 
 export interface RepoAccess {
-  canOpen(principal: Asker, repo: string): Promise<boolean>;
+  canOpen(principal: Asker, repo: string, level?: RepoLevel): Promise<boolean>;
 }
 
 /** How long a "no" is believed before GitHub is asked again: long enough that a page listing many repositories asks once, short enough that a new grant shows within minutes. */
 export const REFUSAL_TTL_MS = 5 * 60_000;
 
-const OPENS: readonly RepoPermission[] = ["admin", "write", "read"];
-
 export function createRepoAccess(ports: RepoAccessPorts): RepoAccess {
   const refusedUntil = new Map<string, number>();
 
   return {
-    canOpen: async (principal, repo) => {
-      if (repoAllowed(principal, repo)) {
+    canOpen: async (principal, repo, level = "read") => {
+      if (principal.user === null) {
         return true;
       }
-      const key = `${principal.tokenHash}\n${repo.toLowerCase()}`;
 
-      if ((refusedUntil.get(key) ?? 0) > ports.now()) {
-        return false;
-      }
-      const granted = await askedOfGitHub(ports, principal, repo);
-
-      if (!granted) {
-        refusedUntil.set(key, ports.now() + REFUSAL_TTL_MS);
+      if (level !== "read") {
+        return hasLevelToday(ports, principal, repo, level);
       }
 
-      return granted;
+      return canReadRepo(ports, refusedUntil, principal, repo);
     },
   };
 }
 
-/** A person's session and nothing else reaches here. A question GitHub could not answer is a "no": access is never granted on an error. */
-async function askedOfGitHub(
+const MEETS_LEVEL: Record<RepoLevel, readonly RepoPermission[]> = {
+  read: ["admin", "write", "read"],
+  write: ["admin", "write"],
+  admin: ["admin"],
+};
+
+async function hasLevelToday(
   ports: RepoAccessPorts,
-  { user, tokenHash }: Asker,
+  principal: Asker,
   repo: string,
+  level: RepoLevel,
 ): Promise<boolean> {
-  if (!user || !tokenHash) {
-    return false;
-  }
+  const permission = await askedOfGitHub(ports, principal, repo);
 
-  try {
-    return await grantedToday(ports, { login: user.login, tokenHash }, repo);
-  } catch (err) {
-    console.warn(
-      `[repo-access] GitHub could not say whether ${user.login} can open ${repo}: ${(err as Error).message}`,
-    );
-
-    return false;
-  }
+  return MEETS_LEVEL[level].includes(permission);
 }
 
-async function grantedToday(
+async function canReadRepo(
   ports: RepoAccessPorts,
-  session: { login: string; tokenHash: string },
+  refusedUntil: Map<string, number>,
+  principal: Asker,
   repo: string,
 ): Promise<boolean> {
-  const granted = OPENS.includes(await ports.permissionOf(session.login, repo));
+  if (repoAllowed(principal, repo)) {
+    return true;
+  }
+  const key = `${principal.tokenHash}\n${repo.toLowerCase()}`;
 
-  if (granted) {
-    await ports.remember(session.tokenHash, repo);
+  if ((refusedUntil.get(key) ?? 0) > ports.now()) {
+    return false;
+  }
+  const granted = await grantedReadToday(ports, principal, repo);
+
+  if (!granted) {
+    refusedUntil.set(key, ports.now() + REFUSAL_TTL_MS);
   }
 
   return granted;
 }
 
+async function grantedReadToday(
+  ports: RepoAccessPorts,
+  principal: Asker,
+  repo: string,
+): Promise<boolean> {
+  const permission = await askedOfGitHub(ports, principal, repo);
+  const granted = MEETS_LEVEL.read.includes(permission);
+
+  if (granted && principal.tokenHash) {
+    await ports.remember(principal.tokenHash, repo);
+  }
+
+  return granted;
+}
+
+/** A person's session and nothing else reaches here. A question GitHub could not answer is `none`: access is never granted on an error. */
+async function askedOfGitHub(
+  ports: RepoAccessPorts,
+  { user, tokenHash }: Asker,
+  repo: string,
+): Promise<RepoPermission> {
+  if (!user || !tokenHash) {
+    return "none";
+  }
+
+  try {
+    return await ports.permissionOf(user.login, repo);
+  } catch (err) {
+    console.warn(
+      `[repo-access] GitHub could not say whether ${user.login} can open ${repo}: ${(err as Error).message}`,
+    );
+
+    return "none";
+  }
+}
+
 /** The list from sign-in and nothing more: what a server built without GitHub (a unit test, a route on its own) answers with. */
 export const SIGN_IN_LIST_ONLY: RepoAccess = {
-  canOpen: async (principal, repo) => repoAllowed(principal, repo),
+  canOpen: async (principal, repo, level = "read") =>
+    principal.user === null ||
+    (level === "read" && repoAllowed(principal, repo)),
 };

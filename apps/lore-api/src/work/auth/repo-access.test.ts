@@ -116,6 +116,64 @@ describe("repo access", () => {
     expect({
       listed: await SIGN_IN_LIST_ONLY.canOpen(person(["acme/app"]), "acme/app"),
       unlisted: await SIGN_IN_LIST_ONLY.canOpen(person([]), "acme/app"),
-    }).toEqual({ listed: true, unlisted: false });
+      listedWrite: await SIGN_IN_LIST_ONLY.canOpen(
+        person(["acme/app"]),
+        "acme/app",
+        "write",
+      ),
+      serviceAdmin: await SIGN_IN_LIST_ONLY.canOpen(
+        SERVICE,
+        "acme/app",
+        "admin",
+      ),
+    }).toEqual({
+      listed: true,
+      unlisted: false,
+      listedWrite: false,
+      serviceAdmin: true,
+    });
+  });
+
+  it("asks GitHub on write and admin even for a repo in the sign-in list, refusing when GitHub reports a lower level", async () => {
+    const readGrant = access("read");
+    const writeGrant = access("write");
+    const adminGrant = access("admin");
+    const listed = person(["acme/app"]);
+
+    expect({
+      readOnWrite: await readGrant.canOpen(listed, "acme/app", "write"),
+      writeOnWrite: await writeGrant.canOpen(listed, "acme/app", "write"),
+      writeOnAdmin: await writeGrant.canOpen(listed, "acme/app", "admin"),
+      adminOnAdmin: await adminGrant.canOpen(listed, "acme/app", "admin"),
+      askedOnListedWrite: readGrant.permissionOf.mock.calls,
+    }).toEqual({
+      readOnWrite: false,
+      writeOnWrite: true,
+      writeOnAdmin: false,
+      adminOnAdmin: true,
+      askedOnListedWrite: [["ana", "acme/app"]],
+    });
+  });
+
+  it("lets a service token pass write and admin checks without asking GitHub", async () => {
+    const lore = access("none");
+
+    expect({
+      write: await lore.canOpen(SERVICE, "other/secret", "write"),
+      admin: await lore.canOpen(SERVICE, "other/secret", "admin"),
+      asked: lore.permissionOf.mock.calls,
+    }).toEqual({ write: true, admin: true, asked: [] });
+  });
+
+  it("refuses write and admin when GitHub cannot be asked, even for a repo in the sign-in list", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const lore = access(new Error("GitHub is down"));
+    const listed = person(["acme/app"]);
+
+    expect({
+      write: await lore.canOpen(listed, "acme/app", "write"),
+      admin: await lore.canOpen(listed, "acme/app", "admin"),
+    }).toEqual({ write: false, admin: false });
+    warn.mockRestore();
   });
 });
