@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Audit } from "./audit.js";
+import { Audit, writeAuditLog } from "./audit.js";
 import { InMemoryAudit } from "./audit-memory.js";
 import { PgAudit } from "./audit-pg.js";
 import type { PgPool } from "../../memory-store.js";
@@ -122,5 +122,49 @@ describe("Audit recorded", () => {
       { event_type: "pr_merged", repo: "octo/other", payload: { prNumber: 7 } },
     ]);
     expect(calls[0]?.text).toContain("ON CONFLICT DO NOTHING");
+  });
+});
+
+describe("writeAuditLog", () => {
+  it("delegates the entry to the injected AuditPort", async () => {
+    const port = new InMemoryAudit();
+
+    await writeAuditLog(
+      { event_type: "lease_expired", payload: { holder: "pod-a" } },
+      port,
+    );
+
+    expect(port.entries).toEqual([
+      { event_type: "lease_expired", payload: { holder: "pod-a" } },
+    ]);
+  });
+});
+
+describe("writeAuditLog upstream failure", () => {
+  it("rejects when the injected AuditPort write rejects", async () => {
+    const port = new InMemoryAudit();
+
+    port.write = async () => {
+      throw new Error("audit store unavailable");
+    };
+
+    await expect(
+      writeAuditLog({ event_type: "lease_expired", payload: {} }, port),
+    ).rejects.toThrow("audit store unavailable");
+  });
+
+  it("rejects when the pg pool errors", async () => {
+    const pool: PgPool = {
+      async query<T>(): Promise<{ rows: T[] }> {
+        throw new Error("connection terminated");
+      },
+    };
+
+    await expect(
+      writeAuditLog(
+        { event_type: "lease_expired", payload: {} },
+        new PgAudit(pool),
+      ),
+    ).rejects.toThrow("connection terminated");
   });
 });

@@ -18,3 +18,11 @@ export class Audit {
     return this.port.hasEntry(eventType, this.repo, fields);
   }
 }
+
+/** Writes one audit entry through the injected port. */
+export async function writeAuditLog(
+  entry: AuditLogEntry,
+  audit: AuditPort,
+): Promise<void> {
+  await audit.write(entry);
+}
