@@ -1,7 +1,8 @@
 // Verifies a GitHub Actions OIDC identity token: issuer and signature (FR-070, FR-151), audience (FR-071), validity period (FR-072) and the onboarded repository its claims name (FR-074).
 
 import type { Pool } from "pg";
-import { createPublicKey, createVerify, type JsonWebKey } from "node:crypto";
+import { createPublicKey, createVerify } from "node:crypto";
+import { findKey, type Jwk } from "./ci-key-set.js";
 
 const GITHUB_COM_ISSUER = "https://token.actions.githubusercontent.com";
 
@@ -12,10 +13,6 @@ export interface IdentityTokenEnv {
   /** This install's own address; the only audience a token may name (FR-071). */
   audience?: string;
   fetch?: typeof fetch;
-}
-
-interface Jwk extends JsonWebKey {
-  kid?: string;
 }
 
 /** The only issuer lore-api trusts: github.com's, or the configured GitHub Enterprise host's. */
@@ -47,10 +44,9 @@ async function verify(
   if (parts.length !== 3 || !trusted(parts, issuer)) {
     return null;
   }
-  const keys = await fetchKeys(issuer, env.fetch ?? fetch);
-  const kid = decode(parts[0]).kid;
+  const jwk = await findKey(issuer, decode(parts[0]).kid, env.fetch ?? fetch);
 
-  return keys.some((jwk) => jwk.kid === kid && signedBy(parts, jwk))
+  return jwk && signedBy(parts, jwk)
     ? (decode(parts[1]) as IdentityTokenClaims)
     : null;
 }
@@ -73,32 +69,6 @@ function signatureMatches(input: string, signature: string, jwk: Jwk): boolean {
   return createVerify("RSA-SHA256")
     .update(input)
     .verify(key, Buffer.from(signature, "base64url"));
-}
-
-async function fetchKeys(
-  issuer: string,
-  doFetch: typeof fetch,
-): Promise<Jwk[]> {
-  const config = await getJson(
-    doFetch,
-    `${issuer}/.well-known/openid-configuration`,
-  );
-  const set = await getJson(doFetch, String(config.jwks_uri));
-
-  return Array.isArray(set.keys) ? (set.keys as Jwk[]) : [];
-}
-
-async function getJson(
-  doFetch: typeof fetch,
-  url: string,
-): Promise<Record<string, unknown>> {
-  const response = await doFetch(url);
-
-  if (!response.ok) {
-    throw new Error(`GET ${url} failed: ${response.status}`);
-  }
-
-  return (await response.json()) as Record<string, unknown>;
 }
 
 /** Whether the token's `aud` names this install and `iat`/`nbf`/`exp` hold at `nowSec` (FR-071, FR-072). */
