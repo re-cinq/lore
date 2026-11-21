@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Gives every Lore image the version tag of a release. No image is rebuilt: the
 # tag is added to the exact manifest the cluster values file says our own
-# cluster runs, so a release is what was already running.
+# cluster runs, so a release is what was already running. The cluster runs the
+# private builds of this repository (ghcr.io/re-cinq/lore-security-*); the
+# version tag goes on the public image of the same service, so nothing built
+# here is public before its release.
 #
 # Usage: release-images.sh <vMAJOR.MINOR.PATCH> [--dry-run | --verify]
 #   --dry-run  print source tag, version and digest per image, change nothing
 #   --verify   check every <image>:<version> has the digest of its source tag
 # Run from a checkout of the tagged commit. Pushing needs a docker login to
-# ghcr.io with write access to the packages.
+# ghcr.io that reads the private packages and writes the public ones.
 set -euo pipefail
 
 VERSION="${1:-}"
@@ -32,6 +35,14 @@ declare -A SOURCE_PATHS=(
   [lore-stations]='.["lore-stations"].image.tag'
   [lore-agent]='.["lore-api"].floor.agentImage | sub("^.*:"; "")'
 )
+# image name -> yq expression of the repository the cluster pulls it from
+declare -A SOURCE_REPOS=(
+  [lore-api]='.["lore-api"].image.repository'
+  [lore-mcp]='.["lore-mcp-gateway"].image.repository'
+  [lore-ui]='.["lore-ui"].image.repository'
+  [lore-stations]='.["lore-stations"].image.repository'
+  [lore-agent]='.["lore-api"].floor.agentImage | sub(":[^:]*$"; "")'
+)
 IMAGES=(lore-api lore-mcp lore-ui lore-stations lore-agent)
 
 digest_of() {
@@ -47,7 +58,8 @@ for image in "${IMAGES[@]}"; do
     failed=1
     continue
   fi
-  source_ref="${REGISTRY}/${image}:${source_tag}"
+  source_repo=$(yq "${SOURCE_REPOS[$image]}" "$VALUES")
+  source_ref="${source_repo}:${source_tag}"
   version_ref="${REGISTRY}/${image}:${VERSION}"
   source_digest=$(digest_of "$source_ref")
   if [[ -z "$source_digest" ]]; then
@@ -58,7 +70,7 @@ for image in "${IMAGES[@]}"; do
   version_digest=$(digest_of "$version_ref")
 
   if [[ "$MODE" == --dry-run ]]; then
-    echo "[lore] ${image}: ${source_tag} -> ${VERSION} (${source_digest})"
+    echo "[lore] ${image}: ${source_ref} -> ${version_ref} (${source_digest})"
   elif [[ "$MODE" == --verify ]]; then
     if [[ "$version_digest" != "$source_digest" ]]; then
       echo "[lore] ${image}: ${VERSION} is '${version_digest:-missing}', expected ${source_digest}" >&2
@@ -73,8 +85,8 @@ for image in "${IMAGES[@]}"; do
   elif [[ -n "$version_digest" ]]; then
     echo "[lore] ${image}: ${VERSION} already tags ${source_digest}"
   else
-    docker buildx imagetools create -t "$version_ref" "${REGISTRY}/${image}@${source_digest}"
-    echo "[lore] ${image}: tagged ${source_tag} as ${VERSION} (${source_digest})"
+    docker buildx imagetools create -t "$version_ref" "${source_repo}@${source_digest}"
+    echo "[lore] ${image}: tagged ${source_ref} as ${version_ref} (${source_digest})"
   fi
   SUMMARY+=$'\n'"| ${image} | ${source_tag} | \`${source_digest}\` |"
 done

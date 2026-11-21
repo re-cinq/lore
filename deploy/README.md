@@ -41,7 +41,14 @@ with the UI, so the session cookie rides the socket's upgrade.
    service images, push them to `ghcr.io` tagged with the short SHA, and
    commit the new tag into `deploy/clusters/internal-cluster.values.yaml`
    with `scripts/ci/bump-image-tag.sh` (one commit per image; the script
-   rebases and retries when a sibling build got there first).
+   rebases and retries when a sibling build got there first). The four
+   service images are built under private names,
+   `ghcr.io/re-cinq/lore-security-{api,mcp,ui,stations}`, because this
+   repository holds work that is not released yet; the public
+   `ghcr.io/re-cinq/lore-{api,mcp,ui,stations}` images get a build only when it
+   is released (below). The agent image, which holds the tools an agent pod
+   runs and none of this repository's source, keeps its public name
+   `ghcr.io/re-cinq/lore-agent`.
 3. Argo CD notices the new commit on `main` and syncs. Helm hooks
    (`pre-install,pre-upgrade`) run as Argo PreSync hooks first: the lore-db
    ownership reconciler (`lore-db-helm.ownershipReconciler.enabled`), then
@@ -68,7 +75,9 @@ image that version, and publishes the install chart (`deploy/install`) with the
 Lore, floor and Utopia charts inside, as `oci://ghcr.io/re-cinq/charts/lore-install`
 at the version without the `v`. No image is rebuilt: the tag is added to the
 images our own cluster runs, as recorded in
-`deploy/clusters/internal-cluster.values.yaml`. No commit carries the version:
+`deploy/clusters/internal-cluster.values.yaml`, and for a service image it is
+added on the public image: the private build our cluster runs is copied to
+`ghcr.io/re-cinq/<image>:vX.Y.Z` with the same digest. No commit carries the version:
 `scripts/ci/package-install-chart.sh` stamps it into the image tags of the
 staged copy of `deploy/install/values.yaml`, so the committed file and the
 install guide name no release.
@@ -99,8 +108,9 @@ not on `main`) is fixed by deleting the tag
 (`git push origin :refs/tags/vX.Y.Z`), fixing the cause and tagging again. A
 version tag already on an image with another digest is an error on purpose, as
 a version is never moved: pick the next version instead. A permission error
-means the package does not give this repository write access (package settings,
-"Manage Actions access"). If only the release step failed, run the workflow
+means a package does not give this repository the access the copy needs: read
+on the private `lore-security-*` packages and write on the public `lore-*`
+ones (package settings, "Manage Actions access"). If only the release step failed, run the workflow
 again from the Actions tab, the image step is a no-op the second time.
 
 ## How to add a secret

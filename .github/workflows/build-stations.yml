@@ -46,7 +46,7 @@ jobs:
       contents: read
       packages: write
     with:
-      image_name: re-cinq/lore-stations
+      image_name: re-cinq/lore-security-stations
       dockerfile: apps/stations/Dockerfile
       build_args: GIT_SHA=${{ needs.sha.outputs.short_sha }}
     secrets: inherit

@@ -223,7 +223,7 @@ lore-api:
     annotations:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
-    repository: ghcr.io/re-cinq/lore-api
+    repository: ghcr.io/re-cinq/lore-security-api
     tag: "0d681eb"
   env:
     # Every model call of lore-api itself (fact and graph extraction, episode
@@ -281,7 +281,7 @@ lore-api:
 # ---- MCP gateway (lore-api namespace)
 lore-mcp-gateway:
   image:
-    repository: ghcr.io/re-cinq/lore-mcp
+    repository: ghcr.io/re-cinq/lore-security-mcp
     tag: "811060b"
 # ---- Web UI (lore-ui namespace)
 lore-ui:
@@ -290,7 +290,7 @@ lore-ui:
       iam.gke.io/gcp-service-account: lore-ui@re-cinq-internal.iam.gserviceaccount.com
   replicaCount: 1
   image:
-    repository: ghcr.io/re-cinq/lore-ui
+    repository: ghcr.io/re-cinq/lore-security-ui
     tag: "401b16e"
   env:
     LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
@@ -320,7 +320,7 @@ lore-stations:
   gcpProject: re-cinq-internal
   ingestUrl: https://lore-api.gcp.re-cinq.com
   image:
-    repository: ghcr.io/re-cinq/lore-stations
+    repository: ghcr.io/re-cinq/lore-security-stations
     tag: "0d681eb"
   serviceAccount:
     annotations:
