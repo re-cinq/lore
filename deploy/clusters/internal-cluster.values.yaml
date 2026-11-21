@@ -226,6 +226,12 @@ lore-api:
     repository: ghcr.io/re-cinq/lore-api
     tag: "0d681eb"
   env:
+    # Every model call of lore-api itself (fact and graph extraction, episode
+    # curation, the context evals' question writer) runs on Gemini under the
+    # pod's Google identity since 2026-11-21: the Anthropic credit ran out on
+    # 2026-11-20 and these calls failed with it.
+    LORE_LLM_PROVIDER: vertex
+    LORE_FACT_MODEL: gemini-3-flash-preview
     # Evals on Gemini under the pod's Google identity; gemini-2.5-pro judged a
     # full run on 2026-10-03 and changed no verdict, so no judge model is set.
     LORE_EVAL_LLM_PROVIDER: vertex
@@ -328,6 +334,13 @@ lore-stations:
     LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
     LORE_UI_URL: https://lore.gcp.re-cinq.com
     LORE_GCP_BILLING_PROJECT: re-cinq-internal
+    # The stations' own model calls (the loop's done-check and ready-for-review,
+    # consolidation) run on Gemini under the pod's Google identity since
+    # 2026-11-21: the Anthropic credit ran out on 2026-11-20 and every ticket
+    # failed at ready-for-review. Needs roles/aiplatform.user on lore-stations
+    # (re-cinq/infrastructure#63).
+    LORE_LLM_PROVIDER: vertex
+    LORE_FACT_MODEL: gemini-3-flash-preview
     LORE_GCP_BILLING_DATASET: billing_export
   anthropicAdminKeySecret: {name: lore-stations-anthropic-key, key: anthropic-admin-key}
   floor: {enabled: true}
