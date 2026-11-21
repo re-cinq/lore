@@ -16,9 +16,9 @@ for (const image of ["apps/stations/Dockerfile", "apps/lore-api/Dockerfile"]) {
 }
 
 test("the build context leaves out the scripts' tests, which the glob would otherwise copy", async () => {
-  const ignored = (await readFile(new URL(".dockerignore", root), "utf8")).split(
-    "\n",
-  );
+  const ignored = (
+    await readFile(new URL(".dockerignore", root), "utf8")
+  ).split("\n");
 
   assert.ok(ignored.includes("scripts/*.test.mjs"));
 });
