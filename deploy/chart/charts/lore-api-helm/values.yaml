@@ -106,6 +106,15 @@ githubAppSecret:
   appIdKey: app-id
   privateKeyKey: private-key
   installationIdKey: installation-id
+  # The App's own OAuth client, which people sign in through (FR-379, FR-380).
+  clientIdKey: client-id
+  clientSecretKey: client-secret
+
+# The key that encrypts the GitHub tokens stored per session, in a Secret that
+# holds nothing else (FR-025). Empty name leaves the App sign-in answering 503.
+userTokenKeySecret:
+  name: ""
+  key: key
 
 # HMAC secret for verifying GitHub webhook signatures.
 webhookSecret:

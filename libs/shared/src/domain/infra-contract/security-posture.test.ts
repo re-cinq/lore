@@ -128,3 +128,42 @@ describe("Dgraph's one pod survives node consolidation (deploy/chart)", () => {
     }).toEqual({ minAvailable: true, selectedApp: podApp });
   });
 });
+
+describe("the user token encryption key has a Secret of its own (FR-025)", () => {
+  it("writes lore-user-token-key with the one key `key` and lore-api reads LORE_USER_TOKEN_ENCRYPTION_KEY from it", () => {
+    const secrets = read(
+      path.join(repoRoot, "deploy/install/templates/secrets.yaml"),
+    );
+    const deployment = read(
+      path.join(chartsDir, "lore-api-helm/templates/deployment.yaml"),
+    );
+    const installValues = read(
+      path.join(repoRoot, "deploy/install/values.yaml"),
+    );
+    const keySecret = secrets
+      .split("\n")
+      .find(
+        (line) =>
+          line.includes("lore-install.groupSecret") &&
+          line.includes('"name" "lore-user-token-key"'),
+      );
+    const keyEnv = deployment.match(
+      /- name: LORE_USER_TOKEN_ENCRYPTION_KEY\s+valueFrom:\s+secretKeyRef:\s+name: (.+)\s+key: (.+)/,
+    );
+
+    expect({
+      data: keySecret?.match(/"data" \(dict ([^)]*)\)/)?.[1],
+      env: keyEnv?.slice(1),
+      installName: installValues.match(
+        /userTokenKeySecret:\s+name: (\S+)/,
+      )?.[1],
+    }).toEqual({
+      data: '"key" $userTokenKey',
+      env: [
+        "{{ .Values.userTokenKeySecret.name }}",
+        "{{ .Values.userTokenKeySecret.key }}",
+      ],
+      installName: "lore-user-token-key",
+    });
+  });
+});

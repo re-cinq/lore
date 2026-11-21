@@ -1,4 +1,4 @@
-// GET /api/auth/callback — GitHub sends the person back here. Trades the code for their GitHub token, checks the org, and sends them on to the UI page that asked with a one-time code to redeem. The GitHub token lives in this function only: it is never stored or logged.
+// GET /api/auth/callback — GitHub sends the person back here. Trades the code for their GitHub token pair, checks the org, and sends them on to the UI page that asked with a one-time code whose handoff row stores the encrypted token pair outside grant_json.
 
 import type { ServerRoute } from "@hapi/hapi";
 import type { z } from "zod";
@@ -6,6 +6,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { UserGrant } from "@re-cinq/lore-shared/models/login-handoff.js";
 import type {
+  GithubTokenPair,
   GithubViewer,
   OrgRole,
 } from "../../../outbound/github-user-client.js";
@@ -14,6 +15,7 @@ import {
   redeemRedirect,
   SESSION_SCOPES,
 } from "../../../work/auth/login-grant.js";
+import { encryptTokenPair } from "../../../work/auth/token-cipher.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { requireConfig, type AuthDeps } from "./auth-deps.js";
@@ -33,7 +35,7 @@ const OPTIONS = zodResponse(
 );
 
 interface GithubSession {
-  token: string;
+  tokenPair: GithubTokenPair;
   viewer: GithubViewer;
 }
 
@@ -67,16 +69,29 @@ async function signInOutcome(
   if (!session) {
     return errorRedirect(returnUrl, "github_denied");
   }
-  const role = await roleIn(deps, config, session.token);
+  const role = await roleIn(deps, config, session.tokenPair.accessToken);
 
   if (!role) {
     return errorRedirect(returnUrl, "not_in_org");
   }
+
+  return storeRedeemHandoff(deps, config, session, returnUrl);
+}
+
+async function storeRedeemHandoff(
+  deps: AuthDeps,
+  config: OAuthConfig,
+  session: GithubSession,
+  returnUrl: string,
+): Promise<string> {
   const grant = await grantFor(deps, session);
+  const encryptedTokens = config.tokenEncryptionKey
+    ? encryptTokenPair(session.tokenPair, config.tokenEncryptionKey)
+    : undefined;
 
   return redeemRedirect(
     returnUrl,
-    await deps.handoffs.put("redeem", { returnUrl, grant }),
+    await deps.handoffs.put("redeem", { returnUrl, grant, encryptedTokens }),
   );
 }
 
@@ -85,15 +100,46 @@ async function githubSession(
   config: OAuthConfig,
   code: string,
 ): Promise<GithubSession | null> {
-  const token = await deps.github.exchangeCode({
+  const exchanged = await deps.github.exchangeCode({
     clientId: config.clientId,
     clientSecret: config.clientSecret,
     code,
     redirectUri: callbackUrl(config),
   });
-  const viewer = token ? await deps.github.fetchViewer(token) : null;
+  const tokenPair = tokenPairOf(exchanged);
+  const viewer = tokenPair
+    ? await deps.github.fetchViewer(tokenPair.accessToken)
+    : null;
 
-  return token && viewer ? { token, viewer } : null;
+  return tokenPair && validViewer(viewer) ? { tokenPair, viewer } : null;
+}
+
+function tokenPairOf(exchanged: unknown): GithubTokenPair | null {
+  if (isNonEmptyString(exchanged)) {
+    return { accessToken: exchanged };
+  }
+
+  if (!exchanged || typeof exchanged !== "object") {
+    return null;
+  }
+
+  const candidate = exchanged as { accessToken?: unknown };
+
+  return isNonEmptyString(candidate.accessToken)
+    ? (exchanged as GithubTokenPair)
+    : null;
+}
+
+function validViewer(viewer: unknown): viewer is GithubViewer {
+  if (!viewer || typeof viewer !== "object") {
+    return false;
+  }
+
+  return isNonEmptyString((viewer as { login?: unknown }).login);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 /** Everyone GitHub vouches for is a member when no org is configured; otherwise only the org's active members are, with their role there. */
@@ -107,9 +153,9 @@ async function roleIn(
 
 async function grantFor(
   deps: AuthDeps,
-  { token, viewer }: GithubSession,
+  { tokenPair, viewer }: GithubSession,
 ): Promise<UserGrant> {
-  const repos = await deps.github.fetchUserRepos(token);
+  const repos = await deps.github.fetchUserRepos(tokenPair.accessToken);
 
   return {
     login: viewer.login,

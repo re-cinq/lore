@@ -3,6 +3,7 @@
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import type { z } from "zod";
+import { runInTransaction, type PgPool } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { UserGrant } from "@re-cinq/lore-shared/models/login-handoff.js";
@@ -10,6 +11,7 @@ import {
   SESSION_LENGTH_KEY,
   sessionLengthMs,
 } from "@re-cinq/lore-shared/session-length.js";
+import { storeUserSessionTokens } from "../../../work/auth/user-session-tokens.js";
 import {
   mintApiToken,
   type MintInput,
@@ -48,11 +50,9 @@ async function startSession(
   h: ResponseToolkit,
 ) {
   const { code } = request.payload as z.infer<typeof RedeemBody>;
-  const grant = (await deps.handoffs.take(code, "redeem"))?.grant;
-
-  enforceTrue(grant, apiError(401), "invalid or used code");
-  const expiresAt = new Date(Date.now() + (await sessionLength(pool)));
-  const { token } = await mintApiToken(pool, sessionToken(grant, expiresAt));
+  const { token, expiresAt, grant } = await runInTransaction(pool, (tx) =>
+    redeemHandoff(deps, tx, code),
+  );
 
   return h.response({
     token,
@@ -61,8 +61,26 @@ async function startSession(
   });
 }
 
+async function redeemHandoff(
+  deps: AuthDeps,
+  tx: PgPool,
+  code: string,
+): Promise<{ token: string; expiresAt: Date; grant: UserGrant }> {
+  const handoff = await deps.handoffs.take(code, "redeem", tx);
+
+  enforceTrue(handoff?.grant, apiError(401), "invalid or used code");
+  const expiresAt = new Date(Date.now() + (await sessionLength(tx)));
+  const minted = await mintApiToken(tx, sessionToken(handoff.grant, expiresAt));
+
+  if (handoff.encryptedTokens) {
+    await storeUserSessionTokens(tx, minted.row.id, handoff.encryptedTokens);
+  }
+
+  return { token: minted.token, expiresAt, grant: handoff.grant };
+}
+
 /** How long a sign-in started now lasts, from the org settings. */
-async function sessionLength(pool: Pool): Promise<number> {
+async function sessionLength(pool: PgPool): Promise<number> {
   const { rows } = await pool.query<{ value: string }>(
     `SELECT value FROM lore.settings WHERE key = $1`,
     [SESSION_LENGTH_KEY],

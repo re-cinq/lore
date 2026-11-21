@@ -27,7 +27,9 @@ describe("exchangeCode", () => {
       .fn()
       .mockResolvedValue(jsonResponse({ access_token: "gho_abc" }));
 
-    expect(await exchangeCode(app, fetchImpl)).toBe("gho_abc");
+    expect(await exchangeCode(app, fetchImpl)).toEqual({
+      accessToken: "gho_abc",
+    });
   });
 
   it("posts the client, secret, code and callback as json", async () => {
@@ -67,6 +69,25 @@ describe("exchangeCode", () => {
 
     expect(await exchangeCode(app, fetchImpl)).toBeNull();
   });
+
+  it("returns the token pair with expiries and refresh token when GitHub provides them", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        access_token: "ghu_access_1",
+        expires_in: 28800,
+        refresh_token: "ghr_refresh_1",
+        refresh_token_expires_in: 15897600,
+        token_type: "bearer",
+      }),
+    );
+
+    expect(await exchangeCode(app, fetchImpl)).toEqual({
+      accessToken: "ghu_access_1",
+      expiresIn: 28800,
+      refreshToken: "ghr_refresh_1",
+      refreshTokenExpiresIn: 15897600,
+    });
+  });
 });
 
 describe("fetchViewer", () => {
@@ -91,6 +112,14 @@ describe("fetchViewer", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(jsonResponse({}, { status: 401 }));
+
+    expect(await fetchViewer("gho_abc", fetchImpl)).toBeNull();
+  });
+
+  it("returns null when GitHub answers a viewer with an empty login", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ login: "", name: "Ada" }));
 
     expect(await fetchViewer("gho_abc", fetchImpl)).toBeNull();
   });

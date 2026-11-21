@@ -38,7 +38,6 @@ export function authorizeUrl(input: {
   const query = new URLSearchParams({
     client_id: input.clientId,
     redirect_uri: input.redirectUri,
-    scope: "read:user read:org repo",
     state: input.state,
   });
 

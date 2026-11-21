@@ -9,6 +9,7 @@ import {
   fetchOrgRole,
   fetchViewer,
   type GithubRepo,
+  type GithubTokenPair,
   type GithubViewer,
   type OAuthExchange,
   type OrgRole,
@@ -21,7 +22,9 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { oauthConfigFrom, type OAuthConfig } from "./oauth-config.js";
 
 export interface GithubUser {
-  exchangeCode(exchange: OAuthExchange): Promise<string | null>;
+  exchangeCode(
+    exchange: OAuthExchange,
+  ): Promise<GithubTokenPair | string | null>;
   fetchViewer(token: string): Promise<GithubViewer | null>;
   fetchOrgRole(token: string, org: string): Promise<OrgRole | null>;
   fetchUserRepos(token: string): Promise<GithubRepo[]>;

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { Pool } from "pg";
 import { redeemRoute } from "./redeem.js";
 import { serve, testDeps } from "./auth-test-server.js";
 
@@ -119,4 +120,82 @@ describe("POST /api/auth/redeem", () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  it("stores the encrypted session token row keyed by the minted session id in one transaction when the handoff carries encrypted tokens", async () => {
+    const deps = testDeps();
+    const { pool, txQueries, release } = transactionalPool(deps.query);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+      encryptedTokens: "v1.iv.tag.cipher",
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    expect({
+      statusCode: res.statusCode,
+      sqls: txQueries.map((q) => q.sql.trim()),
+      tokenInsertParams: txQueries[3]?.params,
+      released: release.mock.calls.length,
+    }).toEqual({
+      statusCode: 200,
+      sqls: [
+        "BEGIN",
+        expect.stringContaining("FROM lore.settings"),
+        expect.stringContaining("INSERT INTO pipeline.api_tokens"),
+        expect.stringContaining("INSERT INTO pipeline.user_session_tokens"),
+        "COMMIT",
+      ],
+      tokenInsertParams: ["t-1", "v1.iv.tag.cipher"],
+      released: 1,
+    });
+  });
+
+  it("mints the session and writes no user_session_tokens row when the handoff carries no encrypted tokens", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    expect({
+      statusCode: res.statusCode,
+      sqls: txQueries.map((q) => q.sql.trim()),
+    }).toEqual({
+      statusCode: 200,
+      sqls: [
+        "BEGIN",
+        expect.stringContaining("FROM lore.settings"),
+        expect.stringContaining("INSERT INTO pipeline.api_tokens"),
+        "COMMIT",
+      ],
+    });
+  });
 });
+
+function transactionalPool(query: ReturnType<typeof testDeps>["query"]) {
+  const txQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const release = vi.fn();
+  const client = {
+    query: vi.fn(async (sql: string, params: unknown[] = []) => {
+      txQueries.push({ sql, params });
+
+      if (sql.includes("INSERT INTO pipeline.api_tokens")) {
+        return {
+          rows: [{ id: "t-1", name: "n", scopes: [], created_at: "now" }],
+        };
+      }
+
+      return { rows: [] };
+    }),
+    release,
+  };
+  const pool = { query, connect: vi.fn(async () => client) } as unknown as Pool;
+
+  return { pool, txQueries, release };
+}

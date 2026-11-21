@@ -89,6 +89,14 @@ secrets:
     appId: ""
     privateKey: ""
     installationId: ""
+    # The App's own OAuth client, which people sign in through. Not the App id
+    # and not githubOAuth's client.
+    clientId: ""
+    clientSecret: ""
+  # The key that encrypts the GitHub tokens stored per session (64 hex
+  # characters, openssl rand -hex 32). Generated once when empty. Secret
+  # lore-user-token-key in lore-api, which holds nothing else.
+  userTokenEncryptionKey: ""
   # REQUIRED. The GitHub OAuth App people sign in to the UI with. Secret
   # lore-github-oauth in lore-api.
   githubOAuth:
@@ -271,6 +279,8 @@ lore-platform:
       tag: "v1.1.1"
     githubOAuthSecret:
       name: lore-github-oauth
+    userTokenKeySecret:
+      name: lore-user-token-key
     utopia:
       enabled: false
       # Utopia's Service is named utopia, in the release namespace.

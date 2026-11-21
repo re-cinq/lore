@@ -48,7 +48,7 @@ describe("returnUrlAllowed", () => {
 });
 
 describe("authorizeUrl", () => {
-  it("points at GitHub with the client, callback, scopes and state", () => {
+  it("points at GitHub with the client, callback, and state without OAuth scopes", () => {
     const url = new URL(
       authorizeUrl({
         clientId: "client-1",
@@ -63,7 +63,6 @@ describe("authorizeUrl", () => {
     expect(Object.fromEntries(url.searchParams)).toEqual({
       client_id: "client-1",
       redirect_uri: "https://api.example/api/auth/callback",
-      scope: "read:user read:org repo",
       state: "state-1",
     });
   });

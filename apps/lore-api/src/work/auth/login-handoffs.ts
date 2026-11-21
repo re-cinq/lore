@@ -1,6 +1,7 @@
 // The one-time codes of the GitHub sign-in lore-api runs for the web UI: a `state` code carries the page that began it through GitHub, a `redeem` code carries the signed-in person back to that page. Stored as a sha256 and deleted when taken, so a code works once.
 
 import { createHash, randomBytes } from "node:crypto";
+import type { PgPool } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import {
   LOGIN_HANDOFF_COLUMNS as COLUMNS,
@@ -17,22 +18,27 @@ export type HandoffPhase = LoginHandoff["phase"];
 export interface HandoffContent {
   returnUrl: string;
   grant: UserGrant | null;
+  encryptedTokens?: string | null;
 }
 
 export interface LoginHandoffs {
   /** Stores the content and returns the raw code that takes it back. */
   put(phase: HandoffPhase, content: HandoffContent): Promise<string>;
   /** The content of a code of this phase that has not expired; the code is spent either way. */
-  take(code: string, phase: HandoffPhase): Promise<HandoffContent | null>;
+  take(
+    code: string,
+    phase: HandoffPhase,
+    runner?: PgPool,
+  ): Promise<HandoffContent | null>;
 }
 
 const INSERT = `INSERT INTO ${TABLE} (${COLUMNS.codeHash}, ${COLUMNS.phase},
-  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.expiresAt})
-  VALUES ($1, $2, $3, $4, $5)`;
+  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.encryptedTokens}, ${COLUMNS.expiresAt})
+  VALUES ($1, $2, $3, $4, $5, $6)`;
 const SWEEP_EXPIRED = `DELETE FROM ${TABLE} WHERE ${COLUMNS.expiresAt} < now()`;
 const TAKE = `DELETE FROM ${TABLE}
   WHERE ${COLUMNS.codeHash} = $1 AND ${COLUMNS.phase} = $2 AND ${COLUMNS.expiresAt} > now()
-  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant`;
+  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant, ${COLUMNS.encryptedTokens} AS "encryptedTokens"`;
 
 const hashOf = (code: string): string =>
   createHash("sha256").update(code).digest("hex");
@@ -41,7 +47,7 @@ const newCode = (): string => randomBytes(32).toString("base64url");
 export function pgLoginHandoffs(db: () => Pool): LoginHandoffs {
   return {
     put: (phase, content) => putRow(db, phase, content),
-    take: (code, phase) => takeRow(db, code, phase),
+    take: (code, phase, runner) => takeRow(db, code, phase, runner),
   };
 }
 
@@ -73,7 +79,7 @@ type MemoryRow = HandoffContent & { phase: HandoffPhase; expiresAt: number };
 async function putRow(
   db: () => Pool,
   phase: HandoffPhase,
-  { returnUrl, grant }: HandoffContent,
+  { returnUrl, grant, encryptedTokens = null }: HandoffContent,
 ): Promise<string> {
   const code = newCode();
 
@@ -83,6 +89,7 @@ async function putRow(
     phase,
     returnUrl,
     JSON.stringify(grant),
+    encryptedTokens,
     new Date(Date.now() + HANDOFF_TTL_MS),
   ]);
 
@@ -93,8 +100,9 @@ async function takeRow(
   db: () => Pool,
   code: string,
   phase: HandoffPhase,
+  runner?: PgPool,
 ): Promise<HandoffContent | null> {
-  const { rows } = await db().query<HandoffContent>(TAKE, [
+  const { rows } = await (runner ?? db()).query<HandoffContent>(TAKE, [
     hashOf(code),
     phase,
   ]);
@@ -116,7 +124,15 @@ function takeMemoryRow(
   }
   stored.delete(key);
 
-  return row.expiresAt > now
-    ? { returnUrl: row.returnUrl, grant: row.grant }
-    : null;
+  return row.expiresAt > now ? memoryContentOf(row) : null;
+}
+
+function memoryContentOf(row: MemoryRow): HandoffContent {
+  return {
+    returnUrl: row.returnUrl,
+    grant: row.grant,
+    ...(row.encryptedTokens !== undefined && {
+      encryptedTokens: row.encryptedTokens,
+    }),
+  };
 }

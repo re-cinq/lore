@@ -13,6 +13,13 @@ export interface OAuthExchange {
   redirectUri: string;
 }
 
+export interface GithubTokenPair {
+  accessToken: string;
+  expiresIn?: number;
+  refreshToken?: string;
+  refreshTokenExpiresIn?: number;
+}
+
 export interface GithubViewer {
   login: string;
   name: string | null;
@@ -38,7 +45,7 @@ export async function exchangeCode(
   exchange: OAuthExchange,
   fetchImpl: FetchLike = fetch,
   host: string = githubHost(),
-): Promise<string | null> {
+): Promise<GithubTokenPair | null> {
   const res = await fetchImpl(githubUrls(host).oauthToken, {
     method: "POST",
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -51,7 +58,7 @@ export async function exchangeCode(
     }),
   });
 
-  return res.ok ? accessTokenOf(await res.json()) : null;
+  return res.ok ? tokenPairOf(await res.json()) : null;
 }
 
 export async function fetchViewer(
@@ -61,7 +68,7 @@ export async function fetchViewer(
 ): Promise<GithubViewer | null> {
   const res = await getJson(`${githubUrls(host).api}/user`, token, fetchImpl);
 
-  return res.ok ? ((await res.json()) as GithubViewer) : null;
+  return res.ok ? viewerOf(await res.json()) : null;
 }
 
 /** The person's role in the org, or null when they are not an active member. */
@@ -129,8 +136,59 @@ function getJson(url: string, token: string, fetchImpl: FetchLike) {
   });
 }
 
-function accessTokenOf(body: { access_token?: string }): string | null {
-  return body.access_token ?? null;
+function tokenPairOf(body: unknown): GithubTokenPair | null {
+  const record = asRecord(body);
+
+  if (!record || !isNonEmptyString(record.access_token)) {
+    return null;
+  }
+
+  return {
+    accessToken: record.access_token,
+    ...optionalTokenFields(record),
+  };
+}
+
+function optionalTokenFields(
+  record: Record<string, unknown>,
+): Omit<GithubTokenPair, "accessToken"> {
+  return {
+    ...(typeof record.expires_in === "number" && {
+      expiresIn: record.expires_in,
+    }),
+    ...(typeof record.refresh_token === "string" && {
+      refreshToken: record.refresh_token,
+    }),
+    ...(typeof record.refresh_token_expires_in === "number" && {
+      refreshTokenExpiresIn: record.refresh_token_expires_in,
+    }),
+  };
+}
+
+function viewerOf(body: unknown): GithubViewer | null {
+  const record = asRecord(body);
+
+  if (!record || !isNonEmptyString(record.login)) {
+    return null;
+  }
+
+  return {
+    login: record.login,
+    name: typeof record.name === "string" ? record.name : null,
+    avatar_url: typeof record.avatar_url === "string" ? record.avatar_url : "",
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function activeRoleOf(body: { state?: string; role?: string }): OrgRole | null {

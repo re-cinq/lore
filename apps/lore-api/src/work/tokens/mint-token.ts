@@ -1,6 +1,7 @@
 // Mints a bearer token row in pipeline.api_tokens. The raw token is returned once and only its sha256 is stored; both the admin's /api/tokens route and the web sign-in mint through here.
 
 import { createHash, randomBytes } from "node:crypto";
+import type { PgPool } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 
 export interface TokenUser {
@@ -33,7 +34,7 @@ export const hashToken = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 
 export async function mintApiToken(
-  pool: Pool,
+  pool: PgPool,
   input: MintInput,
 ): Promise<MintedToken> {
   const token = `lore_${randomBytes(32).toString("hex")}`;

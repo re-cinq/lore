@@ -151,6 +151,17 @@ rendered_lacks "$(render --set-string lore-platform.platform.clusterIssuer=)" "n
   '.kind == "NetworkPolicy" and .metadata.name == "allow-acme-http01-solver"'
 rendered_has "$(render --set secrets.githubApp.appId=1234567 --set secrets.githubApp.installationId=87654321)" "an unquoted GitHub App id is written as plain digits" \
   '.kind == "Secret" and .metadata.name == "github-app-credentials" and .metadata.namespace == "lore-api" and .stringData["app-id"] == "1234567" and .stringData["installation-id"] == "87654321"'
+signin="$(render --set secrets.githubApp.clientId=Iv23appclient --set secrets.githubApp.clientSecret=app-client-secret)"
+rendered_has "$signin" "the GitHub App's own client id and secret are keys client-id and client-secret of lore-api's github-app-credentials (FR-379, FR-380)" \
+  '.kind == "Secret" and .metadata.name == "github-app-credentials" and .metadata.namespace == "lore-api" and .stringData["client-id"] == "Iv23appclient" and .stringData["client-secret"] == "app-client-secret"'
+rendered_has "$signin" "lore-api reads the App's client from github-app-credentials" \
+  '.kind == "Deployment" and .metadata.name == "lore-api" and ([.spec.template.spec.containers[0].env[] | select(.name == "GITHUB_APP_CLIENT_ID" or .name == "GITHUB_APP_CLIENT_SECRET") | .valueFrom.secretKeyRef.name] == ["github-app-credentials", "github-app-credentials"])'
+rendered_lacks "$signin" "only lore-api's copy of the App credentials carries the App's client" \
+  '.kind == "Secret" and (.metadata.name == "github-app-credentials" or .metadata.name == "lore-stations-github-app") and .metadata.namespace != "lore-api" and (.stringData | has("client-id"))'
+rendered_has "$rendered" "the user token encryption key is generated as 64 hexadecimal characters, alone in lore-user-token-key (FR-025)" \
+  '.kind == "Secret" and .metadata.name == "lore-user-token-key" and .metadata.namespace == "lore-api" and (.stringData | keys) == ["key"] and (.stringData.key | test("^[0-9a-f]{64}$"))'
+rendered_has "$rendered" "lore-api reads the user token encryption key from lore-user-token-key" \
+  '.kind == "Deployment" and .metadata.name == "lore-api" and ([.spec.template.spec.containers[0].env[] | select(.name == "LORE_USER_TOKEN_ENCRYPTION_KEY") | .valueFrom.secretKeyRef.name] == ["lore-user-token-key"])'
 
 echo "[lore] only GitHub is mandatory: the minimal example"
 MINIMAL="$WORK/values.minimal.filled.yaml"

@@ -20,6 +20,7 @@ export const LoginHandoffSchema = z.object({
   phase: z.enum(["state", "redeem"]),
   returnUrl: z.string(),
   grant: UserGrantSchema.nullable(),
+  encryptedTokens: z.string().nullable(),
   expiresAt: z.date(),
 });
 
@@ -30,5 +31,6 @@ export const LOGIN_HANDOFF_COLUMNS = {
   phase: "phase",
   returnUrl: "return_url",
   grant: "grant_json",
+  encryptedTokens: "encrypted_tokens",
   expiresAt: "expires_at",
 } as const satisfies ColumnMap<LoginHandoff>;

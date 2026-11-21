@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
+import { decryptTokenPair } from "../../../work/auth/token-cipher.js";
 import { callbackRoute } from "./callback.js";
-import { serve, testDeps } from "./auth-test-server.js";
+import { CONFIG, serve, testDeps } from "./auth-test-server.js";
 
 const RETURN = "http://localhost:3000/auth/callback";
+const ENCRYPTION_KEY = "0123456789abcdef".repeat(4);
 
 async function signIn(deps: ReturnType<typeof testDeps>) {
   const state = await deps.handoffs.put("state", {
@@ -145,4 +147,43 @@ describe("GET /api/auth/callback", () => {
       body: { error: "sign-in expired, start again" },
     });
   });
+
+  it("encrypts the token pair onto the redeem handoff and leaves grant token-free", async () => {
+    const pair = {
+      accessToken: "ghu_access_tok",
+      expiresIn: 28800,
+      refreshToken: "ghr_refresh_tok",
+      refreshTokenExpiresIn: 15897600,
+    };
+    const deps = testDeps({
+      config: { ...CONFIG, tokenEncryptionKey: ENCRYPTION_KEY },
+      github: { exchangeCode: async () => pair },
+    });
+    const { location } = await signIn(deps);
+    const redeemed = await deps.handoffs.take(
+      location.searchParams.get("code") as string,
+      "redeem",
+    );
+    const sealed = redeemed?.encryptedTokens ?? "";
+
+    expect({
+      grantHasToken: containsPair(
+        JSON.stringify(redeemed?.grant ?? null),
+        pair,
+      ),
+      leaksToken: containsPair(sealed, pair),
+      decrypted: sealed ? decryptTokenPair(sealed, ENCRYPTION_KEY) : null,
+    }).toEqual({
+      grantHasToken: false,
+      leaksToken: false,
+      decrypted: pair,
+    });
+  });
 });
+
+function containsPair(
+  text: string,
+  pair: { accessToken: string; refreshToken: string },
+): boolean {
+  return text.includes(pair.accessToken) || text.includes(pair.refreshToken);
+}
