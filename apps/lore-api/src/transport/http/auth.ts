@@ -2,6 +2,7 @@
 
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
+import { verifyIdentityToken } from "./ci-identity-token.js";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
@@ -136,9 +137,29 @@ export async function resolvePrincipal(
   if (!pool) {
     return null;
   }
+
+  if (await isIdentityToken(pool, bearerToken)) {
+    return { scopes: ["write"], user: null, tokenHash: null };
+  }
   const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
 
   return lookupPrincipal(pool, tokenHash);
+}
+
+// Whether the bearer is a valid CI identity token (JWT shaped, verified).
+async function isIdentityToken(
+  pool: Pool,
+  bearerToken: string,
+): Promise<boolean> {
+  if (bearerToken.split(".").length !== 3) {
+    return false;
+  }
+  const claims = await verifyIdentityToken(pool, bearerToken, {
+    githubHost: process.env.GITHUB_HOST,
+    audience: process.env.LORE_API_URL,
+  });
+
+  return claims !== null;
 }
 
 // Resolves a bearer token to its granted scopes (null if missing/invalid/revoked/expired).

@@ -4,7 +4,7 @@
 | --------- | ----- |
 | Feature   | Callers that are not people have their own credentials |
 | Branch    | machine-callers-own-credentials |
-| Status    | Draft |
+| Status    | In Progress |
 | Created   | 2026-11-19 |
 | Owner     | Platform Engineering |
 | Builds on | [ADR-054](../../adrs/ADR-054-github-decides-who-can-open-a-repository.md), [`specs/github-decides-repo-access/spec.md`](../github-decides-repo-access/spec.md) |
@@ -41,8 +41,8 @@ This step takes two releases so that a rollback works. The first only adds: lore
 
 A run of the ingest client makes many requests (it reads the ingest state, posts each kind of document in parts, and retries), and it can last longer than one identity token. So a token is not single-use: it is good for its own short life, which GitHub sets in minutes, and only for the ingest routes of its one repository. Sending it again gives its holder nothing the workflow does not already do.
 
-- **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's.
-- **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes.
+- **FR-070**: lore-api accepts a GitHub Actions identity token for ingest only when its issuer is exactly the configured GitHub host's ([validated by accepts a token for ingest only when its issuer is exactly the configured GitHub host issuer @3b69bd2c](apps/lore-api/src/transport/http/ci-identity-token.acceptance.test.ts#L55)) ([validated by returns claims only when the issuer is exactly the configured GitHub host issuer @28f46d6d](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L43)) ([validated by gives a verified CI identity token write scope only, with no user and no token hash @496a547f](apps/lore-api/src/transport/http/resolve-principal.test.ts#L80)) ([validated by falls through to the stored token lookup when a JWT-shaped bearer does not verify @312f937d](apps/lore-api/src/transport/http/resolve-principal.test.ts#L107)).
+- **FR-151**: An identity token is accepted only when its signature matches a key of the key set that issuer publishes ([validated by accepts a token only when its signature matches a key published by the issuer key set @cfac12a0](apps/lore-api/src/transport/http/ci-identity-token.acceptance.test.ts#L88)) ([validated by returns claims only when the signature matches a key of the issuer key set @e96e3b94](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L64)) ([validated by refuses a token whose header names an algorithm other than RS256 @3959237f](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L122)) ([validated by refuses when the issuer key set errors, rejects or answers something that is not a key set @bb405462](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L134)).
 - **FR-152**: lore-api fetches the key set from the configured issuer and from nowhere else.
 - **FR-153**: An identity token signed with a key id lore-api does not hold triggers a fetch of the key set, unless one was made in the last minute.
 - **FR-350**: At most one fetch of the key set is in flight, and a token that needs the key set meanwhile waits for that fetch.
@@ -53,9 +53,9 @@ A run of the ingest client makes many requests (it reads the ingest state, posts
 - **FR-408**: The issuer's cache headers can shorten that hour and never lengthen it.
 - **FR-409**: When the issuer's answer carries no cache header, or one that cannot be read, the key set is kept for one hour.
 - **FR-410**: A token signed by a key of a set older than that is not accepted until the set has been fetched again.
-- **FR-071**: An identity token whose audience is not this install's own address is refused.
-- **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused.
-- **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository.
+- **FR-071**: An identity token whose audience is not this install's own address is refused ([validated by refuses a token whose audience is not this install address @7a5b3acb](apps/lore-api/src/transport/http/ci-identity-token.acceptance.test.ts#L112)) ([validated by refuses every token when this install's address is not configured @c7071b56](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L165)).
+- **FR-072**: An identity token outside its validity period (`iat`, `nbf`, `exp`) is refused ([validated by refuses a token outside its validity period across iat, nbf, and exp @b8b773f3](apps/lore-api/src/transport/http/ci-identity-token.acceptance.test.ts#L130)) ([validated by refuses a token whose validity claims are missing or not numbers @ef0797aa](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L174)).
+- **FR-074**: An identity token is accepted only when its `repository_id` and `repository_owner_id` match an onboarded repository ([validated by accepts a token only when repository_id and repository_owner_id match an onboarded repository @f4f39355](apps/lore-api/src/transport/http/ci-identity-token.acceptance.test.ts#L155)) ([validated by refuses when the onboarded repository lookup fails or the claims are not strings @fabb89f3](apps/lore-api/src/transport/http/ci-identity-token.test.ts#L198)).
 - **FR-156**: An accepted identity token from a run on the repository's default branch allows `POST /api/repos/{owner}/{repo}/ingest` and `GET /api/repos/{owner}/{repo}/ingest-state` of the repository it names, and no other repository.
 - **FR-312**: An accepted identity token from a run on the repository's default branch allows `POST /api/ingest`, the route the installed workflow's `ingest` job posts to, only when the `repo` in the payload is the repository the token names.
 - **FR-313**: `POST /api/ingest` made with an identity token whose repository is not the payload's `repo` is refused.

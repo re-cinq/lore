@@ -76,4 +76,54 @@ describe("resolvePrincipal", () => {
 
     expect(await resolvePrincipal(pool as never, "revoked")).toBeNull();
   });
+
+  it("gives a verified CI identity token write scope only, with no user and no token hash", async () => {
+    vi.resetModules();
+    vi.doMock("./ci-identity-token.js", () => ({
+      verifyIdentityToken: async (_pool: unknown, token: string) =>
+        token === "aaa.bbb.ccc"
+          ? { iss: "https://token.actions.githubusercontent.com" }
+          : null,
+    }));
+
+    try {
+      const { resolvePrincipal: resolve } = await import("./auth.js");
+      const pool = makePool();
+
+      expect(await resolve(pool as never, "aaa.bbb.ccc")).toEqual({
+        scopes: ["write"],
+        user: null,
+        tokenHash: null,
+      });
+      expect(pool.query).not.toHaveBeenCalledWith(expect.any(String), [
+        sha256("aaa.bbb.ccc"),
+      ]);
+    } finally {
+      vi.doUnmock("./ci-identity-token.js");
+    }
+  });
+
+  it("falls through to the stored token lookup when a JWT-shaped bearer does not verify", async () => {
+    vi.resetModules();
+    vi.doMock("./ci-identity-token.js", () => ({
+      verifyIdentityToken: async () => null,
+    }));
+
+    try {
+      const { resolvePrincipal: resolve } = await import("./auth.js");
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({
+        rows: [{ scopes: ["read"], kind: "service", login: null, repos: [] }],
+      });
+
+      expect(await resolve(pool as never, "bad.jwt.ccc")).toEqual({
+        scopes: ["read"],
+        user: null,
+        tokenHash: sha256("bad.jwt.ccc"),
+      });
+    } finally {
+      vi.doUnmock("./ci-identity-token.js");
+    }
+  });
 });
