@@ -198,6 +198,24 @@ test("a 1.6 MB file .gitattributes marks linguist-generated goes as its diff alo
   );
 });
 
+test("a generated file whose diff exceeds 2 MiB asks for the whole-diff reviewer", (t) => {
+  const { write, commit, snapshot } = repository(t);
+  const schema = (field) =>
+    `export interface paths {\n${`  ${field}: string;\n`.repeat(150_000)}}\n`;
+
+  write(".gitattributes", "api/schema.d.ts linguist-generated\n");
+  write("api/schema.d.ts", schema("listed"));
+  const base = commit();
+
+  write("api/schema.d.ts", schema("archived"));
+  const head = commit();
+
+  assert.deepEqual(snapshot(base, head), {
+    exitCode: 1,
+    output: { status: "whole_diff", reason: "Evidence exceeds 2097152 bytes" },
+  });
+});
+
 test("a Markdown-only change asks for the whole-diff reviewer", (t) => {
   const { write, commit, snapshot } = repository(t);
 
