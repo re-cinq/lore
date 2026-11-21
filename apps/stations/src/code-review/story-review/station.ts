@@ -1,3 +1,4 @@
+import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import {
   defineStation,
   type Handle,
@@ -5,7 +6,6 @@ import {
   type RunningStation,
   type Tools,
 } from "@re-cinq/floor-station";
-import type { Pool } from "pg";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
@@ -21,22 +21,24 @@ import {
   type ReviewProgress,
 } from "@re-cinq/lore-shared/review/review-progress.js";
 import { projectFor } from "../../outbound/project-boot.js";
+import { withProgressLock } from "./progress-lock.js";
 import {
   formalReview,
-  progressNeeds,
-  reviewProgress,
-  type ProgressResults,
-  type ProgressState,
-} from "./render.js";
+  reviewPasses,
+  storyPasses,
+  storyReview,
+  type PassName,
+  type PassOutputs,
+  type ReviewState,
+} from "@re-cinq/lore-shared/review/story/story.js";
 
-const stages = [
-  "publish-code",
-  "publish-tests",
-  "publish-intent",
-  "publish-challenge",
-  "publish-product",
-  "publish-incomplete",
-];
+// Where each node stands in the review, which orders the comment's updates, and the passes that must have answered when it publishes; publish-incomplete shows whatever did.
+const stages: Record<string, { stage: number; passes: readonly PassName[] }> = {
+  "publish-story": { stage: 1, passes: ["story"] },
+  "publish-checks": { stage: 3, passes: storyPasses },
+  finalize: { stage: 4, passes: storyPasses },
+  "publish-incomplete": { stage: 4, passes: storyPasses },
+};
 
 const SUCCESS: Report = { outcome: "success" };
 
@@ -61,57 +63,79 @@ interface ProgressDeps {
 
 export function startReviewProgressStation(
   name:
-    "code-review-progress" | "finalize-code-review" | "shadow-review-progress",
+    "code-review-progress" | "code-review-docs-gate" | "finalize-code-review",
 ): RunningStation {
-  return defineStation(name, shadowReviewProgressHandle(productionDeps));
+  return defineStation(name, reviewProgressHandle(productionDeps));
 }
 
-export function shadowReviewProgressHandle(deps: ProgressDeps): Handle {
+export function reviewProgressHandle(deps: ProgressDeps): Handle {
   return async (brief, tools) => {
     const [visit, outputs] = await Promise.all([
-      readShadowVisit(deps, brief.visitId),
+      readReviewVisit(deps, brief.visitId),
       readOutputs(brief.needs, tools),
     ]);
 
-    const publication = publicationOf(visit, outputs);
+    const publication = publicationOf(visit, outputs, brief.needs);
     const { state, progress } = publication;
 
     if (state !== "failed" && progress.incomplete.length > 0) {
       return failedEvidence(progress.incomplete);
     }
 
-    if (visit.lineId !== "code-review-shadow" && state === "complete") {
-      await produceFormalReview(outputs, tools);
+    if (state === "complete") {
+      await produceFormalReview(outputs, publication.required, tools);
     }
 
-    return reportProgress(deps, brief.needs, publication, tools.signal);
+    await publishProgress(deps, brief.needs, publication, tools.signal);
+
+    return progressReport(visit, state, brief.needs);
   };
 }
 
 function publicationOf(
   visit: ProgressVisit,
-  outputs: ProgressResults,
+  outputs: PassOutputs,
+  needs: Record<string, string>,
 ): Publication {
-  const stage = stageOf(visit.nodeId);
+  const { stage, passes } = stageOf(visit.nodeId);
+  const required = requiredPasses(passes, needs);
 
   return {
     visit,
     stage,
+    required,
     state: progressState(visit.nodeId),
-    progress: reviewProgress(outputs, stage, visit.lineId),
+    progress: storyReview(outputs, required),
   };
 }
 
+/** The passes a node waits for: a pull request of documents alone has only the documents check, one that changes only links has none, and the documents check joins the story's passes once it has run. */
+function requiredPasses(
+  passes: readonly PassName[],
+  { review_mode: mode, docs_check: documents }: Record<string, string>,
+): readonly PassName[] {
+  if (mode === "links") {
+    return [];
+  }
+
+  if (mode === "docs") {
+    return ["docs_check"];
+  }
+
+  return documents ? [...passes, "docs_check"] : passes;
+}
+
 async function produceFormalReview(
-  outputs: ProgressResults,
+  outputs: PassOutputs,
+  required: readonly PassName[],
   tools: Tools,
 ): Promise<void> {
-  const review = formalReview(outputs);
+  const review = formalReview(outputs, required);
 
   enforceTrue(
     review,
     Error,
-    "A formal verdict requires five complete review passes",
+    "A formal verdict requires every pass of the review",
   );
   const json = JSON.stringify(review).replaceAll("`", "\\u0060");
 
@@ -124,20 +148,21 @@ async function produceFormalReview(
 type Publication = {
   visit: ProgressVisit;
   stage: number;
-  state: ProgressState;
-  progress: ReturnType<typeof reviewProgress>;
+  required: readonly PassName[];
+  state: ReviewState;
+  progress: ReturnType<typeof storyReview>;
 };
 
-async function reportProgress(
+async function publishProgress(
   deps: ProgressDeps,
   { pr_url: url, revision, preparation_failed }: Record<string, string>,
   { visit, stage, state, progress }: Publication,
   signal: AbortSignal,
-): Promise<Report> {
+): Promise<void> {
   if (url) {
     const target = hostedTarget(url, revision, visit);
     const body =
-      progress.body(revision, state) +
+      progress.comment(revision, state) +
       preparationNote(state, preparation_failed);
 
     await publishHosted(
@@ -147,18 +172,24 @@ async function reportProgress(
       signal,
     );
   }
-
-  return progressReport(visit, state);
 }
 
-// Posting retries share the run marker so GitHub receives the verdict only once.
-function progressReport(visit: ProgressVisit, state: ProgressState): Report {
-  return state === "complete" && visit.lineId !== "code-review-shadow"
-    ? { outcome: "success", produced: { review_run: visit.runId } }
+// Posting retries share the run marker so GitHub receives the verdict only once. After both checks, a pull request that changes documents goes to the documents check.
+function progressReport(
+  visit: ProgressVisit,
+  state: ReviewState,
+  needs: Record<string, string>,
+): Report {
+  if (state === "complete") {
+    return { outcome: "success", produced: { review_run: visit.runId } };
+  }
+
+  return visit.nodeId === "publish-checks" && needs.docs_changed === "true"
+    ? { outcome: "docs" }
     : SUCCESS;
 }
 
-function preparationNote(state: ProgressState, failed: string): string {
+function preparationNote(state: ReviewState, failed: string): string {
   return state === "failed" && failed === "true"
     ? "\n\nLore could not prepare the evidence for this revision."
     : "";
@@ -175,7 +206,7 @@ function failedEvidence(passes: string[]): Report {
   };
 }
 
-async function readShadowVisit(
+async function readReviewVisit(
   deps: ProgressDeps,
   visitId: string,
 ): Promise<ProgressVisit> {
@@ -183,9 +214,7 @@ async function readShadowVisit(
 
   enforceTrue(
     visit &&
-      ["code-review", "code-review-recheck", "code-review-shadow"].includes(
-        visit.lineId,
-      ) &&
+      ["code-review", "code-review-recheck"].includes(visit.lineId) &&
       Number.isFinite(visit.startedAt),
     Error,
     "Review progress requires a code review visit",
@@ -194,12 +223,10 @@ async function readShadowVisit(
   return visit;
 }
 
-function stageOf(nodeId: string): number {
-  const stage = stages.indexOf(nodeId);
+function stageOf(nodeId: string): (typeof stages)[string] {
+  enforceTrue(nodeId in stages, Error, `Unknown review stage ${nodeId}`);
 
-  enforceTrue(stage >= 0, Error, `Unknown shadow review stage ${nodeId}`);
-
-  return stage;
+  return stages[nodeId];
 }
 
 function hostedTarget(
@@ -241,9 +268,9 @@ async function publishHosted(
   );
 }
 
-function progressState(nodeId: string): ProgressState {
+function progressState(nodeId: string): ReviewState {
   switch (nodeId) {
-    case "publish-product":
+    case "finalize":
       return "complete";
     case "publish-incomplete":
       return "failed";
@@ -255,13 +282,16 @@ function progressState(nodeId: string): ProgressState {
 async function readOutputs(
   needs: Record<string, string>,
   tools: Tools,
-): Promise<ProgressResults> {
+): Promise<PassOutputs> {
   const outputs = await Promise.all(
-    progressNeeds
+    reviewPasses
       .filter((name) => needs[name])
       .map(
         async (name) =>
-          [name, (await tools.read(name)).toString("utf8")] as const,
+          [
+            name,
+            resultTextFromOutput((await tools.read(name)).toString("utf8")),
+          ] as const,
       ),
   );
 
@@ -275,7 +305,7 @@ const productionDeps: ProgressDeps = {
   serialize: (repo, prNumber, publish) =>
     withProgressLock(
       getPool(),
-      `shadow-review:${repo.toLowerCase()}#${prNumber}`,
+      `code-review:${repo.toLowerCase()}#${prNumber}`,
       publish,
     ),
 };
@@ -295,28 +325,5 @@ async function progressVisit(
       repo: run.repo,
       startedAt: Date.parse(run.createdAt),
     };
-  }
-}
-
-async function withProgressLock(
-  pool: Pool,
-  key: string,
-  publish: () => Promise<void>,
-): Promise<void> {
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-      [key],
-    );
-    await publish();
-  } finally {
-    // The transaction only holds the cross-worker lock. Discard the connection if release fails.
-    await client.query("ROLLBACK").then(
-      () => client.release(),
-      () => client.release(new Error("Could not release shadow review lock")),
-    );
   }
 }

@@ -59,9 +59,35 @@ async function prepareFiling(input: StationInput, project: StationProject) {
     context: {
       ...context,
       ...completionContext(input, original),
-      ...coverageContext(context, actionable, original),
+      ...coverageContext(context, {
+        filed: actionable,
+        counted: countedDecomposition(input) ?? actionable,
+        original,
+      }),
     },
   };
+}
+
+/** The decomposition before the dedupe step dropped the tasks other tickets hold, when the line hands it over. */
+function countedDecomposition(
+  input: StationInput,
+): DecompositionResult | undefined {
+  const { counted_decomposition: counted, spec_path: specPath } = input.params;
+
+  return counted
+    ? actionableDecomposition(
+        parseDecomposition(parseModelJson(counted)),
+        specPath,
+      )
+    : undefined;
+}
+
+interface CoverageSources {
+  /** The tasks that become issues. */
+  filed: DecompositionResult;
+  /** The tasks whose statements count as covered. */
+  counted: DecompositionResult;
+  original: DecompositionResult;
 }
 
 function completionContext(input: StationInput, original: DecompositionResult) {
@@ -77,14 +103,13 @@ function completionContext(input: StationInput, original: DecompositionResult) {
 
 function coverageContext(
   context: FilingContext,
-  actionable: DecompositionResult,
-  original: DecompositionResult,
+  { filed, counted, original }: CoverageSources,
 ) {
   const { spec } = context;
-  const tasks = actionable.stories.flatMap((story) => story.tasks);
+  const tasks = tasksOf(filed);
   const options = { implementationVerified: true };
   const covered = spec
-    ? issueCoverage(spec.specs, tasks, presentStatements(original))
+    ? issueCoverage(spec.specs, tasksOf(counted), presentStatements(original))
     : undefined;
   const coverage =
     covered && spec
@@ -95,6 +120,10 @@ function coverageContext(
     nothingRemaining: tasks.length === 0 && covered?.missing.length === 0,
     story: { ...context.story, coverage },
   };
+}
+
+function tasksOf(decomposition: DecompositionResult) {
+  return decomposition.stories.flatMap((story) => story.tasks);
 }
 
 function filingResult(

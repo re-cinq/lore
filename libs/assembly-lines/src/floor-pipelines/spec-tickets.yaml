@@ -211,10 +211,11 @@ stations:
         access: read
       - name: verified_decomposition
         kind: file
-      # A task whose id an earlier run filed is a rewrite, never dropped.
-      - name: existing_tickets
-        kind: file
-        path: existing-tickets.json
+      # The spec whose filed tickets the step lists itself: a task whose id one
+      # of them carries is a rewrite, never dropped, and a round sent back to
+      # decompose files tickets the load step's listing does not have.
+      - name: spec_path
+        kind: value
     # Coverage still counts the verified decomposition: a dropped task's
     # statements are held by the ticket it duplicates.
     produces:
@@ -235,6 +236,11 @@ stations:
         path: target
         access: read
       - name: deduped_decomposition
+        kind: file
+      # What the coverage step counts: the story lists as uncovered only the
+      # statements no task of this one names, so a task the dedupe step dropped
+      # still covers its statements.
+      - name: verified_decomposition
         kind: file
       - name: spec_path
         kind: value

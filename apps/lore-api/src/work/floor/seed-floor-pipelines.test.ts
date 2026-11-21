@@ -108,30 +108,27 @@ function codeReviewOnFloor(held: string[]) {
 }
 
 describe("seedFloorPipelines", () => {
-  it("preserves the installed review agents and seeds the new product reviewer", async () => {
-    const { deps, imported } = codeReviewOnFloor([
-      "shadow-review-reader",
-      "shadow-compare-intent",
-      "shadow-review-challenge",
-      "code-review",
-    ]);
+  it("preserves the whole-diff reviewer the floor holds and seeds the three story review agents and the documents check", async () => {
+    const { deps, imported } = codeReviewOnFloor(["code-review"]);
 
     await seedFloorPipelines(deps);
 
-    expect(imported).toEqual([["code-review-product"]]);
+    expect(imported).toEqual([
+      ["review-story", "review-implementation", "review-issue", "review-docs"],
+    ]);
   });
 
-  it("seeds the four agent definitions of the five review passes and the whole-diff reviewer on an empty floor", async () => {
+  it("seeds the three story review agents, the documents check and the whole-diff reviewer on an empty floor", async () => {
     const { deps, imported } = codeReviewOnFloor([]);
 
     await seedFloorPipelines(deps);
 
     expect(imported).toEqual([
       [
-        "shadow-review-reader",
-        "shadow-compare-intent",
-        "shadow-review-challenge",
-        "code-review-product",
+        "review-story",
+        "review-implementation",
+        "review-issue",
+        "review-docs",
         "code-review",
       ],
     ]);
@@ -254,13 +251,12 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
   const edgeTarget = (line: LineBody, from: string, outcome: string) =>
     line.edges.find((edge) => edge.from === from && edge.on === outcome)?.to;
 
-  it("declare the lines auto-merge, code-review, code-review-recheck, code-review-reply, code-review-shadow, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
+  it("declare the lines auto-merge, code-review, code-review-recheck, code-review-reply, daily-digest, feature-planning, implementation-loop, issue-triage, lore-run-settled, merge, onboard, spec-tickets, spec-upkeep and weekly-changelog", () => {
     expect(pipelines.map((pipeline) => pipeline.line?.id).sort()).toEqual([
       "auto-merge",
       "code-review",
       "code-review-recheck",
       "code-review-reply",
-      "code-review-shadow",
       "daily-digest",
       "feature-planning",
       "implementation-loop",
@@ -492,13 +488,13 @@ describe("the pipeline files shipped in libs/assembly-lines", () => {
     expect(featurePlanning).toEqual(inline);
   });
 
-  it("builds code-review-refine from its file alone: claude-sonnet-4-6, 20 minutes, the agent image and the MCP url the environment names", () => {
+  it("builds code-review-refine from its file alone: gemini-4-argon, 20 minutes, the agent image and the MCP url the environment names", () => {
     const refine = pipelines
       .flatMap((pipeline) => pipeline.agentDefinitions)
       .find((definition) => definition.id === "code-review-refine");
 
     expect(refine?.body.settings).toMatchObject({
-      model: "claude-sonnet-4-6",
+      model: "gemini-4-argon",
       timeoutMinutes: 20,
       image: "ghcr.io/re-cinq/agent:1",
       config: {
@@ -530,15 +526,13 @@ describe("the agent stations a shipped pipeline is put with", () => {
   });
 });
 
-it("serializes the shadow progress station with an empty produces array", () => {
-  const shadow = realFiles().find(
-    ({ name }) => name === "code-review-shadow.yaml",
-  );
+it("serializes the review progress station with an empty produces array", () => {
+  const review = realFiles().find(({ name }) => name === "code-review.yaml");
 
-  enforceTrue(shadow, Error, "missing shadow review pipeline");
-  const pipeline = pipelineOfText(shadow.text, FIXED_ENV);
+  enforceTrue(review, Error, "missing code review pipeline");
+  const pipeline = pipelineOfText(review.text, FIXED_ENV);
   const progress = pipeline.stations.find(
-    ({ id }) => id === "shadow-review-progress",
+    ({ id }) => id === "code-review-progress",
   );
 
   expect(progress?.body).toMatchObject({ kind: "service", produces: [] });

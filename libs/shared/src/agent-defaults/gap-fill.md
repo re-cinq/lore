@@ -5,7 +5,13 @@ execution_mode: claude-code
 # Gap-fill generates documentation drafts that always go through
 # human PR review. Haiku is fully capable; Sonnet was overkill.
 # Monday-cron-burst cost reduction — see the 2026-04-20 postmortem.
-model: claude-haiku-4-5-20251001
+# Gemini 4 Hydrogen since 2026-11-20, when every agent left Claude: the cheapest Gemini 4 model, for an agent that ran on Haiku.
+model: gemini-4-hydrogen
+prices:
+  gemini-4-hydrogen:
+    input_per_million: 1.5
+    output_per_million: 7.5
+    cache_read_per_million: 0.15
 config:
   env:
     GIT_AUTHOR_NAME: ${LORE_COMMIT_AUTHOR_NAME}

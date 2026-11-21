@@ -62,10 +62,23 @@ function answered(parsed: unknown): LlmToolResult<unknown> {
   };
 }
 
-function scene(deps: DedupeDeps) {
+type SceneDeps = Pick<DedupeDeps, "search" | "judge"> & Partial<DedupeDeps>;
+
+function issue(number: number, title: string) {
+  return {
+    repo: "acme/widget",
+    number,
+    title,
+    state: "open" as const,
+    labels: ["lore-managed"],
+  };
+}
+
+function scene(deps: SceneDeps, specPath?: string) {
   const produced: Record<string, string> = {};
   const requests: TicketSearchRequest[] = [];
   const prompts: string[] = [];
+  const listed: string[][] = [];
   const bag: Record<string, string> = {
     verified_decomposition: JSON.stringify(DECOMPOSITION),
     existing_tickets: JSON.stringify(EXISTING),
@@ -79,6 +92,11 @@ function scene(deps: DedupeDeps) {
     signal: new AbortController().signal,
   };
   const handle = dedupeHandle({
+    filed: async (repo, filingKey) => {
+      listed.push([repo, filingKey]);
+
+      return deps.filed?.(repo, filingKey) ?? { tasks: new Map() };
+    },
     search: (request) => {
       requests.push(request);
 
@@ -99,12 +117,13 @@ function scene(deps: DedupeDeps) {
           target: "https://github.com/acme/widget@main",
           verified_decomposition: "blob-1",
           existing_tickets: "blob-2",
+          ...(specPath ? { spec_path: specPath } : {}),
         },
       },
       tools,
     );
 
-  return { produced, requests, prompts, run };
+  return { produced, requests, prompts, listed, run };
 }
 
 const SEARCHES: Record<string, TicketSearchAnswer> = {
@@ -140,6 +159,39 @@ describe("dedupeHandle", () => {
       judged: 1,
       kept: ["T002", "T003"],
       report: "## Ticket dedupe\n\n- T001: duplicate_of #7 — same login",
+    });
+  });
+
+  it("neither searches nor drops T001, filed as #7 after the load step listed only T002, and takes #7 and story #3 as no candidate for T003", async () => {
+    const { produced, requests, prompts, listed, run } = scene(
+      {
+        filed: async () => ({
+          story: issue(3, "User story: Login"),
+          tasks: new Map([
+            ["T001", issue(7, "T001: Add login")],
+            ["T002", issue(5, "T002: Add logout")],
+          ]),
+        }),
+        search: async () => ({ tickets: [ticket(7, 0.03), ticket(3, 0.03)] }),
+        judge: async () =>
+          answered({ verdict: "duplicate", ticket: 7, why: "same login" }),
+      },
+      "specs/login/spec.md",
+    );
+
+    expect(await run()).toEqual({ outcome: "success" });
+    expect({
+      listed,
+      searched: requests.map(({ query }) => query),
+      judged: prompts.length,
+      decomposition: JSON.parse(produced.deduped_decomposition ?? "{}"),
+      report: produced.dedupe_report,
+    }).toEqual({
+      listed: [["acme/widget", "spec-login"]],
+      searched: ["Add signup\nBuild add signup."],
+      judged: 0,
+      decomposition: DECOMPOSITION,
+      report: "## Ticket dedupe\n\nNo new task matched an existing ticket.",
     });
   });
 

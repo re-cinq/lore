@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { posix } from "node:path";
 import { promisify, parseArgs } from "node:util";
 import { isTestFile } from "../libs/shared/dist/domain/test-paths.js";
+import { referenceStem } from "./lore-review-packets.mjs";
 
 const runFile = promisify(execFile);
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
@@ -48,18 +49,6 @@ async function tree(revision) {
       return [entry.slice(separator + 1), { mode, hash }];
     }),
   );
-}
-
-function referenceStem(path) {
-  const filename = posix.basename(path, posix.extname(path));
-  const stem = filename.replace(
-    /(?:[._-](?:test|spec|tests)|Tests?|^test_)/g,
-    "",
-  );
-
-  return /^(?:index|mod|main|lib)$/.test(stem)
-    ? posix.basename(posix.dirname(path))
-    : stem;
 }
 
 async function referencedPaths(revision, stems, pathspecs = []) {
@@ -386,6 +375,9 @@ async function capture(base, head, includes, comparisonBase, scope) {
     }
   }
 
+  // What the change is about; a file found only by a search for its uses is context.
+  const subject = new Set(paths);
+
   for (const path of related.flat()) {
     paths.add(path);
   }
@@ -439,7 +431,13 @@ async function capture(base, head, includes, comparisonBase, scope) {
         `Evidence exceeds ${maxEvidenceBytes} bytes`,
       );
     }
-    files.push({ path, role, before, after });
+    files.push({
+      path,
+      role,
+      before,
+      after,
+      ...(paths.has(path) && !subject.has(path) ? { context: true } : {}),
+    });
   }
 
   for (const path of [...paths].sort()) {
@@ -459,7 +457,13 @@ async function capture(base, head, includes, comparisonBase, scope) {
     throw new UnsplittableChange("The change has no code or test file");
   }
 
-  return { base, head, mergeBase, files };
+  return {
+    base,
+    head,
+    mergeBase,
+    files,
+    terms: [...new Set([...stems, ...otherStems, ...configKeys])],
+  };
 }
 
 try {

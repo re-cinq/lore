@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -335,6 +336,22 @@ describe("handleSkillsRequest model adjustment", () => {
       status: 200,
       magic: [0x1f, 0x8b],
     });
+  });
+
+  it.each(["claude", "gemini"])(
+    "puts the guard script in the %s hook bundle at .lore/guard-tests.sh, so a pod with hooks has its guard whatever skills it lists",
+    async (vendor) => {
+      const { body } = await skillsGet(`/skills/hooks/${vendor}.tar.gz`);
+      const listed = spawnSync("tar", ["-tzf", "-"], { input: body })
+        .stdout.toString()
+        .split("\n");
+
+      expect(listed).toContain("./.lore/guard-tests.sh");
+    },
+  );
+
+  it("serves no bundle of the shared hook files alone", async () => {
+    expect((await skillsGet("/skills/hooks/shared.tar.gz")).status).toBe(404);
   });
 });
 

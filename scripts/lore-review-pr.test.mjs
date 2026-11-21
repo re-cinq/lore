@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
-import { once } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { text } from "node:stream/consumers";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -63,27 +60,6 @@ globalThis.fetch=async (url) => {
   return new Response(JSON.stringify(body),{headers:{"content-type":"application/json"}});
 };`,
   );
-  const floorRun = { packets: new Map(), started: undefined };
-  const floor = createServer(async (req, res) => {
-    res.setHeader("content-type", "application/json");
-
-    if (req.url.startsWith("/assembly-runs?")) {
-      return res.end(JSON.stringify({ items: [], nextCursor: null }));
-    }
-    const body = JSON.parse(await text(req));
-
-    if (req.url === "/blobs") {
-      floorRun.packets.set(body.mode, body);
-
-      return res.end(JSON.stringify({ hash: body.mode }));
-    }
-    floorRun.started = body;
-    res.end(JSON.stringify({ run: { id: "run-42" } }));
-  });
-
-  floor.listen(0, "127.0.0.1");
-  await once(floor, "listening");
-  t.after(() => floor.close());
   const run = promisify(execFile);
   const args = [
     fileURLToPath(new URL("./lore-review-pr.mjs", import.meta.url)),
@@ -100,8 +76,6 @@ globalThis.fetch=async (url) => {
       HOME: root,
       GITHUB_TOKEN: "fixture-token",
       NODE_OPTIONS: "--import=" + mock,
-      FLOOR_API_URL: "http://127.0.0.1:" + floor.address().port,
-      FLOOR_SERVICE_TOKEN: "fixture-floor",
     },
   };
   const collect = async (...extra) =>
@@ -109,11 +83,11 @@ globalThis.fetch=async (url) => {
       (await run(process.execPath, [...args, ...extra], options)).stdout,
     );
 
-  return { base, head, collect, floorRun };
+  return { collect };
 }
 
-test("a PR event collects pinned code and unchanged tests and starts a five-pass run for the PR head", async (t) => {
-  const { base, head, collect, floorRun } = await pullRequest(
+test("collects the tests, the code and the issue of a pull request at its pinned head", async (t) => {
+  const { collect } = await pullRequest(
     t,
     {
       "limit.ts": "export const limit = 1;",
@@ -121,88 +95,124 @@ test("a PR event collects pinned code and unchanged tests and starts a five-pass
     },
     { "limit.ts": "export const limit = 2;" },
   );
-  const evidence = await collect("--evidence-only", "--since", base);
+  const evidence = await collect();
+  const [changed] = evidence.code_evidence.files;
 
-  assert.equal(floorRun.started, undefined);
-  assert.deepEqual(Object.keys(evidence).sort(), [
-    "challenge_evidence",
-    "code_evidence",
-    "intent_evidence",
-    "product_evidence",
-    "test_evidence",
-  ]);
   assert.deepEqual(
-    evidence.test_evidence.files.map((file) => file.path),
-    ["limit.test.ts"],
-  );
-  assert.deepEqual(
-    evidence.code_evidence.files.map(({ path, before, after, diff }) => ({
-      path,
-      before,
-      after,
-      changed: diff.split("\n").filter((line) => /^[-+]e/.test(line)),
-    })),
-    [
-      {
+    {
+      packets: Object.keys(evidence),
+      docs: evidence.docs_evidence,
+      tests: evidence.test_evidence.files,
+      code: {
+        path: changed.path,
+        before: changed.before,
+        after: changed.after,
+      },
+      diff: changed.diff.split("\n").filter((line) => /^[-+]e/.test(line)),
+      issue: [evidence.issue_evidence.mode, evidence.issue_evidence.specs],
+      asked: evidence.issue_evidence.discussion[0].text,
+    },
+    {
+      packets: [
+        "test_evidence",
+        "code_evidence",
+        "issue_evidence",
+        "docs_evidence",
+      ],
+      docs: { mode: "docs", statements: [], removed: [] },
+      tests: [{ path: "limit.test.ts", unchanged: "expect(limit).toBe(1);" }],
+      code: {
         path: "limit.ts",
         before: undefined,
         after: "export const limit = 2;",
-        changed: ["-export const limit = 1;", "+export const limit = 2;"],
       },
-    ],
-  );
-  const result = await collect();
-
-  assert.equal(result.runId, "run-42");
-  assert.equal(floorRun.started.startItems.revision.ref, head);
-  assert.deepEqual(floorRun.packets.get("tests").files, [
-    { path: "limit.test.ts", unchanged: "expect(limit).toBe(1);" },
-  ]);
-  assert.deepEqual(
-    floorRun.packets
-      .get("code")
-      .files.map(({ path, after }) => ({ path, after })),
-    [{ path: "limit.ts", after: "export const limit = 2;" }],
-  );
-  assert.equal(
-    floorRun.packets.get("intent").discussion[0].text,
-    "Adjust limit",
+      diff: ["-export const limit = 1;", "+export const limit = 2;"],
+      issue: ["issue", []],
+      asked: "Adjust limit",
+    },
   );
 });
 
-test("a Markdown-only PR asks for the whole-diff reviewer and starts no five-pass run", async (t) => {
-  const { collect, floorRun } = await pullRequest(
+test("a Markdown-only PR is handed to the documents check alone, with each statement it writes", async (t) => {
+  const { collect } = await pullRequest(
     t,
     { "README.md": "# Otto\n" },
     { "README.md": "# Otto\n\nAn admin erases one person's data.\n" },
   );
-  const asked = {
-    status: "whole_diff",
-    reason: "The change has no code or test file",
-  };
 
-  assert.deepEqual(
-    [await collect("--evidence-only"), await collect(), floorRun.started],
-    [asked, asked, undefined],
-  );
+  assert.deepEqual(await collect(), {
+    status: "docs_only",
+    docs_evidence: {
+      mode: "docs",
+      statements: [
+        {
+          path: "README.md",
+          line: 3,
+          heading: "Otto",
+          text: "An admin erases one person's data.",
+          tests: [],
+        },
+      ],
+      removed: [],
+    },
+  });
 });
 
-test("a PR whose specs exceed the product evidence limit asks for the whole-diff reviewer", async (t) => {
-  const megabyte = "A booking shows its payer.\n".repeat(45_000);
+test("a PR that only moves the links of a spec needs no review", async (t) => {
+  const statement = (line) =>
+    `# Queue\n\n- A full queue refuses a new item. ([validated by](../../queue.test.ts#L${line}))\n`;
+  const { collect } = await pullRequest(
+    t,
+    { "specs/queue/spec.md": statement(4) },
+    { "specs/queue/spec.md": statement(9) },
+  );
+
+  assert.deepEqual(await collect(), { status: "links_only" });
+});
+
+test("a PR that changes code and a spec statement hands the statement to the documents check beside the story packets", async (t) => {
   const { collect } = await pullRequest(
     t,
     {
       "limit.ts": "export const limit = 1;",
-      "specs/booking/spec.md": megabyte,
+      "specs/limit/spec.md": "# Limit\n",
     },
     {
       "limit.ts": "export const limit = 2;",
-      "specs/booking/spec.md": megabyte + "It ends.\n",
+      "specs/limit/spec.md": "# Limit\n\n- The limit is 2.\n",
     },
   );
 
-  assert.deepEqual(await collect("--evidence-only"), {
+  assert.deepEqual((await collect()).docs_evidence.statements, [
+    {
+      path: "specs/limit/spec.md",
+      line: 3,
+      heading: "Limit",
+      text: "- The limit is 2.",
+      tests: [],
+    },
+  ]);
+});
+
+test("a PR that adds more spec statements than the review evidence limit asks for the whole-diff reviewer", async (t) => {
+  const statements = Array.from(
+    { length: 60_000 },
+    (_unused, index) => `- Booking ${index} shows its payer and its orderer.\n`,
+  ).join("");
+  const { collect } = await pullRequest(
+    t,
+    {
+      "limit.ts": "export const limit = 1;",
+      "specs/booking/spec.md": "# Bookings\n",
+    },
+    {
+      "limit.ts": "export const limit = 2;",
+      "specs/booking/spec.md": "# Bookings\n\n" + statements,
+    },
+  );
+
+  assert.deepEqual(await collect(), {
     status: "whole_diff",
-    reason: "Relevant product specifications exceed the review evidence limit",
+    reason: "Changed Markdown exceeds the review evidence limit",
   });
 });

@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$HOME/.claude/skills/lore-context/guard-tests.sh\"; if [ -r \"$f\" ]; then exec sh \"$f\"; fi; [ -n \"$LORE_TEST_POLICY\" ] || exit 0; printf '[lore] blocked: this recipe declares LORE_TEST_POLICY=%s but its guard script is missing from %s; it was staged with the lore-context skill and must not be removed\\n' \"$LORE_TEST_POLICY\" \"$f\" >&2; exit 2"
+            "command": "f=\"$HOME/.lore/guard-tests.sh\"; if [ -r \"$f\" ]; then exec sh \"$f\"; fi; [ -n \"$LORE_TEST_POLICY\" ] || exit 0; printf '[lore] blocked: this recipe declares LORE_TEST_POLICY=%s but its guard script is missing from %s; it is staged with the hook bundle and must not be removed\\n' \"$LORE_TEST_POLICY\" \"$f\" >&2; exit 2"
           }
         ]
       }

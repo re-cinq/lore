@@ -1,267 +1,130 @@
+// The one-story review run on a developer's machine: the same three prompts as the hosted line, each given only its own files, and the same comment and verdict.
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { text } from "node:stream/consumers";
-import { parseArgs } from "node:util";
-import { z } from "zod";
-import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
-import {
-  fileItem,
-  floorRepoOf,
-  parsePullRequestUrl,
-  pullRequestUrl,
-  valueItem,
-} from "@re-cinq/lore-shared/floor/floor-items.js";
-import { reviewPackets, shadowEvidence } from "./lore-review-packets.mjs";
+import { promisify, parseArgs } from "node:util";
 import { pagedPacket } from "@re-cinq/lore-shared/review/paged-packet.js";
+import {
+  formalReview,
+  storyPasses,
+  storyReview,
+} from "@re-cinq/lore-shared/review/story/story.js";
+import { storyPackets } from "./lore-review-packets.mjs";
 
-async function previousAutomaticRun(floor, repo, reviewKey, preparationFailed) {
-  let cursor;
+const exec = promisify(execFile);
+const STEPS = [
+  { pass: "story", agent: "review-story", reads: ["tests.json"] },
+  {
+    pass: "implementation_check",
+    agent: "review-implementation",
+    reads: ["story.txt", "code.json", "tests.json"],
+  },
+  {
+    pass: "issue_check",
+    agent: "review-issue",
+    reads: [
+      "story.txt",
+      "implementation-check.txt",
+      "issue.json",
+      "code.json",
+      "tests.json",
+    ],
+  },
+];
 
-  do {
-    const page = await floor.runs.list(
-      { repo, line: "code-review-shadow", subject: `review_key:${reviewKey}` },
-      { cursor },
-    );
-    const prior = page.items.find(
-      ({ startItems }) =>
-        startItems.automatic?.ref === "true" &&
-        (preparationFailed || startItems.preparation_failed?.ref !== "true"),
-    );
-
-    if (prior) {
-      return prior;
-    }
-    cursor = page.nextCursor;
-  } while (cursor);
-
-  return null;
-}
-
-async function startShadow(revision, requestedPrUrl, automatic, evidence) {
-  if (!/^[0-9a-f]{40}$/.test(revision)) {
-    throw new Error("Use the full GitHub commit SHA for --shadow-revision");
-  }
-  const target =
-    requestedPrUrl === undefined
-      ? undefined
-      : parsePullRequestUrl(requestedPrUrl);
-  const repo = target && floorRepoOf(target.repo);
-  const prUrl =
-    target && pullRequestUrl(target.repo.toLowerCase(), target.prNumber);
-  const reviewKey = prUrl === undefined ? revision : `${prUrl}@${revision}`;
-  const floor = floorClientFrom(process.env);
-  const preparationFailed = evidence === undefined;
-
-  if (automatic) {
-    const prior = await previousAutomaticRun(
-      floor,
-      repo,
-      reviewKey,
-      preparationFailed,
-    );
-
-    if (prior) {
-      return { status: "shadow_started", runId: prior.id, revision };
-    }
-  }
-  const files = await shadowFiles(floor, evidence);
-  const startItems = {
-    review_key: valueItem(reviewKey),
-    revision: valueItem(revision),
-    ...(prUrl === undefined ? {} : { pr_url: valueItem(prUrl) }),
-    ...(automatic ? { automatic: valueItem("true") } : {}),
-    ...(preparationFailed ? { preparation_failed: valueItem("true") } : {}),
-    ...files,
-  };
-  const { run } = await floor.lines.start("code-review-shadow", {
-    ...(repo === undefined ? {} : { repo }),
-    ...(preparationFailed ? { entry: "publish-incomplete" } : {}),
-    startItems,
-  });
-
-  return { status: "shadow_started", runId: run.id, revision };
-}
-
-async function shadowFiles(floor, evidence) {
-  const upload = async (packet) => {
-    const { hash } = await floor.blobs.put(
-      Buffer.from(pagedPacket(packet)),
-      "application/json",
-    );
-
-    return fileItem(hash);
-  };
-
-  if (evidence === undefined) {
-    const placeholder = await upload({});
-
-    return Object.fromEntries(
-      shadowEvidence.map((name) => [name, placeholder]),
-    );
-  }
-
-  return Object.fromEntries(
-    await Promise.all(
-      shadowEvidence.map(async (name, index) => [
-        name,
-        await upload(evidence[index]),
-      ]),
-    ),
+async function definitionOf(agent) {
+  const file = await readFile(
+    new URL(`../libs/shared/src/agent-defaults/${agent}.md`, import.meta.url),
+    "utf8",
   );
+  const [, ...body] = file.split("\n---\n");
+
+  return { prompt: body.join("\n---\n") };
 }
 
-function invokeReader(args, packet, cwd) {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
+// Each step runs in a directory of its own, so the story cannot borrow from the code or the issue.
+async function ask({ agent, reads }, files, model) {
+  const cwd = await mkdtemp(join(tmpdir(), "lore-review-"));
+
+  try {
+    const definition = await definitionOf(agent);
+
+    await Promise.all(
+      reads.map((name) => writeFile(join(cwd, name), files[name])),
+    );
+    const { stdout } = await exec(
       "claude",
-      args,
+      [
+        "-p",
+        definition.prompt.replaceAll("/workspace/", cwd + "/"),
+        // The hosted agents run on Gemini; a local review runs on the developer's own Claude Code, on its default model unless one is asked for.
+        ...(model ? ["--model", model] : []),
+        "--allowedTools",
+        "Read,Grep,Glob",
+        "--output-format",
+        "json",
+      ],
       {
         cwd,
-        timeout: 180_000,
-        maxBuffer: 2 * 1024 * 1024,
+        timeout: 900_000,
+        maxBuffer: 16 * 1024 * 1024,
         env: {
           ...process.env,
-          PWD: cwd,
           CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
           CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
         },
       },
-      (error, stdout, stderr) => {
-        if (error) {
-          const detail =
-            stderr.trim().split("\n")[0] || "no diagnostic from the CLI";
-
-          reject(
-            new Error(
-              `Claude reader failed (${error.signal ?? error.code}): ${detail.slice(0, 300)}`,
-            ),
-          );
-
-          return;
-        }
-        resolve(stdout);
-      },
     );
 
-    child.stdin.on("error", reject);
-    child.stdin.end(JSON.stringify(packet));
-  });
-}
-
-async function readPass(packet, instructions, options) {
-  const { mode } = packet;
-  const cwd = await mkdtemp(join(tmpdir(), "lore-reader-"));
-
-  try {
-    const statements = z.array(z.string().regex(/\S/));
-    const response = z.object({
-      status: z.enum(["complete", "incomplete"]),
-      reading: mode === "code" ? statements.length(2) : statements.min(1),
-      evidence: z.array(z.string()),
-      requests: z.array(z.string()),
-    });
-    const args = [
-      "-p",
-      "--restricted",
-      "--strict-mcp-config",
-      "--tools",
-      "",
-      "--disable-slash-commands",
-      "--no-session-persistence",
-      "--system-prompt",
-      instructions,
-      "--output-format",
-      "json",
-      "--json-schema",
-      JSON.stringify(z.toJSONSchema(response, { target: "draft-7" })),
-    ];
-
-    if (mode !== "test challenge") {
-      if (options["reader-model"]) {
-        args.push("--model", options["reader-model"]);
-      }
-
-      if (options["reader-effort"]) {
-        args.push("--effort", options["reader-effort"]);
-      }
-    }
-    const stdout = await invokeReader(args, packet, cwd);
-    const result = JSON.parse(stdout);
-
-    if (result.subtype !== "success" || result.is_error !== false) {
-      throw new Error("Reader returned no successful reading");
-    }
-
-    return { mode, ...response.parse(result.structured_output) };
-  } catch (error) {
-    return { mode, status: "incomplete", reason: error.message };
+    return JSON.parse(stdout).result ?? "";
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 }
 
+async function answersOf(files, model) {
+  const outputs = {};
+
+  for (const step of STEPS) {
+    try {
+      outputs[step.pass] = await ask(step, files, model);
+    } catch {
+      break;
+    }
+    files["story.txt"] ??= outputs.story;
+    files["implementation-check.txt"] ??= outputs.implementation_check;
+  }
+
+  return outputs;
+}
+
 async function run() {
   const { values } = parseArgs({
-    options: {
-      "reader-model": { type: "string" },
-      "reader-effort": { type: "string" },
-      "shadow-revision": { type: "string" },
-      "shadow-pr-url": { type: "string" },
-      "shadow-incomplete": { type: "boolean" },
-      automatic: { type: "boolean" },
-    },
+    options: { model: { type: "string" }, revision: { type: "string" } },
   });
-  const revision = values["shadow-revision"];
-  const prUrl = values["shadow-pr-url"];
-  const incomplete = values["shadow-incomplete"];
-
-  if ((values.automatic || incomplete) && (!revision || !prUrl)) {
-    throw new Error(
-      `${incomplete ? "--shadow-incomplete" : "--automatic"} requires --shadow-revision and --shadow-pr-url`,
-    );
-  }
-
-  if (incomplete) {
-    console.log(
-      JSON.stringify(await startShadow(revision, prUrl, values.automatic)),
-    );
-
-    return;
-  }
-  const evidence = reviewPackets(JSON.parse(await text(process.stdin)));
-
-  if (revision !== undefined) {
-    if (values["reader-model"] || values["reader-effort"]) {
-      throw new Error("Hosted reader models are configured on the floor");
-    }
-    console.log(
-      JSON.stringify(
-        await startShadow(revision, prUrl, values.automatic, evidence),
-      ),
-    );
-
-    return;
-  }
-
-  if (prUrl !== undefined) {
-    throw new Error("--shadow-pr-url requires --shadow-revision");
-  }
-  const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
-  const skillFile = join(configDir, "skills", "lore-review-files", "SKILL.md");
-  const instructions = await readFile(skillFile, "utf8");
-  const readings = await Promise.all(
-    evidence
-      .slice(0, 3)
-      .map((packet) => readPass(packet, instructions, values)),
+  const packets = storyPackets(JSON.parse(await text(process.stdin)));
+  const outputs = await answersOf(
+    {
+      "tests.json": pagedPacket(packets.test_evidence),
+      "code.json": pagedPacket(packets.code_evidence),
+      "issue.json": pagedPacket(packets.issue_evidence),
+    },
+    values.model,
   );
-  const complete = readings.every((reading) => reading.status === "complete");
+  const { incomplete, comment } = storyReview(outputs, storyPasses);
+  const complete = incomplete.length === 0;
 
   console.log(
     JSON.stringify({
-      status: complete ? "readings_complete" : "incomplete",
-      readings,
+      status: complete ? "complete" : "incomplete",
+      incomplete,
+      comment: comment(
+        values.revision ?? "working tree",
+        complete ? "complete" : "running",
+      ),
+      review: formalReview(outputs),
     }),
   );
   process.exitCode = complete ? 0 : 1;

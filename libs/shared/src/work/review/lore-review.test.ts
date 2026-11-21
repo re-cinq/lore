@@ -110,4 +110,24 @@ describe("recheckHandOff", () => {
       threadIds: [],
     });
   });
+
+  it("names inline comment 50 once when review 5 asked for changes and its thread T1 is still open", () => {
+    const { brief } = recheckHandOff(
+      [asked],
+      [comment(50, 5)],
+      [openThread("T1", 50)],
+    );
+
+    expect(brief.match(/fix 50/g)).toEqual(["fix 50"]);
+  });
+
+  it("names inline comment 51 of review 5 once when a person resolved its thread T2", () => {
+    const { brief } = recheckHandOff(
+      [asked],
+      [comment(51, 5)],
+      [resolvedThread("T2", 51)],
+    );
+
+    expect(brief.match(/fix 51/g)).toEqual(["fix 51"]);
+  });
 });
