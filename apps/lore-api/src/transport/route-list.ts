@@ -62,17 +62,7 @@ import { slackEventsRoute } from "./routes/webhooks/webhook-slack-events.js";
 import { incidentWebhookRoute } from "./routes/webhooks/webhook-incident.js";
 import { repoWebhookRoutes } from "./routes/webhooks/webhook.js";
 import { tokensRoute } from "./routes/tokens/tokens.js";
-import { agentDefinitionUsageRoute } from "./routes/agent-definitions/usage.js";
-import { agentDefinitionActivityRoute } from "./routes/agent-definitions/activity.js";
-import { orgAgentDefinitionsRoute } from "./routes/agent-definitions/org-list.js";
-import { agentPresenceRoute } from "./routes/agent-definitions/presence.js";
-import { orgAgentDefinitionUpdateRoute } from "./routes/agent-definitions/org-update.js";
-import {
-  agentsGetRoute,
-  agentsPostRoute,
-  agentsPutRoute,
-  agentsDeleteRoute,
-} from "./routes/agent-definitions/agents.js";
+import { agentDefinitionRoutes } from "./routes/agent-definitions/agent-definition-routes.js";
 import { analyticsRoutes } from "./routes/analytics/analytics-routes.js";
 import { impactRoute } from "./routes/impact/impact.js";
 import { impactBaseRoute } from "./routes/impact/impact-base.js";
@@ -282,21 +272,6 @@ function webhookRoutes(getPool: PoolGetter): ServerRoute[] {
     incidentWebhookRoute(getPool),
     ...repoWebhookRoutes(),
     ...tokensRoute(getPool),
-  ];
-}
-
-/** The recipes a run resolves by name, read and edited here. */
-function agentDefinitionRoutes(getPool: PoolGetter): ServerRoute[] {
-  return [
-    agentsGetRoute(getPool),
-    agentDefinitionUsageRoute(),
-    agentDefinitionActivityRoute(),
-    orgAgentDefinitionsRoute(getPool),
-    agentPresenceRoute(),
-    orgAgentDefinitionUpdateRoute(getPool),
-    agentsPostRoute(getPool),
-    agentsPutRoute(getPool),
-    agentsDeleteRoute(getPool),
   ];
 }
 

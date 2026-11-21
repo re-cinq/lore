@@ -140,6 +140,9 @@ describe("readFloorMigrations", () => {
         "floor/0021_issue_check_reads_the_implementation_check",
         "floor/0022_every_agent_on_gemini",
         "floor/0023_code_writers_back_on_claude",
+        "floor/0024_review_back_on_claude",
+        "floor/0025_story_without_test_changes",
+        "floor/0026_review_reads_generated_files_as_diff",
       ],
       unshipped: [],
     });
@@ -423,6 +426,46 @@ describe("floor/0023_code_writers_back_on_claude", () => {
       "model spec-analysis",
       "model spec-write",
       "model spec-rework",
+    ]);
+  });
+});
+
+describe("floor/0024_review_back_on_claude", () => {
+  it("writes the model of the four story review agents and of code-review-refine, and nothing else", async () => {
+    const { writes } = await everyWrite("floor/0024_review_back_on_claude");
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "model review-story",
+      "model review-implementation",
+      "model review-issue",
+      "model review-docs",
+      "model code-review-refine",
+    ]);
+  });
+});
+
+describe("floor/0025_story_without_test_changes", () => {
+  it("writes the shipped prompt of review-story, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0025_story_without_test_changes",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt review-story",
+    ]);
+  });
+});
+
+describe("floor/0026_review_reads_generated_files_as_diff", () => {
+  it("writes the shipped prompts of review-story, review-implementation and review-issue, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0026_review_reads_generated_files_as_diff",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt review-story",
+      "prompt review-implementation",
+      "prompt review-issue",
     ]);
   });
 });

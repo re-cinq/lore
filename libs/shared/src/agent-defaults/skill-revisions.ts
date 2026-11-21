@@ -62,6 +62,10 @@ export const SKILL_REVISIONS: SkillRevision[] = [
     version: "skills/0005_lore_review_one_story",
     names: ["lore-review"],
   },
+  {
+    version: "skills/0006_lore_review_documents",
+    names: ["lore-review"],
+  },
 ];
 
 const RECORDED_VERSIONS_SQL =

@@ -100,7 +100,8 @@ export interface paths {
     /** PUT /api/agent-definitions/{name} */
     put: operations["put_api_agent-definitions_name"];
     post?: never;
-    delete?: never;
+    /** DELETE /api/agent-definitions/{name} */
+    delete: operations["delete_api_agent-definitions_name"];
     options?: never;
     head?: never;
     patch?: never;
@@ -5073,6 +5074,11 @@ export interface components {
         issue_url?: string | null;
       }[];
     };
+    OrgAgentDefinitionArchived: {
+      /** @constant */
+      ok: true;
+      archived: string;
+    };
     OrgAgentDefinitionWritten: {
       /** @constant */
       ok: true;
@@ -7321,6 +7327,34 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "delete_api_agent-definitions_name": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The org agent archived on the floor */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgAgentDefinitionArchived"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

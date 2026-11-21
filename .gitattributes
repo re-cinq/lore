@@ -1,0 +1,4 @@
+# Built from other files; the code review reads them as their diff alone (specs/external-floor FR2.2v).
+apps/lore-api/openapi.json linguist-generated
+apps/web-ui/src/lib/api/schema.d.ts linguist-generated
+apps/mcp-server/src/transport/api/schema.d.ts linguist-generated

@@ -13,6 +13,7 @@ const snapshot = z.object({
       after: z.string().nullable(),
       diff: z.string().optional(),
       context: z.boolean().optional(),
+      generated: z.boolean().optional(),
     }),
   ),
   terms: z.array(z.string().min(1)).optional(),
@@ -100,7 +101,11 @@ function usesOf(text, stems) {
 }
 
 // A context file goes as its uses of the changed code, and not at all when it names none: whole, such files were four fifths of a packet.
-function packetFile({ path, before, after, diff, context }, terms) {
+function packetFile({ path, before, after, diff, context, generated }, terms) {
+  if (generated) {
+    return [{ path, generated, diff }];
+  }
+
   if (before !== after) {
     return [diff ? { path, diff, after } : { path, before, after }];
   }
