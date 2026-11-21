@@ -139,6 +139,7 @@ describe("readFloorMigrations", () => {
         "floor/0020_checks_claim_only_what_they_read",
         "floor/0021_issue_check_reads_the_implementation_check",
         "floor/0022_every_agent_on_gemini",
+        "floor/0023_code_writers_back_on_claude",
       ],
       unshipped: [],
     });
@@ -402,6 +403,27 @@ describe("floor/0022_every_agent_on_gemini", () => {
         "spec-rework",
       ].map((agent) => `model ${agent}`),
     );
+  });
+});
+
+describe("floor/0023_code_writers_back_on_claude", () => {
+  it("writes the model of the three agents that write code, of loop-test-review and of the six planning and spec-writing agents, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0023_code_writers_back_on_claude",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "model loop-tdd-round",
+      "model loop-test-review",
+      "model spec-upkeep-update-specs",
+      "model onboard-author",
+      "model plan-analyze",
+      "model plan-sketch",
+      "model plan-validate",
+      "model spec-analysis",
+      "model spec-write",
+      "model spec-rework",
+    ]);
   });
 });
 

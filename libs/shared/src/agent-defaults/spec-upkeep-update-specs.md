@@ -1,12 +1,7 @@
 ---
 # The spec-upkeep line's `spec-upkeep-update-specs` agent: the whole definition the floor is seeded with, settings here and the prompt below.
-# Gemini 4 Hydrogen since 2026-11-20, when every agent left Claude: on loop-bench its code passed the checks in 80% of runs at $2.23 a working result, Gemini 4 Argon 82% at $5.61 (Sonnet 5.5, until then, 85% at $0.85).
-model: gemini-4-hydrogen
-prices:
-  gemini-4-hydrogen:
-    input_per_million: 1.5
-    output_per_million: 7.5
-    cache_read_per_million: 0.15
+# Sonnet 5.5 again since 2026-11-21, with loop-tdd-round: the agents that write code follow loop-bench's pick for that work.
+model: claude-sonnet-5-5
 image: ${LORE_AGENT_IMAGE}
 timeout_minutes: 30
 config:
