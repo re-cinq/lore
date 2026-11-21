@@ -154,6 +154,12 @@ platform:
         data: {.dockerconfigjson: "{{ .dockerconfigjson }}"}
       keys: {dockerconfigjson: lore-ghcr-pull-secret}
     # lore-stations
+    - name: ghcr-pull-secret
+      namespace: lore-stations
+      template:
+        type: kubernetes.io/dockerconfigjson
+        data: {.dockerconfigjson: "{{ .dockerconfigjson }}"}
+      keys: {dockerconfigjson: lore-ghcr-pull-secret}
     - name: lore-stations-db-password
       namespace: lore-stations
       keys: {password: lore-db-password}
