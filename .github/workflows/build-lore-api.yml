@@ -82,7 +82,7 @@ jobs:
       contents: read
       packages: write
     with:
-      image_name: re-cinq/lore-api
+      image_name: re-cinq/lore-security-api
       dockerfile: apps/lore-api/Dockerfile
       build_args: GIT_SHA=${{ needs.sha.outputs.short_sha }}
     secrets: inherit

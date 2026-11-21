@@ -54,7 +54,7 @@ jobs:
       contents: read
       packages: write
     with:
-      image_name: re-cinq/lore-mcp
+      image_name: re-cinq/lore-security-mcp
       dockerfile: apps/mcp-server/Dockerfile
       build_args: GIT_SHA=${{ needs.sha.outputs.short_sha }}
     secrets: inherit
