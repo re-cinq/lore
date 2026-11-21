@@ -69,19 +69,19 @@ describe("creditFailureOf", () => {
     ).toBeNull();
   });
 
-  it("returns null when tell-story ran out of credit and review-whole reviewed the pull request instead", () => {
-    expect(
-      creditFailureOf([
-        { nodeId: "prepare", report: { outcome: "success" } },
-        {
-          nodeId: "tell-story",
-          report: { outcome: "failed", error: ANTHROPIC },
-        },
-        { nodeId: "publish-incomplete", report: { outcome: "success" } },
-        { nodeId: "review-whole", report: { outcome: "success" } },
-      ]),
-    ).toBeNull();
-  });
+  it.each(["tell-story", "check-implementation", "check-issue", "check-docs"])(
+    "returns null when %s ran out of credit and review-whole reviewed the pull request instead",
+    (nodeId) => {
+      expect(
+        creditFailureOf([
+          { nodeId: "prepare", report: { outcome: "success" } },
+          { nodeId, report: { outcome: "failed", error: ANTHROPIC } },
+          { nodeId: "publish-incomplete", report: { outcome: "success" } },
+          { nodeId: "review-whole", report: { outcome: "success" } },
+        ]),
+      ).toBeNull();
+    },
+  );
 
   it("returns tell-story's error when review-whole ran out of credit too", () => {
     expect(
