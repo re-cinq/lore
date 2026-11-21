@@ -69,6 +69,35 @@ describe("creditFailureOf", () => {
     ).toBeNull();
   });
 
+  it("returns null when tell-story ran out of credit and review-whole reviewed the pull request instead", () => {
+    expect(
+      creditFailureOf([
+        { nodeId: "prepare", report: { outcome: "success" } },
+        {
+          nodeId: "tell-story",
+          report: { outcome: "failed", error: ANTHROPIC },
+        },
+        { nodeId: "publish-incomplete", report: { outcome: "success" } },
+        { nodeId: "review-whole", report: { outcome: "success" } },
+      ]),
+    ).toBeNull();
+  });
+
+  it("returns tell-story's error when review-whole ran out of credit too", () => {
+    expect(
+      creditFailureOf([
+        {
+          nodeId: "tell-story",
+          report: { outcome: "failed", error: ANTHROPIC },
+        },
+        {
+          nodeId: "review-whole",
+          report: { outcome: "failed", error: ANTHROPIC },
+        },
+      ]),
+    ).toBe(ANTHROPIC);
+  });
+
   it("returns the review's error when Vertex refused it for an unpaid billing account", () => {
     const billing =
       "403 PERMISSION_DENIED: There are issues with your billing account, please resolve / pay your outstanding balance for project: projects/647955581268";

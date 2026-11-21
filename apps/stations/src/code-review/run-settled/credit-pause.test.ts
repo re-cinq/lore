@@ -122,6 +122,18 @@ describe("pausingLoopsOnCredit", () => {
     expect(pauses).toEqual([]);
   });
 
+  it("pauses nothing when check-issue ran out of credit and review-whole reviewed the pull request instead", async () => {
+    const { settle, pauses } = scene("code-review", "success", [
+      planVisit("check-issue", { outcome: "failed", error: CREDIT }),
+      planVisit("publish-incomplete", { outcome: "success" }),
+      planVisit("review-whole", { outcome: "success" }),
+    ]);
+
+    await settle();
+
+    expect(pauses).toEqual([]);
+  });
+
   it("hands the settled run on to the next step after pausing", async () => {
     const { settle, nextCalled } = scene("issue-triage", "failed", [
       planVisit("triage", { outcome: "failed", error: CREDIT }),

@@ -6,12 +6,20 @@ export interface ReportedVisit {
   report?: { outcome?: string | null; error?: string | null } | null;
 }
 
-/** The error of the last failed visit that ran out of model credit, or null when none did or its station later succeeded (the credit came back). How the run ended says nothing: a line may route the failure on to a station that ends it green. */
+/** The error of the last failed visit that ran out of model credit, or null when none did, or its station or the station standing in for it later succeeded. How the run ended says nothing: a line may route the failure on to a station that ends it green. */
 export function creditFailureOf(
   visits: readonly ReportedVisit[],
 ): string | null {
   return creditFailedVisitOf(visits)?.error ?? null;
 }
+
+// The story review's steps fall back to the whole-diff reviewer, which runs on another vendor: when it reviewed the pull request, the review loop lost nothing.
+const STAND_IN: Readonly<Record<string, string>> = {
+  "tell-story": "review-whole",
+  "check-implementation": "review-whole",
+  "check-issue": "review-whole",
+  "check-docs": "review-whole",
+};
 
 /** The station that ran out of credit and its error, by the same rule as `creditFailureOf`: what resuming the loop runs again. */
 export function creditFailedVisitOf(
@@ -26,7 +34,9 @@ export function creditFailedVisitOf(
   const recovered = visits
     .slice(at + 1)
     .some(
-      (later) => later.nodeId === nodeId && later.report?.outcome === "success",
+      (later) =>
+        (later.nodeId === nodeId || later.nodeId === STAND_IN[nodeId]) &&
+        later.report?.outcome === "success",
     );
 
   return recovered ? null : { nodeId, error: report?.error ?? "" };
