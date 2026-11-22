@@ -533,6 +533,58 @@
             }
           }
         }
+      },
+      "delete": {
+        "operationId": "delete_api_agent-definitions_name",
+        "summary": "DELETE /api/agent-definitions/{name}",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The org agent archived on the floor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgAgentDefinitionArchived"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/agent-stats": {
@@ -20984,6 +21036,20 @@
           }
         },
         "required": ["tasks"],
+        "additionalProperties": false
+      },
+      "OrgAgentDefinitionArchived": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "archived": {
+            "type": "string"
+          }
+        },
+        "required": ["ok", "archived"],
         "additionalProperties": false
       },
       "OrgAgentDefinitionWritten": {

@@ -1,4 +1,4 @@
-// The one-story review run on a developer's machine: the same three prompts as the hosted line, each given only its own files, and the same comment and verdict.
+// The one-story review run on a developer's machine: the same prompts as the hosted line, each given only its own files, and the same comment and verdict.
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ import {
   storyPasses,
   storyReview,
 } from "@re-cinq/lore-shared/review/story/story.js";
+import { docsEvidence, onlyLinksChanged } from "./lore-review-docs.mjs";
 import { storyPackets } from "./lore-review-packets.mjs";
 
 const exec = promisify(execFile);
@@ -32,6 +33,7 @@ const STEPS = [
       "tests.json",
     ],
   },
+  { pass: "docs_check", agent: "review-docs", reads: ["docs.json"] },
 ];
 
 async function definitionOf(agent) {
@@ -58,7 +60,10 @@ async function ask({ agent, reads }, files, model) {
       "claude",
       [
         "-p",
-        definition.prompt.replaceAll("/workspace/", cwd + "/"),
+        // The documents check reads the repository at /workspace/target: here, the working tree the review runs in.
+        definition.prompt
+          .replaceAll("/workspace/target", process.cwd())
+          .replaceAll("/workspace/", cwd + "/"),
         // The hosted agents run on Gemini; a local review runs on the developer's own Claude Code, on its default model unless one is asked for.
         ...(model ? ["--model", model] : []),
         "--allowedTools",
@@ -84,10 +89,10 @@ async function ask({ agent, reads }, files, model) {
   }
 }
 
-async function answersOf(files, model) {
+async function answersOf(files, required, model) {
   const outputs = {};
 
-  for (const step of STEPS) {
+  for (const step of STEPS.filter(({ pass }) => required.includes(pass))) {
     try {
       outputs[step.pass] = await ask(step, files, model);
     } catch {
@@ -100,20 +105,51 @@ async function answersOf(files, model) {
   return outputs;
 }
 
+/** The passes a change needs, as the hosted line decides them: none for one that moves only links, the documents check alone for documents alone, and the documents check after the story's passes when a change of code also rewrites a document. */
+function requiredPasses(snapshot, docs) {
+  const documents = snapshot.documents ?? [];
+  const written = docs && docs.statements.length + docs.removed.length > 0;
+
+  if (!snapshot.files.length && documents.length) {
+    return onlyLinksChanged(documents) ? [] : ["docs_check"];
+  }
+
+  return written ? [...storyPasses, "docs_check"] : storyPasses;
+}
+
 async function run() {
   const { values } = parseArgs({
     options: { model: { type: "string" }, revision: { type: "string" } },
   });
-  const packets = storyPackets(JSON.parse(await text(process.stdin)));
+  const snapshot = JSON.parse(await text(process.stdin));
+  const docs = snapshot.documents?.length
+    ? await docsEvidence(snapshot.documents, (path) =>
+        readFile(path, "utf8").catch(() => null),
+      )
+    : null;
+  const required = requiredPasses(snapshot, docs);
+  // As on the hosted line, the issue check is given a spec as statements, never whole.
+  const packets = snapshot.files.length
+    ? storyPackets({
+        ...snapshot,
+        documents: snapshot.documents?.filter(
+          ({ path }) => !/^specs\/.*\/spec\.md$/.test(path),
+        ),
+      })
+    : {};
   const outputs = await answersOf(
     {
-      "tests.json": pagedPacket(packets.test_evidence),
-      "code.json": pagedPacket(packets.code_evidence),
-      "issue.json": pagedPacket(packets.issue_evidence),
+      ...(snapshot.files.length && {
+        "tests.json": pagedPacket(packets.test_evidence),
+        "code.json": pagedPacket(packets.code_evidence),
+        "issue.json": pagedPacket(packets.issue_evidence),
+      }),
+      ...(docs && { "docs.json": pagedPacket(docs) }),
     },
+    required,
     values.model,
   );
-  const { incomplete, comment } = storyReview(outputs, storyPasses);
+  const { incomplete, comment } = storyReview(outputs, required);
   const complete = incomplete.length === 0;
 
   console.log(
@@ -124,7 +160,7 @@ async function run() {
         values.revision ?? "working tree",
         complete ? "complete" : "running",
       ),
-      review: formalReview(outputs),
+      review: formalReview(outputs, required),
     }),
   );
   process.exitCode = complete ? 0 : 1;
