@@ -887,6 +887,22 @@ describe("the planning recipes check a plan against what the platform has (issue
     }).toEqual({ heading: true, fromCode: true });
   });
 
+  it("has spec-tickets-decompose name only paths on the branch or said to be added, file_path included, and put a test beside the code in a package with tests", () => {
+    const prompt = promptOnOneLine("spec-tickets-decompose");
+
+    expect({
+      onBranchOrAdded: prompt.includes(
+        "Every path a task names must be on the branch, or the task says it adds it",
+      ),
+      filePath: prompt.includes(
+        "A `file_path` that does not exist yet is said to be added the same way",
+      ),
+      besideCode: prompt.includes(
+        "A test the task adds goes beside the code it tests, in a package that already has tests",
+      ),
+    }).toEqual({ onBranchOrAdded: true, filePath: true, besideCode: true });
+  });
+
   it("has spec-tickets-decompose read the spec its spec_path value names, and keep the ids of the tickets filed for it before", () => {
     const prompt = promptOnOneLine("spec-tickets-decompose");
 

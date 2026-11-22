@@ -1,6 +1,7 @@
 // Whether the names a generated spec or task issue puts in backticks exist on main: a path must be in the tree, an identifier in the file the same line names, and nothing retired may be named. The planning line's coverage stations send the writer back with these findings.
 
 import { githubHost, githubUrls } from "../github-host.js";
+import { untestedFolders } from "./test-folders.js";
 import { z } from "zod";
 
 export const implementationEvidenceSchema = z.object({
@@ -63,7 +64,7 @@ export interface GroundingInput {
 
 export interface GroundingFinding {
   name: string;
-  kind: "path" | "identifier" | "retired";
+  kind: "path" | "identifier" | "retired" | "test-folder";
   /** 1-based line of the text the name is on. */
   line: number;
   hint?: string;
@@ -107,7 +108,7 @@ const FILES_TOUCHED = /files touched|project structure/i;
 const HEADING = /^#{1,6}\s/;
 /** A repository path written without backticks, as a plan quote loses them. */
 const BARE_PATH =
-  /(?<![\w/`])(?:apps|libs|specs|scripts|infra|adrs|charts|docs)\/[\w.@[\]/-]*\.[A-Za-z]{1,5}\b/g;
+  /(?<![\w/`])(?:apps|libs|specs|scripts|infra|adrs|charts|docs|deploy|tools)\/[\w.@[\]/-]*\.[A-Za-z]{1,5}\b/g;
 
 export function groundingFindings(input: GroundingInput): GroundingFinding[] {
   const lines = input.text.split("\n");
@@ -172,13 +173,13 @@ function lineFindings(
 ): GroundingFinding[] {
   const names = [...new Set(backticked(line))];
   const paths = pathsOn(line);
-  const missing = missingPaths(context, paths);
   const namesNewFile = paths.some(
     (path) => isAdded(context.newPaths, path) && !onTree(context.tree, path),
   );
   const found: Omit<GroundingFinding, "line">[] = [
     ...retiredNamed(line),
-    ...missing,
+    ...missingPaths(context, paths),
+    ...untestedFolders(context.tree, paths),
     ...(namesNewFile || ADDS.test(line)
       ? []
       : missingIdentifiers(names, filesNamed(context.files, paths))),
@@ -349,6 +350,10 @@ function findingLine({ name, kind, line, hint }: GroundingFinding): string {
 
   if (kind === "path") {
     return `${where} is not on main`;
+  }
+
+  if (kind === "test-folder") {
+    return `${where} is a test in a folder where no test runs: put it beside the code it tests, in a package that already has tests`;
   }
 
   return hint

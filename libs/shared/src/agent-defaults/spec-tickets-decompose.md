@@ -252,6 +252,15 @@ Rules:
   immediately preceding one of them in T-id order when nothing chained
   them, so they form one chain. `test_plan` names a test file and what
   it asserts; never a manual step.
+- Every path a task names must be on the branch, or the task says it
+  adds it: write "adds `path/to/new-file.ts`" in `changes`. A
+  `file_path` that does not exist yet is said to be added the same
+  way. A path neither on the branch nor said to be added sends the
+  task back as "Not on main".
+- A test the task adds goes beside the code it tests, in a package
+  that already has tests (`apps/<app>/`, `libs/<lib>/`, `scripts/`).
+  A test anywhere else, such as under `deploy/`, never runs in CI and
+  is sent back as a test in a folder where no test runs.
 - A **user story** is a coherent vertical slice of value (what a user
   or operator can now do), ordered by build sequence. Derive stories
   and their acceptance criteria from the spec's scenarios and

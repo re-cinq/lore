@@ -140,6 +140,7 @@ describe("readFloorMigrations", () => {
         "floor/0021_issue_check_reads_the_implementation_check",
         "floor/0022_every_agent_on_gemini",
         "floor/0023_code_writers_back_on_claude",
+        "floor/0024_decompose_names_only_real_files",
         "floor/0025_acceptance_tests_go_back_to_dod",
       ],
       unshipped: [],
@@ -693,6 +694,18 @@ describe("floor/0025_acceptance_tests_go_back_to_dod", () => {
     expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
       "prompt loop-tdd-round",
       "prompt loop-dod",
+    ]);
+  });
+});
+
+describe("floor/0024_decompose_names_only_real_files", () => {
+  it("writes the shipped prompt of spec-tickets-decompose that names only real files, and nothing else", async () => {
+    const { writes } = await everyWrite(
+      "floor/0024_decompose_names_only_real_files",
+    );
+
+    expect(writes.map(({ field, agent }) => `${field} ${agent}`)).toEqual([
+      "prompt spec-tickets-decompose",
     ]);
   });
 });

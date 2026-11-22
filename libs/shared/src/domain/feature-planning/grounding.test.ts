@@ -269,6 +269,103 @@ describe("groundingFindings", () => {
   });
 });
 
+describe("groundingFindings on a ticket's files", () => {
+  const TESTED_TREE = [
+    ...TREE,
+    "apps/lore-api/src/work/repo/repo-validation-cli.test.ts",
+    "deploy/chart/charts/ui-helm/templates/migrate-job.yaml",
+  ];
+
+  it("reports deploy/chart/templates/upgrade-check-job.yaml when a ticket starts from it without backticks", () => {
+    const findings = groundingFindings({
+      text: "Change the chart files needed; start from deploy/chart/templates/upgrade-check-job.yaml.",
+      tree: TESTED_TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([
+      {
+        name: "deploy/chart/templates/upgrade-check-job.yaml",
+        kind: "path",
+        line: 1,
+      },
+    ]);
+  });
+
+  it("reports a test the ticket adds under deploy/chart/templates, where no folder above it holds a test", () => {
+    const findings = groundingFindings({
+      text: "Add or extend tests next to the changed code (and `deploy/chart/templates/upgrade-check-job.test.ts`).",
+      tree: TESTED_TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([
+      {
+        name: "deploy/chart/templates/upgrade-check-job.test.ts",
+        kind: "test-folder",
+        line: 1,
+      },
+    ]);
+  });
+
+  it("accepts a test the ticket adds under apps/lore-api, a package that already holds tests", () => {
+    const findings = groundingFindings({
+      text: "Adds `apps/lore-api/src/work/upgrade-check/upgrade-check.test.ts` beside the check.",
+      tree: TESTED_TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([]);
+  });
+
+  it("reports no test-folder finding for a test under deploy/chart/templates when the tree holds no tests at all", () => {
+    const findings = groundingFindings({
+      text: "Adds `deploy/chart/templates/upgrade-check-job.test.ts`.",
+      tree: TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([]);
+  });
+
+  it("reports tools/vitest/missing-helper.ts when a ticket names it without backticks", () => {
+    const findings = groundingFindings({
+      text: "Reuse the helper in tools/vitest/missing-helper.ts.",
+      tree: TESTED_TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([
+      { name: "tools/vitest/missing-helper.ts", kind: "path", line: 1 },
+    ]);
+  });
+
+  it("reports a test the ticket adds under apps/new-pkg, a package with no tests, though apps holds tests elsewhere", () => {
+    const findings = groundingFindings({
+      text: "Adds `apps/new-pkg/src/x.test.ts`.",
+      tree: TESTED_TREE,
+      files: {},
+    });
+
+    expect(findings).toEqual([
+      { name: "apps/new-pkg/src/x.test.ts", kind: "test-folder", line: 1 },
+    ]);
+  });
+
+  it("reports no test-folder finding for a test under deploy/chart/templates that is already on main", () => {
+    const findings = groundingFindings({
+      text: "Extend `deploy/chart/templates/upgrade-check-job.test.ts`.",
+      tree: [
+        ...TESTED_TREE,
+        "deploy/chart/templates/upgrade-check-job.test.ts",
+      ],
+      files: {},
+    });
+
+    expect(findings).toEqual([]);
+  });
+});
+
 describe("implementationEvidenceLink", () => {
   it("links lines 3 to 9 of src/a.ts at commit abc123 on https://ghe.example.com", () => {
     expect(

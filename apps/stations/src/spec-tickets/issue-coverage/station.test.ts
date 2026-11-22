@@ -287,6 +287,23 @@ describe("issueCoverageHandle", () => {
     });
   });
 
+  it("sends decompose back when T006's target file deploy/chart/templates/upgrade-check-job.yaml is not on main", async () => {
+    const { handle, tools, produced } = scene(
+      decompositionWith({
+        file_path: "deploy/chart/templates/upgrade-check-job.yaml",
+      }),
+    );
+
+    const report = await handle(brief(), tools);
+
+    expect({
+      report,
+      namesTarget: produced.issue_coverage?.includes(
+        "- `T006`: `deploy/chart/templates/upgrade-check-job.yaml` (line 1) is not on main",
+      ),
+    }).toEqual({ report: { outcome: "changes_requested" }, namesTarget: true });
+  });
+
   it("reports success when T002 names the pipeline file T001 adds", async () => {
     const { handle, tools } = scene(
       JSON.stringify({

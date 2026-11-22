@@ -181,8 +181,10 @@ function groundedTasks(
   );
 }
 
+/** The target file leads, written as the issue writes it, so a target main lacks is reported as the issue's first line. */
 function taskText(task: DecompTask): string {
   return [
+    task.file_path ? `Target file: \`${task.file_path}\`` : undefined,
     task.changes,
     ...(task.plan_quotes ?? []),
     task.context,
