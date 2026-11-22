@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Pool } from "pg";
 import {
+  enforceSessionCurrent,
   generationOf,
   lockPerson,
   revokePersonAccess,
@@ -84,5 +85,74 @@ describe("revokePersonAccess", () => {
       },
       { sql: "COMMIT", params: [] },
     ]);
+  });
+});
+
+describe("enforceSessionCurrent", () => {
+  const NOW = new Date("2026-11-22T10:00:00Z");
+  const HOUR_MS = 60 * 60 * 1000;
+
+  function sessionPool(
+    session: Record<string, unknown> | null,
+    personGeneration: number,
+  ) {
+    const sessionRows = session ? [session] : [];
+    const query = vi.fn(async (sql: string) => ({
+      rows: sql.includes("person_generations")
+        ? [{ generation: personGeneration }]
+        : sessionRows,
+    }));
+
+    return { query, pool: { query } as unknown as Pool };
+  }
+
+  const open = {
+    revokedAt: null,
+    expiresAt: new Date(NOW.getTime() + HOUR_MS),
+    generation: 2,
+  };
+
+  async function outcomeOf(
+    session: Record<string, unknown> | null,
+    personGeneration: number,
+  ) {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+    const { pool } = sessionPool(session, personGeneration);
+
+    try {
+      await enforceSessionCurrent(pool, "hash-1", 4242);
+
+      return "kept";
+    } catch (err) {
+      return (err as { output?: { statusCode: number } }).output?.statusCode;
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  it("keeps a session that is open and carries the person's generation 2", async () => {
+    expect(await outcomeOf(open, 2)).toBe("kept");
+  });
+
+  it("refuses with 401 a session whose revoked_at is set", async () => {
+    expect(await outcomeOf({ ...open, revokedAt: NOW }, 2)).toBe(401);
+  });
+
+  it("refuses with 401 a session whose expiry has passed", async () => {
+    expect(
+      await outcomeOf({ ...open, expiresAt: new Date(NOW.getTime() - 1) }, 2),
+    ).toBe(401);
+  });
+
+  it("refuses with 401 a session with generation 2 when the person's generation is 3", async () => {
+    expect(await outcomeOf(open, 3)).toBe(401);
+  });
+
+  it("refuses with 401 a session that records no generation", async () => {
+    expect(await outcomeOf({ ...open, generation: null }, 0)).toBe(401);
+  });
+
+  it("refuses with 401 a session whose row is gone", async () => {
+    expect(await outcomeOf(null, 0)).toBe(401);
   });
 });

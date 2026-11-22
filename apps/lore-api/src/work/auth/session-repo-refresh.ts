@@ -3,7 +3,7 @@
 import type { Pool } from "pg";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { fetchInstallationRepos } from "../../outbound/github-user-client.js";
-import { decryptTokenPair } from "./token-cipher.js";
+import { freshAccessToken } from "./user-token-refresh.js";
 
 export const REPOS_MAX_AGE_MS = 5 * 60_000;
 
@@ -14,9 +14,7 @@ export interface SessionRepoState {
 }
 
 interface RefreshSettings {
-  key: string;
   installationId: string;
-  sealed: string;
 }
 
 const REPLACE = `UPDATE pipeline.api_tokens SET repos = $2, repos_refreshed_at = now() WHERE id = $1`;
@@ -34,7 +32,7 @@ export async function refreshedRepos(
     return kept;
   }
 
-  const repos = await readFreshRepos(settings, fetchRepos);
+  const repos = await readFreshRepos(pool, session.id, settings, fetchRepos);
 
   await pool.query(REPLACE, [session.id, repos]);
 
@@ -42,11 +40,13 @@ export async function refreshedRepos(
 }
 
 async function readFreshRepos(
+  pool: Pool,
+  sessionId: string,
   settings: RefreshSettings,
   fetchRepos: typeof fetchInstallationRepos,
 ): Promise<string[]> {
   try {
-    const { accessToken } = decryptTokenPair(settings.sealed, settings.key);
+    const accessToken = await freshAccessToken(pool, sessionId);
     const all = await fetchRepos(accessToken, settings.installationId);
 
     return all.map((repo) => repo.full_name);
@@ -66,13 +66,12 @@ export function repoListDueForRefresh(session: SessionRepoState): boolean {
 function refreshSettings(session: SessionRepoState): RefreshSettings | null {
   const key = process.env.LORE_USER_TOKEN_ENCRYPTION_KEY;
   const installationId = process.env.GITHUB_APP_INSTALLATION_ID;
-  const sealed = session.encryptedTokens;
 
-  if (!isStale(session) || !sealed) {
+  if (!isStale(session) || !session.encryptedTokens) {
     return null;
   }
 
-  return key && installationId ? { key, installationId, sealed } : null;
+  return key && installationId ? { installationId } : null;
 }
 
 function isStale(session: SessionRepoState): boolean {

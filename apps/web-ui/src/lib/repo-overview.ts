@@ -29,13 +29,6 @@ export function enrollmentFromRepo(repoInfo: RepoEnrollmentRecord | null) {
   };
 }
 
-/** A hook still being set up by hand needs its secret pasted into GitHub; a configured one must never have it fetched, because the secret is admin-scoped. */
-export function needsWebhookSecret<T extends { state: string }>(
-  webhook: T | null,
-): webhook is T {
-  return webhook !== null && webhook.state !== "configured";
-}
-
 /** The one settings key the overview reads out of the record's opaque JSONB. */
 export function overviewSettings(settings: unknown) {
   const parsed = (settings ?? {}) as {

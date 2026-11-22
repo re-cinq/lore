@@ -102,7 +102,7 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "DELETE",
     path: `${BASE}/{name}`,
-    options: zodResponse(bearerScope("admin"), AgentDeletedSchema, {
+    options: zodResponse(ADMIN_OPTIONS, AgentDeletedSchema, {
       name: "AgentDefinitionDeleted",
       description: "Which definition was removed, and the CRD outcome",
     }),

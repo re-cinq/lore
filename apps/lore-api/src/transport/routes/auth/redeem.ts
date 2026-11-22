@@ -11,6 +11,7 @@ import {
   SESSION_LENGTH_KEY,
   sessionLengthMs,
 } from "@re-cinq/lore-shared/session-length.js";
+import type { HandoffContent } from "../../../work/auth/login-handoffs.js";
 import { generationOf, lockPerson } from "../../../work/auth/person-access.js";
 import { storeUserSessionTokens } from "../../../work/auth/user-session-tokens.js";
 import {
@@ -79,11 +80,24 @@ async function redeemHandoff(
     sessionToken(handoff.grant, handoff.generation, expiresAt),
   );
 
-  if (handoff.encryptedTokens) {
-    await storeUserSessionTokens(tx, minted.row.id, handoff.encryptedTokens);
-  }
+  await storeSealedTokens(tx, minted.row.id, handoff);
 
   return { token: minted.token, expiresAt, grant: handoff.grant };
+}
+
+async function storeSealedTokens(
+  tx: PgPool,
+  sessionId: string,
+  handoff: HandoffContent,
+): Promise<void> {
+  if (!handoff.encryptedTokens) {
+    return;
+  }
+  await storeUserSessionTokens(tx, sessionId, {
+    encryptedTokens: handoff.encryptedTokens,
+    accessTokenExpiresAt: handoff.accessTokenExpiresAt ?? null,
+    refreshTokenExpiresAt: handoff.refreshTokenExpiresAt ?? null,
+  });
 }
 
 /** Under the person's lock, a sign-in that began before the person was removed or revoked creates no session (FR-395). */

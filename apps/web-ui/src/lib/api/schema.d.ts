@@ -2599,23 +2599,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/repos/{owner}/{repo}/webhook/secret": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/repos/{owner}/{repo}/webhook/secret */
-    get: operations["get_api_repos_owner_repo_webhook_secret"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/review/start": {
     parameters: {
       query?: never;
@@ -5723,10 +5706,6 @@ export interface components {
       active?: boolean;
       lastCode?: number | null;
       reason?: string;
-    };
-    RepoWebhookSecret: {
-      secret: string;
-      canonicalUrl: string;
     };
     RepoWebhookStatus: {
       state: string;
@@ -12225,33 +12204,6 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  get_api_repos_owner_repo_webhook_secret: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        owner: string;
-        repo: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The HMAC secret a repo's webhook must sign with */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["RepoWebhookSecret"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

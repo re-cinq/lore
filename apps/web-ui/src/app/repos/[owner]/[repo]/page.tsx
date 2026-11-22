@@ -3,7 +3,6 @@ import { getRepoChunkSummary } from "@/lib/api/chunks";
 import {
   enrollmentFromRepo,
   isoTimestamp,
-  needsWebhookSecret,
   overviewSettings,
 } from "@/lib/repo-overview";
 import { getRepo } from "@/lib/api/repos";
@@ -14,7 +13,7 @@ import {
 } from "@/lib/api/activity";
 import { getRepoTasks } from "@/lib/api/tasks";
 import { getReadme, checkRepoFiles } from "@/lib/github";
-import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
+import { getWebhookStatus } from "@/lib/webhook-api";
 import { computeEnrollmentChecks } from "@/lib/enrollment";
 import { reonboard, setupWebhook } from "./actions";
 import RepoOverviewView, { type RecentTask } from "./RepoOverviewView";
@@ -45,17 +44,14 @@ type OverviewPanels = Awaited<ReturnType<typeof fetchOverviewPanels>>;
 /** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
 async function loadRepoOverview(fullName: string) {
   const panels = await fetchOverviewPanels(fullName);
-  const [chunkSummary, webhook] = await Promise.all([
-    getRepoChunkSummary(fullName).then((r) =>
-      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
-    ),
-    withWebhookSecret(fullName, panels.webhook),
-  ]);
+  const chunkSummary = await getRepoChunkSummary(fullName).then((r) =>
+    r.status === "ok" ? r.data : { count: 0, convention_files: [] },
+  );
   const settings = overviewSettings(panels.repoInfo?.settings);
 
   return {
     readme: panels.readme,
-    enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary, webhook),
+    enrollmentChecks: buildEnrollmentChecks(panels, chunkSummary),
     trustLevel: settings.trustLevel,
     tasksWeek: panels.activityCounts.tasks ?? 0,
     chunkCount: chunkSummary.count,
@@ -68,32 +64,18 @@ async function loadRepoOverview(fullName: string) {
 function buildEnrollmentChecks(
   panels: OverviewPanels,
   chunkSummary: { count: number; convention_files: string[] },
-  webhook: Awaited<ReturnType<typeof withWebhookSecret>>,
 ) {
   return computeEnrollmentChecks({
     ...enrollmentFromRepo(panels.repoInfo),
     chunkCount: chunkSummary.count,
     hasConventions: chunkSummary.convention_files.length > 0,
     githubFiles: panels.githubFiles,
-    webhook,
+    webhook: panels.webhook,
     localMcp: {
       developerCount: panels.localMcpRow?.devs ?? 0,
       lastActivity: isoTimestamp(panels.localMcpRow?.last),
     },
   });
-}
-
-/** The secret is admin-scoped and fetched only for a hook that still needs setting up by hand — it is pasted into GitHub, never sent to a client. */
-async function withWebhookSecret(
-  fullName: string,
-  webhook: Awaited<ReturnType<typeof getWebhookStatus>> | null,
-) {
-  if (!needsWebhookSecret(webhook)) {
-    return webhook;
-  }
-  const secret = await getWebhookSecret(fullName).catch(() => null);
-
-  return { ...webhook, secret: secret ?? undefined };
 }
 
 /** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). Both halves are started before either is awaited, so splitting them costs no round trip. */

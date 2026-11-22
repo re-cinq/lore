@@ -243,6 +243,40 @@ describe("GET /api/auth/callback", () => {
   });
 });
 
+describe("GET /api/auth/callback, the expiries of the token pair", () => {
+  it("puts the access token's expiry 28800 seconds and the refresh token's 15897600 seconds after the exchange on the redeem handoff", async () => {
+    vi.useFakeTimers({
+      now: new Date("2026-11-22T10:00:00Z"),
+      toFake: ["Date"],
+    });
+    const deps = testDeps({
+      config: { ...CONFIG, tokenEncryptionKey: ENCRYPTION_KEY },
+      github: {
+        exchangeCode: async () => ({
+          accessToken: "ghu_access_tok",
+          expiresIn: 28800,
+          refreshToken: "ghr_refresh_tok",
+          refreshTokenExpiresIn: 15897600,
+        }),
+      },
+    });
+    const { location } = await signIn(deps);
+    const redeemed = await deps.handoffs.take(
+      location.searchParams.get("code") as string,
+      "redeem",
+    );
+
+    vi.useRealTimers();
+    expect({
+      access: redeemed?.accessTokenExpiresAt,
+      refresh: redeemed?.refreshTokenExpiresAt,
+    }).toEqual({
+      access: new Date("2026-11-22T18:00:00Z"),
+      refresh: new Date("2027-05-25T10:00:00Z"),
+    });
+  });
+});
+
 function containsPair(
   text: string,
   pair: { accessToken: string; refreshToken: string },

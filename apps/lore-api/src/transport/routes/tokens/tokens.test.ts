@@ -177,6 +177,19 @@ describe("/api/tokens", () => {
           ]
         : [{ id: 12, name: "ci" }],
     }));
+    pool.__client.query.mockImplementation(async (sql: string) => ({
+      rows: sql.includes("person_generations")
+        ? [{ generation: 0 }]
+        : [
+            {
+              id: 12,
+              name: "ci",
+              revokedAt: null,
+              expiresAt: null,
+              generation: 0,
+            },
+          ],
+    }));
     await buildServer(() => pool as any).inject({
       method: "POST",
       url: "/api/tokens",
@@ -222,7 +235,18 @@ describe("/api/tokens", () => {
       vi.useRealTimers();
     });
 
-    function sessionPool() {
+    const openSession = {
+      revokedAt: null,
+      expiresAt: SESSION_EXPIRES,
+      generation: 0,
+    };
+    let personGeneration = 0;
+
+    beforeEach(() => {
+      personGeneration = 0;
+    });
+
+    function sessionPool(session: Record<string, unknown> = openSession) {
       const pool = makePool();
 
       pool.query.mockResolvedValue({
@@ -243,10 +267,22 @@ describe("/api/tokens", () => {
         ],
       });
       pool.__client.query.mockImplementation(async (sql: string) => ({
-        rows: sql.includes("INSERT") ? [{ id: "t-9", name: "ci" }] : [],
+        rows: rowsInTransaction(sql, session),
       }));
 
       return pool;
+    }
+
+    function rowsInTransaction(sql: string, session: Record<string, unknown>) {
+      if (sql.includes("INSERT")) {
+        return [{ id: "t-9", name: "ci" }];
+      }
+
+      if (sql.includes("person_generations")) {
+        return [{ generation: personGeneration }];
+      }
+
+      return sql.includes("FROM pipeline.api_tokens") ? [session] : [];
     }
 
     function mintWithSession(pool: ReturnType<typeof makePool>) {
@@ -279,11 +315,46 @@ describe("/api/tokens", () => {
         statements: [
           "BEGIN",
           "SELECT pg_advisory_xact_lock($1::bigint)",
+          "SELECT revoked_at AS",
+          "SELECT generation FROM",
           "INSERT INTO pipeline.api_tokens",
           "COMMIT",
         ],
         lockParams: [4242],
         makerId: 4242,
+      });
+    });
+
+    async function refusedMint(
+      session: Record<string, unknown>,
+      generationOfPerson: number,
+    ) {
+      personGeneration = generationOfPerson;
+      const pool = sessionPool(session);
+      const res = await mintWithSession(pool);
+
+      return {
+        status: res.statusCode,
+        inserts: pool.__client.query.mock.calls.filter(([sql]: string[]) =>
+          sql.includes("INSERT"),
+        ).length,
+        rolledBack: pool.__client.query.mock.calls.some(
+          ([sql]: string[]) => sql === "ROLLBACK",
+        ),
+      };
+    }
+
+    it("stores no token and answers 401 when the session that asks was revoked under the lock", async () => {
+      expect(
+        await refusedMint({ ...openSession, revokedAt: SESSION_NOW }, 0),
+      ).toEqual({ status: 401, inserts: 0, rolledBack: true });
+    });
+
+    it("stores no token and answers 401 when the session records generation 0 and the person's generation is 1", async () => {
+      expect(await refusedMint(openSession, 1)).toEqual({
+        status: 401,
+        inserts: 0,
+        rolledBack: true,
       });
     });
 
@@ -293,7 +364,7 @@ describe("/api/tokens", () => {
       pool.__client.query.mockImplementation(async (sql: string) => {
         enforceTrue(!sql.includes("INSERT"), Error, "insert fail");
 
-        return { rows: [] };
+        return { rows: rowsInTransaction(sql, openSession) };
       });
       const res = await mintWithSession(pool);
 

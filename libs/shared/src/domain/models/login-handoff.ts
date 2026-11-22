@@ -23,6 +23,8 @@ export const LoginHandoffSchema = z.object({
   grant: UserGrantSchema.nullable(),
   encryptedTokens: z.string().nullable(),
   generation: z.number().int().nullable(),
+  accessTokenExpiresAt: z.date().nullable(),
+  refreshTokenExpiresAt: z.date().nullable(),
   expiresAt: z.date(),
 });
 
@@ -35,5 +37,7 @@ export const LOGIN_HANDOFF_COLUMNS = {
   grant: "grant_json",
   encryptedTokens: "encrypted_tokens",
   generation: "generation",
+  accessTokenExpiresAt: "access_token_expires_at",
+  refreshTokenExpiresAt: "refresh_token_expires_at",
   expiresAt: "expires_at",
 } as const satisfies ColumnMap<LoginHandoff>;

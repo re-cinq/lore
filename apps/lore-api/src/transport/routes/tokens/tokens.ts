@@ -12,7 +12,7 @@ import {
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope, principalOf } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import type { TokenScope, UserIdentity } from "../../http/auth.js";
+import type { Principal, TokenScope, UserIdentity } from "../../http/auth.js";
 import {
   DB_UNAVAILABLE,
   clampedLimit,
@@ -20,7 +20,10 @@ import {
 } from "../common-schemas.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import { runInTransaction } from "@re-cinq/lore-shared";
-import { lockPerson } from "../../../work/auth/person-access.js";
+import {
+  enforceSessionCurrent,
+  lockPerson,
+} from "../../../work/auth/person-access.js";
 import {
   mintApiToken,
   type MintInput,
@@ -163,7 +166,7 @@ async function writeToken(
       return revokeToken(pool, h, body.token_id);
     }
 
-    return await createToken(pool, h, body, principalOf(request).user);
+    return await createToken(pool, h, body, principalOf(request));
   } catch (err) {
     // Guard refusals carry their status; shape only unexpected failures.
     rethrowBoom(err);
@@ -191,23 +194,35 @@ async function createToken(
   pool: Pool,
   h: ResponseToolkit,
   body: TokensPostBody,
-  maker: UserIdentity | null,
+  { user: maker, tokenHash }: Pick<Principal, "user" | "tokenHash">,
 ) {
   enforceTrue(body.name, apiError(400), "name required");
   refuseInstallKind(body.kind);
-  const expiresAt = expiryDate(body.expires_in_days);
-  const { token, row } = await mintedBy(pool, maker, {
-    name: body.name,
-    scopes: resolveScopes(body.scopes),
-    createdBy: maker?.login ?? "admin",
-    expiresAt,
-    ...makerColumns(maker),
-  });
+  const input = mintInput(body.name, body, maker);
+  const { token, row } = await mintedBy(pool, maker, tokenHash, input);
 
   // Return the raw token ONCE — it cannot be retrieved again
   return h
-    .response({ ...row, token, expires_at: expiresAt?.toISOString() ?? null })
+    .response({
+      ...row,
+      token,
+      expires_at: input.expiresAt?.toISOString() ?? null,
+    })
     .code(201);
+}
+
+function mintInput(
+  name: string,
+  body: TokensPostBody,
+  maker: UserIdentity | null,
+): MintInput {
+  return {
+    name,
+    scopes: resolveScopes(body.scopes),
+    createdBy: maker?.login ?? "admin",
+    expiresAt: expiryDate(body.expires_in_days),
+    ...makerColumns(maker),
+  };
 }
 
 /** FR-044: a token a signed-in person mints records their GitHub numeric id. */
@@ -227,10 +242,11 @@ function makerColumns(maker: UserIdentity | null): Partial<MintInput> {
   };
 }
 
-/** A person's session mints under the person's lock, so a sign-out or revocation of that person cannot interleave with the insert (FR-389). */
+/** A person's session mints under the person's lock, so a sign-out or revocation of that person cannot interleave with the insert (FR-389), and mints nothing once its session has ended or its generation is out of date (FR-396, FR-438). */
 async function mintedBy(
   pool: Pool,
   maker: UserIdentity | null,
+  sessionHash: string | null,
   input: MintInput,
 ) {
   if (!maker) {
@@ -239,6 +255,7 @@ async function mintedBy(
 
   return runInTransaction(pool, async (tx) => {
     await lockPerson(tx, maker.githubId);
+    await enforceSessionCurrent(tx, sessionHash, maker.githubId);
 
     return mintApiToken(tx, input);
   });

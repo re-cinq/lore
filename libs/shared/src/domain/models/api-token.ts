@@ -20,6 +20,7 @@ export const ApiTokenSchema = z.object({
   repos: z.array(z.string()),
   githubId: z.number().nullable().optional(),
   githubRepoId: z.string().nullable(),
+  generation: z.number().int().nullable().optional(),
 });
 
 export type ApiToken = z.infer<typeof ApiTokenSchema>;
@@ -41,6 +42,7 @@ export const API_TOKEN_COLUMNS = {
   repos: "repos",
   githubId: "github_id",
   githubRepoId: "github_repo_id",
+  generation: "generation",
 } as const satisfies ColumnMap<ApiToken>;
 
 export const API_TOKEN_TABLE = "pipeline.api_tokens";

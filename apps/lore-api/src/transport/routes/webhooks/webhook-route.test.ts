@@ -224,31 +224,3 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     expect(res.result).toEqual({ error: "Error" });
   });
 });
-
-describe("GET /api/repos/:o/:r/webhook/secret", () => {
-  useRateLimitSafeClock();
-  beforeEach(() => {
-    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
-  });
-  afterEach(() => {
-    process.env = { ...originalEnv };
-    vi.clearAllMocks();
-  });
-
-  it("returns the HMAC secret + canonical URL for an admin caller", async () => {
-    process.env.LORE_WEBHOOK_URL = URL;
-    process.env.LORE_WEBHOOK_SECRET = "s3cr3t";
-    const res = await inject("GET", "/api/repos/o/r/webhook/secret");
-
-    expect(res.statusCode).toBe(200);
-    expect(res.result).toMatchObject({ secret: "s3cr3t", canonicalUrl: URL });
-  });
-
-  it("returns 503 when the secret is not configured", async () => {
-    process.env.LORE_WEBHOOK_URL = URL;
-    delete process.env.LORE_WEBHOOK_SECRET;
-    const res = await inject("GET", "/api/repos/o/r/webhook/secret");
-
-    expect(res.statusCode).toBe(503);
-  });
-});
