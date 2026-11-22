@@ -60,7 +60,23 @@ export async function exchangeCode(
     }),
   });
 
-  return res.ok ? tokenPairOf(await res.json()) : null;
+  return tokenPairOrWarn(res.status, res.ok ? await res.json() : null);
+}
+
+/** The token pair GitHub answered, or null with a log line naming GitHub's error. */
+function tokenPairOrWarn(
+  status: number,
+  body: unknown,
+): GithubTokenPair | null {
+  const pair = tokenPairOf(body);
+
+  if (!pair) {
+    console.warn(
+      `[auth] GitHub gave no token for the sign-in code: status ${status}, error ${String(asRecord(body)?.error ?? "none")}`,
+    );
+  }
+
+  return pair;
 }
 
 export async function fetchViewer(
@@ -69,6 +85,10 @@ export async function fetchViewer(
   host: string = githubHost(),
 ): Promise<GithubViewer | null> {
   const res = await getJson(`${githubUrls(host).api}/user`, token, fetchImpl);
+
+  if (!res.ok) {
+    console.warn(`[auth] GitHub refused /user: status ${res.status}`);
+  }
 
   return res.ok ? viewerOf(await res.json()) : null;
 }

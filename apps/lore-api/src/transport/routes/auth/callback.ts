@@ -120,9 +120,10 @@ async function githubSession(
     redirectUri: callbackUrl(config),
   });
   const tokenPair = tokenPairOf(exchanged);
-  const viewer = tokenPair
-    ? await deps.github.fetchViewer(tokenPair.accessToken)
-    : null;
+  const viewer =
+    tokenPair && (await deps.github.fetchViewer(tokenPair.accessToken));
+
+  warnRefusal(exchanged, tokenPair, viewer);
 
   return tokenPair && validViewer(viewer)
     ? { tokenPair, viewer, generation: await generationOf(pool, viewer.id) }
@@ -138,6 +139,37 @@ function tokenPairOf(exchanged: unknown): GithubTokenPair | null {
     isNonEmptyString(candidate.refreshToken)
     ? (exchanged as GithubTokenPair)
     : null;
+}
+
+/** One log line naming why GitHub's answer refuses the sign-in; never a token. */
+function warnRefusal(
+  exchanged: unknown,
+  tokenPair: GithubTokenPair | null,
+  viewer: unknown,
+): void {
+  if (exchanged && !tokenPair) {
+    console.warn(
+      `[auth] sign-in refused: GitHub's token answer lacks ${missingTokenFields(exchanged).join(", ")}`,
+    );
+
+    return;
+  }
+
+  if (tokenPair && !validViewer(viewer)) {
+    console.warn(
+      "[auth] sign-in refused: GitHub named no person with a numeric id",
+    );
+  }
+}
+
+function missingTokenFields(exchanged: unknown): string[] {
+  const candidate = (exchanged ?? {}) as Record<string, unknown>;
+
+  return [
+    isNonEmptyString(candidate.accessToken) ? null : "access token",
+    isPositive(candidate.expiresIn) ? null : "expiry",
+    isNonEmptyString(candidate.refreshToken) ? null : "refresh token",
+  ].filter((field): field is string => field !== null);
 }
 
 function isPositive(value: unknown): boolean {
