@@ -12,7 +12,7 @@ import {
 import type { StalePlan } from "../../../work/plans/stale-refine-asks.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
 import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
-import { bearerScope } from "../../http/bearer-scope.js";
+import { bearerScope, principalOf } from "../../http/bearer-scope.js";
 import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -137,11 +137,21 @@ async function serveCollabToken(
 
   enforceTrue(meta?.repo === repo, apiError(404), "plan not found");
   const body = request.payload as z.infer<typeof CollabTokenBody>;
-  const token = await mintCollabToken(pool, { planId, repo, ...body });
+  const token = await mintCollabToken(pool, {
+    planId,
+    repo,
+    ...body,
+    sessionId: sessionOf(request),
+  });
 
   clearStaleAsksLater(seams, { id: planId, repo });
 
   return h.response({ token, documentName: docName({ repo, planId }) });
+}
+
+// The session row the caller signed in with; a bearer token has none.
+function sessionOf(request: Request): string | undefined {
+  return principalOf(request).user?.sessionId;
 }
 
 // The page opening is when a stuck ask is noticed; the token never waits on it, and a failed check is logged for the next open to retry.

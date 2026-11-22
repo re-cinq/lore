@@ -1,11 +1,15 @@
 // The channels one socket holds: opened by a client-chosen id, capped, and closed together when the socket goes.
 
+import { repoAllowed } from "../auth/login-grant.js";
+import type { SocketPerson } from "./socket-session.js";
 import { MAX_CHANNELS_PER_SOCKET, type LiveErrorCode } from "./protocol.js";
 
 /** What the socket can do with an open channel: hand it client bytes, or close it from the client's side. */
 export interface ChannelHandle {
   receive(bytes: Uint8Array): void;
   close(): void;
+  /** The repository the channel reads for a signed-in person, so a lost read closes it (FR-284). */
+  repo?: string;
   /** Replaces the runs a list channel hears changes of; only the runs channel takes it. */
   watch?(runIds: readonly string[]): void;
 }
@@ -39,6 +43,24 @@ export class ChannelRegistry {
 
   get size(): number {
     return this.channels.size;
+  }
+
+  /** Closes and returns the ids of the channels whose repository `person` can no longer read (FR-284). */
+  closeUnreadable(person: SocketPerson): string[] {
+    const lost = [...this.channels]
+      .filter(
+        ([, handle]) =>
+          handle.repo !== undefined &&
+          !repoAllowed({ user: person }, handle.repo),
+      )
+      .map(([id]) => id);
+
+    for (const id of lost) {
+      this.channels.get(id)?.close();
+      this.channels.delete(id);
+    }
+
+    return lost;
   }
 
   closeAll(): void {

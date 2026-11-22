@@ -8,6 +8,7 @@ import {
   API_TOKEN_TABLE as TABLE,
   type ApiToken,
 } from "@re-cinq/lore-shared/models/api-token.js";
+import { announceSessionEnded } from "./session-ended.js";
 
 /** Takes the person's lock until the transaction ends, so sign-in, minting and revocation for one person run one at a time (FR-388, FR-389). */
 export async function lockPerson(
@@ -30,25 +31,41 @@ export async function generationOf(
   return rows[0]?.generation ?? 0;
 }
 
-/** Ends every session of the person and revokes every token they minted, and adds one to their generation, all under the person's lock (FR-390, FR-394). */
+/** Ends every session of the person and revokes every token they minted, and adds one to their generation, all under the person's lock; each ended row is announced once it committed (FR-390, FR-394, FR-279). */
 export async function revokePersonAccess(
   db: PgPool,
   githubId: number,
 ): Promise<void> {
-  await runInTransaction(db, async (tx) => {
+  const ended = await runInTransaction(db, async (tx) => {
     await lockPerson(tx, githubId);
-    await tx.query(
-      `INSERT INTO pipeline.person_generations (github_id, generation)
+
+    return revokeRows(tx, githubId);
+  });
+
+  for (const { id } of ended) {
+    announceSessionEnded(String(id));
+  }
+}
+
+/** Adds one to the person's generation and revokes their tokens, answering the ids of the rows it revoked. */
+async function revokeRows(
+  tx: Pick<PgPool, "query">,
+  githubId: number,
+): Promise<Array<{ id: string }>> {
+  await tx.query(
+    `INSERT INTO pipeline.person_generations (github_id, generation)
          VALUES ($1, 1)
          ON CONFLICT (github_id) DO UPDATE SET generation = pipeline.person_generations.generation + 1`,
-      [githubId],
-    );
-    await tx.query(
-      `UPDATE pipeline.api_tokens SET revoked_at = now()
-         WHERE github_id = $1 AND revoked_at IS NULL`,
-      [githubId],
-    );
-  });
+    [githubId],
+  );
+  const { rows } = await tx.query<{ id: string }>(
+    `UPDATE pipeline.api_tokens SET revoked_at = now()
+         WHERE github_id = $1 AND revoked_at IS NULL
+         RETURNING id`,
+    [githubId],
+  );
+
+  return rows;
 }
 
 type SessionState = Pick<ApiToken, "revokedAt" | "expiresAt" | "generation">;

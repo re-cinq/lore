@@ -29,6 +29,8 @@ export function originAllowed(
 export interface SocketPerson {
   login: string;
   repos: string[];
+  /** The id of the session row the socket was opened with (FR-300). */
+  sessionId?: string;
 }
 
 /** Who the socket's session cookie names, asked at the moment a channel opens. */

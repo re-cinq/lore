@@ -48,21 +48,32 @@ export async function openRunChannel(
   deps: RunChannelDeps,
   session: SessionAccess = NO_SESSION,
 ): Promise<ChannelHandle | null> {
-  const { channel } = message;
   const admission = await admit(message, deps, session);
   const membership =
     "run" in admission ? joinFeed(admission.run, message, outlet, deps) : null;
 
-  if (!membership) {
-    const reason = "reason" in admission ? admission.reason : "capacity";
-
-    outlet.send({ type: "closed", channel, reason });
-
-    return null;
+  if (!("run" in admission) || !membership) {
+    return refuse(message.channel, outlet, admission);
   }
-  outlet.send({ type: "opened", channel });
+  outlet.send({ type: "opened", channel: message.channel });
 
-  return { receive: () => {}, close: membership.leave };
+  return {
+    receive: () => {},
+    close: membership.leave,
+    repo: message.token === undefined ? admission.run.repo : undefined,
+  };
+}
+
+function refuse(
+  channel: string,
+  outlet: ChannelOutlet,
+  admission: Admission,
+): null {
+  const reason = "reason" in admission ? admission.reason : "capacity";
+
+  outlet.send({ type: "closed", channel, reason });
+
+  return null;
 }
 
 async function admit(

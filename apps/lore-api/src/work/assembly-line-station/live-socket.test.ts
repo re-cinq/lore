@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createServer, type Server } from "node:http";
 import { InMemoryRunNotifier } from "./run-notify-hub.js";
 import { memoryLiveTokens } from "./live-tokens.js";
@@ -571,5 +571,178 @@ describe("the live socket", () => {
       channel: "r",
       reason: "unauthorized",
     });
+  });
+
+  it("closes only the sockets opened with the session row that ends", async () => {
+    const ana = await asSession("ana-session");
+    const ben = await asSession("ben-session");
+    const anaClosed = ana.closed();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    mount.closeSession("row-ana");
+    await anaClosed;
+
+    expect({
+      ana: ana.ws.readyState,
+      ben: ben.ws.readyState,
+    }).toEqual({ ana: 3, ben: 1 });
+  });
+
+  const mountWithPerson = async (person: LiveSocketDeps["person"]) => {
+    const server = createServer((_, res) => res.end("ok"));
+
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const other = mountLiveSocket(server, {
+      run: { verifyToken: tokens.verify, runs: seed.runs, feeds },
+      runs: { verifyToken: tokens.verify, feed: null },
+      planRun: planRunDeps(),
+      collab: echoingCollabThatRefusesOnByte(),
+      person,
+      inject: (options) => inject(options),
+      pingMs: 50,
+      log: () => {},
+    });
+    const otherPort = (server.address() as { port: number }).port;
+    const stop = async () => {
+      other.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    };
+
+    return { mount: other, port: otherPort, stop };
+  };
+
+  it("keeps every socket open when the ended session row is no socket's, the empty id or a cookie value", async () => {
+    const ana = await asSession("ana-session");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    mount.closeSession("");
+    mount.closeSession("ana-session");
+    mount.closeSession("row-nobody");
+    ana.send({ type: "request", id: "q1", method: "GET", path: "/api/x" });
+    inject = async () => ({ statusCode: 200, payload: "{}" });
+
+    expect({
+      reply: await ana.next(),
+      state: ana.ws.readyState,
+    }).toEqual({
+      reply: expect.objectContaining({ id: "q1", status: 200 }),
+      state: 1,
+    });
+  });
+
+  it("closes a socket whose session ends while its session row is still being looked up", async () => {
+    let release: () => void = () => {};
+    const looked = new Promise<void>((resolve) => (release = resolve));
+    const slow = await mountWithPerson(async (token) => {
+      await looked;
+
+      return personBySession(token);
+    });
+    const ana = queuedClient(slow.port, "/api/ws", cookieOf("ana-session"));
+
+    opened.push(ana);
+    await ana.open();
+    const anaClosed = ana.closed();
+
+    slow.mount.closeSession("row-ana");
+    release();
+    const code = await Promise.race([
+      anaClosed,
+      new Promise((resolve) => setTimeout(() => resolve("still open"), 300)),
+    ]);
+
+    await slow.stop();
+    expect(code).not.toBe("still open");
+  });
+
+  it("closes a socket by its session row even when the session lookup at upgrade failed", async () => {
+    let calls = 0;
+    const flaky = await mountWithPerson(async (token) => {
+      enforceTrue(calls++ !== 0, Error, "session store unreachable");
+
+      return personBySession(token);
+    });
+    const ana = queuedClient(flaky.port, "/api/ws", cookieOf("ana-session"));
+
+    opened.push(ana);
+    await ana.open();
+    ana.send({
+      type: "open",
+      channel: "r",
+      kind: "run",
+      subject: seed.run.id,
+    });
+    const channel = await ana.next();
+    const anaClosed = ana.closed();
+
+    flaky.mount.closeSession("row-ana");
+    const code = await Promise.race([
+      anaClosed,
+      new Promise((resolve) => setTimeout(() => resolve("still open"), 300)),
+    ]);
+
+    await flaky.stop();
+    expect({ opened: channel, code }).toEqual({
+      opened: { type: "opened", channel: "r" },
+      code: expect.not.stringMatching("still open"),
+    });
+  });
+
+  const probeStaleCheck = async (
+    recheck: () => ReturnType<LiveSocketDeps["person"]>,
+    waitMs = 500,
+  ) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    let calls = 0;
+    const stale = await mountWithPerson(async (token) =>
+      calls++ === 0 ? personBySession(token) : recheck(),
+    );
+    const ana = queuedClient(stale.port, "/api/ws", cookieOf("ana-session"));
+
+    opened.push(ana);
+    await ana.open();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    const anaClosed = ana.closed();
+    let served = 0;
+
+    inject = async () => {
+      served++;
+
+      return { statusCode: 200, payload: "{}" };
+    };
+    ana.send({ type: "request", id: "q1", method: "GET", path: "/api/x" });
+    const code = await Promise.race([
+      anaClosed,
+      new Promise((resolve) => setTimeout(() => resolve("still open"), waitMs)),
+    ]);
+
+    vi.useRealTimers();
+    await stale.stop();
+
+    return { code, served };
+  };
+
+  it("closes a socket whose person is no longer a member when a frame arrives after five minutes, serving nothing", async () => {
+    expect(await probeStaleCheck(async () => null)).toEqual({
+      code: 4401,
+      served: 0,
+    });
+  });
+
+  it("closes a stale socket with a reconnectable code when GitHub gives no answer at the check", async () => {
+    expect(
+      await probeStaleCheck(async () => {
+        throw new Error("GitHub could not confirm org membership");
+      }),
+    ).toEqual({ code: 1013, served: 0 });
+  });
+
+  it("closes a stale socket with a reconnectable code when GitHub never answers the check, serving nothing", async () => {
+    expect(
+      await probeStaleCheck(() => new Promise<never>(() => {}), 2_500),
+    ).toEqual({ code: 1013, served: 0 });
   });
 });

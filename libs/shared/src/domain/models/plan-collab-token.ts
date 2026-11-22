@@ -12,6 +12,7 @@ export const PlanCollabTokenSchema = z.object({
   userId: z.string(),
   userName: z.string(),
   role: z.enum(["read", "write"]),
+  sessionId: z.string().nullable(),
   expiresAt: z.date(),
 });
 
@@ -24,5 +25,6 @@ export const PLAN_COLLAB_TOKEN_COLUMNS = {
   userId: "user_id",
   userName: "user_name",
   role: "role",
+  sessionId: "session_id",
   expiresAt: "expires_at",
 } as const satisfies ColumnMap<PlanCollabToken>;

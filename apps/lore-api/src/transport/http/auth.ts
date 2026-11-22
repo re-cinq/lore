@@ -102,6 +102,8 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
 export interface UserIdentity {
+  /** The id of the session row (`pipeline.api_tokens.id`) the person signed in with (FR-300). */
+  sessionId?: string;
   /** The person's GitHub numeric user id, the key of every lock and revocation that concerns them. */
   githubId: number;
   login: string;
@@ -313,6 +315,7 @@ function userOf(row: TokenRow): UserIdentity | null {
   }
 
   return {
+    sessionId: row.id,
     githubId: Number(row.github_id),
     login: row.login,
     name: row.displayName ?? row.login,

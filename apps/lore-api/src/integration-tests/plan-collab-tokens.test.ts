@@ -92,4 +92,45 @@ describe("plan collab tokens", () => {
       }),
     ).toBeNull();
   });
+
+  it("refuses a token whose session row has expired and keeps one with no session", async () => {
+    const expiredSession = "00000000-0000-0000-0000-0000000000e1";
+
+    await pool.query(
+      `INSERT INTO pipeline.api_tokens (id, name, token_hash, created_by, kind, expires_at)
+       VALUES ($1, 'expired-session', 'plan-collab-expired-session', 'ana', 'user', $2)
+       ON CONFLICT (id) DO UPDATE SET expires_at = EXCLUDED.expires_at, revoked_at = NULL`,
+      [expiredSession, EXPIRED],
+    );
+
+    try {
+      const withExpiredSession = await mintCollabToken(() => pool, {
+        planId,
+        repo: REPO,
+        user: ANA,
+        role: "write",
+        sessionId: expiredSession,
+      });
+      const withoutSession = await mintCollabToken(() => pool, {
+        planId,
+        repo: REPO,
+        user: ANA,
+        role: "write",
+      });
+      const auth = collabAuthenticator(() => pool);
+      const scope = { repo: REPO, planId };
+
+      expect({
+        expired: await auth.authenticate(withExpiredSession, scope),
+        none: await auth.authenticate(withoutSession, scope),
+      }).toEqual({
+        expired: null,
+        none: { id: "ana", name: "Ana", role: "write" },
+      });
+    } finally {
+      await pool.query("DELETE FROM pipeline.api_tokens WHERE id = $1", [
+        expiredSession,
+      ]);
+    }
+  });
 });

@@ -71,6 +71,7 @@ export function allowing(
 const SIGNED_IN = { startedAt: "2026-10-28T10:00:00.000Z", expiresAt: null };
 const ANA = {
   login: "ana",
+  sessionId: "row-ana",
   name: "Ana",
   avatarUrl: null,
   repos: ["o/r"],
@@ -78,6 +79,7 @@ const ANA = {
 };
 const BEN = {
   login: "ben",
+  sessionId: "row-ben",
   name: "Ben",
   avatarUrl: null,
   repos: ["x/y"],

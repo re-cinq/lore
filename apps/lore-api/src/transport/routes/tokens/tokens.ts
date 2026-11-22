@@ -24,6 +24,7 @@ import {
   enforceSessionCurrent,
   lockPerson,
 } from "../../../work/auth/person-access.js";
+import { announceSessionEnded } from "../../../work/auth/session-ended.js";
 import {
   mintApiToken,
   type MintInput,
@@ -186,6 +187,7 @@ async function revokeToken(pool: Pool, h: ResponseToolkit, tokenId: string) {
     `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
     [tokenId],
   );
+  announceSessionEnded(tokenId);
 
   return h.response({ ok: true });
 }

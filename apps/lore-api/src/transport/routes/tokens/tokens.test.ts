@@ -1,5 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { onSessionEnded } from "../../../work/auth/session-ended.js";
 import { buildServer } from "../../../app/build-server.js";
 import {
   makePool,
@@ -102,6 +103,49 @@ describe("/api/tokens", () => {
     );
 
     expect(res.result).toEqual({ ok: true });
+  });
+
+  it("announces the revoked row as an ended session", async () => {
+    const pool = makePool();
+    const ended = vi.fn();
+    const stop = onSessionEnded(ended);
+
+    pool.query.mockResolvedValue({});
+    await req(
+      { method: "POST", body: { action: "revoke", token_id: "row-7" } },
+      pool,
+    );
+    stop();
+
+    expect(ended.mock.calls).toEqual([["row-7"]]);
+  });
+
+  it("refuses a revoke with no credential or a made-up one, revoking and announcing nothing", async () => {
+    const pool = makePool();
+    const ended = vi.fn();
+    const stop = onSessionEnded(ended);
+    const revoke = (headers: Record<string, string>) =>
+      buildServer(() => pool as any).inject({
+        method: "POST",
+        url: "/api/tokens",
+        headers,
+        payload: JSON.stringify({ action: "revoke", token_id: "row-7" }),
+      });
+
+    const statuses = [
+      (await revoke({})).statusCode,
+      (await revoke({ authorization: "Bearer made-up-token" })).statusCode,
+    ];
+
+    stop();
+
+    expect({
+      statuses,
+      announced: ended.mock.calls,
+      revoked: [...pool.query.mock.calls, ...pool.__client.query.mock.calls]
+        .map(([sql]) => String(sql))
+        .filter((sql) => sql.includes("SET revoked_at")),
+    }).toEqual({ statuses: [401, 401], announced: [], revoked: [] });
   });
 
   it("returns 400 when creating without a name", async () => {

@@ -34,6 +34,7 @@ import {
   registerPlanning,
   type RegisteredPlanning,
 } from "./register-planning.js";
+import { onSessionEnded } from "../work/auth/session-ended.js";
 import {
   mountLiveSocket,
   type LiveSocketLimits,
@@ -159,7 +160,20 @@ function registerLiveSocket(
     limits: LIVE_SOCKET_LIMITS,
   });
 
-  server.ext("onPreStop", () => liveSocket.close());
+  closeOnSessionEnd(server, liveSocket);
+}
+
+/** FR-279: a session that ends closes the live sockets opened with it. */
+function closeOnSessionEnd(
+  server: Hapi.Server,
+  liveSocket: ReturnType<typeof mountLiveSocket>,
+): void {
+  const unsubscribe = onSessionEnded((id) => liveSocket.closeSession(id));
+
+  server.ext("onPreStop", () => {
+    unsubscribe();
+    liveSocket.close();
+  });
 }
 
 function logOpenApiCoverage(routes: ServerRoute[]): void {

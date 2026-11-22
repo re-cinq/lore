@@ -3,7 +3,7 @@
 import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { ChannelRegistry, type ChannelHandle } from "./channel-registry.js";
-import { openPlanChannel, type CollabServer } from "./plan-channel.js";
+import type { CollabServer } from "./plan-channel.js";
 import {
   base64ToBytes,
   encodeServerMessage,
@@ -13,18 +13,14 @@ import {
   type OpenMessage,
   type RequestMessage,
 } from "./protocol.js";
-import {
-  openRunChannel,
-  type ChannelOutlet,
-  type RunChannelDeps,
-} from "./run-channel.js";
-import { openRunsChannel, type RunsChannelDeps } from "./runs-channel.js";
-import {
-  openPlanRunChannel,
-  type PlanRunChannelDeps,
-} from "./plan-run-channel.js";
+import type { ChannelOutlet, RunChannelDeps } from "./run-channel.js";
+import type { RunsChannelDeps } from "./runs-channel.js";
+import type { PlanRunChannelDeps } from "./plan-run-channel.js";
 import { answerRequest, type SocketInject } from "./socket-request.js";
 import type { SessionAccess, SocketPerson } from "./socket-session.js";
+import { OPENERS, type Opener } from "./open-channel.js";
+import { FreshGate } from "./fresh-gate.js";
+import { SessionSockets } from "./session-sockets.js";
 import { webRequest } from "./web-request.js";
 import { UpgradeGate, type LiveSocketLimits } from "./upgrade-gate.js";
 
@@ -36,6 +32,11 @@ const PING_MS = 25_000;
 const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 
 const OPEN = 1;
+
+interface SessionLink {
+  token: string | undefined;
+  bySession: SessionSockets;
+}
 
 type ChannelMessage = Exclude<LiveClientMessage, OpenMessage | RequestMessage>;
 
@@ -61,17 +62,17 @@ export interface LiveSocketMount {
   /** Terminates every connection and stops accepting upgrades; for the server's stop. */
   close(): void;
   readonly connectionCount: number;
+  /** Closes every live socket opened with the session row, for a session that ended (FR-279). */
+  closeSession(sessionId: string): void;
 }
 
 export function mountLiveSocket(
   listener: HttpServer,
   deps: LiveSocketDeps,
 ): LiveSocketMount {
-  const sockets = new WebSocketServer({
-    noServer: true,
-    maxPayload: MAX_PAYLOAD_BYTES,
-  });
-  const onUpgrade = new UpgradeGate(sockets, deps, serve).onUpgrade;
+  const sockets = newServer();
+  const bySession = new SessionSockets();
+  const onUpgrade = gateFor(sockets, deps, bySession);
 
   listener.on("upgrade", onUpgrade);
 
@@ -83,7 +84,22 @@ export function mountLiveSocket(
     get connectionCount() {
       return sockets.clients.size;
     },
+    closeSession: (sessionId) => bySession.close(sessionId),
   };
+}
+
+function newServer(): WebSocketServer {
+  return new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
+}
+
+function gateFor(
+  sockets: WebSocketServer,
+  deps: LiveSocketDeps,
+  bySession: SessionSockets,
+): UpgradeGate<LiveSocketDeps>["onUpgrade"] {
+  return new UpgradeGate(sockets, deps, (ws, request, gateDeps, token) =>
+    serve(ws, request, gateDeps, { token, bySession }),
+  ).onUpgrade;
 }
 
 function terminateAll(sockets: WebSocketServer): void {
@@ -97,16 +113,30 @@ function terminateAll(sockets: WebSocketServer): void {
 class LiveConnection {
   private readonly registry = new ChannelRegistry();
   private alive = true;
+  private recorded = false;
+  private readonly gate: FreshGate;
   private readonly id = `conn:${++connectionSeq}`;
 
   constructor(
     private readonly ws: WebSocket,
     private readonly request: IncomingMessage,
     private readonly deps: LiveSocketDeps,
-    private readonly sessionToken: string | undefined,
-  ) {}
+    private readonly link: SessionLink,
+  ) {
+    this.gate = new FreshGate(
+      ws,
+      link.token,
+      (token) => deps.person(token),
+      (person) => {
+        for (const id of this.registry.closeUnreadable(person)) {
+          this.send({ type: "closed", channel: id, reason: "unauthorized" });
+        }
+      },
+    );
+  }
 
   start(): void {
+    this.recordSession();
     const ping = setInterval(() => this.ping(), this.deps.pingMs ?? PING_MS);
 
     this.ws.on("pong", () => (this.alive = true));
@@ -116,6 +146,24 @@ class LiveConnection {
       clearInterval(ping);
       this.registry.closeAll();
     });
+  }
+
+  /** FR-300: the socket is held under the id of the session row that opened it. */
+  private recordSession(): void {
+    const row = this.session()
+      .person()
+      .then((person) => person?.sessionId)
+      .catch(() => undefined);
+
+    this.link.bySession.lookup(this.ws, row);
+  }
+
+  /** FR-284: channels on repositories the person can no longer read close; the socket stays. */
+  private recordPerson(person: SocketPerson | null): void {
+    if (!this.recorded && person?.sessionId && this.ws.readyState === OPEN) {
+      this.recorded = true;
+      this.link.bySession.add(person.sessionId, this.ws);
+    }
   }
 
   private ping(): void {
@@ -129,9 +177,11 @@ class LiveConnection {
   }
 
   private send(message: LiveServerMessage): void {
-    if (this.ws.readyState === OPEN) {
-      this.ws.send(encodeServerMessage(message));
-    }
+    this.gate.run(() => {
+      if (this.ws.readyState === OPEN) {
+        this.ws.send(encodeServerMessage(message));
+      }
+    });
   }
 
   private onMessage(text: string): void {
@@ -142,7 +192,7 @@ class LiveConnection {
 
       return;
     }
-    this.dispatch(message);
+    this.gate.run(() => this.dispatch(message));
   }
 
   private dispatch(message: LiveClientMessage): void {
@@ -161,7 +211,7 @@ class LiveConnection {
   private async answer(message: RequestMessage): Promise<void> {
     try {
       this.send(
-        await answerRequest(message, this.sessionToken, this.deps.inject),
+        await answerRequest(message, this.link.token, this.deps.inject),
       );
     } catch (err) {
       this.log(`request failed: ${(err as Error).message}`);
@@ -289,9 +339,17 @@ class LiveConnection {
   }
 
   private session(): SessionAccess {
-    const token = this.sessionToken;
+    const { token } = this.link;
 
-    return { person: async () => (token ? this.deps.person(token) : null) };
+    return {
+      person: async () => {
+        const person = token ? await this.deps.person(token) : null;
+
+        this.recordPerson(person);
+
+        return person;
+      },
+    };
   }
 
   private outletFor(channel: string): ChannelOutlet {
@@ -307,39 +365,11 @@ class LiveConnection {
   }
 }
 
-interface OpenContext {
-  deps: LiveSocketDeps;
-  /** The upgrade request as a web Request, for the plan channel's collaboration handshake. */
-  request: () => Request;
-  /** Who the socket's session cookie names, resolved when asked so a signed-out session is refused. */
-  session: SessionAccess;
-}
-
-type Opener<M extends OpenMessage> = (
-  message: M,
-  outlet: ChannelOutlet,
-  context: OpenContext,
-) => Promise<ChannelHandle | null>;
-
-/** Each channel kind's handler. */
-const OPENERS: {
-  [K in OpenMessage["kind"]]: Opener<Extract<OpenMessage, { kind: K }>>;
-} = {
-  plan: async (message, outlet, { deps, request }) =>
-    openPlanChannel(message.channel, request(), outlet, deps.collab),
-  run: (message, outlet, { deps, session }) =>
-    openRunChannel(message, outlet, deps.run, session),
-  runs: (message, outlet, { deps, session }) =>
-    openRunsChannel(message, outlet, deps.runs, session),
-  "plan-run": (message, outlet, { deps }) =>
-    openPlanRunChannel(message, outlet, deps.planRun),
-};
-
 function serve(
   ws: WebSocket,
   request: IncomingMessage,
   deps: LiveSocketDeps,
-  sessionToken: string | undefined,
+  link: SessionLink,
 ): void {
-  new LiveConnection(ws, request, deps, sessionToken).start();
+  new LiveConnection(ws, request, deps, link).start();
 }

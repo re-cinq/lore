@@ -19,16 +19,22 @@ export interface CollabGrant {
   repo: string;
   user: { id: string; name: string };
   role: PlanRole;
+  /** The session row (`pipeline.api_tokens.id`) the token was minted for; a token whose session ended is refused (FR-286, FR-301). */
+  sessionId?: string | null;
 }
 
 const INSERT_TOKEN = `INSERT INTO ${TABLE} (${COLUMNS.tokenHash}, ${COLUMNS.planId},
-  ${COLUMNS.repo}, ${COLUMNS.userId}, ${COLUMNS.userName}, ${COLUMNS.role}, ${COLUMNS.expiresAt})
-  VALUES ($1, $2, $3, $4, $5, $6, $7)`;
+  ${COLUMNS.repo}, ${COLUMNS.userId}, ${COLUMNS.userName}, ${COLUMNS.role}, ${COLUMNS.expiresAt}, ${COLUMNS.sessionId})
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
 const SWEEP_EXPIRED = `DELETE FROM ${TABLE} WHERE ${COLUMNS.expiresAt} < now()`;
-const SELECT_PRINCIPAL = `SELECT ${COLUMNS.userId} AS id, ${COLUMNS.userName} AS name,
-  ${COLUMNS.role} AS role FROM ${TABLE}
-  WHERE ${COLUMNS.tokenHash} = $1 AND ${COLUMNS.planId}::text = $2
-    AND ${COLUMNS.repo} = $3 AND ${COLUMNS.expiresAt} > now()`;
+const SELECT_PRINCIPAL = `SELECT t.${COLUMNS.userId} AS id, t.${COLUMNS.userName} AS name,
+  t.${COLUMNS.role} AS role FROM ${TABLE} t
+  WHERE t.${COLUMNS.tokenHash} = $1 AND t.${COLUMNS.planId}::text = $2
+    AND t.${COLUMNS.repo} = $3 AND t.${COLUMNS.expiresAt} > now()
+    AND (t.${COLUMNS.sessionId} IS NULL OR EXISTS (
+      SELECT 1 FROM pipeline.api_tokens s
+      WHERE s.id::text = t.${COLUMNS.sessionId} AND s.revoked_at IS NULL
+        AND (s.expires_at IS NULL OR s.expires_at > now())))`;
 
 const hashOf = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
@@ -40,7 +46,7 @@ export async function mintCollabToken(
   expiresAt = new Date(Date.now() + COLLAB_TOKEN_TTL_MS),
 ): Promise<string> {
   const token = randomBytes(32).toString("base64url");
-  const { planId, repo, user, role } = grant;
+  const { planId, repo, user, role, sessionId } = grant;
 
   await db().query(SWEEP_EXPIRED);
   await db().query(INSERT_TOKEN, [
@@ -51,6 +57,7 @@ export async function mintCollabToken(
     user.name,
     role,
     expiresAt,
+    sessionId ?? null,
   ]);
 
   return token;

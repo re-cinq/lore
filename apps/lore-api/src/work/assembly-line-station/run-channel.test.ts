@@ -211,4 +211,34 @@ describe("openRunChannel", () => {
     expect(d.feeds.feedCount).toBe(0);
     expect(d.notifier.subscriberCount).toBe(0);
   });
+
+  it("hands back the run's repo for a session open and none for a token open", async () => {
+    const seed = await seedRun();
+    const d = deps(seed);
+    const token = d.tokens.mint({
+      kind: "run",
+      subject: seed.run.id,
+      user: { id: "ana", name: "Ana" },
+    });
+    const viaToken = await openRunChannel(
+      open(seed.run.id, token),
+      outlet(),
+      d.channel,
+    );
+    const viaSession = await openRunChannel(
+      { type: "open", channel: "c2", kind: "run", subject: seed.run.id },
+      outlet(),
+      d.channel,
+      { person: async () => ({ login: "ana", repos: [seed.run.repo] }) },
+    );
+
+    await flush();
+    viaToken?.close();
+    viaSession?.close();
+
+    expect({ token: viaToken?.repo, session: viaSession?.repo }).toEqual({
+      token: undefined,
+      session: seed.run.repo,
+    });
+  });
 });
