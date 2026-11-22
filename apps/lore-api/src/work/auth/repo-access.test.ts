@@ -114,6 +114,16 @@ describe("repo access", () => {
     });
   });
 
+  it("refuses write and admin on acme/new-repo, outside the sign-in list, though GitHub reports admin", async () => {
+    const lore = access("admin");
+    const unlisted = person([]);
+
+    expect({
+      write: await lore.canOpen(unlisted, "acme/new-repo", "write"),
+      admin: await lore.canOpen(unlisted, "acme/new-repo", "admin"),
+    }).toEqual({ write: false, admin: false });
+  });
+
   it("lets a service token pass write and admin checks without asking GitHub", async () => {
     const lore = access("none");
 

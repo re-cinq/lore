@@ -1,4 +1,4 @@
-// Whether the person behind a session may reach a repository at the level a route declares: the sign-in list answers reads first, while write, admin and unlisted reads ask GitHub as Lore's App (ADR-053, ADR-054).
+// Whether the person behind a session may reach a repository at the level a route declares: every level needs the repository on the sign-in installation list (FR-031), and write and admin then ask GitHub as Lore's App (ADR-053, ADR-054).
 
 import type {
   RepoAccessPorts,
@@ -29,11 +29,14 @@ export function createRepoAccess(ports: RepoAccessPorts): RepoAccess {
         return true;
       }
 
-      if (level !== "read") {
-        return hasLevelToday(ports, principal, repo, level);
+      if (level === "read") {
+        return repoAllowed(principal, repo);
       }
 
-      return canReadRepo(ports, principal, repo);
+      return (
+        (await hasLevelToday(ports, principal, repo, level)) &&
+        repoAllowed(principal, repo)
+      );
     },
   };
 }
@@ -53,15 +56,6 @@ async function hasLevelToday(
   const permission = await askedOfGitHub(ports, principal, repo);
 
   return MEETS_LEVEL[level].includes(permission);
-}
-
-/** Reads of stored repository data follow the person's installation list and nothing else: GitHub's collaborator answer never opens an unlisted repository (FR-031). */
-async function canReadRepo(
-  _ports: RepoAccessPorts,
-  principal: Asker,
-  repo: string,
-): Promise<boolean> {
-  return repoAllowed(principal, repo);
 }
 
 /** A person's session and nothing else reaches here. A question GitHub could not answer is `none`: access is never granted on an error. */

@@ -389,7 +389,7 @@ describe("Person-scoped stored reads, onboarding writes, and pull/issue/webhook/
   it("makes the change with the person's token on POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues", async () => {
     const harness = createHarness({
       installationRepos: ["acme/app"],
-      permissions: { "acme/app": "write" },
+      permissions: { "acme/app": "admin" },
     });
     const token = await signIn(harness.server);
 
@@ -407,7 +407,7 @@ describe("Person-scoped stored reads, onboarding writes, and pull/issue/webhook/
   it("refuses POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues with 500 when the person's stored GitHub token cannot be read, writing nothing on GitHub", async () => {
     const harness = createHarness({
       installationRepos: ["acme/app"],
-      permissions: { "acme/app": "write" },
+      permissions: { "acme/app": "admin" },
     });
     const token = await signIn(harness.server);
 

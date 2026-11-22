@@ -22,6 +22,7 @@ import { bearerScope } from "../../http/bearer-scope.js";
 import { actingEnv } from "../../http/acting-env.js";
 import { buildOctokit } from "@re-cinq/lore-shared/project/lib/platform-github-auth.js";
 import type { Octokit } from "octokit";
+import { repoLevel } from "../../http/repo-guard.js";
 
 const repoOf = (request: { params: Record<string, string> }) =>
   `${request.params.owner}/${request.params.repo}`;
@@ -103,14 +104,17 @@ const ENSURE_SKIP_STATUS: Partial<
   },
 };
 
+const ENSURE_OPTIONS = { ...bearerScope("write"), ...repoLevel("admin") };
+const ENSURE_DOC = {
+  name: "RepoWebhookEnsured",
+  description: "The webhook's state after ensuring it",
+};
+
 export function webhookEnsureRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/webhook/ensure",
-    options: zodResponse(bearerScope("write"), WebhookStatusSchema, {
-      name: "RepoWebhookEnsured",
-      description: "The webhook's state after ensuring it",
-    }),
+    options: zodResponse(ENSURE_OPTIONS, WebhookStatusSchema, ENSURE_DOC),
     handler: async (request, h) => {
       const repo = repoOf(request);
       const octokit = await actingOctokit(request);

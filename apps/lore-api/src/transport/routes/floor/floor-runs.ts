@@ -8,6 +8,7 @@ import type { FloorRunPageQuery } from "../../../work/floor/floor-run-reader.js"
 import { FloorRunPageSchema } from "../../../work/floor/floor-run-rows.js";
 import { repoFullName } from "../common-schemas.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
@@ -37,21 +38,22 @@ export const floorRunPagesWithoutCost: FloorRunPageOf = async (query) =>
     ? floorRunRows().pageWithoutCost(query)
     : { runs: [], next_cursor: null };
 
+const READ_REPO_QUERY = {
+  ...bearerScope("read"),
+  ...repoLevel("read", { from: "query", name: "repo" }),
+};
+
 export function floorRunsRoute(pageOf: FloorRunPageOf): ServerRoute {
   const validate = { query: zodValidate(FloorRunsQuery) };
 
   return {
     method: "GET",
     path: "/api/floor-runs",
-    options: zodResponse(
-      { ...bearerScope("read"), validate },
-      FloorRunPageSchema,
-      {
-        name: "FloorRunPage",
-        description:
-          "One page of the external floor's runs, newest first, each with its mini pipeline",
-      },
-    ),
+    options: zodResponse({ ...READ_REPO_QUERY, validate }, FloorRunPageSchema, {
+      name: "FloorRunPage",
+      description:
+        "One page of the external floor's runs, newest first, each with its mini pipeline",
+    }),
     handler: async (request: Request, h: ResponseToolkit) =>
       h.response(await pageOf(request.query as FloorRunPageQuery)),
   };

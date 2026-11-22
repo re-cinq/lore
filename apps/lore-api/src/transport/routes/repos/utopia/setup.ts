@@ -12,8 +12,12 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { z } from "zod";
-import { zodResponse } from "../../../http/zod-response.js";
+import {
+  zodResponse,
+  type ZodResponseOptions,
+} from "../../../http/zod-response.js";
 import { bearerScope } from "../../../http/bearer-scope.js";
+import { repoLevel } from "../../../http/repo-guard.js";
 import { zodValidate } from "../../../http/zod-validate.js";
 import { withPool } from "../../with-pool.js";
 import {
@@ -34,24 +38,24 @@ const UtopiaSetupResultSchema = z.object({
   ontology_version: z.number(),
 });
 
+const SETUP_OPTIONS = {
+  ...bearerScope("admin"),
+  ...repoLevel("admin"),
+  validate: { payload: zodValidate(UtopiaSetupBody) },
+};
+const SETUP_DOC: ZodResponseOptions = {
+  name: "UtopiaSetupResult",
+  description:
+    "The repo's Utopia knowledge base and the ontology version it holds, now in its settings",
+  errors: [400, 404],
+};
+
 /** POST /api/repos/{owner}/{repo}/utopia/setup — the repo's Utopia knowledge base and ontology, recorded in its settings (specs/utopia-graph-mirror). */
 export function utopiaSetupRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/utopia/setup",
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(UtopiaSetupBody) },
-      },
-      UtopiaSetupResultSchema,
-      {
-        name: "UtopiaSetupResult",
-        description:
-          "The repo's Utopia knowledge base and the ontology version it holds, now in its settings",
-        errors: [400, 404],
-      },
-    ),
+    options: zodResponse(SETUP_OPTIONS, UtopiaSetupResultSchema, SETUP_DOC),
     handler: withPool(getPool, serveUtopiaSetup),
   };
 }

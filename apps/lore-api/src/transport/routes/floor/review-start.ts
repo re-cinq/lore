@@ -8,6 +8,7 @@ import {
 } from "@re-cinq/lore-shared/review/floor-review-start.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
@@ -23,6 +24,7 @@ export type ReviewDepsFor = (repo: string) => Promise<ReviewStartDeps>;
 const REVIEW_START_OPTIONS = zodResponse(
   {
     ...bearerScope("task"),
+    ...repoLevel("write", { from: "payload", name: "repo" }),
     validate: { payload: zodValidate(ReviewStartBody) },
   },
   ReviewStarted,

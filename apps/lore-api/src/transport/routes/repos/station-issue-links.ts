@@ -8,6 +8,7 @@ import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { actingEnv } from "../../http/acting-env.js";
 import { OkSchema } from "../../http/ok-schema.js";
@@ -42,6 +43,7 @@ function issueWriteOptions(
   return zodResponse(
     {
       ...bearerScope("write"),
+      ...repoLevel("write"),
       validate: {
         params: zodValidate(RepoNumberParams),
         payload: zodValidate(payload),

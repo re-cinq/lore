@@ -8,6 +8,7 @@ import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { actingEnv } from "../../http/acting-env.js";
 import { repoOf, fail } from "./station-helpers.js";
@@ -66,6 +67,7 @@ export function createIssueRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(IssueBody) },
       },
       IssueRefSchema,
@@ -101,6 +103,7 @@ export function createBranchRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(BranchBody) },
       },
       OkSchema,
@@ -136,6 +139,7 @@ export function commitRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(CommitBody) },
       },
       OkSchema,
@@ -173,6 +177,7 @@ export function createPullRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(PullBody) },
       },
       PullRefSchema,

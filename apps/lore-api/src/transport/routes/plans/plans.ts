@@ -13,6 +13,7 @@ import type { StalePlan } from "../../../work/plans/stale-refine-asks.js";
 import { mintCollabToken } from "../../../work/plans/collab-tokens.js";
 import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -61,11 +62,13 @@ function listPlansRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+const WRITE_OPTIONS = { ...bearerScope("write"), ...repoLevel("write") };
+
 function deletePlanRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "DELETE",
     path: `${BASE}/{id}`,
-    options: zodResponse(bearerScope("write"), PlanDeletedSchema, {
+    options: zodResponse(WRITE_OPTIONS, PlanDeletedSchema, {
       name: "PlanDeleted",
       description:
         "The plan is gone for good, with its document, versions and collab tokens",

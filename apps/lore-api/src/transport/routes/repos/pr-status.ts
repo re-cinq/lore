@@ -13,6 +13,7 @@ import type {
 import { z } from "zod";
 import { fetchPrStatus } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
 import { onboardedProject } from "./github-read.js";
@@ -54,6 +55,7 @@ export function prStatusRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(PrStatusQuery) },
       },
       PrStatusSchema,

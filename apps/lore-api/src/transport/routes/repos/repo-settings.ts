@@ -11,6 +11,7 @@ import type {
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { storedBlock } from "@re-cinq/lore-shared/project/settings/settings-sql.js";
 import { DigestSettingsSchema } from "@re-cinq/lore-shared/models/digest-settings.js";
@@ -39,6 +40,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("admin"),
+        ...repoLevel("admin"),
         validate: { payload: zodValidate(RepoSettingsBody) },
       },
       OkSchema,

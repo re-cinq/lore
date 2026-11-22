@@ -13,6 +13,7 @@ import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import type { SettingsPort } from "@re-cinq/lore-shared/project/settings/settings-port.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
@@ -38,6 +39,7 @@ const ReleaseStarted = z.object({ runId: z.string(), joined: z.boolean() });
 const RELEASE_OPTIONS = zodResponse(
   {
     ...bearerScope("admin"),
+    ...repoLevel("write"),
     validate: { params: zodValidate(ReleaseParamsSchema) },
   },
   ReleaseStarted,

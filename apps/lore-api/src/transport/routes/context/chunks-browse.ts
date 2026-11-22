@@ -274,6 +274,7 @@ function chunksByPathRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(ByPathQuery) },
       },
       ChunkByPathSchema,

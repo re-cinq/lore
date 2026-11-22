@@ -10,6 +10,7 @@ import {
   type ChangelogLineStarter,
 } from "@re-cinq/lore-shared/changelog/floor-changelog-week.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { WeekKey } from "./changelog-schema.js";
@@ -28,6 +29,7 @@ const IntroStarted = z.object({ runId: z.string() });
 const INTRO_OPTIONS = zodResponse(
   {
     ...bearerScope("task"),
+    ...repoLevel("write"),
     validate: { params: zodValidate(WeekParams) },
   },
   IntroStarted,

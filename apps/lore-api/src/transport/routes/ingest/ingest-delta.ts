@@ -13,6 +13,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { defaultDeps, type IngestDeltaDeps } from "./ingest-delta-deps.js";
 import { applyDocDelta } from "./ingest-doc-delta.js";
@@ -69,6 +70,7 @@ const IngestDeltaResultSchema = z.object({
 const INGEST_DELTA_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    ...repoLevel("write"),
     payload: { maxBytes: MAX_INGEST_DELTA_BODY_BYTES },
     validate: { payload: zodValidate(IngestDeltaBody) },
   },

@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
@@ -94,6 +95,11 @@ const runHandler = (
   ) => Promise<ResponseObject>,
 ) => withPool(getPool, (pool, request, h) => serve(pool, portFor, request, h));
 
+const READ_REPO_QUERY = {
+  ...bearerScope("read"),
+  ...repoLevel("read", { from: "query", name: "repo" }),
+};
+
 function listRunsRoute(
   getPool: () => Pool | null,
   portOf: (pool: Pool, query: RunsQuery) => AssemblyRunsPort,
@@ -103,7 +109,7 @@ function listRunsRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs",
-    options: zodResponse({ ...bearerScope("read"), validate }, RunListSchema, {
+    options: zodResponse({ ...READ_REPO_QUERY, validate }, RunListSchema, {
       name: "AssemblyRunList",
       description: "A page of runs, newest first",
     }),

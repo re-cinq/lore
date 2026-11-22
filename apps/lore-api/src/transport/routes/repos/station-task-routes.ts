@@ -15,6 +15,7 @@ import {
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoOf, fail } from "./station-helpers.js";
 
@@ -142,6 +143,7 @@ export function createRepoTaskRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("task"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(TaskBody) },
       },
       StationTaskCreatedSchema,
