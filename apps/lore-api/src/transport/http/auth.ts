@@ -111,6 +111,15 @@ export interface Principal {
   scopes: TokenScope[];
   user: UserIdentity | null;
   tokenHash: string | null;
+  /** The verified CI run behind an identity token: its repository, the ref it ran on and that repository's default branch; null for every other principal. */
+  ciIdentity?: CiIdentity | null;
+}
+
+/** What a verified CI identity token says about its run, with the default branch read from the onboarded repository. */
+export interface CiIdentity {
+  repository: string;
+  ref: string;
+  defaultBranch: string;
 }
 
 interface TokenRow {
@@ -142,28 +151,51 @@ export async function resolvePrincipal(
     return null;
   }
 
-  if (await isIdentityToken(pool, bearerToken)) {
-    return { scopes: ["write"], user: null, tokenHash: null };
+  const ciIdentity = await identityOf(pool, bearerToken);
+
+  if (ciIdentity) {
+    return { scopes: ["write"], user: null, tokenHash: null, ciIdentity };
   }
   const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
 
   return lookupPrincipal(pool, tokenHash);
 }
 
-// Whether the bearer is a valid CI identity token (JWT shaped, verified).
-async function isIdentityToken(
+// The CI identity a valid identity token (JWT shaped, verified) carries; null for any other bearer.
+async function identityOf(
   pool: Pool,
   bearerToken: string,
-): Promise<boolean> {
+): Promise<CiIdentity | null> {
   if (bearerToken.split(".").length !== 3) {
-    return false;
+    return null;
   }
   const claims = await verifyIdentityToken(pool, bearerToken, {
     githubHost: process.env.GITHUB_HOST,
     audience: process.env.LORE_API_URL,
   });
 
-  return claims !== null;
+  if (!claims) {
+    return null;
+  }
+
+  return {
+    repository: String(claims.repository),
+    ref: String(claims.ref),
+    defaultBranch: await defaultBranchOf(pool, claims),
+  };
+}
+
+async function defaultBranchOf(
+  pool: Pool,
+  claims: Record<string, unknown>,
+): Promise<string> {
+  const { rows } = await pool.query<{ default_branch: string | null }>(
+    "SELECT default_branch FROM lore.repos WHERE github_id = $1 AND owner_id = $2 LIMIT 1",
+    [claims.repository_id, claims.repository_owner_id],
+  );
+
+  // A repository row that records no default branch is taken to use "main".
+  return rows[0]?.default_branch ?? "main";
 }
 
 // Resolves a bearer token to its granted scopes (null if missing/invalid/revoked/expired).

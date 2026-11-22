@@ -67,10 +67,11 @@ export function readableReposOf(request: Request): string[] | null {
 export function registerRepoGuard(server: Server, access: RepoAccess): void {
   (server.app as Record<string, unknown>)[KEY] = access;
   server.ext("onPreHandler", async (request: Request, h: ResponseToolkit) => {
-    const repo = isPerson(request) ? await repoNamedBy(request) : null;
+    const ci = ciIdentityOf(request);
+    const repo = isPerson(request) || ci ? await repoNamedBy(request) : null;
 
     if (repo) {
-      await enforceRepoOpen(request, repo);
+      await enforceRepoReachable(request, repo, ci);
     }
 
     return h.continue;
@@ -98,6 +99,30 @@ export function repoAccessOf(request: Request): RepoAccess {
   const held = (request.server.app as Record<string, unknown>)[KEY];
 
   return (held as RepoAccess | undefined) ?? SIGN_IN_LIST_ONLY;
+}
+
+async function enforceRepoReachable(
+  request: Request,
+  repo: string,
+  ci: { repository: string } | null,
+): Promise<void> {
+  if (!ci) {
+    await enforceRepoOpen(request, repo);
+
+    return;
+  }
+  enforceTrue(
+    repo.toLowerCase() === ci.repository.toLowerCase(),
+    apiError(403),
+    "repository not allowed",
+  );
+}
+
+/** The verified CI run behind an authenticated request, which may reach only its own repository (FR-313). */
+function ciIdentityOf(request: Request) {
+  return request.auth.isAuthenticated
+    ? (principalOf(request).ciIdentity ?? null)
+    : null;
 }
 
 /** Only a person's session is checked against a repository, so a service token's route never pays for finding it. */

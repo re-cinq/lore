@@ -13,6 +13,7 @@ import type {
 import type { Pool } from "pg";
 import {
   resolvePrincipal,
+  type CiIdentity,
   type Principal,
   type TokenScope,
   type UserIdentity,
@@ -43,28 +44,74 @@ async function authenticateBearer(
   const principal = await principalFor(request, pool, bearer);
 
   enforceTrue(principal, (message) => denied(401, message), "invalid token");
-  enforceRouteScope(request, principal.scopes);
+
+  enforceAuthorization(request, principal);
 
   return h.authenticated({ credentials: credentialsOf(principal) });
+}
+
+// A CI identity token is authorized by its route allowlist, not by a scope.
+function enforceAuthorization(request: Request, principal: Principal): void {
+  if (principal.ciIdentity) {
+    enforceCiIdentityRoute(request, principal.ciIdentity);
+
+    return;
+  }
+  enforceRouteScope(request, principal.scopes);
 }
 
 function credentialsOf(principal: Principal) {
   return {
     scope: principal.scopes,
     user: principal.user ?? undefined,
-    app: { tokenHash: principal.tokenHash },
+    app: {
+      tokenHash: principal.tokenHash,
+      ciIdentity: principal.ciIdentity ?? null,
+    },
   };
+}
+
+// The routes a CI identity token may reach: ingest only from the default branch (FR-156, FR-157), checks from any ref (FR-287); every other route is refused.
+const CI_ROUTE_REFS: Partial<Record<string, "default" | "any">> = {
+  "POST /api/repos/{owner}/{repo}/ingest": "default",
+  "GET /api/repos/{owner}/{repo}/ingest-state": "default",
+  "POST /api/ingest": "default",
+  "POST /api/repos/{owner}/{repo}/impact": "any",
+  "GET /api/repos/{owner}/{repo}/impact/base": "any",
+  "POST /api/spec-links/parse": "any",
+};
+
+function enforceCiIdentityRoute(
+  request: Request,
+  ciIdentity: CiIdentity,
+): void {
+  const refs =
+    CI_ROUTE_REFS[`${request.method.toUpperCase()} ${request.route.path}`];
+
+  enforceTrue(
+    refs === "any" ||
+      (refs === "default" &&
+        ciIdentity.ref === `refs/heads/${ciIdentity.defaultBranch}`),
+    (message) => denied(403, message),
+    "identity token not allowed on this route",
+  );
+}
+
+interface HeldApp {
+  tokenHash: string | null;
+  ciIdentity?: CiIdentity | null;
 }
 
 /** The principal an authenticated request carries; read it only in a route guarded by `bearerScope`. */
 export function principalOf(request: Request): Principal {
   const { scope, user, app } = request.auth.credentials;
+  const held = (app ?? { tokenHash: null }) as HeldApp;
 
   return {
     scopes: (scope ?? []) as TokenScope[],
     user: (user as UserIdentity | undefined) ?? null,
-    tokenHash:
-      (app as { tokenHash: string | null } | undefined)?.tokenHash ?? null,
+    tokenHash: held.tokenHash,
+    ciIdentity: held.ciIdentity ?? null,
   };
 }
 
