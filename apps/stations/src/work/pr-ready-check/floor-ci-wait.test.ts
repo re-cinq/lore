@@ -361,4 +361,80 @@ describe("floorCiWaitSweep", () => {
       writes: [reportedOn("visit-await-merge", { outcome: "success" }).body],
     });
   });
+
+  describe("an implementation-loop run whose acceptance test could not run", () => {
+    const YAML_MANIFEST_FAILURE =
+      "ci_identity.acceptance_test.go:274: run: parsing test-commands manifest: yaml: did not find expected key";
+    const HANDOFF_ASSERTION_FAILURE =
+      "apps/lore-api/src/transport/routes/auth/app-sign-in-hardening.acceptance.test.ts:280 AssertionError: expected { handoffCount: 1 } to deeply equal { handoffCount: +0 }";
+    const redWith = (summary: string) => ({
+      outcome: "changes_requested" as const,
+      args: {
+        reason: "ci_red",
+        ci_feedback_sha: "deadbeef",
+        ci_failed_checks: "lore-code-trace",
+        ci_failure_summary: summary,
+      },
+    });
+    const sweepOn = async (lineId: string, summary: string) => {
+      const recorded = recordedPlanFloor({
+        runs: [
+          planRun({ id: "run-loop", lineId, repo: "github.com/re-cinq/app" }),
+        ],
+        visits: { "run-loop": PARKED_AFTER_A_ROUND },
+      });
+
+      await floorCiWaitSweep({
+        floor: recorded.floor,
+        judge: () => Promise.resolve(redWith(summary)),
+        judgePr: () => Promise.resolve(null),
+        judgeMerge: () => Promise.resolve(null),
+        prState: () => Promise.resolve("open"),
+      });
+
+      return recorded.requests.filter(
+        ({ method, path }) => method === "POST" && path !== "/blobs",
+      );
+    };
+    const produced = (summary: string) => ({
+      ci_feedback_sha: "deadbeef",
+      ci_failed_checks: "lore-code-trace",
+      ci_failure_summary: summary,
+      round_brief: PLAN_BLOB_HASH,
+    });
+
+    it("reports test_broken with the dod feedback when #12's yaml manifest line shows the acceptance test could not run", async () => {
+      expect(
+        await sweepOn("implementation-loop", YAML_MANIFEST_FAILURE),
+      ).toEqual([
+        reportedOn("visit-await-ci", {
+          outcome: "test_broken",
+          produced: {
+            ...produced(YAML_MANIFEST_FAILURE),
+            dod_feedback: PLAN_BLOB_HASH,
+          },
+        }),
+      ]);
+    });
+
+    it("reports changes_requested for #52's handoffCount assertion, the red a round owes", async () => {
+      expect(
+        await sweepOn("implementation-loop", HANDOFF_ASSERTION_FAILURE),
+      ).toEqual([
+        reportedOn("visit-await-ci", {
+          outcome: "changes_requested",
+          produced: produced(HANDOFF_ASSERTION_FAILURE),
+        }),
+      ]);
+    });
+
+    it("reports changes_requested on an onboard run, whose line has no definition of done to send it to", async () => {
+      expect(await sweepOn("onboard", YAML_MANIFEST_FAILURE)).toEqual([
+        reportedOn("visit-await-ci", {
+          outcome: "changes_requested",
+          produced: produced(YAML_MANIFEST_FAILURE),
+        }),
+      ]);
+    });
+  });
 });

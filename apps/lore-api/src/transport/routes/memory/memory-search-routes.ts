@@ -8,6 +8,7 @@ import type {
 import { REF_REPO_PATTERN } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { readableReposOf, repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   MemorySearchQuery,
@@ -29,6 +30,7 @@ const MEMORY_MATCH_SQL = `SELECT key, substring(value, 1, 300) as value, agent_i
             AND (expires_at IS NULL OR expires_at > now())
             AND to_tsvector('english', value) @@ plainto_tsquery($1)
             AND ($2::text IS NULL OR repo IS NULL OR repo = $2)
+            AND ($3::text[] IS NULL OR lower(repo) = ANY($3::text[]))
           ORDER BY score DESC
           LIMIT 20`;
 
@@ -48,6 +50,7 @@ const FACT_MATCH_SQL = `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref
             AND f.valid_to IS NULL
             AND to_tsvector('english', f.fact_text) @@ plainto_tsquery($1)
             AND ($2::text IS NULL OR ${FACT_REPO} IS NULL OR ${FACT_REPO} = $2)
+            AND ($3::text[] IS NULL OR lower(${FACT_REPO}) = ANY($3::text[]))
           ORDER BY score DESC
           LIMIT 20`;
 
@@ -58,6 +61,7 @@ export function memorySearchRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(MemorySearchQuery) },
       },
       MemorySearchSchema,
@@ -77,7 +81,11 @@ async function serveMemorySearch(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const { q, repo } = request.query as unknown as MemorySearchQuery;
-  const params = [q, repo ?? null];
+  const params = [
+    q,
+    repo ?? null,
+    readableReposOf(request)?.map((name) => name.toLowerCase()) ?? null,
+  ];
 
   const [{ rows: memories }, { rows: facts }] = await Promise.all([
     pool.query(MEMORY_MATCH_SQL, params),

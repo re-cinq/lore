@@ -31,6 +31,7 @@ describe("resolvePrincipal", () => {
         {
           scopes: ["read", "write"],
           kind: "user",
+          github_id: "4242",
           login: "gedaiu",
           displayName: "Bogdan",
           avatarUrl: "https://a/1",
@@ -44,6 +45,7 @@ describe("resolvePrincipal", () => {
     expect(await resolvePrincipal(pool as never, "user-token")).toEqual({
       scopes: ["read", "write"],
       user: {
+        githubId: 4242,
         login: "gedaiu",
         name: "Bogdan",
         avatarUrl: "https://a/1",
@@ -53,6 +55,26 @@ describe("resolvePrincipal", () => {
       },
       tokenHash: sha256("user-token"),
     });
+  });
+
+  it("resolves no principal for a user session row that carries no GitHub numeric user id", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          scopes: ["admin"],
+          kind: "user",
+          github_id: null,
+          login: "gedaiu",
+          repos: ["re-cinq/lore"],
+          startedAt: new Date("2026-10-28T10:00:00Z"),
+          expiresAt: new Date("2026-10-28T18:00:00Z"),
+        },
+      ],
+    });
+
+    expect(await resolvePrincipal(pool as never, "old-session")).toBeNull();
   });
 
   it("resolves a service token to its scopes and no person", async () => {
@@ -77,12 +99,18 @@ describe("resolvePrincipal", () => {
     expect(await resolvePrincipal(pool as never, "revoked")).toBeNull();
   });
 
-  it("gives a verified CI identity token write scope only, with no user and no token hash", async () => {
+  it("gives a verified CI identity token write scope only, with no user and no token hash, and carries its repository, ref and default branch", async () => {
     vi.resetModules();
     vi.doMock("./ci-identity-token.js", () => ({
       verifyIdentityToken: async (_pool: unknown, token: string) =>
         token === "aaa.bbb.ccc"
-          ? { iss: "https://token.actions.githubusercontent.com" }
+          ? {
+              iss: "https://token.actions.githubusercontent.com",
+              repository: "acme/app",
+              repository_id: "1001",
+              repository_owner_id: "2001",
+              ref: "refs/heads/feature/x",
+            }
           : null,
     }));
 
@@ -90,10 +118,17 @@ describe("resolvePrincipal", () => {
       const { resolvePrincipal: resolve } = await import("./auth.js");
       const pool = makePool();
 
+      pool.query.mockResolvedValue({ rows: [{ default_branch: "main" }] });
+
       expect(await resolve(pool as never, "aaa.bbb.ccc")).toEqual({
         scopes: ["write"],
         user: null,
         tokenHash: null,
+        ciIdentity: {
+          repository: "acme/app",
+          ref: "refs/heads/feature/x",
+          defaultBranch: "main",
+        },
       });
       expect(pool.query).not.toHaveBeenCalledWith(expect.any(String), [
         sha256("aaa.bbb.ccc"),
@@ -122,6 +157,40 @@ describe("resolvePrincipal", () => {
         user: null,
         tokenHash: sha256("bad.jwt.ccc"),
       });
+    } finally {
+      vi.doUnmock("./ci-identity-token.js");
+    }
+  });
+
+  it("takes the default branch to be main when the repository row records none", async () => {
+    vi.resetModules();
+    vi.doMock("./ci-identity-token.js", () => ({
+      verifyIdentityToken: async (_pool: unknown, token: string) =>
+        token === "aaa.bbb.ccc"
+          ? {
+              repository: "acme/app",
+              repository_id: "1001",
+              repository_owner_id: "2001",
+              ref: "refs/heads/main",
+            }
+          : null,
+    }));
+
+    try {
+      const { resolvePrincipal: resolve } = await import("./auth.js");
+      const noRow = { rows: [] };
+      const nullBranch = { rows: [{ default_branch: null }] };
+      const pool = makePool();
+      const defaults: unknown[] = [];
+
+      for (const answer of [noRow, nullBranch]) {
+        pool.query.mockResolvedValue(answer);
+        const principal = await resolve(pool as never, "aaa.bbb.ccc");
+
+        defaults.push(principal?.ciIdentity?.defaultBranch);
+      }
+
+      expect(defaults).toEqual(["main", "main"]);
     } finally {
       vi.doUnmock("./ci-identity-token.js");
     }

@@ -92,6 +92,9 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
     listReviewThreads: async () => [],
     countOpenReviewRuns: async () => 0,
     loreReviewFeedback: async () => "",
+    filesChangedSince: async () => [],
+    replyToReviewComment: async () => {},
+    resolveReviewThread: async () => {},
     report: async (target, outcome, args) => {
       reported.push({ target, outcome, ...(args ? { args } : {}) });
     },
@@ -586,5 +589,127 @@ describe("openReviewRunCounter", () => {
 
   it("counts 0 when neither holds an open review", async () => {
     expect(await counter(0, 0)("re-cinq/lore", 412)).toBe(0);
+  });
+});
+
+describe("prReadyCheckSweep on review threads a later commit answered", () => {
+  const findingOn = (
+    path: string,
+    author: string,
+  ): Awaited<ReturnType<PrReadyCheckDeps["listReviewThreads"]>>[number] => ({
+    id: "PRRT_1",
+    isResolved: false,
+    isOutdated: false,
+    path,
+    comments: [{ databaseId: 7, author, commitSha: "c0ffee" }],
+  });
+
+  function threadDeps(
+    thread: ReturnType<typeof findingOn>,
+    changedSinceFinding: string[] | null,
+  ) {
+    const replies: Array<[string, number, number, string]> = [];
+    const resolved: string[] = [];
+    const d = deps({
+      listReviewThreads: async () => [thread],
+      filesChangedSince: async (_repo, base, head) =>
+        base === "c0ffee" && head === "deadbeef" ? changedSinceFinding : [],
+      replyToReviewComment: async (repo, number, commentId, body) => {
+        replies.push([repo, number, commentId, body]);
+      },
+      resolveReviewThread: async (_repo, threadId) => {
+        resolved.push(threadId);
+      },
+    });
+
+    return { ...d, replies, resolved };
+  }
+
+  it("resolves the lore-reviewer thread on src/a.ts once a commit after it changed src/a.ts and resumes the run", async () => {
+    const d = threadDeps(findingOn("src/a.ts", "lore-reviewer"), ["src/a.ts"]);
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({
+      resolved: d.resolved,
+      replies: d.replies,
+      outcomes: d.reported.map((r) => r.outcome),
+    }).toEqual({
+      resolved: ["PRRT_1"],
+      replies: [
+        [
+          "acme/widgets",
+          12,
+          7,
+          "Answered by deadbeef, which changed src/a.ts after this finding.",
+        ],
+      ],
+      outcomes: ["success"],
+    });
+  });
+
+  it("leaves the lore-reviewer thread on src/a.ts open and blocks the run when the commits after it changed only src/b.ts", async () => {
+    const d = threadDeps(findingOn("src/a.ts", "lore-reviewer"), ["src/b.ts"]);
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({
+      resolved: d.resolved,
+      replies: d.replies,
+      reasons: d.reported.map((r) => r.args?.reason),
+    }).toEqual({ resolved: [], replies: [], reasons: ["unresolved_threads"] });
+  });
+
+  it("leaves a person's thread on src/a.ts open even when a later commit changed src/a.ts", async () => {
+    const d = threadDeps(findingOn("src/a.ts", "gedaiu"), ["src/a.ts"]);
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({
+      resolved: d.resolved,
+      replies: d.replies,
+      reasons: d.reported.map((r) => r.args?.reason),
+    }).toEqual({ resolved: [], replies: [], reasons: ["unresolved_threads"] });
+  });
+
+  it("leaves the lore-reviewer thread on src/a.ts open when GitHub cannot compare the commits", async () => {
+    const d = threadDeps(findingOn("src/a.ts", "lore-reviewer"), null);
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({
+      resolved: d.resolved,
+      replies: d.replies,
+      reasons: d.reported.map((r) => r.args?.reason),
+    }).toEqual({ resolved: [], replies: [], reasons: ["unresolved_threads"] });
+  });
+
+  it("does not reply to or resolve an outdated lore-reviewer thread even when a later commit changed its file", async () => {
+    const d = threadDeps(
+      { ...findingOn("src/a.ts", "lore-reviewer"), isOutdated: true },
+      ["src/a.ts"],
+    );
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({ resolved: d.resolved, replies: d.replies }).toEqual({
+      resolved: [],
+      replies: [],
+    });
+  });
+
+  it("leaves a lore-reviewer thread that is on no file open even when a later commit changed files", async () => {
+    const d = threadDeps(
+      { ...findingOn("src/a.ts", "lore-reviewer"), path: null },
+      ["src/a.ts"],
+    );
+
+    await prReadyCheckSweep(d.deps);
+
+    expect({
+      resolved: d.resolved,
+      replies: d.replies,
+      reasons: d.reported.map((r) => r.args?.reason),
+    }).toEqual({ resolved: [], replies: [], reasons: ["unresolved_threads"] });
   });
 });

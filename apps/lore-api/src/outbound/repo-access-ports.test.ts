@@ -51,6 +51,31 @@ describe("repo access ports", () => {
     expect(await ports.permissionOf("ana", "acme/app")).toBe("none");
   });
 
+  it("refuses a repository name that climbs out of owner/name without asking GitHub for its prefix", async () => {
+    expect({
+      climbing: await ports.permissionOf("ana", "acme/app/../../other/secret"),
+      asked: getCollaboratorPermissionLevel.mock.calls,
+    }).toEqual({ climbing: "none", asked: [] });
+  });
+
+  it.each([
+    "acme",
+    "acme/app/extra",
+    "/app",
+    "acme/",
+    "acme/app?x=1",
+    "ac me/app",
+    "acme/a%2Fb",
+  ])(
+    "reads the malformed repository name %s as none without asking GitHub",
+    async (repo) => {
+      expect({
+        answer: await ports.permissionOf("ana", repo),
+        asked: getCollaboratorPermissionLevel.mock.calls,
+      }).toEqual({ answer: "none", asked: [] });
+    },
+  );
+
   it("passes on a failure that is not a 404, so the caller can refuse", async () => {
     getCollaboratorPermissionLevel.mockRejectedValue({ status: 500 });
 
@@ -70,6 +95,22 @@ describe("repo access ports", () => {
         "UPDATE pipeline.api_tokens SET repos = array_append(repos, $2) WHERE token_hash = $1 AND kind = 'user'",
       ),
       values: ["ana-hash", "acme/new-repo"],
+    });
+  });
+
+  it("reads a repository whose owner or name is a dot segment as none without asking GitHub", async () => {
+    expect({
+      ownerDot: await ports.permissionOf("ana", "./app"),
+      ownerDots: await ports.permissionOf("ana", "../app"),
+      nameDot: await ports.permissionOf("ana", "acme/."),
+      nameDots: await ports.permissionOf("ana", "acme/.."),
+      asked: getCollaboratorPermissionLevel.mock.calls,
+    }).toEqual({
+      ownerDot: "none",
+      ownerDots: "none",
+      nameDot: "none",
+      nameDots: "none",
+      asked: [],
     });
   });
 });

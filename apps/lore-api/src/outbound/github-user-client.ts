@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // GitHub as one signed-in person: the OAuth code exchange and the reads that decide who they are and what they can open. Each takes the fetch to use, so a test never reaches GitHub.
 
 import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
@@ -21,6 +22,7 @@ export interface GithubTokenPair {
 }
 
 export interface GithubViewer {
+  id: number;
   login: string;
   name: string | null;
   avatar_url: string;
@@ -58,7 +60,23 @@ export async function exchangeCode(
     }),
   });
 
-  return res.ok ? tokenPairOf(await res.json()) : null;
+  return tokenPairOrWarn(res.status, res.ok ? await res.json() : null);
+}
+
+/** The token pair GitHub answered, or null with a log line naming GitHub's error. */
+function tokenPairOrWarn(
+  status: number,
+  body: unknown,
+): GithubTokenPair | null {
+  const pair = tokenPairOf(body);
+
+  if (!pair) {
+    console.warn(
+      `[auth] GitHub gave no token for the sign-in code: status ${status}, error ${String(asRecord(body)?.error ?? "none")}`,
+    );
+  }
+
+  return pair;
 }
 
 export async function fetchViewer(
@@ -68,10 +86,22 @@ export async function fetchViewer(
 ): Promise<GithubViewer | null> {
   const res = await getJson(`${githubUrls(host).api}/user`, token, fetchImpl);
 
+  if (!res.ok) {
+    console.warn(`[auth] GitHub refused /user: status ${res.status}`);
+  }
+
   return res.ok ? viewerOf(await res.json()) : null;
 }
 
-/** The person's role in the org, or null when they are not an active member. */
+/** GitHub refused the membership question for want of permission: a fault of the install, not an answer about the person (FR-043, FR-142). */
+export class MembershipPermissionRefused extends Error {
+  constructor(org: string) {
+    super(`GitHub refused the membership question for ${org} (403)`);
+    this.name = "MembershipPermissionRefused";
+  }
+}
+
+/** The person's role in the org, or null when they are not an active member. Throws MembershipPermissionRefused when GitHub answers 403. */
 export async function fetchOrgRole(
   token: string,
   org: string,
@@ -83,6 +113,8 @@ export async function fetchOrgRole(
     token,
     fetchImpl,
   );
+
+  enforceTrue(res.status !== 403, MembershipPermissionRefused, org);
 
   return res.ok ? activeRoleOf(await res.json()) : null;
 }
@@ -99,6 +131,32 @@ export function fetchUserRepos(
     fetchImpl,
     MAX_REPO_PAGES,
   );
+}
+
+/** Every repo of the installation the person can open, read to its last page; a failing page throws so no partial list is ever taken for the whole. */
+export async function fetchInstallationRepos(
+  token: string,
+  installationId: string,
+  fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
+): Promise<GithubRepo[]> {
+  const repos: GithubRepo[] = [];
+  let url: string | null =
+    `${githubUrls(host).api}/user/installations/${encodeURIComponent(installationId)}/repositories?per_page=100`;
+
+  while (url) {
+    const res = await getJson(url, token, fetchImpl);
+
+    if (!res.ok) {
+      throw new Error(`GitHub answered ${res.status} for ${url}`);
+    }
+    const body = (await res.json()) as { repositories?: GithubRepo[] };
+
+    repos.push(...(body.repositories ?? []));
+    url = nextPageUrl(res.headers.get("link"));
+  }
+
+  return repos;
 }
 
 async function reposFrom(
@@ -168,15 +226,20 @@ function optionalTokenFields(
 function viewerOf(body: unknown): GithubViewer | null {
   const record = asRecord(body);
 
-  if (!record || !isNonEmptyString(record.login)) {
+  if (!record || !isNonEmptyString(record.login) || !isGithubId(record.id)) {
     return null;
   }
 
   return {
+    id: record.id,
     login: record.login,
     name: typeof record.name === "string" ? record.name : null,
     avatar_url: typeof record.avatar_url === "string" ? record.avatar_url : "",
   };
+}
+
+function isGithubId(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -42,6 +42,7 @@ describe("principalOf", () => {
         {
           scopes: ["read"],
           kind: "user",
+          github_id: "4242",
           login: "gedaiu",
           displayName: "Bogdan",
           avatarUrl: "https://a/1",

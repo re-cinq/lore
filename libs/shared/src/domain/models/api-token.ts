@@ -13,11 +13,13 @@ export const ApiTokenSchema = z.object({
   revokedAt: z.date().nullable(),
   lastUsed: z.date().nullable(),
   createdAt: z.date(),
-  kind: z.enum(["service", "user"]),
+  kind: z.enum(["service", "user", "ci"]),
   login: z.string().nullable(),
   displayName: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   repos: z.array(z.string()),
+  githubId: z.number().nullable().optional(),
+  githubRepoId: z.string().nullable(),
 });
 
 export type ApiToken = z.infer<typeof ApiTokenSchema>;
@@ -37,6 +39,8 @@ export const API_TOKEN_COLUMNS = {
   displayName: "display_name",
   avatarUrl: "avatar_url",
   repos: "repos",
+  githubId: "github_id",
+  githubRepoId: "github_repo_id",
 } as const satisfies ColumnMap<ApiToken>;
 
 export const API_TOKEN_TABLE = "pipeline.api_tokens";

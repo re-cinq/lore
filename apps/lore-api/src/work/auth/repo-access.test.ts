@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   createRepoAccess,
-  REFUSAL_TTL_MS,
   SIGN_IN_LIST_ONLY,
   type Asker,
 } from "./repo-access.js";
@@ -52,30 +51,17 @@ describe("repo access", () => {
   });
 
   it.each(["read", "write", "admin"] as const)(
-    "lets a person open a repo outside their list when GitHub says %s today, and remembers it on their session",
+    "refuses a read outside the sign-in list even when GitHub says %s, without asking GitHub",
     async (permission) => {
       const lore = access(permission);
 
       expect({
         open: await lore.canOpen(person([]), "acme/new-repo"),
-        asked: lore.permissionOf.mock.calls,
-        remembered: lore.remember.mock.calls,
-      }).toEqual({
-        open: true,
-        asked: [["ana", "acme/new-repo"]],
-        remembered: [["ana-hash", "acme/new-repo"]],
-      });
+        asked: lore.permissionOf.mock.calls.length,
+        remembered: lore.remember.mock.calls.length,
+      }).toEqual({ open: false, asked: 0, remembered: 0 });
     },
   );
-
-  it("refuses a repo outside the list when GitHub says none, and remembers nothing", async () => {
-    const lore = access("none");
-
-    expect({
-      open: await lore.canOpen(person([]), "other/secret"),
-      remembered: lore.remember.mock.calls.length,
-    }).toEqual({ open: false, remembered: 0 });
-  });
 
   it("refuses when GitHub cannot be asked, never granting on an error", async () => {
     const lore = access(new Error("GitHub is down"));
@@ -85,37 +71,78 @@ describe("repo access", () => {
     warn.mockRestore();
   });
 
-  it("asks GitHub once for a refused repo, then again after the refusal has aged out", async () => {
-    const lore = access("none");
-    const ana = person([]);
-
-    await lore.canOpen(ana, "other/secret");
-    await lore.canOpen(ana, "Other/Secret");
-    const beforeExpiry = lore.permissionOf.mock.calls.length;
-
-    lore.later(REFUSAL_TTL_MS + 1);
-    await lore.canOpen(ana, "other/secret");
-
-    expect({
-      beforeExpiry,
-      afterExpiry: lore.permissionOf.mock.calls.length,
-    }).toEqual({ beforeExpiry: 1, afterExpiry: 2 });
-  });
-
-  it("keeps one session's refusal from answering for another session or another repo", async () => {
-    const lore = access("none");
-
-    await lore.canOpen(person([], "ana-hash"), "other/secret");
-    await lore.canOpen(person([], "ben-hash"), "other/secret");
-    await lore.canOpen(person([], "ana-hash"), "other/second");
-
-    expect(lore.permissionOf.mock.calls.length).toBe(3);
-  });
-
   it("answers from the sign-in list alone when a server has no GitHub to ask", async () => {
     expect({
       listed: await SIGN_IN_LIST_ONLY.canOpen(person(["acme/app"]), "acme/app"),
       unlisted: await SIGN_IN_LIST_ONLY.canOpen(person([]), "acme/app"),
-    }).toEqual({ listed: true, unlisted: false });
+      listedWrite: await SIGN_IN_LIST_ONLY.canOpen(
+        person(["acme/app"]),
+        "acme/app",
+        "write",
+      ),
+      serviceAdmin: await SIGN_IN_LIST_ONLY.canOpen(
+        SERVICE,
+        "acme/app",
+        "admin",
+      ),
+    }).toEqual({
+      listed: true,
+      unlisted: false,
+      listedWrite: false,
+      serviceAdmin: true,
+    });
+  });
+
+  it("asks GitHub on write and admin even for a repo in the sign-in list, refusing when GitHub reports a lower level", async () => {
+    const readGrant = access("read");
+    const writeGrant = access("write");
+    const adminGrant = access("admin");
+    const listed = person(["acme/app"]);
+
+    expect({
+      readOnWrite: await readGrant.canOpen(listed, "acme/app", "write"),
+      writeOnWrite: await writeGrant.canOpen(listed, "acme/app", "write"),
+      writeOnAdmin: await writeGrant.canOpen(listed, "acme/app", "admin"),
+      adminOnAdmin: await adminGrant.canOpen(listed, "acme/app", "admin"),
+      askedOnListedWrite: readGrant.permissionOf.mock.calls,
+    }).toEqual({
+      readOnWrite: false,
+      writeOnWrite: true,
+      writeOnAdmin: false,
+      adminOnAdmin: true,
+      askedOnListedWrite: [["ana", "acme/app"]],
+    });
+  });
+
+  it("refuses write and admin on acme/new-repo, outside the sign-in list, though GitHub reports admin", async () => {
+    const lore = access("admin");
+    const unlisted = person([]);
+
+    expect({
+      write: await lore.canOpen(unlisted, "acme/new-repo", "write"),
+      admin: await lore.canOpen(unlisted, "acme/new-repo", "admin"),
+    }).toEqual({ write: false, admin: false });
+  });
+
+  it("lets a service token pass write and admin checks without asking GitHub", async () => {
+    const lore = access("none");
+
+    expect({
+      write: await lore.canOpen(SERVICE, "other/secret", "write"),
+      admin: await lore.canOpen(SERVICE, "other/secret", "admin"),
+      asked: lore.permissionOf.mock.calls,
+    }).toEqual({ write: true, admin: true, asked: [] });
+  });
+
+  it("refuses write and admin when GitHub cannot be asked, even for a repo in the sign-in list", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const lore = access(new Error("GitHub is down"));
+    const listed = person(["acme/app"]);
+
+    expect({
+      write: await lore.canOpen(listed, "acme/app", "write"),
+      admin: await lore.canOpen(listed, "acme/app", "admin"),
+    }).toEqual({ write: false, admin: false });
+    warn.mockRestore();
   });
 });

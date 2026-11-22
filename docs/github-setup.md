@@ -1,11 +1,10 @@
 # GitHub setup for a Lore install
 
-Lore needs two things from GitHub before it is installed, and a GitHub organization owner creates them. When you finish this page you have every GitHub value the [install tutorials](install/README.md) ask for.
+Lore needs a GitHub App before it is installed, and a GitHub organization owner creates it. When you finish this page you have every GitHub value the [install tutorials](install/README.md) ask for.
 
 | What | Who creates it | What Lore uses it for |
 | ---- | -------------- | --------------------- |
-| [A GitHub App](#1-the-github-app) | an owner of your GitHub organization | reading and writing repositories, issues and pull requests as Lore |
-| [A GitHub OAuth App](#2-the-oauth-app-for-sign-in) | the same owner | signing people in to the web UI |
+| [A GitHub App](#1-the-github-app) | an owner of your GitHub organization | reading and writing repositories, issues and pull requests as Lore, and [signing people in to the web UI](#2-sign-in-through-the-app) |
 
 Optional, later: [a second App that approves pull requests](#3-optional-the-reviewer-app).
 
@@ -26,6 +25,9 @@ Open **GitHub → Organization settings → Developer settings → GitHub Apps �
 | GitHub App name | anything unique on GitHub, for example `lore-<org>`. GitHub derives the App's **slug** from it; note the slug |
 | Homepage URL | `https://<ui host>` |
 | Setup URL | `https://<ui host>/settings/github/callback` |
+| Callback URL | `https://<api host>/api/auth/callback`. On the **API** host: lore-api runs the sign-in |
+| Expire user authorization tokens | **on** |
+| Request user authorization (OAuth) during installation | off |
 | Webhook → Active | **off**. Lore installs a webhook on each repository itself when the repository is onboarded |
 | Where can this GitHub App be installed? | Only on this account |
 
@@ -52,7 +54,13 @@ One more, only in one case:
 | ---------- | ------ | ---- |
 | Administration | Read-only | the auto-merge loop is switched on for a repository whose default branch has no ruleset that asks for an approval. Lore then has to read the classic branch protection before it merges, and refuses to merge when it cannot |
 
-Leave **Organization permissions** and **Account permissions** at "No access". Under **Subscribe to events**, tick nothing: the events reach Lore through the webhook it creates on each repository.
+Under **Organization permissions**, set one:
+
+| Permission | Access | What Lore does with it |
+| ---------- | ------ | ---------------------- |
+| Members | Read-only | at sign-in, asks GitHub whether the person is a member of `<org>`. Without it GitHub answers 403 and nobody can sign in: the error page says the App cannot ask GitHub about membership |
+
+Leave the other organization permissions and every **Account permission** at "No access". Under **Subscribe to events**, tick nothing: the events reach Lore through the webhook it creates on each repository.
 
 Agents get no credential of their own. For each run Lore gives the agent a short-lived token of this App's installation, for the one repository it works in and narrowed to Contents, Issues, Pull requests and Workflows. An agent never holds the Secrets, Webhooks or Checks permission.
 
@@ -79,36 +87,19 @@ What you now have, and where it goes in `my-values.yaml`:
 
 The two IDs are numbers. Write them with or without quotes.
 
-## 2. The OAuth App for sign-in
+## 2. Sign in through the App
 
-Open **GitHub → Organization settings → Developer settings → OAuth Apps → New OAuth App**.
-
-| Field | Value |
-| ----- | ----- |
-| Application name | anything, for example `Lore` |
-| Homepage URL | `https://<ui host>` |
-| Authorization callback URL | `https://<api host>/api/auth/callback` |
-
-The callback is on the **API** host, not the UI host: lore-api runs the sign-in.
-
-Register it, then **Generate a new client secret**. It is shown once.
+People sign in to the web UI through the App's own OAuth client, not through a separate OAuth App. On the App's settings page, under **Client secrets**, **Generate a new client secret**. It is shown once.
 
 | Value | Key in the values file |
 | ----- | ---------------------- |
-| Client ID | `secrets.githubOAuth.clientId` |
-| Client secret | `secrets.githubOAuth.clientSecret` |
+| Client ID (starts with `Iv`, not the App ID) | `secrets.githubApp.clientId` |
+| Client secret | `secrets.githubApp.clientSecret` |
+| A 64-hex-character key (`openssl rand -hex 32`) | `secrets.userTokenEncryptionKey`. Left empty, the chart generates one. It encrypts the GitHub token kept per session; changing it signs everybody out |
 
-Only members of the organization named in `GITHUB_ORG` can sign in.
+Only members of the organization named in `GITHUB_ORG` can sign in. A person signs in with the App's permissions on the repositories they can open themselves; GitHub, not Lore, decides which those are.
 
-An OAuth App has no permissions to set. At a person's first sign-in GitHub shows what Lore asks for, and the person approves it:
-
-| Scope | What Lore reads with it |
-| ----- | ----------------------- |
-| `read:user` | the person's login, name and avatar |
-| `read:org` | whether the person is a member of `<org>` |
-| `repo` | which repositories the person can read, private ones included. The UI shows a person only those |
-
-If the organization restricts OAuth App access (**Organization settings → Third-party Access → OAuth app policy**), an OAuth App the organization owns is approved already. One created under a personal account has to be approved there by an owner.
+The install chart still asks for `secrets.githubOAuth` (Secret `lore-github-oauth`), left from the OAuth App sign-in used before. lore-api no longer reads it.
 
 ## 3. Optional: the reviewer App
 

@@ -5,6 +5,7 @@ import { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import type { CancelRunFloor } from "../../../work/floor/cancel-run.js";
 import { cancelRun } from "../../../work/floor/cancel-run.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { requestedByOf } from "./requested-by.js";
@@ -21,6 +22,7 @@ const CancelledRun = z.object({
 const CANCEL_RUN_OPTIONS = zodResponse(
   {
     ...bearerScope("task"),
+    ...repoLevel("write", SPANS_REPOS),
     validate: { payload: zodValidate(CancelRunBody) },
   },
   CancelledRun,

@@ -10,6 +10,7 @@ import type {
 import { UtopiaBackfillSummarySchema } from "@re-cinq/lore-shared/utopia/backfill-summary.js";
 import { zodResponse } from "../../../http/zod-response.js";
 import { bearerScope } from "../../../http/bearer-scope.js";
+import { repoLevel } from "../../../http/repo-guard.js";
 import { withPool } from "../../with-pool.js";
 import {
   backfillDepsFor,
@@ -23,12 +24,16 @@ export function utopiaBackfillRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/utopia/backfill",
-    options: zodResponse(bearerScope("admin"), UtopiaBackfillSummarySchema, {
-      name: "UtopiaBackfillSummary",
-      description:
-        "The commit the specs and ADRs were read at, how many were mirrored, Utopia's created/updated/unchanged item counts, and each document that did not land whole",
-      errors: [404, 409],
-    }),
+    options: zodResponse(
+      { ...bearerScope("admin"), ...repoLevel("admin") },
+      UtopiaBackfillSummarySchema,
+      {
+        name: "UtopiaBackfillSummary",
+        description:
+          "The commit the specs and ADRs were read at, how many were mirrored, Utopia's created/updated/unchanged item counts, and each document that did not land whole",
+        errors: [404, 409],
+      },
+    ),
     handler: withPool(getPool, serveUtopiaBackfill),
   };
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { toolHandlers } from "../shared/tool-test-helpers.js";
+import {
+  checkedToolHandlers,
+  toolHandlers,
+} from "../shared/tool-test-helpers.js";
 import { registerPlanEditTool } from "./plan-edit.js";
 
 const fetchMock = vi.fn();
@@ -56,6 +59,31 @@ describe("lore_plan_edit", () => {
       answer: { ok: true },
     });
   });
+
+  it("posts to the plan's own edits and nowhere else, whatever the id holds", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await planEdit({ plan_id: "x/../../pack/sync?", op: replaceOp });
+
+    const asked = new URL(fetchMock.mock.calls[0][0] as string);
+
+    expect({ path: asked.pathname, search: asked.search }).toEqual({
+      path: "/api/plans/x%2F..%2F..%2Fpack%2Fsync%3F/agent-edits",
+      search: "",
+    });
+  });
+
+  it.each([".", "..", ""])(
+    "refuses plan id %j at the registered tool and posts nothing",
+    async (plan_id) => {
+      const registered = checkedToolHandlers(registerPlanEditTool, "agent")[
+        "lore_plan_edit"
+      ];
+
+      await expect(registered({ plan_id, op: replaceOp })).rejects.toThrow();
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("posts only the edit, leaving the agent's presence to lore-api", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });

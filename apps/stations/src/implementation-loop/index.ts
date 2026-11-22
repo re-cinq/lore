@@ -14,6 +14,7 @@ import { startMarkReadyStation } from "./mark-ready/station.js";
 import { startOpenLoopPrStation } from "./open-pr/station.js";
 import { startReadyForReviewStation } from "./ready-for-review/station.js";
 import { startSyncCheckStation } from "./sync-check/station.js";
+import { startTestWrongCheckStation } from "./test-wrong-check/station.js";
 
 type Floor = ReturnType<typeof floorClient>;
 export type LoopWatchFrame =
@@ -35,6 +36,7 @@ export function startImplementationLoopStations(): RunningStation[] {
     startReadyForReviewStation(),
     startDoneCheckStation(),
     startBriefStation(),
+    startTestWrongCheckStation(),
     startLoopProgressStation(),
   ];
 }

@@ -2,6 +2,7 @@
 import type { Project } from "@re-cinq/lore-shared";
 import { loreReviewFeedbackOf } from "@re-cinq/lore-shared/review/lore-review.js";
 import type { PrReadyCheckDeps } from "./sweep-contract.js";
+import { threadReads } from "./thread-reads.js";
 
 /** Both caches hold REPO facts across one sweep: a sweep reads many PRs of the same repo, so the facade is built once and CI history is asked once rather than per PR. */
 export function sweepRepoCache<
@@ -59,6 +60,9 @@ type PrReads = Pick<
   | "listChecks"
   | "failedJob"
   | "listReviewThreads"
+  | "filesChangedSince"
+  | "replyToReviewComment"
+  | "resolveReviewThread"
   | "prMergeable"
   | "prMergeState"
   | "loreReviewFeedback"
@@ -79,8 +83,7 @@ export function prReads(
       (await (await projectOf(repo)).pulls.get(number))?.mergeable ?? null,
     prMergeState: async (repo, number) =>
       (await (await projectOf(repo)).pulls.getMergeability(number)).state,
-    listReviewThreads: async (repo, number) =>
-      (await projectOf(repo)).pulls.listReviewThreads(number),
+    ...threadReads(projectOf),
     loreReviewFeedback: async (repo, number) =>
       loreReviewOf(await projectOf(repo), number),
   };

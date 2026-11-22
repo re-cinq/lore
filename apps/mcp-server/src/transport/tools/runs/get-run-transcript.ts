@@ -1,3 +1,4 @@
+import { apiSegment, idParam } from "../shared/api-segment.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { queryString, readRun, runPath } from "./shared/run-read.js";
@@ -8,9 +9,7 @@ export const GET_RUN_TRANSCRIPT_DESCRIPTION =
 
 const GET_RUN_TRANSCRIPT_INPUT = {
   run_id: RUN_ID,
-  visit_id: z
-    .string()
-    .min(1)
+  visit_id: idParam
     .optional()
     .describe("Read this visit's events instead of the run's turns."),
   after: z
@@ -54,7 +53,7 @@ function transcriptPath({
   limit,
 }: TranscriptArgs): string {
   if (visit_id) {
-    return runPath(run_id, `/visits/${encodeURIComponent(visit_id)}/events`);
+    return runPath(run_id, `/visits/${apiSegment(visit_id)}/events`);
   }
 
   return runPath(run_id, `/turns${queryString({ after, limit })}`);

@@ -12,6 +12,7 @@ import type {
 import { z } from "zod";
 import { queryLiveGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
 
@@ -35,6 +36,7 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(GraphQuery) },
       },
       GraphQuerySchema,

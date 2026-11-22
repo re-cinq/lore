@@ -55,7 +55,9 @@ export const REPO_KEYED_TABLES: readonly RepoKeyedTable[] = [
   { schema: "lore", table: "repos", repoColumn: "full_name", policy: "row" },
 ];
 
-/** Columns named like a repository that provably hold none: GitHub's `all` or `selected` choice of an installation. */
+/** Columns named like a repository that provably hold none: GitHub's `all` or `selected` choice of an installation, and the time a session's repository list was last refreshed. */
 export const NOT_A_REPO_NAME_COLUMNS: readonly string[] = [
   "lore.github_installations.repository_selection",
+  "pipeline.api_tokens.repos_refreshed_at",
+  "pipeline.api_tokens.github_repo_id",
 ];

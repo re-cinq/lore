@@ -18,6 +18,7 @@ import {
   type LoopPause,
 } from "@re-cinq/lore-shared/loops/loop-pause.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -81,6 +82,7 @@ function readLoopsRoute(getPool: () => Pool | null): ServerRoute {
 const SWITCH_OPTIONS = zodResponse(
   {
     ...bearerScope("admin"),
+    ...repoLevel("admin"),
     validate: {
       params: zodValidate(SwitchParams),
       payload: zodValidate(LoopSwitchBodySchema),
@@ -107,6 +109,7 @@ function switchLoopRoute(getPool: () => Pool | null): ServerRoute {
 const RESUME_OPTIONS = zodResponse(
   {
     ...bearerScope("admin"),
+    ...repoLevel("admin"),
     validate: { params: zodValidate(SwitchParams) },
   },
   LoopResumeResultSchema,

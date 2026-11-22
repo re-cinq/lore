@@ -17,6 +17,7 @@ import { NO_TYPED_TASKS } from "@re-cinq/lore-shared/task-types/retired-task-typ
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { cancelTaskAndItsRuns } from "../../../work/pipeline/cancel-task.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 
@@ -39,6 +40,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("task"),
+        ...repoLevel("write", { from: "record", find: taskRepoOf(getPool) }),
         validate: { payload: zodValidate(TaskBody) },
       },
       TaskWriteSchema,
@@ -178,4 +180,22 @@ async function setPriority(
 /** A body with no task id used to create a task. None is created from a description any more, so the caller is told where that work goes instead. */
 function refuseTypedTask(): never {
   throw apiError(400)(NO_TYPED_TASKS);
+}
+
+/** The repository the posted task targets, found before the handler runs; null when the body names no task or the pool is missing, so the handler answers as it always did. */
+function taskRepoOf(getPool: () => Pool | null) {
+  return async (request: Request): Promise<string | null> => {
+    const pool = getPool();
+    const taskId = (request.payload as TaskBody | null)?.task_id;
+
+    if (!pool || !taskId) {
+      return null;
+    }
+    const { rows } = await pool.query(
+      "SELECT target_repo FROM pipeline.tasks WHERE id = $1",
+      [taskId],
+    );
+
+    return (rows[0]?.target_repo as string | undefined) ?? null;
+  };
 }

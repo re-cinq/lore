@@ -19,14 +19,21 @@ export const CONFIG: OAuthConfig = {
   org: "re-cinq",
 };
 
+const VIEWER = {
+  id: 4242,
+  login: "gedaiu",
+  name: "Bogdan",
+  avatar_url: "https://a/1",
+};
+
 export function fakeGithub(overrides: Partial<GithubUser> = {}): GithubUser {
   return {
-    exchangeCode: async () => "gho_abc",
-    fetchViewer: async () => ({
-      login: "gedaiu",
-      name: "Bogdan",
-      avatar_url: "https://a/1",
+    exchangeCode: async () => ({
+      accessToken: "gho_abc",
+      expiresIn: 28800,
+      refreshToken: "ghr_abc",
     }),
+    fetchViewer: async () => VIEWER,
     fetchOrgRole: async () => "member",
     fetchUserRepos: async () => [
       { full_name: "re-cinq/lore", owner: { login: "re-cinq" } },
@@ -44,7 +51,7 @@ export interface TestDeps extends AuthDeps {
 export function testDeps(
   overrides: { github?: Partial<GithubUser>; config?: OAuthConfig | null } = {},
 ): TestDeps {
-  const query = vi.fn();
+  const query = vi.fn().mockResolvedValue({ rows: [] });
   const pool = { query } as unknown as Pool;
 
   return {
@@ -97,6 +104,7 @@ export const userPrincipal = (
   JSON.stringify({
     scopes,
     user: {
+      githubId: 4242,
       login: "gedaiu",
       name: "Bogdan",
       avatarUrl: "https://a/1",

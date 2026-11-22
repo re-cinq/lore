@@ -162,20 +162,27 @@ function chunkTypesRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(ChunksQuery.pick({ repo: true })) },
       },
       ChunkTypeListSchema,
       { name: "ChunkTypeList", description: "The content types in scope" },
     ),
-    handler: async (request, h) => {
-      const pool = getPool();
-
-      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const { repo } = request.query as { repo?: string };
-
-      return h.response({ types: await readChunkTypes(pool, repo) });
-    },
+    handler: (request, h) => serveChunkTypes(getPool, request, h),
   };
+}
+
+async function serveChunkTypes(
+  getPool: () => Pool | null,
+  request: Request,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const pool = getPool();
+
+  enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  const { repo } = request.query as { repo?: string };
+
+  return h.response({ types: await readChunkTypes(pool, repo) });
 }
 
 /** The content types in scope. Deliberately NOT filtered by the current selection: these drive the filter chips, and a chip that disappears when you select it cannot be unselected. */
@@ -267,6 +274,7 @@ function chunksByPathRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(ByPathQuery) },
       },
       ChunkByPathSchema,

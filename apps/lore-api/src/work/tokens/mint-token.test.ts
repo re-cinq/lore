@@ -52,6 +52,9 @@ describe("mintApiToken", () => {
       null,
       null,
       [],
+      null,
+      null,
+      null,
     ]);
   });
 
@@ -70,6 +73,8 @@ describe("mintApiToken", () => {
         displayName: "Bogdan",
         avatarUrl: "https://a/1",
         repos: ["re-cinq/lore"],
+        githubId: 4242,
+        generation: 2,
       },
     });
 
@@ -84,6 +89,9 @@ describe("mintApiToken", () => {
       "Bogdan",
       "https://a/1",
       ["re-cinq/lore"],
+      4242,
+      2,
+      null,
     ]);
   });
 

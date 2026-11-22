@@ -11,10 +11,12 @@ import {
   SESSION_LENGTH_KEY,
   sessionLengthMs,
 } from "@re-cinq/lore-shared/session-length.js";
+import { generationOf, lockPerson } from "../../../work/auth/person-access.js";
 import { storeUserSessionTokens } from "../../../work/auth/user-session-tokens.js";
 import {
   mintApiToken,
   type MintInput,
+  type TokenUser,
 } from "../../../work/tokens/mint-token.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -69,14 +71,33 @@ async function redeemHandoff(
   const handoff = await deps.handoffs.take(code, "redeem", tx);
 
   enforceTrue(handoff?.grant, apiError(401), "invalid or used code");
+  enforceTrue(handoff.grant.githubId, apiError(401), "invalid or used code");
+  await lockAtGeneration(tx, handoff.grant.githubId, handoff.generation);
   const expiresAt = new Date(Date.now() + (await sessionLength(tx)));
-  const minted = await mintApiToken(tx, sessionToken(handoff.grant, expiresAt));
+  const minted = await mintApiToken(
+    tx,
+    sessionToken(handoff.grant, handoff.generation, expiresAt),
+  );
 
   if (handoff.encryptedTokens) {
     await storeUserSessionTokens(tx, minted.row.id, handoff.encryptedTokens);
   }
 
   return { token: minted.token, expiresAt, grant: handoff.grant };
+}
+
+/** Under the person's lock, a sign-in that began before the person was removed or revoked creates no session (FR-395). */
+async function lockAtGeneration(
+  tx: PgPool,
+  githubId: number,
+  generationOnCode: number | null | undefined,
+): Promise<void> {
+  await lockPerson(tx, githubId);
+  enforceTrue(
+    generationOnCode === (await generationOf(tx, githubId)),
+    apiError(401),
+    "sign-in is out of date, start again",
+  );
 }
 
 /** How long a sign-in started now lasts, from the org settings. */
@@ -89,18 +110,27 @@ async function sessionLength(pool: PgPool): Promise<number> {
   return sessionLengthMs(rows[0]?.value);
 }
 
-function sessionToken(grant: UserGrant, expiresAt: Date): MintInput {
+function sessionToken(
+  grant: UserGrant,
+  generation: number | null | undefined,
+  expiresAt: Date,
+): MintInput {
   return {
     name: `web-ui session ${grant.login}`,
     scopes: grant.scopes,
     createdBy: grant.login,
     expiresAt,
     kind: "user",
-    user: {
-      login: grant.login,
-      displayName: grant.name,
-      avatarUrl: grant.avatarUrl,
-      repos: grant.repos,
-    },
+    user: { ...userOf(grant), generation },
+  };
+}
+
+function userOf(grant: UserGrant): TokenUser {
+  return {
+    login: grant.login,
+    displayName: grant.name,
+    avatarUrl: grant.avatarUrl,
+    repos: grant.repos,
+    githubId: grant.githubId,
   };
 }

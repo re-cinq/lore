@@ -37,13 +37,44 @@ describe("GET /api/auth/callback", () => {
       redeemed: {
         returnUrl: RETURN,
         grant: {
+          githubId: 4242,
           login: "gedaiu",
           name: "Bogdan",
           avatarUrl: "https://a/1",
           scopes: ["admin"],
           repos: ["re-cinq/lore", "someone/else"],
         },
+        generation: 0,
       },
+    });
+  });
+
+  it("reads the person's generation before it asks GitHub for their membership and stores it on the redeem code's row", async () => {
+    const asked: string[] = [];
+    const deps = testDeps({
+      github: {
+        fetchOrgRole: async () => {
+          asked.push("membership");
+
+          return "member";
+        },
+      },
+    });
+
+    deps.query.mockImplementation(async (_sql: string, params: unknown[]) => {
+      asked.push(`generation of ${params[0]}`);
+
+      return { rows: [{ generation: 3 }] };
+    });
+    const { location } = await signIn(deps);
+    const redeemed = await deps.handoffs.take(
+      location.searchParams.get("code") as string,
+      "redeem",
+    );
+
+    expect({ asked, generation: redeemed?.generation }).toEqual({
+      asked: ["generation of 4242", "membership"],
+      generation: 3,
     });
   });
 
@@ -85,7 +116,27 @@ describe("GET /api/auth/callback", () => {
     expect(location.searchParams.get("auth_error")).toBe("github_denied");
   });
 
-  it("lets every GitHub account in as a member when no org is configured", async () => {
+  it("sends a person back with auth_error=github_denied when the token answer has no expiry or no refresh token", async () => {
+    const answers = [
+      { accessToken: "ghu_a", refreshToken: "ghr_a" },
+      { accessToken: "ghu_b", expiresIn: 0, refreshToken: "ghr_b" },
+      { accessToken: "ghu_c", expiresIn: 28800 },
+      "gho_bare_string",
+    ];
+    const errors: (string | null)[] = [];
+
+    for (const answer of answers) {
+      const { location } = await signIn(
+        testDeps({ github: { exchangeCode: async () => answer as never } }),
+      );
+
+      errors.push(location.searchParams.get("auth_error"));
+    }
+
+    expect(errors).toEqual(answers.map(() => "github_denied"));
+  });
+
+  it("sends every GitHub account back with auth_error=not_in_org and stores no redeem row when no org is configured", async () => {
     const deps = testDeps({
       config: {
         clientId: "c",
@@ -96,15 +147,26 @@ describe("GET /api/auth/callback", () => {
       },
     });
     const { location } = await signIn(deps);
-    const redeemed = await deps.handoffs.take(
-      location.searchParams.get("code") as string,
-      "redeem",
-    );
 
-    expect(redeemed?.grant).toMatchObject({
-      scopes: ["admin"],
-      repos: ["re-cinq/lore", "someone/else"],
+    expect({
+      authError: location.searchParams.get("auth_error"),
+      code: location.searchParams.get("code"),
+    }).toEqual({ authError: "not_in_org", code: null });
+  });
+
+  it("sends a person back with auth_error=github_denied when GitHub's viewer has no numeric id", async () => {
+    const deps = testDeps({
+      github: {
+        fetchViewer: async () =>
+          ({ login: "gedaiu", name: "B", avatar_url: "" }) as never,
+      },
     });
+    const { location } = await signIn(deps);
+
+    expect({
+      authError: location.searchParams.get("auth_error"),
+      code: location.searchParams.get("code"),
+    }).toEqual({ authError: "github_denied", code: null });
   });
 
   it("sends a person who cancelled on GitHub back with auth_error=github_denied", async () => {

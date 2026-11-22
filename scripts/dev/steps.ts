@@ -138,16 +138,17 @@ function portsStep(context: StepContext): Step {
   };
 }
 
-function warningsStep(context: StepContext): Step {
+export function warningsStep(context: StepContext): Step {
   const warnings: string[] = [];
   const localMode = context.mode.kind === "local";
   const oauthMissing =
-    !context.env.GITHUB_OAUTH_CLIENT_ID ||
-    !context.env.GITHUB_OAUTH_CLIENT_SECRET;
+    !context.env.GITHUB_APP_CLIENT_ID ||
+    !context.env.GITHUB_APP_CLIENT_SECRET ||
+    !context.env.LORE_USER_TOKEN_ENCRYPTION_KEY;
 
   if (localMode && oauthMissing) {
     warnings.push(
-      "GitHub OAuth is not configured, so web-ui login will fail. Create an OAuth app at https://github.com/settings/developers (homepage http://localhost:3000, callback http://localhost:3001/api/auth/callback), put GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET in .env.local, then restart.",
+      "GitHub App sign-in is not configured, so web-ui login will fail. Create a GitHub App at https://github.com/settings/apps (homepage http://localhost:3000, callback http://localhost:3001/api/auth/callback), put GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET and LORE_USER_TOKEN_ENCRYPTION_KEY in .env.local, then restart.",
     );
   }
 

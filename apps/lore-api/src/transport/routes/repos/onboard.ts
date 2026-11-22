@@ -13,7 +13,8 @@ import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { enforceRepoOpen } from "../../http/repo-guard.js";
+import { actingEnv } from "../../http/acting-env.js";
+import { enforceRepoOpen, repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { OkFalse, OkTrue } from "../../http/ok-schema.js";
@@ -61,6 +62,7 @@ export function onboardRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("admin"),
+        ...repoLevel("admin", { from: "payload", name: "repo" }),
         validate: { payload: zodValidate(OnboardBody) },
       },
       OnboardResultSchema,
@@ -83,9 +85,10 @@ async function serveOnboard(
   try {
     const { repo, reonboard } = request.payload as OnboardBody;
 
-    await enforceRepoOpen(request, repo);
+    await enforceRepoOpen(request, repo, "admin");
     await enforceNotAMirror(new PgSettings(pool), repo);
-    const result = await onboardRepo(pool, repo, { reonboard });
+    const env = await actingEnv(request, pool);
+    const result = await onboardRepo(pool, repo, { reonboard, env });
 
     // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.
     return "blocked" in result

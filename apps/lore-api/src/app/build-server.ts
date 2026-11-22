@@ -20,6 +20,7 @@ import {
 import { registerRepoGuard } from "../transport/http/repo-guard.js";
 import { createRepoAccess } from "../work/auth/repo-access.js";
 import { repoAccessPorts } from "../outbound/repo-access-ports.js";
+import { deleteExpiredHandoffs } from "../work/auth/login-handoffs.js";
 import { runRepoOf } from "../work/auth/run-repo.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodFailAction } from "../transport/http/zod-validate.js";
@@ -103,10 +104,32 @@ function registerRoutes(
   const { collab, plans } = registerPlanning(server, getPool, planFloor);
   const routes = routeList(getPool, plans);
 
+  registerHandoffCleanup(server, getPool);
   server.route(routes);
   registerLiveSocket(server, getPool, collab);
 
   return routes;
+}
+
+const HANDOFF_CLEANUP_INTERVAL_MS = 60_000;
+
+/** FR-433: once a minute, expired login handoff rows go, whether or not anyone signs in. */
+function registerHandoffCleanup(
+  server: Hapi.Server,
+  getPool: () => Pool | null,
+): void {
+  const timer = setInterval(() => {
+    const pool = getPool();
+
+    if (pool) {
+      deleteExpiredHandoffs(pool).catch((error: unknown) =>
+        console.warn("[login-handoffs] cleanup failed", error),
+      );
+    }
+  }, HANDOFF_CLEANUP_INTERVAL_MS);
+
+  timer.unref();
+  server.ext("onPreStop", () => clearInterval(timer));
 }
 
 const LIVE_SOCKET_LIMITS: LiveSocketLimits = {

@@ -1,12 +1,16 @@
 /** GitHub webhook management via Lore GitHub App; ensureRepoWebhook is idempotent (create/repoint/update + ping). */
 
+import type { Octokit } from "octokit";
 import { getOctokit } from "../../outbound/github-client.js";
 import { isLoreHook, type RepoHook } from "./webhook-status.js";
 
 type ReposApi = Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"];
 
-export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
-  const repos = await reposApi();
+export async function listRepoWebhooks(
+  repo: string,
+  octokit?: Octokit,
+): Promise<RepoHook[]> {
+  const repos = await reposApi(octokit);
   const [owner, name] = ownerRepo(repo);
   const { data: hooks } = await repos.listWebhooks({
     owner,
@@ -17,8 +21,8 @@ export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
   return hooks as unknown as RepoHook[];
 }
 
-async function reposApi(): Promise<ReposApi> {
-  const { rest } = await getOctokit();
+async function reposApi(octokit?: Octokit): Promise<ReposApi> {
+  const { rest } = octokit ?? (await getOctokit());
 
   return rest.repos;
 }
@@ -35,7 +39,20 @@ export async function ensureRepoWebhook(
   secret: string,
   events: string[],
 ): Promise<{ hookId: number; created: boolean }> {
-  const repos = await reposApi();
+  return ensureRepoWebhookWith(await getOctokit(), repo, {
+    url,
+    secret,
+    events,
+  });
+}
+
+/** The same ensure, acting through the given client — a person's, so the hook is theirs to make (FR-207). */
+export async function ensureRepoWebhookWith(
+  octokit: Octokit,
+  repo: string,
+  { url, secret, events }: { url: string; secret: string; events: string[] },
+): Promise<{ hookId: number; created: boolean }> {
+  const repos = await reposApi(octokit);
   const [owner, name] = ownerRepo(repo);
   const target = { owner, name };
   const spec = { config: { url, content_type: "json", secret }, events };

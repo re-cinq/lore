@@ -56,6 +56,7 @@ function personRow(hash: string) {
   return {
     scopes: ["read"],
     kind: "user",
+    github_id: "4242",
     login: "person",
     repos,
     startedAt: new Date("2026-10-28T10:00:00Z"),

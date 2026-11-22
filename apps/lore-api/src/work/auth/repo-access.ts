@@ -1,10 +1,13 @@
-// Whether the person behind a session can open a repository. The list GitHub gave at sign-in answers first; a repo it does not hold is asked of GitHub as it stands now, so a repository created or shared after the sign-in is not refused for the life of the session (ADR-053).
+// Whether the person behind a session may reach a repository at the level a route declares: every level needs the repository on the sign-in installation list (FR-031), and write and admin then ask GitHub as Lore's App (ADR-053, ADR-054).
 
 import type {
   RepoAccessPorts,
   RepoPermission,
 } from "../../outbound/repo-access-ports.js";
 import { repoAllowed } from "./login-grant.js";
+
+/** GitHub's permission level on a repository (FR-001). */
+export type RepoLevel = "read" | "write" | "admin";
 
 /** Who is asking: a person's session with its sign-in list, or a service token, which has no person. */
 export interface Asker {
@@ -13,74 +16,72 @@ export interface Asker {
 }
 
 export interface RepoAccess {
-  canOpen(principal: Asker, repo: string): Promise<boolean>;
+  canOpen(principal: Asker, repo: string, level?: RepoLevel): Promise<boolean>;
 }
 
 /** How long a "no" is believed before GitHub is asked again: long enough that a page listing many repositories asks once, short enough that a new grant shows within minutes. */
 export const REFUSAL_TTL_MS = 5 * 60_000;
 
-const OPENS: readonly RepoPermission[] = ["admin", "write", "read"];
-
 export function createRepoAccess(ports: RepoAccessPorts): RepoAccess {
-  const refusedUntil = new Map<string, number>();
-
   return {
-    canOpen: async (principal, repo) => {
-      if (repoAllowed(principal, repo)) {
+    canOpen: async (principal, repo, level = "read") => {
+      if (principal.user === null) {
         return true;
       }
-      const key = `${principal.tokenHash}\n${repo.toLowerCase()}`;
 
-      if ((refusedUntil.get(key) ?? 0) > ports.now()) {
-        return false;
-      }
-      const granted = await askedOfGitHub(ports, principal, repo);
-
-      if (!granted) {
-        refusedUntil.set(key, ports.now() + REFUSAL_TTL_MS);
+      if (level === "read") {
+        return repoAllowed(principal, repo);
       }
 
-      return granted;
+      return (
+        (await hasLevelToday(ports, principal, repo, level)) &&
+        repoAllowed(principal, repo)
+      );
     },
   };
 }
 
-/** A person's session and nothing else reaches here. A question GitHub could not answer is a "no": access is never granted on an error. */
+const MEETS_LEVEL: Record<RepoLevel, readonly RepoPermission[]> = {
+  read: ["admin", "write", "read"],
+  write: ["admin", "write"],
+  admin: ["admin"],
+};
+
+async function hasLevelToday(
+  ports: RepoAccessPorts,
+  principal: Asker,
+  repo: string,
+  level: RepoLevel,
+): Promise<boolean> {
+  const permission = await askedOfGitHub(ports, principal, repo);
+
+  return MEETS_LEVEL[level].includes(permission);
+}
+
+/** A person's session and nothing else reaches here. A question GitHub could not answer is `none`: access is never granted on an error. */
 async function askedOfGitHub(
   ports: RepoAccessPorts,
   { user, tokenHash }: Asker,
   repo: string,
-): Promise<boolean> {
+): Promise<RepoPermission> {
   if (!user || !tokenHash) {
-    return false;
+    return "none";
   }
 
   try {
-    return await grantedToday(ports, { login: user.login, tokenHash }, repo);
+    return await ports.permissionOf(user.login, repo);
   } catch (err) {
     console.warn(
       `[repo-access] GitHub could not say whether ${user.login} can open ${repo}: ${(err as Error).message}`,
     );
 
-    return false;
+    return "none";
   }
-}
-
-async function grantedToday(
-  ports: RepoAccessPorts,
-  session: { login: string; tokenHash: string },
-  repo: string,
-): Promise<boolean> {
-  const granted = OPENS.includes(await ports.permissionOf(session.login, repo));
-
-  if (granted) {
-    await ports.remember(session.tokenHash, repo);
-  }
-
-  return granted;
 }
 
 /** The list from sign-in and nothing more: what a server built without GitHub (a unit test, a route on its own) answers with. */
 export const SIGN_IN_LIST_ONLY: RepoAccess = {
-  canOpen: async (principal, repo) => repoAllowed(principal, repo),
+  canOpen: async (principal, repo, level = "read") =>
+    principal.user === null ||
+    (level === "read" && repoAllowed(principal, repo)),
 };

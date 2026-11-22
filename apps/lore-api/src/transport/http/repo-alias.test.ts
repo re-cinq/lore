@@ -95,6 +95,7 @@ function aliasServer(access: string[] = [PRIVATE]) {
       {
         scopes: ["admin"],
         kind: "user",
+        github_id: "4242",
         login: "ben",
         repos: access,
         startedAt: new Date("2026-11-18T10:00:00Z"),

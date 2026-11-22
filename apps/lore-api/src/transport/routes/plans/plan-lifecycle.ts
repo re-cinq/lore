@@ -19,6 +19,7 @@ import { NOT_APPROVED } from "../../../work/plans/planning-line.js";
 import { pgPlanStore } from "../../../outbound/plans/plan-store-pg.js";
 import { planVerbsFor, type PlanVerbSeams } from "./plan-verbs-for.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -83,7 +84,11 @@ const SpecWorkBody = z.object({ createdBy: z.string().min(1) });
 const SpecWorkSchema = z.object({ task_id: z.string() });
 
 const APPROVE_OPTIONS = zodResponse(
-  { ...bearerScope("write"), validate: { payload: zodValidate(ApproveBody) } },
+  {
+    ...bearerScope("write"),
+    ...repoLevel("write"),
+    validate: { payload: zodValidate(ApproveBody) },
+  },
   planMetaSchema,
   {
     name: "PlanApproved",
@@ -94,7 +99,11 @@ const APPROVE_OPTIONS = zodResponse(
 );
 
 const REOPEN_OPTIONS = zodResponse(
-  { ...bearerScope("write"), validate: { payload: zodValidate(ReopenBody) } },
+  {
+    ...bearerScope("write"),
+    ...repoLevel("write"),
+    validate: { payload: zodValidate(ReopenBody) },
+  },
   planMetaSchema,
   {
     name: "PlanReopened",
@@ -105,7 +114,11 @@ const REOPEN_OPTIONS = zodResponse(
 );
 
 const SPEC_WORK_OPTIONS = zodResponse(
-  { ...bearerScope("write"), validate: { payload: zodValidate(SpecWorkBody) } },
+  {
+    ...bearerScope("write"),
+    ...repoLevel("write"),
+    validate: { payload: zodValidate(SpecWorkBody) },
+  },
   SpecWorkSchema,
   {
     name: "PlanSpecWorkStarted",

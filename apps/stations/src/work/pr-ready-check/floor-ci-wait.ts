@@ -1,5 +1,10 @@
 // The waits of lines that run on the external floor: a run parked on its `await-ci` or `await-pr` human station is judged by the same readers the Postgres-backed runs use, and the verdict is reported to the parked visit. A red build's failing checks ride along as produced values and as one file, the round brief, which is how the next agent is handed them.
 
+import {
+  brokenAcceptanceTest,
+  brokenTestFeedbackOf,
+} from "@re-cinq/lore-shared/backlog/acceptance-test-report.js";
+import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import type { floorClient } from "@re-cinq/lore-shared/floor/floor-client.js";
 import {
   roundBriefOf,
@@ -199,10 +204,45 @@ async function verdictOf(
     return null;
   }
   const produced = await producedOf(deps.floor, judged, wait.handoff);
+  const broken = brokenTestOf(wait, judged);
+
+  if (broken) {
+    return brokenTestReport(deps.floor, broken, produced);
+  }
 
   return Object.keys(produced).length > 0
     ? { outcome: judged.outcome, produced }
     : { outcome: judged.outcome };
+}
+
+/** On the loop's per-push wait, the CI line that shows an acceptance test which could not run (specs/external-floor FR12.24); the line's await-ci sends that back to the definition of done, and no other line has one. */
+function brokenTestOf(wait: CiWait, judged: ParkedReport): string | null {
+  const summary = judged.args.ci_failure_summary;
+  const red = judged.outcome === "changes_requested";
+
+  return red && onLoopCiWait(wait) && typeof summary === "string"
+    ? brokenAcceptanceTest(summary)
+    : null;
+}
+
+function onLoopCiWait({ nodeId, run }: CiWait): boolean {
+  return nodeId === CI_NODE && run.blueprintName === LOOP_LINE;
+}
+
+async function brokenTestReport(
+  floor: CiWaitFloor,
+  broken: string,
+  produced: Record<string, string>,
+): Promise<Report> {
+  const feedback = await floor.blobs.put(
+    new TextEncoder().encode(brokenTestFeedbackOf(broken)),
+    "text/markdown",
+  );
+
+  return {
+    outcome: "test_broken",
+    produced: { ...produced, dod_feedback: feedback.hash },
+  };
 }
 
 function judgeFor(deps: FloorCiWaitDeps, nodeId: string): Judge {

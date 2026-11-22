@@ -136,6 +136,10 @@ export interface JobFailure {
 export interface ReviewThreadComment {
   /** REST review-comment id (GraphQL databaseId) — join key back to {@link ReviewComment.id} so a REST reply can find its thread. */
   databaseId: number | null;
+  /** The commenter's login (an App's slug for an App); absent where the read did not ask. */
+  author?: string | null;
+  /** The commit the comment was written on, so what changed since it can be read. */
+  commitSha?: string | null;
 }
 
 /** One PR review thread (GraphQL-only — resolution state has no REST read); id is the GraphQL node id, pass to resolveReviewThread. */
@@ -143,6 +147,8 @@ export interface ReviewThread {
   id: string;
   isResolved: boolean;
   isOutdated: boolean;
+  /** The file the thread sits on; null for a thread on no file. */
+  path?: string | null;
   comments: ReviewThreadComment[];
 }
 

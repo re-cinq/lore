@@ -39,15 +39,33 @@ async function permissionOnGitHub(
   login: string,
   repo: string,
 ): Promise<RepoPermission> {
-  const [owner, name] = repo.split("/");
+  const parsed = ownerAndNameOf(repo);
+
+  if (!parsed) {
+    return "none";
+  }
   const { repos } = (await buildOctokit(env)).rest;
   const { data: level } = await repos.getCollaboratorPermissionLevel({
-    owner,
-    repo: name,
+    owner: parsed.owner,
+    repo: parsed.name,
     username: login,
   });
 
   return PERMISSIONS.find((known) => known === level.permission) ?? "none";
+}
+
+const REPO_NAME_FORMAT = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+const DOT_SEGMENTS = new Set([".", ".."]);
+
+function ownerAndNameOf(repo: string): { owner: string; name: string } | null {
+  if (!REPO_NAME_FORMAT.test(repo)) {
+    return null;
+  }
+  const [owner, name] = repo.split("/");
+
+  return DOT_SEGMENTS.has(owner) || DOT_SEGMENTS.has(name)
+    ? null
+    : { owner, name };
 }
 
 /** A repo or person GitHub does not know is `none`; any other failure is the caller's to refuse on. */

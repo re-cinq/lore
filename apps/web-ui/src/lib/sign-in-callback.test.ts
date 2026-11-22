@@ -50,6 +50,18 @@ describe("signInFailureMessage", () => {
     );
   });
 
+  it("names the App's missing Members permission for install_fault", () => {
+    expect(signInFailureMessage("install_fault")).toBe(
+      "Lore's GitHub App cannot ask GitHub whether you are a member of the organisation. An organisation owner must grant the App the Members (read) permission.",
+    );
+  });
+
+  it("reads install_fault from the callback as its own reason", () => {
+    expect(
+      callbackAction(new URLSearchParams("auth_error=install_fault")),
+    ).toEqual({ action: "failed", reason: "install_fault" });
+  });
+
   it("explains a GitHub refusal in general terms", () => {
     expect(signInFailureMessage("github_denied")).toBe(
       "GitHub did not complete the sign-in.",

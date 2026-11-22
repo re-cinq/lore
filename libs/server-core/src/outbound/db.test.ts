@@ -65,3 +65,33 @@ describe("hybridSearch schema resolution", () => {
     expect(calls[1]?.text).toContain("FROM org_shared.chunks");
   });
 });
+
+describe("hybridSearch repo list scope", () => {
+  it("restricts a keyword-only search to the lower-cased readable repos", async () => {
+    const { pool, calls } = fakePool(
+      { rows: [{ ok: 1 }] },
+      { rows: [{ table_schema: "infra" }] },
+      { rows: [] },
+    );
+
+    setPool(pool);
+    await hybridSearch("q", "infra", 5, ["Acme/App", "acme/Other"]);
+
+    expect(calls[2]?.text).toContain("lower(repo) = ANY($3::text[])");
+    expect(calls[2]?.params).toEqual(["q", 5, ["acme/app", "acme/other"]]);
+  });
+
+  it("leaves the search org-wide when the scope is null", async () => {
+    const { pool, calls } = fakePool(
+      { rows: [{ ok: 1 }] },
+      { rows: [{ table_schema: "infra" }] },
+      { rows: [] },
+    );
+
+    setPool(pool);
+    await hybridSearch("q", "infra", 5, null);
+
+    expect(calls[2]?.text).not.toContain("ANY($3");
+    expect(calls[2]?.params).toEqual(["q", 5]);
+  });
+});

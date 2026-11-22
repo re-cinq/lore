@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { toolHandlers } from "../shared/tool-test-helpers.js";
+import {
+  checkedToolHandlers,
+  toolHandlers,
+} from "../shared/tool-test-helpers.js";
 import { registerPlanReadTool } from "./plan-read.js";
 
 const fetchMock = vi.fn();
@@ -36,6 +39,31 @@ describe("lore_plan_read", () => {
       ],
     });
   });
+
+  it("asks lore-api for a plan and nothing else, whatever the id holds", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await planRead({ plan_id: "x/../../repos/a/b/webhook/secret?" });
+
+    const asked = new URL(fetchMock.mock.calls[0][0] as string);
+
+    expect({ path: asked.pathname, search: asked.search }).toEqual({
+      path: "/api/plans/x%2F..%2F..%2Frepos%2Fa%2Fb%2Fwebhook%2Fsecret%3F/agent-view",
+      search: "",
+    });
+  });
+
+  it.each([".", "..", ""])(
+    "refuses plan id %j at the registered tool and asks lore-api nothing",
+    async (plan_id) => {
+      const registered = checkedToolHandlers(registerPlanReadTool, "agent")[
+        "lore_plan_read"
+      ];
+
+      await expect(registered({ plan_id })).rejects.toThrow();
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("asks for a configured LORE_API_URL when the env is unset", async () => {
     vi.stubEnv("LORE_API_URL", "");

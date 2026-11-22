@@ -8,6 +8,7 @@ import type {
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
 import { pruneOrphanChunks } from "../../../work/chunks/prune-orphans.js";
@@ -32,6 +33,7 @@ const PruneResultSchema = z.object({
 // A large repo's tracked-path list outgrows the 1MB server default: ~40k paths at 25 bytes each.
 const PRUNE_OPTIONS = {
   ...bearerScope("write"),
+  ...repoLevel("write"),
   payload: { maxBytes: 10 * 1_048_576 },
   validate: { payload: zodValidate(PruneBody) },
 };

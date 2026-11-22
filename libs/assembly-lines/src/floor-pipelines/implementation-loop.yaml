@@ -66,6 +66,12 @@ line:
       station: loop-tdd-round
       bind:
         target: repo
+    # A round that names an acceptance test it cannot pass is checked against
+    # the branch before the ticket goes back to the definition of done.
+    - id: test-wrong-check
+      station: loop-test-wrong-check
+      bind:
+        target: repo
     # The round is judged by the pull request's build, not by the pod that
     # wrote it: a park costs nothing while it waits.
     - id: await-ci
@@ -191,6 +197,20 @@ line:
       to: tdd-round
       on: failed
       iteration_max: 1
+    # The round names an acceptance test it cannot pass and changed none:
+    # the definition of done that wrote it fixes it, twice at most. A report
+    # the branch does not bear out is a failed round, as before.
+    - from: tdd-round
+      to: test-wrong-check
+      on: test_wrong
+    - from: test-wrong-check
+      to: dod
+      on: success
+      iteration_max: 2
+    - from: test-wrong-check
+      to: tdd-round
+      on: failed
+      iteration_max: 1
     - from: await-ci
       to: test-review
       on: success
@@ -206,6 +226,13 @@ line:
     - from: await-ci
       to: repair-build
       on: failed
+      iteration_max: 2
+    # CI shows an acceptance test that could not run at all (a parse or
+    # syntax error, not a missing feature): another round cannot fix a test
+    # it may not edit, so the definition of done that wrote it does.
+    - from: await-ci
+      to: dod
+      on: test_broken
       iteration_max: 2
     # Whatever the repair says of itself, the build is the judge: a repair
     # that moved nothing comes back as `failed` on the same sha until the
@@ -383,6 +410,12 @@ stations:
         kind: file
         path: brief.md
         optional: true
+      # Present only when the ticket came back: a round named an acceptance
+      # test it could not pass, or CI showed one that could not run.
+      - name: dod_feedback
+        kind: file
+        path: dod-feedback.md
+        optional: true
     produces:
       - name: dod_strategy
         kind: value
@@ -461,6 +494,7 @@ stations:
       - success
       - changes_requested
       - failed
+      - test_wrong
     result_required: true
     needs:
       - name: target
@@ -493,6 +527,28 @@ stations:
         kind: value
       - name: tdd_blocked
         kind: value
+      - name: tdd_test_wrong
+        kind: value
+  loop-test-wrong-check:
+    description: Checks a round's report that an acceptance test is wrong against the branch. A test the branch holds, with no acceptance test changed by the round, goes back to the definition of done; any other report is a failed round.
+    kind: service
+    outcomes:
+      - success
+      - failed
+    needs:
+      - name: target
+        kind: git
+        path: target
+        access: read
+      # Optional so a round that ended test_wrong without naming a test
+      # reaches the gate and is failed there, not refused by the floor.
+      - name: tdd_test_wrong
+        kind: value
+        optional: true
+    produces:
+      - name: dod_feedback
+        kind: file
+        path: dod-feedback.md
   loop-test-review:
     description: "An AI agent checks the tests the ticket's rounds wrote for the refusals the change owes: a caller with no right to ask, bad input, a failing upstream, a write. It adds tests that were only missing; a refusal the code does not make goes back to the round."
     kind: agent
@@ -520,12 +576,13 @@ stations:
         kind: file
         path: test-gaps.md
   loop-await-ci:
-    description: Waits until the pull request's CI judges the latest round. Green moves on to review, red asks for another round, and a build that stays red goes to repair.
+    description: Waits until the pull request's CI judges the latest round. Green moves on to review, red asks for another round, a build that stays red goes to repair, and an acceptance test that could not run goes back to the definition of done.
     kind: human
     outcomes:
       - success
       - changes_requested
       - failed
+      - test_broken
     needs: []
     # Written only on a red report: the sha the build judged, the checks that
     # failed and what they printed, and the same as one file for the next agent.
@@ -537,6 +594,8 @@ stations:
       - name: ci_failure_summary
         kind: value
       - name: round_brief
+        kind: file
+      - name: dod_feedback
         kind: file
   loop-repair-build:
     description: An AI agent fixes only the checks that stayed red after a round that pushed nothing new, so the loop does not re-derive the same failure.

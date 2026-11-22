@@ -11,14 +11,14 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   SIGN_IN_LIST_ONLY,
   type RepoAccess,
+  type RepoLevel,
 } from "../../work/auth/repo-access.js";
 import { principalOf } from "./bearer-scope.js";
 
 const KEY = "repoAccess";
 const ROUTE_KEY = "repoGuard";
 
-/** GitHub's permission level on a repository (FR-001). */
-export type RepoLevel = "read" | "write" | "admin";
+export type { RepoLevel };
 
 /** How a route finds the repository it concerns (FR-257), or that its answer spans several (FR-259). */
 export type RepoSource =
@@ -67,26 +67,28 @@ export function readableReposOf(request: Request): string[] | null {
 export function registerRepoGuard(server: Server, access: RepoAccess): void {
   (server.app as Record<string, unknown>)[KEY] = access;
   server.ext("onPreHandler", async (request: Request, h: ResponseToolkit) => {
-    const repo = isPerson(request) ? await repoNamedBy(request) : null;
+    const ci = ciIdentityOf(request);
+    const repo = isPerson(request) || ci ? await repoNamedBy(request) : null;
 
     if (repo) {
-      await enforceRepoOpen(request, repo);
+      await enforceRepoReachable(request, repo, ci);
     }
 
     return h.continue;
   });
 }
 
-/** For a route that names the repository somewhere the guard cannot see: a body or a query. Refuses a person who cannot open it with 403. */
+/** For a route that names a repository: refuses a person whose GitHub permission is below the route's declared level (default `read`) with 403 (FR-007). */
 export async function enforceRepoOpen(
   request: Request,
   repo: string,
+  level: RepoLevel = repoDeclarationOf(request)?.level ?? "read",
 ): Promise<void> {
   if (!request.auth.isAuthenticated) {
     return;
   }
   enforceTrue(
-    await repoAccessOf(request).canOpen(principalOf(request), repo),
+    await repoAccessOf(request).canOpen(principalOf(request), repo, level),
     apiError(403),
     "repository not allowed",
   );
@@ -97,6 +99,30 @@ export function repoAccessOf(request: Request): RepoAccess {
   const held = (request.server.app as Record<string, unknown>)[KEY];
 
   return (held as RepoAccess | undefined) ?? SIGN_IN_LIST_ONLY;
+}
+
+async function enforceRepoReachable(
+  request: Request,
+  repo: string,
+  ci: { repository: string } | null,
+): Promise<void> {
+  if (!ci) {
+    await enforceRepoOpen(request, repo);
+
+    return;
+  }
+  enforceTrue(
+    repo.toLowerCase() === ci.repository.toLowerCase(),
+    apiError(403),
+    "repository not allowed",
+  );
+}
+
+/** The verified CI run behind an authenticated request, which may reach only its own repository (FR-313). */
+function ciIdentityOf(request: Request) {
+  return request.auth.isAuthenticated
+    ? (principalOf(request).ciIdentity ?? null)
+    : null;
 }
 
 /** Only a person's session is checked against a repository, so a service token's route never pays for finding it. */

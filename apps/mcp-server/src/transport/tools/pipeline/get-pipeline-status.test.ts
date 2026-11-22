@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { toolHandlers } from "../shared/tool-test-helpers.js";
+import {
+  checkedToolHandlers,
+  toolHandlers,
+} from "../shared/tool-test-helpers.js";
 import { registerGetPipelineStatusTool } from "./get-pipeline-status.js";
 
 const fetchMock = vi.fn();
@@ -20,6 +23,32 @@ describe("lore_get_pipeline_status", () => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
+
+  it("asks lore-api for the task and nothing else, whatever the id holds", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await getPipelineStatus({ task_id: "../repos/acme/shop/plans?" });
+
+    const asked = new URL(fetchMock.mock.calls[0][0] as string);
+
+    expect({ path: asked.pathname, search: asked.search }).toEqual({
+      path: "/api/task/..%2Frepos%2Facme%2Fshop%2Fplans%3F",
+      search: "",
+    });
+  });
+
+  it.each([".", "..", ""])(
+    "refuses task id %j at the registered tool and asks lore-api nothing",
+    async (task_id) => {
+      const registered = checkedToolHandlers(
+        registerGetPipelineStatusTool,
+        "full",
+      )["lore_get_pipeline_status"];
+
+      await expect(registered({ task_id })).rejects.toThrow();
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns the not-configured message without fetching when the env is unset", async () => {
     vi.stubEnv("LORE_API_URL", "");

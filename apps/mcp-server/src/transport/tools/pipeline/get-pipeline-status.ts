@@ -1,6 +1,6 @@
+import { apiSegment, idParam } from "../shared/api-segment.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import {
   unreachableError,
   deniedError,
@@ -18,7 +18,7 @@ export function registerGetPipelineStatusTool(server: McpServer) {
     "lore_get_pipeline_status",
     "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for the execution transcript; lore_list_task_group for a group rollup.",
     {
-      task_id: z.string(),
+      task_id: idParam,
     },
     async ({ task_id }) => {
       try {
@@ -42,7 +42,7 @@ async function fetchPipelineStatusText(taskId: string): Promise<ToolText> {
   let res: Response;
 
   try {
-    res = await fetch(`${creds.apiUrl}/api/task/${taskId}`, {
+    res = await fetch(`${creds.apiUrl}/api/task/${apiSegment(taskId)}`, {
       signal: AbortSignal.timeout(30_000),
       headers: { Authorization: `Bearer ${creds.token}` },
     });

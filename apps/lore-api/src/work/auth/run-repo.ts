@@ -70,10 +70,22 @@ export function runRepoOf(pool: Pool, runId: string): Promise<string | null> {
 
 function readerFor(pool: Pool): RunRepoReader {
   const reader = keepingRunRepos(
-    async (id) => (await runsReadingFloor(pool).getById(id))?.repo ?? null,
+    async (id) =>
+      (await localRunRepo(pool, id)) ??
+      (await runsReadingFloor(pool).getById(id))?.repo ??
+      null,
   );
 
   production.set(pool, reader);
 
   return reader;
+}
+
+async function localRunRepo(pool: Pool, runId: string): Promise<string | null> {
+  const { rows } = await pool.query(
+    "SELECT repo FROM pipeline.assembly_runs WHERE id = $1",
+    [runId],
+  );
+
+  return (rows[0]?.repo as string | undefined) ?? null;
 }

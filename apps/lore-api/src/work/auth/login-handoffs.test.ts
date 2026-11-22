@@ -8,6 +8,7 @@ import {
 } from "./login-handoffs.js";
 
 const grant: UserGrant = {
+  githubId: 4242,
   login: "gedaiu",
   name: "Bogdan",
   avatarUrl: "https://avatars.example/1",

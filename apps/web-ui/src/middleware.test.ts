@@ -157,6 +157,14 @@ describe("middleware", () => {
     ]);
   });
 
+  it("gives the session check a deadline of 10 seconds", async () => {
+    getMe.mockResolvedValue({ status: "ok", data: { login: "ada" } });
+
+    await middleware(request("/settings", "tok"));
+
+    expect(getMe.mock.calls[0][0]).toEqual({ token: "tok", timeoutMs: 10_000 });
+  });
+
   it("lets a session lore-api knows through, asked with the cookie's token", async () => {
     getMe.mockResolvedValue({ status: "ok", data: { login: "ada" } });
 

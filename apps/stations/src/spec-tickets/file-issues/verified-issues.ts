@@ -1,4 +1,4 @@
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import {
   parseDecomposition,
   type DecompositionResult,
@@ -15,6 +15,8 @@ import {
   issueCoverageBrief,
 } from "@re-cinq/lore-shared/feature-planning/issue-coverage.js";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
+import { withoutDriftIn } from "@re-cinq/lore-shared/spec-tickets/grounded-statements.js";
+import type { DecomposedSpecs } from "../../planning/file-issues/decomposed-spec.js";
 import { filingContext, specOfRun } from "../../planning/file-issues/issues.js";
 import {
   filePlanIssues,
@@ -50,8 +52,7 @@ async function prepareFiling(input: StationInput, project: StationProject) {
   const original = parseDecomposition(
     parseModelJson(input.params.feature_decomposition),
   );
-  const actionable = actionableDecomposition(original, input.params.spec_path);
-  const spec = await specOfRun(project, input, original);
+  const { actionable, spec } = await groundedFiling(project, input, original);
   const context = filingContext(input, actionable, { uiUrl: undefined, spec });
 
   return {
@@ -66,6 +67,27 @@ async function prepareFiling(input: StationInput, project: StationProject) {
       }),
     },
   };
+}
+
+/** The actionable tasks and the spec, less every statement naming code this repository does not hold, which is logged as drift. */
+async function groundedFiling(
+  project: StationProject,
+  input: StationInput,
+  original: DecompositionResult,
+): Promise<{
+  actionable: DecompositionResult;
+  spec: DecomposedSpecs | undefined;
+}> {
+  const actionable = actionableDecomposition(original, input.params.spec_path);
+  const spec = await specOfRun(project, input, original);
+
+  if (!spec) {
+    return { actionable, spec };
+  }
+  const tree = await project.repo.tree(original.spec_commit ?? input.branch);
+  const grounded = withoutDriftIn(spec, actionable, tree, logEvent);
+
+  return { actionable: grounded.decomposition, spec: grounded.spec };
 }
 
 /** The decomposition before the dedupe step dropped the tasks other tickets hold, when the line hands it over. */
@@ -147,4 +169,8 @@ function emptyWork(planTitle: string): ProceedWork {
     story: { title: `User story: ${planTitle}`, labels: [] },
     tasks: [],
   };
+}
+
+function logEvent(line: string): void {
+  console.log(eventLine(line));
 }

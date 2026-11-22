@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { proxyToApi, textResult, type ProxyResult } from "../shared/deps.js";
 import { interpretMemoryProxy } from "../memory/shared/interpret-memory-proxy.js";
+import { planIdParam, planPath } from "./plan-id.js";
 
 const conflictProblemSchema = z.object({ detail: z.string() });
 
@@ -13,7 +14,7 @@ export function registerPlanEditTool(server: McpServer) {
     "lore_plan_edit",
     `Applies ONE agent op to the live plan; read first with lore_plan_read. For replace-block/remove-block pass expect {blockId, hash} from the read. A refused edit means a person changed that block: read again and keep their words.`,
     {
-      plan_id: z.string().min(1),
+      plan_id: planIdParam,
       op: agentOpSchema,
       expect: z
         .object({ blockId: z.string().min(1), hash: z.string().min(1) })
@@ -44,7 +45,7 @@ function postAgentEdit({
   op,
   expect,
 }: PlanEditArgs): Promise<ProxyResult> {
-  return proxyToApi(`/api/plans/${plan_id}/agent-edits`, {
+  return proxyToApi(planPath(plan_id, "agent-edits"), {
     actor: "planning-agent",
     ops: [op],
     expect,

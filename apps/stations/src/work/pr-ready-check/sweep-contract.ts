@@ -52,6 +52,19 @@ export interface PrReadyCheckDeps {
   /** Does this repo run checks at all? A repo fact, not a clock. */
   hasCiHistory(repo: string): Promise<boolean>;
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
+  /** The files `head` changed since `base`, or null when GitHub cannot compare them: what tells a finding's file was touched after it. */
+  filesChangedSince(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<string[] | null>;
+  replyToReviewComment(
+    repo: string,
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void>;
+  resolveReviewThread(repo: string, threadId: string): Promise<void>;
   /** Open runs of PR-review family for this PR — "address round-trip in flight" signal. */
   countOpenReviewRuns(repo: string, number: number): Promise<number>;
   /** What Lore's newest review of the PR said, its body and inline comments as one text: what the fix is handed when that review asked for changes. */

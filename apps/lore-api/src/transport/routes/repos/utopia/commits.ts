@@ -13,6 +13,7 @@ import {
 import { zodResponse } from "../../../http/zod-response.js";
 import { zodValidate } from "../../../http/zod-validate.js";
 import { bearerScope } from "../../../http/bearer-scope.js";
+import { repoLevel } from "../../../http/repo-guard.js";
 import { withPool } from "../../with-pool.js";
 import { mirrorBranchCommits } from "../../../../work/utopia/git-history/utopia-commits.js";
 import { heldBackfillDeps } from "./backfill.js";
@@ -26,24 +27,23 @@ const UtopiaCommitsBody = z
 
 type UtopiaCommitsBody = z.infer<typeof UtopiaCommitsBody>;
 
+const COMMITS_OPTIONS = {
+  ...bearerScope("admin"),
+  ...repoLevel("admin"),
+  validate: { payload: zodValidate(UtopiaCommitsBody) },
+};
+
 /** POST /api/repos/{owner}/{repo}/utopia/commits — the default branch's commits above the stored cursor, mirrored into the repo's Utopia knowledge base (specs/utopia-graph-mirror FR12). */
 export function utopiaCommitsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/utopia/commits",
-    options: zodResponse(
-      {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(UtopiaCommitsBody) },
-      },
-      UtopiaCommitsSummarySchema,
-      {
-        name: "UtopiaCommitsSummary",
-        description:
-          "The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one",
-        errors: [400, 404, 409],
-      },
-    ),
+    options: zodResponse(COMMITS_OPTIONS, UtopiaCommitsSummarySchema, {
+      name: "UtopiaCommitsSummary",
+      description:
+        "The cursor the walk started above, the newest commit pushed, Utopia's created/updated/unchanged item counts, and the commit the walk stopped at; skipped names a branch that is not the default one",
+      errors: [400, 404, 409],
+    }),
     handler: withPool(getPool, serveUtopiaCommits),
   };
 }

@@ -1,5 +1,5 @@
+import { apiSegment, idParam } from "../shared/api-segment.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { proxyGetApi } from "../shared/deps.js";
 import { proxiedText, type RemoteTaskLite } from "./shared/pipeline-api.js";
 
@@ -10,9 +10,9 @@ type TaskGroupResponse = {
 };
 
 const LIST_TASK_GROUP_INPUT = {
-  group_id: z
-    .string()
-    .describe("Task-group UUID (a plan's spec-tasks share one)."),
+  group_id: idParam.describe(
+    "Task-group UUID (a plan's spec-tasks share one).",
+  ),
 };
 
 export function registerListTaskGroupTool(server: McpServer) {
@@ -26,7 +26,7 @@ export function registerListTaskGroupTool(server: McpServer) {
 
 function listTaskGroup(groupId: string) {
   return proxiedText(
-    () => proxyGetApi(`/api/task-groups/${encodeURIComponent(groupId)}`),
+    () => proxyGetApi(`/api/task-groups/${apiSegment(groupId)}`),
     {
       op: "listing a task group",
       toolName: "lore_list_task_group",

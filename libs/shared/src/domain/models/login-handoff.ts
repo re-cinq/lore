@@ -4,6 +4,7 @@ import type { ColumnMap } from "../../lib/row.js";
 /* `lore.login_handoffs` — the one-time rows of the GitHub sign-in lore-api runs for the web UI: a `state` row binds the GitHub round trip to the page that started it, a `redeem` row holds the signed-in person until the web UI swaps its code for a session token. Only the sha256 of the code is stored, and taking a row deletes it. */
 
 export const UserGrantSchema = z.object({
+  githubId: z.number().int().positive(),
   login: z.string(),
   name: z.string(),
   avatarUrl: z.string(),
@@ -21,6 +22,7 @@ export const LoginHandoffSchema = z.object({
   returnUrl: z.string(),
   grant: UserGrantSchema.nullable(),
   encryptedTokens: z.string().nullable(),
+  generation: z.number().int().nullable(),
   expiresAt: z.date(),
 });
 
@@ -32,5 +34,6 @@ export const LOGIN_HANDOFF_COLUMNS = {
   returnUrl: "return_url",
   grant: "grant_json",
   encryptedTokens: "encrypted_tokens",
+  generation: "generation",
   expiresAt: "expires_at",
 } as const satisfies ColumnMap<LoginHandoff>;

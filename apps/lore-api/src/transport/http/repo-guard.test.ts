@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import Hapi from "@hapi/hapi";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { bearerScope, registerBearerScope } from "./bearer-scope.js";
-import { enforceRepoOpen, registerRepoGuard } from "./repo-guard.js";
+import { enforceRepoOpen, registerRepoGuard, repoLevel } from "./repo-guard.js";
 
 const LEGACY = "legacy-service-token";
 
@@ -19,6 +19,7 @@ function lore() {
       {
         scopes: ["admin"],
         kind: "user",
+        github_id: "4242",
         login: "ben",
         repos: [],
         startedAt: new Date("2026-11-18T10:00:00Z"),
@@ -179,5 +180,157 @@ describe("the repo guard", () => {
       status: 200,
       reached: ["onboard"],
     });
+  });
+});
+
+describe("the repo guard on declared levels", () => {
+  it("answers a person 403 before the route runs when their level on the repo is below the route's declared level", async () => {
+    const readCaller = leveledLore("read");
+    const writeCaller = leveledLore("write");
+    const readOnWrite = await readCaller.call("/api/repos/acme/app/commit");
+    const writeOnWrite = await writeCaller.call("/api/repos/acme/app/commit");
+    const writeOnAdmin = await writeCaller.call(
+      "/api/repos/acme/app/mirror/move",
+    );
+
+    expect({
+      readOnWrite: [readOnWrite.statusCode, JSON.parse(readOnWrite.payload)],
+      readReached: readCaller.reached,
+      writeOnWrite: writeOnWrite.statusCode,
+      writeOnAdmin: [writeOnAdmin.statusCode, JSON.parse(writeOnAdmin.payload)],
+      writeAskedLevels: writeCaller.askedLevels,
+      writeReached: writeCaller.reached,
+    }).toEqual({
+      readOnWrite: [403, { error: "repository not allowed" }],
+      readReached: [],
+      writeOnWrite: 200,
+      writeOnAdmin: [403, { error: "repository not allowed" }],
+      writeAskedLevels: [
+        ["acme/app", "write"],
+        ["acme/app", "admin"],
+      ],
+      writeReached: ["commit"],
+    });
+  });
+});
+
+type DeclaredLevel = Parameters<typeof repoLevel>[0];
+
+const RANK: Record<DeclaredLevel, number> = { read: 1, write: 2, admin: 3 };
+
+function leveledLore(grantedOnAcme: DeclaredLevel) {
+  const askedLevels: Array<[string, DeclaredLevel]> = [];
+  const pool = makePool();
+  const server = Hapi.server();
+
+  process.env.LORE_INGEST_TOKEN = LEGACY;
+  pool.query.mockResolvedValue({
+    rows: [
+      {
+        scopes: ["admin"],
+        kind: "user",
+        github_id: "4242",
+        login: "ben",
+        repos: [],
+        startedAt: new Date("2026-11-18T10:00:00Z"),
+        expiresAt: null,
+      },
+    ],
+  });
+  registerBearerScope(server, () => pool as never);
+  registerRepoGuard(server, {
+    canOpen: async (principal, repo, level = "read") => {
+      askedLevels.push([repo, level]);
+
+      return (
+        principal.user === null ||
+        (repo === "acme/app" && RANK[grantedOnAcme] >= RANK[level])
+      );
+    },
+  });
+  const reached: string[] = [];
+  const handler = (name: string) => () => (reached.push(name), { ok: true });
+
+  server.route([
+    {
+      method: "POST",
+      path: "/api/repos/{owner}/{repo}/commit",
+      options: { ...bearerScope("write"), ...repoLevel("write") },
+      handler: handler("commit"),
+    },
+    {
+      method: "POST",
+      path: "/api/repos/{owner}/{repo}/mirror/move",
+      options: { ...bearerScope("admin"), ...repoLevel("admin") },
+      handler: handler("mirror-move"),
+    },
+  ]);
+
+  return {
+    askedLevels,
+    reached,
+    call: (url: string) =>
+      server.inject({
+        method: "POST",
+        url,
+        headers: { authorization: "Bearer ben-session" },
+      }),
+  };
+}
+
+describe("enforceRepoOpen", () => {
+  it("asks for the level the route declares when a handler checks the repo it names in its body", async () => {
+    const asked: Array<[string, string]> = [];
+    const pool = makePool();
+    const server = Hapi.server();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          scopes: ["admin"],
+          kind: "user",
+          github_id: "4242",
+          login: "ben",
+          repos: [],
+          startedAt: new Date("2026-11-18T10:00:00Z"),
+          expiresAt: null,
+        },
+      ],
+    });
+    registerBearerScope(server, () => pool as never);
+    registerRepoGuard(server, {
+      canOpen: async (_principal, repo, level = "read") => {
+        asked.push([repo, level]);
+
+        return true;
+      },
+    });
+    server.route({
+      method: "POST",
+      path: "/api/declared-write",
+      options: {
+        ...bearerScope("write"),
+        ...repoLevel("write", { from: "payload", name: "repo" }),
+      },
+      handler: async (request) => {
+        await enforceRepoOpen(request, "acme/app");
+        await enforceRepoOpen(request, "acme/other", "admin");
+
+        return { ok: true };
+      },
+    });
+    await server.inject({
+      method: "POST",
+      url: "/api/declared-write",
+      headers: { authorization: "Bearer ben-session" },
+      payload: { repo: "acme/app" },
+    });
+
+    expect(asked).toEqual(
+      expect.arrayContaining([
+        ["acme/app", "write"],
+        ["acme/other", "admin"],
+      ]),
+    );
   });
 });

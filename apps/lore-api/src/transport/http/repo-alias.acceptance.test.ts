@@ -166,6 +166,7 @@ function personToken(login: string, repos: string[]) {
   return {
     scopes: ["admin"],
     kind: "user",
+    github_id: "4242",
     login,
     displayName: login,
     avatarUrl: null,

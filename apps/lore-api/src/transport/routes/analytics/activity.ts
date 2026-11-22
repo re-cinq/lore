@@ -22,6 +22,7 @@ import {
 } from "@re-cinq/lore-shared/models/job-run.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit, offsetParam, optionalBool } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
@@ -213,6 +214,7 @@ function eventsRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(EventsQuery) },
       },
       EventListSchema,

@@ -8,7 +8,9 @@ import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { actingEnv } from "../../http/acting-env.js";
 import { repoOf, fail } from "./station-helpers.js";
 import { OkSchema } from "../../http/ok-schema.js";
 
@@ -65,6 +67,7 @@ export function createIssueRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(IssueBody) },
       },
       IssueRefSchema,
@@ -82,7 +85,10 @@ async function serveCreateIssue(
     const { title, body, labels } = request.payload as z.infer<
       typeof IssueBody
     >;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     return h.response(await p.issues.create(title, body, labels));
   } catch (err) {
@@ -97,6 +103,7 @@ export function createBranchRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(BranchBody) },
       },
       OkSchema,
@@ -112,7 +119,10 @@ async function serveCreateBranch(
 ): Promise<ResponseObject> {
   try {
     const { branch, base } = request.payload as z.infer<typeof BranchBody>;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.repo.createBranch(branch, base);
 
@@ -129,6 +139,7 @@ export function commitRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(CommitBody) },
       },
       OkSchema,
@@ -146,7 +157,10 @@ async function serveCommit(
     const { branch, path, content, message } = request.payload as z.infer<
       typeof CommitBody
     >;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.repo.commitFile(branch, path, content, message);
 
@@ -163,6 +177,7 @@ export function createPullRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(PullBody) },
       },
       PullRefSchema,
@@ -180,7 +195,10 @@ async function serveCreatePull(
     const { branch, title, body, base, labels } = request.payload as z.infer<
       typeof PullBody
     >;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     return h.response(
       await p.pulls.open(branch, { title, body, base, labels }),

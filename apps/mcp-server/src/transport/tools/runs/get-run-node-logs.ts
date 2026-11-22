@@ -1,3 +1,4 @@
+import { apiSegment, idParam } from "../shared/api-segment.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { readRun, runPath } from "./shared/run-read.js";
@@ -8,10 +9,7 @@ export const GET_RUN_NODE_LOGS_DESCRIPTION =
 
 const GET_RUN_NODE_LOGS_INPUT = {
   run_id: RUN_ID,
-  node: z
-    .string()
-    .min(1)
-    .describe("The visit's node name, e.g. floor-<visitId>."),
+  node: idParam.describe("The visit's node name, e.g. floor-<visitId>."),
   tail: z
     .number()
     .int()
@@ -33,7 +31,7 @@ export function registerGetRunNodeLogsTool(server: McpServer) {
           get(
             runPath(
               run_id,
-              `/nodes/${encodeURIComponent(node)}/logs${tail ? `?tail=${tail}` : ""}`,
+              `/nodes/${apiSegment(node)}/logs${tail ? `?tail=${tail}` : ""}`,
             ),
           ),
       }),

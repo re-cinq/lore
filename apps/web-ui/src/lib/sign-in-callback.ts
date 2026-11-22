@@ -1,4 +1,5 @@
-export type SignInFailure = "not_in_org" | "github_denied" | "state_expired";
+export type SignInFailure =
+  "not_in_org" | "github_denied" | "state_expired" | "install_fault";
 
 export type CallbackAction =
   | { action: "redeem"; code: string }
@@ -9,6 +10,7 @@ const FAILURES: SignInFailure[] = [
   "not_in_org",
   "github_denied",
   "state_expired",
+  "install_fault",
 ];
 
 /** What the sign-in's return trip asks of the UI: swap a code for a session, show why it failed, or nothing sensible. */
@@ -37,4 +39,6 @@ const MESSAGES: Record<SignInFailure, string> = {
     "Your GitHub account is not a member of the organisation that runs this Lore.",
   state_expired: "The sign-in took too long. Start again.",
   github_denied: "GitHub did not complete the sign-in.",
+  install_fault:
+    "Lore's GitHub App cannot ask GitHub whether you are a member of the organisation. An organisation owner must grant the App the Members (read) permission.",
 };

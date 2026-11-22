@@ -4,6 +4,7 @@ import { redeemRoute } from "./redeem.js";
 import { serve, testDeps } from "./auth-test-server.js";
 
 const grant = {
+  githubId: 4242,
   login: "gedaiu",
   name: "Bogdan",
   avatarUrl: "https://a/1",
@@ -31,6 +32,7 @@ describe("POST /api/auth/redeem", () => {
     const code = await deps.handoffs.put("redeem", {
       returnUrl: "http://localhost:3000/x",
       grant,
+      generation: 0,
     });
     const server = serve([redeemRoute(deps)]);
 
@@ -52,6 +54,7 @@ describe("POST /api/auth/redeem", () => {
     const code = await deps.handoffs.put("redeem", {
       returnUrl: "http://localhost:3000/x",
       grant,
+      generation: 0,
     });
     const res = await redeemWith(code, serve([redeemRoute(deps)]));
     const body = JSON.parse(res.payload);
@@ -71,12 +74,17 @@ describe("POST /api/auth/redeem", () => {
     });
     const deps = testDeps();
 
-    deps.query.mockResolvedValueOnce({ rows: saved }).mockResolvedValue({
-      rows: [{ id: "t-1", name: "n", scopes: [], created_at: "now" }],
-    });
+    deps.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: saved })
+      .mockResolvedValue({
+        rows: [{ id: "t-1", name: "n", scopes: [], created_at: "now" }],
+      });
     const code = await deps.handoffs.put("redeem", {
       returnUrl: "http://localhost:3000/x",
       grant,
+      generation: 0,
     });
 
     await redeemWith(code, serve([redeemRoute(deps)]));
@@ -87,7 +95,7 @@ describe("POST /api/auth/redeem", () => {
   it("stores a user token that expires in 8 hours with the person's repos when no length is saved", async () => {
     const calls = await queriesOfSignInWith([]);
 
-    expect({ asked: calls[0][1], minted: calls[1][1] }).toEqual({
+    expect({ asked: calls[2][1], minted: calls[3][1] }).toEqual({
       asked: ["session_length_hours"],
       minted: [
         "web-ui session gedaiu",
@@ -100,6 +108,9 @@ describe("POST /api/auth/redeem", () => {
         "Bogdan",
         "https://a/1",
         ["re-cinq/lore"],
+        4242,
+        0,
+        null,
       ],
     });
   });
@@ -107,7 +118,7 @@ describe("POST /api/auth/redeem", () => {
   it("stores a user token that expires in 168 hours when session_length_hours is 168", async () => {
     const calls = await queriesOfSignInWith([{ value: "168" }]);
 
-    expect(calls[1][1][4]).toEqual(new Date(Date.now() + 168 * HOUR_MS));
+    expect(calls[3][1][4]).toEqual(new Date(Date.now() + 168 * HOUR_MS));
   });
 
   it("answers 401 for a state code used as a redeem code", async () => {
@@ -128,6 +139,7 @@ describe("POST /api/auth/redeem", () => {
     const code = await txDeps.handoffs.put("redeem", {
       returnUrl: "http://localhost:3000/x",
       grant,
+      generation: 0,
       encryptedTokens: "v1.iv.tag.cipher",
     });
 
@@ -136,12 +148,14 @@ describe("POST /api/auth/redeem", () => {
     expect({
       statusCode: res.statusCode,
       sqls: txQueries.map((q) => q.sql.trim()),
-      tokenInsertParams: txQueries[3]?.params,
+      tokenInsertParams: txQueries[5]?.params,
       released: release.mock.calls.length,
     }).toEqual({
       statusCode: 200,
       sqls: [
         "BEGIN",
+        expect.stringContaining("pg_advisory_xact_lock"),
+        expect.stringContaining("FROM pipeline.person_generations"),
         expect.stringContaining("FROM lore.settings"),
         expect.stringContaining("INSERT INTO pipeline.api_tokens"),
         expect.stringContaining("INSERT INTO pipeline.user_session_tokens"),
@@ -152,7 +166,80 @@ describe("POST /api/auth/redeem", () => {
     });
   });
 
-  it("mints the session and writes no user_session_tokens row when the handoff carries no encrypted tokens", async () => {
+  it("stores the GitHub numeric user id on the session row it creates on redeem", async () => {
+    const calls = await queriesOfSignInWith([]);
+
+    expect(calls[3][1][10]).toBe(4242);
+  });
+
+  it("takes the advisory lock keyed by the person's GitHub numeric user id before it creates the session", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+      generation: 0,
+    });
+
+    await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    const lockAt = txQueries.findIndex((q) =>
+      q.sql.includes("pg_advisory_xact_lock"),
+    );
+    const insertAt = txQueries.findIndex((q) =>
+      q.sql.includes("INSERT INTO pipeline.api_tokens"),
+    );
+
+    expect({
+      lockParams: txQueries[lockAt]?.params,
+      lockedBeforeInsert: lockAt >= 0 && lockAt < insertAt,
+    }).toEqual({ lockParams: [4242], lockedBeforeInsert: true });
+  });
+
+  it("answers 401 and writes no session or token row for a code whose grant carries no GitHub numeric user id", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query);
+    const txDeps = { ...deps, getPool: () => pool };
+    const { githubId: _omitted, ...grantWithoutId } = grant;
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant: grantWithoutId as never,
+      generation: 0,
+      encryptedTokens: "v1.iv.tag.cipher",
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    expect({
+      statusCode: res.statusCode,
+      writes: txQueries.filter((q) => /INSERT|UPDATE/.test(q.sql)),
+    }).toEqual({ statusCode: 401, writes: [] });
+  });
+
+  it("answers 401 and writes no session or token row when the person's generation is 1 and the code's row carries 0", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query, [
+      { generation: 1 },
+    ]);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+      generation: 0,
+      encryptedTokens: "v1.iv.tag.cipher",
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    expect({
+      statusCode: res.statusCode,
+      locked: txQueries.some((q) => q.sql.includes("pg_advisory_xact_lock")),
+      writes: txQueries.filter((q) => /INSERT|UPDATE/.test(q.sql)),
+    }).toEqual({ statusCode: 401, locked: true, writes: [] });
+  });
+
+  it("answers 401 and writes no session or token row for a code whose row carries no generation", async () => {
     const deps = testDeps();
     const { pool, txQueries } = transactionalPool(deps.query);
     const txDeps = { ...deps, getPool: () => pool };
@@ -165,11 +252,54 @@ describe("POST /api/auth/redeem", () => {
 
     expect({
       statusCode: res.statusCode,
+      writes: txQueries.filter((q) => /INSERT|UPDATE/.test(q.sql)),
+    }).toEqual({ statusCode: 401, writes: [] });
+  });
+
+  it("records the generation 2 the code's row carries on the session row it creates when the person's generation is 2", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query, [
+      { generation: 2 },
+    ]);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+      generation: 2,
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+    const insert = txQueries.find((q) =>
+      q.sql.includes("INSERT INTO pipeline.api_tokens"),
+    );
+
+    expect({
+      statusCode: res.statusCode,
+      generationParam: insert?.params[11],
+    }).toEqual({ statusCode: 200, generationParam: 2 });
+  });
+
+  it("mints the session and writes no user_session_tokens row when the handoff carries no encrypted tokens", async () => {
+    const deps = testDeps();
+    const { pool, txQueries } = transactionalPool(deps.query);
+    const txDeps = { ...deps, getPool: () => pool };
+    const code = await txDeps.handoffs.put("redeem", {
+      returnUrl: "http://localhost:3000/x",
+      grant,
+      generation: 0,
+    });
+
+    const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
+
+    expect({
+      statusCode: res.statusCode,
       sqls: txQueries.map((q) => q.sql.trim()),
     }).toEqual({
       statusCode: 200,
       sqls: [
         "BEGIN",
+        expect.stringContaining("pg_advisory_xact_lock"),
+        expect.stringContaining("FROM pipeline.person_generations"),
         expect.stringContaining("FROM lore.settings"),
         expect.stringContaining("INSERT INTO pipeline.api_tokens"),
         "COMMIT",
@@ -178,7 +308,10 @@ describe("POST /api/auth/redeem", () => {
   });
 });
 
-function transactionalPool(query: ReturnType<typeof testDeps>["query"]) {
+function transactionalPool(
+  query: ReturnType<typeof testDeps>["query"],
+  personGenerationRows: Array<{ generation: number }> = [],
+) {
   const txQueries: Array<{ sql: string; params: unknown[] }> = [];
   const release = vi.fn();
   const client = {
@@ -189,6 +322,10 @@ function transactionalPool(query: ReturnType<typeof testDeps>["query"]) {
         return {
           rows: [{ id: "t-1", name: "n", scopes: [], created_at: "now" }],
         };
+      }
+
+      if (sql.includes("FROM pipeline.person_generations")) {
+        return { rows: personGenerationRows };
       }
 
       return { rows: [] };
