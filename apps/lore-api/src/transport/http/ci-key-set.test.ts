@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchKeySet, findKey } from "./ci-key-set.js";
 
 const ISSUER = "https://ghe.example.com/_services/token";
@@ -227,5 +227,128 @@ describe("findKey refuses what is not the issuer's key set", () => {
       concurrent: concurrent.map((jwk) => jwk?.kid),
       kept: kept?.kid,
     }).toEqual({ concurrent: ["a-key", undefined], kept: undefined });
+  });
+});
+
+describe("findKey cache lifetime", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps the key set for one hour when max-age cannot be read", async () => {
+    const fetches: Record<string, number> = {};
+
+    for (const header of ["max-age=120abc", "s-maxage=120", "max-age=soon"]) {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      let jwksFetches = 0;
+      const doFetch = (async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.endsWith("/openid-configuration")) {
+          return new Response(
+            JSON.stringify({ jwks_uri: "https://ghe.example.com/jwks" }),
+          );
+        }
+        jwksFetches += 1;
+
+        return new Response(JSON.stringify({ keys: [{ kid: "k1" }] }), {
+          headers: { "cache-control": header },
+        });
+      }) as typeof fetch;
+      const issuer = `${ISSUER}/${header}`;
+
+      await findKey(issuer, "k1", doFetch);
+      vi.setSystemTime(new Date("2026-01-01T00:30:00Z"));
+      await findKey(issuer, "k1", doFetch);
+      fetches[header] = jwksFetches;
+      vi.useRealTimers();
+    }
+
+    expect(fetches).toEqual({
+      "max-age=120abc": 1,
+      "s-maxage=120": 1,
+      "max-age=soon": 1,
+    });
+  });
+
+  it("honours a max-age that sits among other cache-control directives", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    let jwksFetches = 0;
+    const doFetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/openid-configuration")) {
+        return new Response(
+          JSON.stringify({ jwks_uri: "https://ghe.example.com/jwks" }),
+        );
+      }
+      jwksFetches += 1;
+
+      return new Response(JSON.stringify({ keys: [{ kid: "k1" }] }), {
+        headers: { "cache-control": "public, max-age=60, immutable" },
+      });
+    }) as typeof fetch;
+    const issuer = `${ISSUER}/listed`;
+
+    await findKey(issuer, "k1", doFetch);
+    vi.setSystemTime(new Date("2026-01-01T00:00:30Z"));
+    await findKey(issuer, "k1", doFetch);
+    const withinLifetime = jwksFetches;
+
+    vi.setSystemTime(new Date("2026-01-01T00:01:30Z"));
+    await findKey(issuer, "k1", doFetch);
+
+    expect({ withinLifetime, afterLifetime: jwksFetches }).toEqual({
+      withinLifetime: 1,
+      afterLifetime: 2,
+    });
+  });
+});
+
+describe("findKey after the kept key set expires", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("refuses rather than answer from the expired set when the refetch errors", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    const issuer = `${ISSUER}/expired-refetch-fails`;
+    let jwksAnswer: "keys" | "error" | "throw" = "keys";
+    const doFetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.endsWith("/openid-configuration")) {
+        return new Response(
+          JSON.stringify({ jwks_uri: "https://ghe.example.com/jwks" }),
+        );
+      }
+
+      enforceTrue(jwksAnswer !== "throw", Error, "connection reset");
+
+      return jwksAnswer === "error"
+        ? new Response("{}", { status: 500 })
+        : new Response(JSON.stringify({ keys: [{ kid: "k1" }] }), {
+            headers: { "cache-control": "max-age=60" },
+          });
+    }) as typeof fetch;
+    const outcome = (lookup: Promise<unknown>) =>
+      lookup.then(
+        (jwk) => (jwk as { kid?: string } | undefined)?.kid ?? "none",
+        () => "refused",
+      );
+
+    const fresh = await outcome(findKey(issuer, "k1", doFetch));
+
+    vi.setSystemTime(new Date("2026-01-01T00:01:01Z"));
+    jwksAnswer = "error";
+    const afterServerError = await outcome(findKey(issuer, "k1", doFetch));
+
+    jwksAnswer = "throw";
+    const afterNetworkError = await outcome(findKey(issuer, "k1", doFetch));
+
+    expect({ fresh, afterServerError, afterNetworkError }).toEqual({
+      fresh: "k1",
+      afterServerError: "refused",
+      afterNetworkError: "refused",
+    });
   });
 });

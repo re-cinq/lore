@@ -112,7 +112,7 @@ async function fetchKeySetWithTtl(
 
 /** One hour, or the header's max-age when that is shorter. */
 function ttlMs(cacheControl: string | null): number {
-  const maxAge = /max-age=(\d+)/i.exec(cacheControl ?? "");
+  const maxAge = /(?:^|,)\s*max-age=(\d+)\s*(?:,|$)/i.exec(cacheControl ?? "");
 
   return maxAge ? Math.min(MAX_TTL_MS, Number(maxAge[1]) * 1000) : MAX_TTL_MS;
 }

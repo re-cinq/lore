@@ -115,6 +115,11 @@ export async function repositoryOnboarded(
   return rows.length > 0;
 }
 
+/** Whether the token comes from a pull request of a fork: `pull_request_target` runs a fork's code in the base repository's context, while a fork's own `pull_request` token names a repository that is not onboarded (FR-076). */
+export function fromForkPullRequest(claims: IdentityTokenClaims): boolean {
+  return claims.event_name === "pull_request_target";
+}
+
 /** The claims of an identity token that is trusted, addressed to this install, current and from an onboarded repository; null otherwise. */
 export async function verifyIdentityToken(
   pool: Pool,
@@ -124,9 +129,20 @@ export async function verifyIdentityToken(
 ): Promise<IdentityTokenClaims | null> {
   const claims = await verifyIdentityTokenSignature(token, env);
 
-  return claims &&
-    claimsCurrent(claims, env.audience, Math.floor(nowMs / 1000)) &&
-    (await repositoryOnboarded(pool, claims))
-    ? claims
-    : null;
+  if (!claims || !acceptable(claims, env.audience, Math.floor(nowMs / 1000))) {
+    return null;
+  }
+
+  return (await repositoryOnboarded(pool, claims)) ? claims : null;
+}
+
+/** Whether the claims are current and not from a fork pull request (FR-072, FR-076). */
+function acceptable(
+  claims: IdentityTokenClaims,
+  audience: string | undefined,
+  nowSec: number,
+): boolean {
+  return (
+    claimsCurrent(claims, audience, nowSec) && !fromForkPullRequest(claims)
+  );
 }
