@@ -234,7 +234,7 @@ lore-api:
       iam.gke.io/gcp-service-account: lore-api@re-cinq-internal.iam.gserviceaccount.com
   image:
     repository: ghcr.io/re-cinq/lore-security-api
-    tag: "e9057b5"
+    tag: "e2752e8"
   env:
     # Every model call of lore-api itself (fact and graph extraction, episode
     # curation, the context evals' question writer) runs on Gemini under the
