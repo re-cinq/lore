@@ -9,9 +9,7 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
-import { principalOf } from "../../http/bearer-scope.js";
-import { personGithubEnv } from "../../../work/auth/person-github-env.js";
+import { actingEnv } from "../../http/acting-env.js";
 import { repoOf, fail } from "./station-helpers.js";
 import { OkSchema } from "../../http/ok-schema.js";
 
@@ -118,7 +116,10 @@ async function serveCreateBranch(
 ): Promise<ResponseObject> {
   try {
     const { branch, base } = request.payload as z.infer<typeof BranchBody>;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.repo.createBranch(branch, base);
 
@@ -152,7 +153,10 @@ async function serveCommit(
     const { branch, path, content, message } = request.payload as z.infer<
       typeof CommitBody
     >;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.repo.commitFile(branch, path, content, message);
 
@@ -197,12 +201,4 @@ async function serveCreatePull(
   } catch (err) {
     return fail(h, err);
   }
-}
-
-/** A person's session acts on GitHub with that person's token, never the App's (FR-175, FR-177); a non-person caller keeps the App. */
-function actingEnv(request: Request): Promise<NodeJS.ProcessEnv | undefined> {
-  return personGithubEnv(getPool(), {
-    person: principalOf(request).user !== null,
-    tokenHash: principalOf(request).tokenHash,
-  });
 }

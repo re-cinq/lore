@@ -50,7 +50,7 @@ interface HarnessConfig {
   permissions?: Record<string, "admin" | "write" | "read" | "none">;
 }
 
-describe("Person-scoped stored reads, onboarding writes, and pull/issue writes (FR-031 to FR-177)", () => {
+describe("Person-scoped stored reads, onboarding writes, and pull/issue/webhook/branch/commit writes (FR-031 to FR-297)", () => {
   beforeEach(() => {
     nowMs += 600_000;
     vi.useFakeTimers({ now: nowMs, toFake: ["Date"] });
@@ -385,7 +385,208 @@ describe("Person-scoped stored reads, onboarding writes, and pull/issue writes (
       githubWrites: harness.githubWrites.length,
     }).toEqual({ status: 500, githubWrites: 0 });
   }, 15_000);
+
+  it("makes the change with the person's token on POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/app"],
+      permissions: { "acme/app": "write" },
+    });
+    const token = await signIn(harness.server);
+
+    const outcomes = await callEveryChangeRoute(harness, token);
+
+    expect(outcomes).toEqual(
+      CHANGE_ROUTES.map(({ githubWrite }) => ({
+        status: 200,
+        githubWrite,
+        actor: "person",
+      })),
+    );
+  }, 15_000);
+
+  it("refuses POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues with 500 when the person's stored GitHub token cannot be read, writing nothing on GitHub", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/app"],
+      permissions: { "acme/app": "write" },
+    });
+    const token = await signIn(harness.server);
+
+    delete process.env.LORE_USER_TOKEN_ENCRYPTION_KEY;
+    const outcomes = await callEveryChangeRoute(harness, token);
+
+    expect({
+      statuses: outcomes.map((outcome) => outcome.status),
+      githubWrites: harness.githubWrites.length,
+    }).toEqual({
+      statuses: CHANGE_ROUTES.map(() => 500),
+      githubWrites: 0,
+    });
+  }, 15_000);
+
+  it("refuses POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues with 403 on a repository outside the person's installation list, writing nothing on GitHub", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/app"],
+      permissions: { "acme/app": "write", "other/secret": "admin" },
+    });
+    const token = await signIn(harness.server);
+
+    const outcomes = await callEveryChangeRoute(harness, token, "other/secret");
+
+    expect({
+      statuses: outcomes.map((outcome) => outcome.status),
+      githubWrites: harness.githubWrites.length,
+    }).toEqual({
+      statuses: CHANGE_ROUTES.map(() => 403),
+      githubWrites: 0,
+    });
+  }, 15_000);
+
+  it("cuts the onboarding branch on GitHub with the person's token on POST /api/onboard", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/new-repo"],
+      permissions: { "acme/new-repo": "admin" },
+    });
+    const token = await signIn(harness.server);
+
+    const response = await harness.server.inject({
+      method: "POST",
+      url: "/api/onboard",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { repo: "acme/new-repo" },
+    });
+
+    expect({
+      status: response.statusCode,
+      branchWrites: harness.githubWrites
+        .filter((write) => write.path.endsWith("/git/refs"))
+        .map((write) => ({
+          path: write.path,
+          actor: actorOf(write.authorization),
+        })),
+    }).toEqual({
+      status: 200,
+      branchWrites: [
+        { path: "/repos/acme/new-repo/git/refs", actor: "person" },
+      ],
+    });
+  }, 15_000);
+
+  it("makes the change as the App on POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues when called with the wide service token", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/app"],
+      permissions: { "acme/app": "write" },
+    });
+
+    const outcomes = await callEveryChangeRoute(harness, LEGACY_TOKEN);
+
+    expect(outcomes).toEqual(
+      CHANGE_ROUTES.map(({ githubWrite }) => ({
+        status: 200,
+        githubWrite,
+        actor: "app",
+      })),
+    );
+  }, 15_000);
+
+  it("makes the change as the App, not with any person's token, on POST webhook/ensure, POST branches, POST commit, POST sub-issues and PATCH issues when called with a token a person minted", async () => {
+    const harness = createHarness({
+      installationRepos: ["acme/app"],
+      permissions: { "acme/app": "write" },
+    });
+    const sessionToken = await signIn(harness.server);
+    const mintRes = await harness.server.inject({
+      method: "POST",
+      url: "/api/tokens",
+      headers: { authorization: `Bearer ${sessionToken}` },
+      payload: { name: "person-ci", scopes: ["write"] },
+    });
+    const mintedToken = (mintRes.result as { token: string }).token;
+
+    const outcomes = await callEveryChangeRoute(harness, mintedToken);
+
+    expect(outcomes).toEqual(
+      CHANGE_ROUTES.map(({ githubWrite }) => ({
+        status: 200,
+        githubWrite,
+        actor: "app",
+      })),
+    );
+  }, 15_000);
 });
+
+const CHANGE_ROUTES = [
+  {
+    method: "POST",
+    path: "webhook/ensure",
+    payload: {},
+    githubWrite: "POST /repos/acme/app/hooks",
+  },
+  {
+    method: "POST",
+    path: "branches",
+    payload: { branch: "feat/x", base: "main" },
+    githubWrite: "POST /repos/acme/app/git/refs",
+  },
+  {
+    method: "POST",
+    path: "commit",
+    payload: {
+      branch: "feat/x",
+      path: "docs/a.md",
+      content: "hello",
+      message: "add a",
+    },
+    githubWrite: "PUT /repos/acme/app/contents/docs%2Fa.md",
+  },
+  {
+    method: "POST",
+    path: "issues/7/sub-issues",
+    payload: { child: 8 },
+    githubWrite: "POST /repos/acme/app/issues/7/sub_issues",
+  },
+  {
+    method: "PATCH",
+    path: "issues/7",
+    payload: { title: "new title" },
+    githubWrite: "PATCH /repos/acme/app/issues/7",
+  },
+];
+
+async function callEveryChangeRoute(
+  harness: ReturnType<typeof createHarness>,
+  token: string,
+  repo = "acme/app",
+) {
+  const outcomes = [];
+
+  for (const route of CHANGE_ROUTES) {
+    vi.setSystemTime((nowMs += 10_000));
+    const before = harness.githubWrites.length;
+    const response = await harness.server.inject({
+      method: route.method as "POST" | "PATCH",
+      url: `/api/repos/${repo}/${route.path}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: route.payload,
+    });
+    const write = harness.githubWrites.slice(before)[0];
+
+    outcomes.push({
+      status: response.statusCode,
+      githubWrite: write ? `${write.method} ${write.path}` : "",
+      actor: write ? actorOf(write.authorization) : "none",
+    });
+  }
+
+  return outcomes;
+}
+
+function actorOf(authorization: string): "person" | "app" | "other" {
+  if (isUserAuth(authorization)) {
+    return "person";
+  }
+
+  return authorization.includes(APP_TOKEN) ? "app" : "other";
+}
 
 async function postPullAndIssue(
   server: ReturnType<typeof buildServer>,
@@ -752,7 +953,34 @@ function handleGithubRepoOpsFetch(
     return onboardingReply;
   }
 
-  return handlePullAndIssueFetch(url, request, githubWrites);
+  return (
+    handleChangeFetch(url, request, githubWrites) ??
+    handlePullAndIssueFetch(url, request, githubWrites)
+  );
+}
+
+function handleChangeFetch(
+  url: URL,
+  request: { method: string; authorization: string; bodyText: string },
+  githubWrites: RecordedGithubWrite[],
+): Response | null {
+  const key = `${request.method} ${url.pathname}`;
+
+  if (/^GET \/repos\/[^/]+\/[^/]+\/issues\/\d+$/.test(key)) {
+    return jsonResponse({ id: 5008, number: 8 });
+  }
+
+  if (
+    /^(PUT \/repos\/[^/]+\/[^/]+\/contents\/.+|PATCH \/repos\/[^/]+\/[^/]+\/issues\/\d+|POST \/repos\/[^/]+\/[^/]+\/issues\/\d+\/sub_issues)$/.test(
+      key,
+    )
+  ) {
+    recordWrite(githubWrites, request, url.pathname);
+
+    return jsonResponse({ number: 7, content: { sha: "c0ffee" } }, 200);
+  }
+
+  return null;
 }
 
 function handleOnboardingGithubFetch(
@@ -810,7 +1038,7 @@ function handleHookAndBranchFetch(
     return hookReply;
   }
 
-  return handleBranchFetch(url, request);
+  return handleBranchFetch(url, request, githubWrites);
 }
 
 function handleHookFetch(
@@ -839,7 +1067,8 @@ function handleHookFetch(
 
 function handleBranchFetch(
   url: URL,
-  request: { method: string },
+  request: { method: string; authorization: string; bodyText: string },
+  githubWrites: RecordedGithubWrite[],
 ): Response | null {
   const key = `${request.method} ${decodeURIComponent(url.pathname)}`;
 
@@ -852,6 +1081,8 @@ function handleBranchFetch(
   }
 
   if (/^POST \/repos\/[^/]+\/[^/]+\/git\/refs$/.test(key)) {
+    recordWrite(githubWrites, request, url.pathname);
+
     return jsonResponse({ ref: "refs/heads/lore/onboard/task-1" }, 201);
   }
 

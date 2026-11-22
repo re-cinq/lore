@@ -13,9 +13,16 @@ vi.mock("../../../work/webhook/webhook-manage.js", () => ({
 vi.mock("../../../work/webhook/webhook-ensure.js", () => ({
   ensureLoreWebhook: vi.fn(),
 }));
+vi.mock("../../http/acting-env.js", () => ({
+  actingEnv: vi.fn(async () => undefined),
+}));
+vi.mock("@re-cinq/lore-shared/project/lib/platform-github-auth.js", () => ({
+  buildOctokit: vi.fn(() => ({ actingAs: "person" })),
+}));
 
 import { listRepoWebhooks } from "../../../work/webhook/webhook-manage.js";
 import { ensureLoreWebhook } from "../../../work/webhook/webhook-ensure.js";
+import { actingEnv } from "../../http/acting-env.js";
 
 const URL = "https://lore-events.gcp.re-cinq.com/api/events";
 const originalEnv = { ...process.env };
@@ -132,8 +139,24 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
 
-    expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r");
+    expect(ensureLoreWebhook).toHaveBeenCalledWith("o/r", undefined);
     expect(res.result).toMatchObject({ state: "configured" });
+  });
+
+  it("reads the fresh status with the same client it ensured with", async () => {
+    process.env.LORE_WEBHOOK_URL = URL;
+    vi.mocked(actingEnv).mockResolvedValueOnce({});
+    vi.mocked(ensureLoreWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 7,
+      created: false,
+    });
+    vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
+    await inject("POST", "/api/repos/o/r/webhook/ensure");
+
+    expect(vi.mocked(listRepoWebhooks).mock.calls[0]?.[1]).toBe(
+      vi.mocked(ensureLoreWebhook).mock.calls[0]?.[1],
+    );
   });
 
   it("maps a webhook_host_not_configured skip to 503", async () => {

@@ -6,8 +6,11 @@ import { isLoreHook, type RepoHook } from "./webhook-status.js";
 
 type ReposApi = Awaited<ReturnType<typeof getOctokit>>["rest"]["repos"];
 
-export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
-  const repos = await reposApi();
+export async function listRepoWebhooks(
+  repo: string,
+  octokit?: Octokit,
+): Promise<RepoHook[]> {
+  const repos = await reposApi(octokit);
   const [owner, name] = ownerRepo(repo);
   const { data: hooks } = await repos.listWebhooks({
     owner,

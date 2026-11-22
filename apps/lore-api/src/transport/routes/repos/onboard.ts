@@ -12,8 +12,8 @@ import { enforceNotAMirror } from "../../../work/repo/enforce-not-a-mirror.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { onboardRepo } from "../../../work/repo/repo-onboard.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope, principalOf } from "../../http/bearer-scope.js";
-import { personGithubEnv } from "../../../work/auth/person-github-env.js";
+import { bearerScope } from "../../http/bearer-scope.js";
+import { actingEnv } from "../../http/acting-env.js";
 import { enforceRepoOpen } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -86,7 +86,7 @@ async function serveOnboard(
 
     await enforceRepoOpen(request, repo);
     await enforceNotAMirror(new PgSettings(pool), repo);
-    const env = await actingEnv(pool, request);
+    const env = await actingEnv(request, pool);
     const result = await onboardRepo(pool, repo, { reonboard, env });
 
     // A guarded refusal is existing state, not a failure — 409 tells it apart from a broken onboarding.
@@ -100,14 +100,4 @@ async function serveOnboard(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-/** A person's session acts on GitHub with that person's token (FR-034, FR-206, FR-207); any other caller leaves the App acting. */
-function actingEnv(
-  pool: Pool,
-  request: Request,
-): Promise<NodeJS.ProcessEnv | undefined> {
-  const { user, tokenHash } = principalOf(request);
-
-  return personGithubEnv(pool, { person: user !== null, tokenHash });
 }

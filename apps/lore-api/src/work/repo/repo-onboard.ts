@@ -176,7 +176,7 @@ export async function onboardRepo(
   fullName: string,
   options: OnboardOptions = {},
 ): Promise<OnboardResult | OnboardBlockedResult> {
-  const floorStart = options.floorStart ?? floorStartFor(pool);
+  const floorStart = options.floorStart ?? floorStartFor(pool, options.env);
   const written = await writeOnboardTx(pool, repoIdentity(fullName), {
     reonboard: options.reonboard,
   });

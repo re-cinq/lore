@@ -51,8 +51,8 @@ export async function startOnboardingOnFloor(
 /** Hands a committed onboarding to the external floor. */
 export type FloorStart = (onboarding: FloorOnboarding) => Promise<void>;
 
-/** The deployment's own floor start. Refused with 503 on a deployment with no floor: nothing else runs an onboarding, so a task created there would wait for ever. */
-export function floorStartFor(pool: Pool): FloorStart {
+/** The deployment's own floor start. Refused with 503 on a deployment with no floor: nothing else runs an onboarding, so a task created there would wait for ever. `env` is the signed-in person's GitHub environment, so the branch is cut with their token (FR-296). */
+export function floorStartFor(pool: Pool, env?: NodeJS.ProcessEnv): FloorStart {
   enforceTrue(
     floorConfigured(),
     apiError(503),
@@ -60,16 +60,19 @@ export function floorStartFor(pool: Pool): FloorStart {
   );
 
   return (onboarding) =>
-    startOnboardingOnFloor(onboardOnFloorDeps(pool), onboarding);
+    startOnboardingOnFloor(onboardOnFloorDeps(pool, env), onboarding);
 }
 
-function onboardOnFloorDeps(pool: Pool): OnboardOnFloorDeps {
+function onboardOnFloorDeps(
+  pool: Pool,
+  env?: NodeJS.ProcessEnv,
+): OnboardOnFloorDeps {
   const tasks = new PgTaskStore(pool);
 
   return {
     floor: floorClient(),
     ensureBranch: async (repo, branch) =>
-      ensureBranch((await projectFor(repo)).repo, branch),
+      ensureBranch((await projectFor(repo, env)).repo, branch),
     failTask: async (taskId, reason) => {
       if (
         await tasks.setStatusIf(taskId, "running", "failed", {

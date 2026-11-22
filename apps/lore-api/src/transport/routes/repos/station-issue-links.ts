@@ -9,6 +9,7 @@ import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { actingEnv } from "../../http/acting-env.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import { RepoNumberParams } from "./github-read.js";
 import { repoOf, fail } from "./station-helpers.js";
@@ -58,7 +59,10 @@ async function serveAddSubIssue(
   try {
     const { number } = request.params as unknown as RepoNumberParams;
     const { child } = request.payload as z.infer<typeof SubIssueBody>;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.issues.addSubIssue(number, child);
 
@@ -87,7 +91,10 @@ async function serveUpdateIssue(
   try {
     const { number } = request.params as unknown as RepoNumberParams;
     const edit = request.payload as z.infer<typeof IssueUpdate>;
-    const p = await projectFor(repoOf(request.params));
+    const p = await projectFor(
+      repoOf(request.params),
+      await actingEnv(request),
+    );
 
     await p.issues.update(number, edit);
 

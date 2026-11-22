@@ -19,6 +19,9 @@ import {
 import { classifyWebhook } from "../../../work/webhook/webhook-status.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { actingEnv } from "../../http/acting-env.js";
+import { buildOctokit } from "@re-cinq/lore-shared/project/lib/platform-github-auth.js";
+import type { Octokit } from "octokit";
 
 const repoOf = (request: { params: Record<string, string> }) =>
   `${request.params.owner}/${request.params.repo}`;
@@ -110,14 +113,15 @@ export function webhookEnsureRoute(): ServerRoute {
     }),
     handler: async (request, h) => {
       const repo = repoOf(request);
+      const octokit = await actingOctokit(request);
       // Shared with onboarding: ensureLoreWebhook reads LORE_WEBHOOK_URL/SECRET.
-      const result = await ensureLoreWebhook(repo);
+      const result = await ensureLoreWebhook(repo, octokit);
 
       if (!result.ok) {
         return ensureSkipResponse(h, result);
       }
 
-      return freshWebhookStatus(h, repo);
+      return freshWebhookStatus(h, repo, octokit);
     },
   };
 }
@@ -158,10 +162,14 @@ function ensureSkipResponse(
     .code(500);
 }
 
-async function freshWebhookStatus(h: ResponseToolkit, repo: string) {
+async function freshWebhookStatus(
+  h: ResponseToolkit,
+  repo: string,
+  octokit?: Octokit,
+) {
   try {
     return h.response(
-      classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
+      classifyWebhook(await listRepoWebhooks(repo, octokit), canonicalUrl()),
     );
   } catch (err) {
     return h.response({ error: errorMessage(err) || String(err) }).code(500);
@@ -180,4 +188,11 @@ function webhookReadFailure(err: unknown, url: string) {
 
 function canonicalUrl(): string {
   return process.env.LORE_WEBHOOK_URL || "";
+}
+
+/** The signed-in person's client, so the hook is theirs to change (FR-291); undefined for any other caller, leaving the App to act. */
+async function actingOctokit(request: Request): Promise<Octokit | undefined> {
+  const env = await actingEnv(request);
+
+  return env && buildOctokit(env, { throttle: { enabled: false } });
 }
