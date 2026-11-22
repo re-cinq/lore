@@ -97,8 +97,8 @@ secrets:
   # characters, openssl rand -hex 32). Generated once when empty. Secret
   # lore-user-token-key in lore-api, which holds nothing else.
   userTokenEncryptionKey: ""
-  # REQUIRED. The GitHub OAuth App people sign in to the UI with. Secret
-  # lore-github-oauth in lore-api.
+  # REQUIRED by this chart, but no longer read: people sign in through
+  # githubApp's clientId/clientSecret. Secret lore-github-oauth in lore-api.
   githubOAuth:
     clientId: ""
     clientSecret: ""

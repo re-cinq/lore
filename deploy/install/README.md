@@ -21,9 +21,10 @@ only when that copy is absent.
 
 | Secret | Namespace | Keys | Needed |
 |---|---|---|---|
-| `github-app-credentials` | `lore-api`, `lore-ui` | `app-id`, `private-key`, `installation-id` | required |
+| `github-app-credentials` | `lore-api`, `lore-ui` | `app-id`, `private-key`, `installation-id`; in `lore-api` also `client-id`, `client-secret` (sign-in) | required |
+| `lore-user-token-key` | `lore-api` | `key` | required, generated when empty |
 | `lore-stations-github-app` | `lore-stations` | same three | required |
-| `lore-github-oauth` | `lore-api` | `client-id`, `client-secret` | required |
+| `lore-github-oauth` | `lore-api` | `client-id`, `client-secret` | required by the chart, no longer read by lore-api |
 | `lore-api-db-password` | `lore-api` | `password` | required, made by `lore-databases` |
 | `lore-db-password` | `lore-ui` | `password` | required, made by `lore-databases` |
 | `lore-stations-db-password` | `lore-stations` | `password` | required, made by `lore-databases` |

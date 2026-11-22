@@ -109,22 +109,25 @@ The data dirs are written by the containers as root, so a plain `rm -rf` hits `P
 
 ### Logging into the web UI
 
-The web UI (`:3000`) signs people in through lore-api (`:3001`), which runs the GitHub OAuth dance, so a one-time OAuth app is required before you can sign in:
+The web UI (`:3000`) signs people in through lore-api (`:3001`), which runs the sign-in through a GitHub App's OAuth client, so a one-time GitHub App is required before you can sign in:
 
-1. Create a GitHub OAuth app at https://github.com/settings/developers → **New OAuth App**:
+1. Create a GitHub App at https://github.com/settings/apps → **New GitHub App**:
    - **Homepage URL:** `http://localhost:3000`
-   - **Authorization callback URL:** `http://localhost:3001/api/auth/callback`
-2. Register it, copy the **Client ID**, and **Generate a new client secret**.
-3. Put both in the root `.env.local` (gitignored, sourced by `npm start`; lore-api reads them, the web UI needs none):
+   - **Callback URL:** `http://localhost:3001/api/auth/callback`
+   - **Expire user authorization tokens:** on
+   - Webhook off; **Organization permissions → Members:** Read-only
+2. Create it, copy the **Client ID** (starts with `Iv`), and **Generate a new client secret**.
+3. Put both in the root `.env.local` (gitignored, sourced by `npm start`; lore-api reads them, the web UI needs none), with a key that encrypts the stored GitHub tokens:
 
    ```
-   GITHUB_OAUTH_CLIENT_ID=...
-   GITHUB_OAUTH_CLIENT_SECRET=...
+   GITHUB_APP_CLIENT_ID=...
+   GITHUB_APP_CLIENT_SECRET=...
+   LORE_USER_TOKEN_ENCRYPTION_KEY=...   # openssl rand -hex 32
    ```
 
 4. Restart `npm start`, then **Sign in with GitHub**.
 
-Optionally set `GITHUB_ORG` in the same file to restrict login to one org's members (unset = any GitHub account). The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
+Set `GITHUB_ORG` in the same file to the org whose members may sign in; with it unset nobody can sign in. The App needs Members (read) on that org and must be installed there. The callback URL must match exactly, or GitHub returns a `redirect_uri` error.
 
 ## Project structure
 
