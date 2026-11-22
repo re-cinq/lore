@@ -8,7 +8,10 @@ export function octokitOptions(env: NodeJS.ProcessEnv): { baseUrl: string } {
 }
 
 /** Builds the lazily-imported Octokit client — GitHub App auth when the triple is set, else a plain token. */
-export async function buildOctokit(env: NodeJS.ProcessEnv): Promise<Octokit> {
+export async function buildOctokit(
+  env: NodeJS.ProcessEnv,
+  extra: { throttle?: { enabled: boolean } } = {},
+): Promise<Octokit> {
   const appAuthed = await appOctokit(env);
 
   if (appAuthed) {
@@ -20,7 +23,7 @@ export async function buildOctokit(env: NodeJS.ProcessEnv): Promise<Octokit> {
     const { Octokit } = await import("octokit");
 
     return withoutBlindRetryOnCreates(
-      new Octokit({ ...octokitOptions(env), auth: token }),
+      new Octokit({ ...octokitOptions(env), ...extra, auth: token }),
     );
   }
   throw new Error(

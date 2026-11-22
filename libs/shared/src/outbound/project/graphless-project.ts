@@ -12,16 +12,18 @@ export interface GraphlessDeps {
   /** Names the service in the throw a graph read would hit, e.g. `stations`. */
   service: string;
   providers: ProjectProviders;
+  /** Overrides the process environment the GitHub adapter reads, e.g. to act as a person. */
+  env?: NodeJS.ProcessEnv;
 }
 
 export function createGraphlessProject(
   repo: string,
-  { pool, service, providers }: GraphlessDeps,
+  { pool, service, providers, env }: GraphlessDeps,
 ): Promise<Project> {
   const dgraph = createDgraphClient(process.env);
 
   if (dgraph) {
-    return createProject(repo, pool, dgraph, { providers });
+    return createProject(repo, pool, dgraph, { providers, env });
   }
 
   return createProject(
@@ -32,6 +34,6 @@ export function createGraphlessProject(
         throw new Error(noGraphMessage(service));
       },
     },
-    { providers: { ...providers, trace: new NoGraphTrace(service) } },
+    { providers: { ...providers, trace: new NoGraphTrace(service) }, env },
   );
 }

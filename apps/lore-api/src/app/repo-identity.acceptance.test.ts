@@ -185,7 +185,7 @@ describe("repository identity characterization (current name-based behaviour)", 
     });
   });
 
-  it("remembers newly granted access by owner/name string and admits service tokens without checking repository rows", async () => {
+  it("refuses a repository outside the person's list whatever GitHub's collaborator level says and admits service tokens without checking repository rows", async () => {
     vi.useFakeTimers({
       now: new Date("2026-10-28T10:00:00Z"),
       toFake: ["Date"],
@@ -240,9 +240,9 @@ describe("repository identity characterization (current name-based behaviour)", 
       serviceStatus: serviceRes.statusCode,
       rememberedRepoNames: remembered.map(([, repo]) => repo),
     }).toEqual({
-      userStatus: 200,
+      userStatus: 403,
       serviceStatus: 200,
-      rememberedRepoNames: ["acme/new-repo"],
+      rememberedRepoNames: [],
     });
   });
 

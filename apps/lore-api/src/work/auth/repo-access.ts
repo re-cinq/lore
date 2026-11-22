@@ -23,8 +23,6 @@ export interface RepoAccess {
 export const REFUSAL_TTL_MS = 5 * 60_000;
 
 export function createRepoAccess(ports: RepoAccessPorts): RepoAccess {
-  const refusedUntil = new Map<string, number>();
-
   return {
     canOpen: async (principal, repo, level = "read") => {
       if (principal.user === null) {
@@ -35,7 +33,7 @@ export function createRepoAccess(ports: RepoAccessPorts): RepoAccess {
         return hasLevelToday(ports, principal, repo, level);
       }
 
-      return canReadRepo(ports, refusedUntil, principal, repo);
+      return canReadRepo(ports, principal, repo);
     },
   };
 }
@@ -57,42 +55,13 @@ async function hasLevelToday(
   return MEETS_LEVEL[level].includes(permission);
 }
 
+/** Reads of stored repository data follow the person's installation list and nothing else: GitHub's collaborator answer never opens an unlisted repository (FR-031). */
 async function canReadRepo(
-  ports: RepoAccessPorts,
-  refusedUntil: Map<string, number>,
+  _ports: RepoAccessPorts,
   principal: Asker,
   repo: string,
 ): Promise<boolean> {
-  if (repoAllowed(principal, repo)) {
-    return true;
-  }
-  const key = `${principal.tokenHash}\n${repo.toLowerCase()}`;
-
-  if ((refusedUntil.get(key) ?? 0) > ports.now()) {
-    return false;
-  }
-  const granted = await grantedReadToday(ports, principal, repo);
-
-  if (!granted) {
-    refusedUntil.set(key, ports.now() + REFUSAL_TTL_MS);
-  }
-
-  return granted;
-}
-
-async function grantedReadToday(
-  ports: RepoAccessPorts,
-  principal: Asker,
-  repo: string,
-): Promise<boolean> {
-  const permission = await askedOfGitHub(ports, principal, repo);
-  const granted = MEETS_LEVEL.read.includes(permission);
-
-  if (granted && principal.tokenHash) {
-    await ports.remember(principal.tokenHash, repo);
-  }
-
-  return granted;
+  return repoAllowed(principal, repo);
 }
 
 /** A person's session and nothing else reaches here. A question GitHub could not answer is `none`: access is never granted on an error. */

@@ -32,10 +32,8 @@ import {
   markRunningOnFloor,
   type FloorStart,
 } from "./onboard-on-floor.js";
-import {
-  ensureLoreWebhook,
-  type EnsureLoreWebhookResult,
-} from "../webhook/webhook-ensure.js";
+import { ensuredWebhook } from "./ingest-access.js";
+import type { EnsureLoreWebhookResult } from "../webhook/webhook-ensure.js";
 
 // ── Database queries ────────────────────────────────────────────────
 
@@ -160,6 +158,8 @@ type OnboardWrite =
 
 export interface OnboardOptions {
   reonboard?: boolean;
+  /** The GitHub environment of the signed-in person; left out, the App acts (FR-034, FR-206, FR-207). */
+  env?: NodeJS.ProcessEnv;
   /** Left out, the deployment decides: the floor when one is configured. */
   floorStart?: FloorStart;
 }
@@ -185,22 +185,11 @@ export async function onboardRepo(
     return written;
   }
   const { repoId, taskId, ticket } = written;
-  const webhook = await ensuredWebhook(fullName);
+  const webhook = await ensuredWebhook(fullName, options.env);
 
   await floorStart({ repo: fullName, taskId, ticket });
 
   return onboarded({ repoId, taskId }, webhook);
-}
-
-/** Points the repo's GitHub webhook at the Lore ingress WITH the HMAC secret, best-effort. */
-async function ensuredWebhook(
-  fullName: string,
-): Promise<EnsureLoreWebhookResult> {
-  const webhook = await ensureLoreWebhook(fullName);
-
-  logWebhookOutcome(webhook, fullName);
-
-  return webhook;
 }
 
 function onboarded(
@@ -361,21 +350,4 @@ async function upsertRepo(
   );
 
   return rows[0].id;
-}
-
-/** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */
-function logWebhookOutcome(
-  webhook: EnsureLoreWebhookResult,
-  fullName: string,
-): void {
-  if (webhook.ok) {
-    console.log(
-      `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
-    );
-
-    return;
-  }
-  console.warn(
-    `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
-  );
 }

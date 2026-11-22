@@ -4,10 +4,14 @@ import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { pipelineRepositories } from "./pipeline-boot.js";
 
 /** No Dgraph when LORE_DGRAPH_HTTP is unset (trace reads the graph when configured). */
-export function projectFor(repo: string): Promise<Project> {
+export function projectFor(
+  repo: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<Project> {
   return createGraphlessProject(repo, {
     pool: getPool(),
     service: "lore-api",
+    env,
     providers: { pipeline: pipelineRepositories() },
   });
 }
