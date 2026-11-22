@@ -114,20 +114,19 @@ async function githubSession(
   return tokenPair && validViewer(viewer) ? { tokenPair, viewer } : null;
 }
 
+/** An App with expiring user tokens answers with an access token, a positive expiry and a refresh token; anything less is refused (FR-011, FR-028, FR-026). */
 function tokenPairOf(exchanged: unknown): GithubTokenPair | null {
-  if (isNonEmptyString(exchanged)) {
-    return { accessToken: exchanged };
-  }
+  const candidate = (exchanged ?? {}) as Record<string, unknown>;
 
-  if (!exchanged || typeof exchanged !== "object") {
-    return null;
-  }
-
-  const candidate = exchanged as { accessToken?: unknown };
-
-  return isNonEmptyString(candidate.accessToken)
+  return isNonEmptyString(candidate.accessToken) &&
+    isPositive(candidate.expiresIn) &&
+    isNonEmptyString(candidate.refreshToken)
     ? (exchanged as GithubTokenPair)
     : null;
+}
+
+function isPositive(value: unknown): boolean {
+  return typeof value === "number" && value > 0;
 }
 
 function validViewer(viewer: unknown): viewer is GithubViewer {

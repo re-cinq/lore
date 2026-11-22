@@ -21,7 +21,11 @@ export const CONFIG: OAuthConfig = {
 
 export function fakeGithub(overrides: Partial<GithubUser> = {}): GithubUser {
   return {
-    exchangeCode: async () => "gho_abc",
+    exchangeCode: async () => ({
+      accessToken: "gho_abc",
+      expiresIn: 28800,
+      refreshToken: "ghr_abc",
+    }),
     fetchViewer: async () => ({
       login: "gedaiu",
       name: "Bogdan",

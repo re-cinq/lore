@@ -21,6 +21,11 @@ export interface HandoffContent {
   encryptedTokens?: string | null;
 }
 
+/** Deletes every row whose expiry has passed, the encrypted pair with it; running it again, or from a second replica, changes nothing more. */
+export async function deleteExpiredHandoffs(db: Pool): Promise<void> {
+  await db.query(SWEEP_EXPIRED);
+}
+
 export interface LoginHandoffs {
   /** Stores the content and returns the raw code that takes it back. */
   put(phase: HandoffPhase, content: HandoffContent): Promise<string>;

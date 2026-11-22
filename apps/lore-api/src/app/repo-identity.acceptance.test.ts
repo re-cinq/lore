@@ -96,7 +96,11 @@ function buildSignInDeps(pool: Pool): AuthDeps {
     config: () => OAUTH_CONFIG,
     getPool: () => pool,
     github: {
-      exchangeCode: async () => "gho_user_token",
+      exchangeCode: async () => ({
+        accessToken: "gho_user_token",
+        expiresIn: 28800,
+        refreshToken: "ghr_user_token",
+      }),
       fetchViewer: async () => ({
         login: "alice",
         name: "Alice",

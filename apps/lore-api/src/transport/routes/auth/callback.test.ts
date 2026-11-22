@@ -85,6 +85,26 @@ describe("GET /api/auth/callback", () => {
     expect(location.searchParams.get("auth_error")).toBe("github_denied");
   });
 
+  it("sends a person back with auth_error=github_denied when the token answer has no expiry or no refresh token", async () => {
+    const answers = [
+      { accessToken: "ghu_a", refreshToken: "ghr_a" },
+      { accessToken: "ghu_b", expiresIn: 0, refreshToken: "ghr_b" },
+      { accessToken: "ghu_c", expiresIn: 28800 },
+      "gho_bare_string",
+    ];
+    const errors: (string | null)[] = [];
+
+    for (const answer of answers) {
+      const { location } = await signIn(
+        testDeps({ github: { exchangeCode: async () => answer as never } }),
+      );
+
+      errors.push(location.searchParams.get("auth_error"));
+    }
+
+    expect(errors).toEqual(answers.map(() => "github_denied"));
+  });
+
   it("lets every GitHub account in as a member when no org is configured", async () => {
     const deps = testDeps({
       config: {
