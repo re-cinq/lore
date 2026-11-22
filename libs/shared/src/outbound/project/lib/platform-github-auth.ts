@@ -1,5 +1,6 @@
 import type { Octokit } from "octokit";
 import { githubHost, githubUrls } from "../../../domain/github-host.js";
+import { guardAppClient } from "./app-client-guard.js";
 import { withoutBlindRetryOnCreates } from "./octokit-retry-policy.js";
 
 /** The Octokit options every client shares: the REST base URL of the configured GitHub host. */
@@ -22,9 +23,12 @@ export async function buildOctokit(
   if (token) {
     const { Octokit } = await import("octokit");
 
-    return withoutBlindRetryOnCreates(
+    const client = withoutBlindRetryOnCreates(
       new Octokit({ ...octokitOptions(env), ...extra, auth: token }),
     );
+
+    // The process's own token is the service's; any other env is a caller's own credential.
+    return env === process.env ? guardAppClient(client) : client;
   }
   throw new Error(
     "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
@@ -43,11 +47,13 @@ async function appOctokit(env: NodeJS.ProcessEnv): Promise<Octokit | null> {
   const { Octokit } = await import("octokit");
   const { createAppAuth } = await import("@octokit/auth-app");
 
-  return withoutBlindRetryOnCreates(
-    new Octokit({
-      ...octokitOptions(env),
-      authStrategy: createAppAuth,
-      auth: { appId, privateKey, installationId },
-    }),
+  return guardAppClient(
+    withoutBlindRetryOnCreates(
+      new Octokit({
+        ...octokitOptions(env),
+        authStrategy: createAppAuth,
+        auth: { appId, privateKey, installationId },
+      }),
+    ),
   );
 }

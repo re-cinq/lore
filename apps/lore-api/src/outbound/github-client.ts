@@ -3,6 +3,7 @@
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
 import { listReviewThreads } from "@re-cinq/lore-shared/project/lib/platform-github-pulls-review-reads.js";
+import { guardAppClient } from "@re-cinq/lore-shared/project/lib/app-client-guard.js";
 import { createAppAuth } from "@octokit/auth-app";
 import { request } from "@octokit/request";
 import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
@@ -32,8 +33,10 @@ export async function getOctokit(): Promise<Octokit> {
   const token = process.env.GITHUB_TOKEN;
 
   if (token) {
-    return withoutBlindRetryOnCreates(
-      new Octokit({ ...octokitOptions(process.env), auth: token }),
+    return guardAppClient(
+      withoutBlindRetryOnCreates(
+        new Octokit({ ...octokitOptions(process.env), auth: token }),
+      ),
     );
   }
   throw new Error(
@@ -43,16 +46,18 @@ export async function getOctokit(): Promise<Octokit> {
 
 // App auth mints its own installation token per call, so no token is read from the environment here.
 function appAuthOctokit(): Octokit {
-  return withoutBlindRetryOnCreates(
-    new Octokit({
-      ...octokitOptions(process.env),
-      authStrategy: createAppAuth,
-      auth: {
-        appId: APP_ID,
-        privateKey: PRIVATE_KEY,
-        installationId: INSTALLATION_ID,
-      },
-    }),
+  return guardAppClient(
+    withoutBlindRetryOnCreates(
+      new Octokit({
+        ...octokitOptions(process.env),
+        authStrategy: createAppAuth,
+        auth: {
+          appId: APP_ID,
+          privateKey: PRIVATE_KEY,
+          installationId: INSTALLATION_ID,
+        },
+      }),
+    ),
   );
 }
 

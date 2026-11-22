@@ -17,6 +17,7 @@ import {
   registerRepoAlias,
   type MirrorOwnerOf,
 } from "../transport/http/repo-alias.js";
+import { registerPersonAppClientGuard } from "../transport/http/person-request-context.js";
 import { registerRepoGuard } from "../transport/http/repo-guard.js";
 import { createRepoAccess } from "../work/auth/repo-access.js";
 import { repoAccessPorts } from "../outbound/repo-access-ports.js";
@@ -102,6 +103,7 @@ function registerRoutes(
   getPool: () => Pool | null,
   planFloor: PlanVerbSeams["floorDeps"],
 ): ServerRoute[] {
+  registerPersonAppClientGuard(server);
   const { collab, plans } = registerPlanning(server, getPool, planFloor);
   const routes = routeList(getPool, plans);
 

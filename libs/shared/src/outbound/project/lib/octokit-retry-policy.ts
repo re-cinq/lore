@@ -7,6 +7,7 @@ export interface HookableClient {
       name: "request",
       handler: (options: {
         method?: string;
+        url?: string;
         request?: Record<string, unknown>;
       }) => void,
     ): void;

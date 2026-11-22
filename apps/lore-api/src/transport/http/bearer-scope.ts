@@ -18,6 +18,7 @@ import {
   type TokenScope,
   type UserIdentity,
 } from "./auth.js";
+import { repoDeclarationOf } from "./repo-declaration.js";
 
 const STRATEGY = "bearer-scope";
 
@@ -55,6 +56,13 @@ function enforceAuthorization(request: Request, principal: Principal): void {
   if (principal.ciIdentity) {
     enforceCiIdentityRoute(request, principal.ciIdentity);
 
+    return;
+  }
+
+  // GitHub decides for a person on a repository route (FR-035); a spanning route names none, so scope applies.
+  const declared = repoDeclarationOf(request);
+
+  if (principal.user !== null && declared && declared.source.from !== "spans") {
     return;
   }
   enforceRouteScope(request, principal.scopes);
