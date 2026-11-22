@@ -348,6 +348,233 @@ describe("Membership checks and minted tokens (FR-043 to FR-049)", () => {
   });
 });
 
+describe("Membership of a signed-in person (FR-040 to FR-240)", () => {
+  useRateLimitSafeClock();
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: FIXED_NOW, toFake: ["Date"] });
+    configureEnv();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env = { ...originalEnv };
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  }, 60_000);
+
+  it("serves a session without asking GitHub inside five minutes, then asks as the App with the repository list refresh once the answer is six minutes old", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const session = await signInPerson(harness, "alice");
+    const refreshes = countRepositoryListReads();
+    const freshRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      session,
+    );
+    const freshState = {
+      status: freshRes.statusCode,
+      membershipCalls: harness.appMembershipCalls().length,
+      listReads: refreshes(),
+    };
+
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    const staleRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      session,
+    );
+    const staleState = {
+      status: staleRes.statusCode,
+      membershipCalls: harness.appMembershipCalls().length,
+      listReads: refreshes(),
+      usedAppAuth: usedAppInstallAuth(harness.appMembershipCalls()),
+    };
+    const againRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      session,
+    );
+
+    expect({
+      freshState,
+      staleState,
+      againStatus: againRes.statusCode,
+      membershipCallsAfterAgain: harness.appMembershipCalls().length,
+    }).toEqual({
+      freshState: { status: 200, membershipCalls: 0, listReads: 0 },
+      staleState: {
+        status: 200,
+        membershipCalls: 1,
+        listReads: 1,
+        usedAppAuth: true,
+      },
+      againStatus: 200,
+      membershipCallsAfterAgain: 1,
+    });
+  }, 60_000);
+
+  it("refuses a stale session when GitHub reports the person's membership as pending", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const session = await signInPerson(harness, "alice");
+
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    answerAppMembershipAs({ state: "pending", role: "member" });
+    const res = await callApi(harness.server, "GET", "/api/auth/me", session);
+
+    expect({
+      outcome: membershipRefusalOutcome(res.statusCode),
+      revoked: harness.isTokenRevoked(session),
+    }).toEqual({ outcome: "refused", revoked: true });
+  }, 60_000);
+
+  it("refuses a stale session without ending any session or revoking any token when GitHub gives no answer, and serves it again once GitHub answers", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const session = await signInPerson(harness, "alice");
+    const otherSession = await signInPerson(harness, "alice");
+    const mintedToken = await mintUserToken(harness, session, "alice-ci");
+
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    harness.setPersonMembership("alice", { appMembershipStatus: 500 });
+    const readsBefore = harness.repoReadCount();
+    const refusedRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/repos",
+      session,
+    );
+    const refused = {
+      installFault: installFaultOutcome(refusedRes.statusCode),
+      repoReads: harness.repoReadCount() - readsBefore,
+      anyRevoked: [session, otherSession, mintedToken].some((token) =>
+        harness.isTokenRevoked(token),
+      ),
+    };
+
+    harness.setPersonMembership("alice", { appMembershipStatus: 200 });
+    const recoveredRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      session,
+    );
+
+    expect({ refused, recoveredStatus: recoveredRes.statusCode }).toEqual({
+      refused: {
+        installFault: "install-fault",
+        repoReads: 0,
+        anyRevoked: false,
+      },
+      recoveredStatus: 200,
+    });
+  }, 60_000);
+
+  it("asks GitHub as the App once more when only the repository list of a session is due, the person's membership answer being fresh", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const sessionOne = await signInPerson(harness, "alice");
+    const sessionTwo = await signInPerson(harness, "alice");
+
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    const stampingRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      sessionTwo,
+    );
+    const callsAfterStamp = harness.appMembershipCalls().length;
+    const listReads = countRepositoryListReads();
+    const dueListRes = await callApi(
+      harness.server,
+      "GET",
+      "/api/auth/me",
+      sessionOne,
+    );
+
+    expect({
+      stampingStatus: stampingRes.statusCode,
+      dueListStatus: dueListRes.statusCode,
+      newMembershipCalls: harness.appMembershipCalls().length - callsAfterStamp,
+      newListReads: listReads(),
+    }).toEqual({
+      stampingStatus: 200,
+      dueListStatus: 200,
+      newMembershipCalls: 1,
+      newListReads: 1,
+    });
+  }, 60_000);
+
+  it("refuses a session whose person is no longer an active member, ends every session of theirs including one idle for hours, and revokes every token they minted", async () => {
+    const harness = createHarness([
+      makePerson(987654, "alice"),
+      makePerson(555666, "bob"),
+    ]);
+    const actors = await setupRemovedMemberScenario(harness);
+
+    vi.setSystemTime(Date.now() + 3 * 60 * 60_000);
+    harness.setPersonMembership("alice", {
+      userMembershipStatus: 404,
+      appMembershipStatus: 404,
+    });
+    const revokedBeforeAnyRequest = [
+      actors.aliceSessionOne,
+      actors.aliceSessionTwo,
+      actors.aliceTokenOne,
+      actors.aliceTokenTwo,
+    ].map((token) => harness.isTokenRevoked(token));
+    const readsBefore = harness.repoReadCount();
+    const idleSessionRequest = await callApi(
+      harness.server,
+      "GET",
+      "/api/repos",
+      actors.aliceSessionTwo,
+    );
+
+    expect({
+      revokedBeforeAnyRequest,
+      idleSessionRequest: membershipRefusalOutcome(
+        idleSessionRequest.statusCode,
+      ),
+      repoReads: harness.repoReadCount() - readsBefore,
+      otherSessionRevoked: harness.isTokenRevoked(actors.aliceSessionOne),
+      idleSessionRevoked: harness.isTokenRevoked(actors.aliceSessionTwo),
+      mintedTokensRevoked: [actors.aliceTokenOne, actors.aliceTokenTwo].map(
+        (token) => harness.isTokenRevoked(token),
+      ),
+      bobKept: await probeUnaffectedBob(harness, actors),
+    }).toEqual({
+      revokedBeforeAnyRequest: [false, false, false, false],
+      idleSessionRequest: "refused",
+      repoReads: 0,
+      otherSessionRevoked: true,
+      idleSessionRevoked: true,
+      mintedTokensRevoked: [true, true],
+      bobKept: { tokenStatus: 200, sessionStatus: 200 },
+    });
+  }, 60_000);
+});
+
+function countRepositoryListReads(): () => number {
+  const underlying = globalThis.fetch;
+  let reads = 0;
+
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(typeof input === "string" ? input : input.toString());
+
+    if (
+      url.pathname === `/user/installations/${INSTALLATION_ID}/repositories`
+    ) {
+      reads += 1;
+    }
+
+    return underlying(input, init);
+  };
+
+  return () => reads;
+}
+
 function answerAppMembershipAs(body: Record<string, unknown>): void {
   const underlying = globalThis.fetch;
 

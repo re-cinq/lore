@@ -770,6 +770,11 @@ function createFetchStub(options: FetchStubOptions): typeof fetch {
   };
 }
 
+const MEMBERSHIP_PATHS = new Set([
+  `/user/memberships/orgs/${GITHUB_ORG}`,
+  `/orgs/${GITHUB_ORG}/memberships/ada`,
+]);
+
 function handleGithubApiFetch(
   url: URL,
   init: RequestInit | undefined,
@@ -784,7 +789,7 @@ function handleGithubApiFetch(
     });
   }
 
-  if (url.pathname === `/user/memberships/orgs/${GITHUB_ORG}`) {
+  if (MEMBERSHIP_PATHS.has(url.pathname)) {
     return jsonResponse({ state: "active", role: "member" });
   }
 

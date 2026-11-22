@@ -2,7 +2,10 @@
 
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
-import { refreshedRepos } from "../../work/auth/session-repo-refresh.js";
+import {
+  refreshedRepos,
+  repoListDueForRefresh,
+} from "../../work/auth/session-repo-refresh.js";
 import { makerStillMember } from "../../work/auth/maker-membership.js";
 import { verifyIdentityToken } from "./ci-identity-token.js";
 
@@ -238,7 +241,7 @@ async function lookupPrincipal(
     return null;
   }
 
-  if (!(await makerIsStillMember(pool, rows[0]))) {
+  if (!(await personIsStillMember(pool, rows[0]))) {
     return null;
   }
 
@@ -247,9 +250,12 @@ async function lookupPrincipal(
   return { scopes: rows[0].scopes, user, tokenHash };
 }
 
-/** A token a person minted (not their own session) holds only while its maker is an active member of the org (FR-045, FR-046). */
-async function makerIsStillMember(pool: Pool, row: TokenRow): Promise<boolean> {
-  if (row.kind === "user" || row.github_id == null) {
+/** A session or a token a person minted holds only while its person is an active member of the org (FR-236, FR-041, FR-045, FR-046). */
+async function personIsStillMember(
+  pool: Pool,
+  row: TokenRow,
+): Promise<boolean> {
+  if (row.github_id == null) {
     return true;
   }
   const checkedAt = row.membership_checked_at;
@@ -260,7 +266,17 @@ async function makerIsStillMember(pool: Pool, row: TokenRow): Promise<boolean> {
     githubId: Number(row.github_id),
     login: row.login ?? null,
     answeredAt,
+    listRefreshDue:
+      row.kind === "user" && repoListDueForRefresh(sessionOf(row)),
   });
+}
+
+function sessionOf(row: TokenRow) {
+  return {
+    id: row.id,
+    reposRefreshedAt: row.reposRefreshedAt ?? null,
+    encryptedTokens: row.encryptedTokens ?? null,
+  };
 }
 
 async function userWithFreshRepos(
@@ -270,15 +286,7 @@ async function userWithFreshRepos(
   const user = userOf(row);
 
   if (user) {
-    user.repos = await refreshedRepos(
-      pool,
-      {
-        id: row.id,
-        reposRefreshedAt: row.reposRefreshedAt ?? null,
-        encryptedTokens: row.encryptedTokens ?? null,
-      },
-      user.repos,
-    );
+    user.repos = await refreshedRepos(pool, sessionOf(row), user.repos);
   }
 
   return user;

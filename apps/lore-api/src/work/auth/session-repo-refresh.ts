@@ -57,6 +57,11 @@ async function readFreshRepos(
   }
 }
 
+/** Whether this request reads the list again from GitHub. */
+export function repoListDueForRefresh(session: SessionRepoState): boolean {
+  return refreshSettings(session) !== null;
+}
+
 /** What a refresh needs, or null while the list is fresh or the session holds no stored user token. */
 function refreshSettings(session: SessionRepoState): RefreshSettings | null {
   const key = process.env.LORE_USER_TOKEN_ENCRYPTION_KEY;

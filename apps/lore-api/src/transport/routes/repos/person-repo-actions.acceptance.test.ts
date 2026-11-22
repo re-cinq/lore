@@ -924,6 +924,10 @@ function handleIdentityFetch(
     });
   }
 
+  if (url.pathname === `/orgs/${GITHUB_ORG}/memberships/ada`) {
+    return jsonResponse({ state: "active", role: "member" });
+  }
+
   if (url.pathname === `/user/memberships/orgs/${GITHUB_ORG}`) {
     return jsonResponse({ state: "active", role: "member" });
   }
