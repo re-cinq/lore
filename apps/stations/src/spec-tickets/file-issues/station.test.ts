@@ -64,7 +64,7 @@ function fakeRepository(labels: string[]) {
     filed,
     updated,
     project: {
-      repo: { read: async () => null },
+      repo: { read: async () => null, tree: async () => [] },
       issues: {
         listLabels: async () => labels,
         list: async () => filed,
@@ -289,5 +289,67 @@ describe("specTicketsIssuesHandle on a spec that came from a plan", () => {
     })(FROM_PLAN, TOOLS);
 
     expect(report).toEqual({ outcome: "failed", error: "POST failed: 503" });
+  });
+});
+
+describe("specTicketsIssuesHandle on a spec whose every cited statement is drift", () => {
+  const SPEC_MD = [
+    "# Widget",
+    "",
+    "Authors want widgets.",
+    "",
+    "## Requirements",
+    "",
+    "- FR1 — The widget is served by `apps/floor/src/widget-route.ts`.",
+    "",
+  ].join("\n");
+
+  const DRIFT_DECOMPOSITION = JSON.stringify({
+    stories: [
+      {
+        ...JSON.parse(DECOMPOSITION).stories[0],
+        tasks: [
+          {
+            ...JSON.parse(DECOMPOSITION).stories[0].tasks[0],
+            spec_lines: [7],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("files no issue and asks no model when task T001 cites only line 7, which names the deleted apps/floor", async () => {
+    const repository = fakeRepository(LABELS);
+    const project = {
+      ...(repository.project as object),
+      repo: {
+        read: async (path: string) =>
+          path === "specs/widget/spec.md" ? SPEC_MD : null,
+        tree: async () => ["specs/widget/spec.md"],
+      },
+    } as never;
+    const modelCalls: unknown[] = [];
+    const tools: Tools = {
+      ...TOOLS,
+      read: () => Promise.resolve(Buffer.from(DRIFT_DECOMPOSITION)),
+      modelCall: (call) => {
+        modelCalls.push(call);
+
+        return Promise.resolve();
+      },
+    };
+
+    await handleFor(project)(
+      {
+        ...brief(),
+        needs: { ...brief().needs, verified_decomposition: "verified" },
+      },
+      tools,
+    );
+
+    expect({ filed: repository.filed, modelCalls }).toEqual({
+      filed: [],
+      modelCalls: [],
+    });
   });
 });

@@ -34,6 +34,7 @@ import {
   actionableDecomposition,
   presentStatements,
 } from "@re-cinq/lore-shared/spec-tickets/implementation-tasks.js";
+import { withoutDriftIn } from "@re-cinq/lore-shared/spec-tickets/grounded-statements.js";
 import { specFilesOfRun } from "@re-cinq/lore-shared/feature-planning/spec-plan-path.js";
 import {
   decomposedSpecs,
@@ -100,27 +101,47 @@ async function coverageOfDecomposition(
   const actionable = verified
     ? actionableDecomposition(decomposition, brief.needs.spec_path)
     : decomposition;
-  const grounded = await groundDecomposition(deps, brief, actionable);
 
-  return countedIn(spec, actionable, grounded, {
+  return countedOnTree(deps, brief, { spec, actionable, verified });
+}
+
+interface CountInput {
+  spec: DecomposedSpecs;
+  actionable: DecompositionResult;
+  verified: boolean;
+}
+
+/** Counts the decomposition on the tree it was read at; on the spec-tickets line a statement naming code this repository does not hold is drift, not a gap a task owes. */
+async function countedOnTree(
+  deps: CoverageDeps,
+  brief: Brief,
+  { spec, actionable, verified }: CountInput,
+): Promise<CountedDecomposition> {
+  const { repo, branch } = parseGitRef(brief.needs.target);
+  const ref = verified ? actionable.spec_commit! : branch;
+  const tree = await deps.listTree(repo, ref);
+  const counted = verified
+    ? withoutDriftStatements(spec, actionable, tree)
+    : { spec, actionable };
+  const grounded = await groundedTasks(counted.actionable, tree, (path) =>
+    deps.readSpec(repo, path, ref),
+  );
+
+  return countedIn(counted.spec, counted.actionable, grounded, {
     implementationVerified: verified,
   });
 }
 
-async function groundDecomposition(
-  deps: CoverageDeps,
-  brief: Brief,
-  decomposition: DecompositionResult,
-): Promise<GroundedFile[]> {
-  const { repo, branch } = parseGitRef(brief.needs.target);
-  const ref = brief.needs.verified_decomposition
-    ? decomposition.spec_commit!
-    : branch;
-  const tree = await deps.listTree(repo, ref);
-
-  return groundedTasks(decomposition, tree, (path) =>
-    deps.readSpec(repo, path, ref),
+function withoutDriftStatements(
+  spec: DecomposedSpecs,
+  actionable: DecompositionResult,
+  tree: readonly string[],
+): { spec: DecomposedSpecs; actionable: DecompositionResult } {
+  const grounded = withoutDriftIn(spec, actionable, tree, (line) =>
+    console.log(eventLine(line)),
   );
+
+  return { spec: grounded.spec, actionable: grounded.decomposition };
 }
 
 /** Every spec the plan's spec PR wrote, at the commit the decomposition read, or at the branch when it names none. */

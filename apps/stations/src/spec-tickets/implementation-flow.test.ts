@@ -101,6 +101,7 @@ function scene(
   };
   const project = {
     repo: {
+      tree: async () => [],
       read: async (path: string, ref?: string) =>
         readSpec("re-cinq/lore", path, ref),
     },

@@ -184,6 +184,7 @@ function repository(files: Record<string, string>, filed: Filed[] = []) {
     filed,
     project: {
       repo: {
+        tree: async () => [],
         read: async (path: string, ref: string) =>
           files[`${path}@${ref}`] ?? null,
       },

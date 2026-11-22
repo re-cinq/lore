@@ -66,6 +66,7 @@ function fakeRepository(labels: string[]) {
     updated,
     project: {
       repo: {
+        tree: async () => [],
         read: async (path: string) => {
           if (path === "specs/widget/plan.md") {
             return "This is the approved plan for the widget.";

@@ -336,3 +336,56 @@ describe("issueCoverageHandle", () => {
     expect(await handle(brief(), tools)).toMatchObject({ outcome: "failed" });
   });
 });
+
+describe("issueCoverageHandle on a spec-tickets run with a drift statement", () => {
+  const DRIFT_SPEC = `${SPEC}- FR3 — The archive is served by \`apps/floor/src/archive-route.ts\`.\n`;
+
+  async function driftRun() {
+    const produced: Record<string, string> = {};
+    const logged: string[] = [];
+    const tools: Tools = {
+      read: async () => Buffer.from(decomposition([7], [8])),
+      produce: async (name, bytes) => {
+        produced[name] = bytes.toString();
+      },
+      modelCall: async () => {},
+      signal: new AbortController().signal,
+    };
+    const deps: CoverageDeps = {
+      readSpec: async (_repo, path) => (path === SPEC_PATH ? DRIFT_SPEC : null),
+      listTree: async () => [SPEC_PATH],
+      filedCoverage: async () => [],
+      visitsOf: async () => [{ nodeId: "issue-coverage", report: null }],
+    };
+    const log = console.log;
+
+    console.log = (line: string) => logged.push(line);
+    const report = await issueCoverageHandle(deps)(
+      brief({ ...NEEDS, verified_decomposition: "blob://verified" }),
+      tools,
+    ).finally(() => {
+      console.log = log;
+    });
+
+    return { report, produced, logged };
+  }
+
+  it("counts 2 of 2 covered with no gap for FR3 on line 9, and logs it naming apps/floor", async () => {
+    const { report, produced, logged } = await driftRun();
+
+    expect({ report, produced, logged }).toEqual({
+      report: { outcome: "success" },
+      produced: {
+        issue_coverage:
+          "## Spec coverage\n\n2 of 2 testable spec statements have a task or verified implementation evidence.\n",
+      },
+      logged: [
+        JSON.stringify({
+          type: "log",
+          message:
+            "spec-tickets drift: specs/live/spec.md:9 names apps/floor, which this repository does not hold; no ticket filed",
+        }),
+      ],
+    });
+  });
+});
