@@ -20,6 +20,7 @@ import {
 import { registerPersonAppClientGuard } from "../transport/http/person-request-context.js";
 import { registerRepoGuard } from "../transport/http/repo-guard.js";
 import { createRepoAccess } from "../work/auth/repo-access.js";
+import { personGithubEnv } from "../work/auth/person-github-env.js";
 import { repoAccessPorts } from "../outbound/repo-access-ports.js";
 import { deleteExpiredHandoffs } from "../work/auth/login-handoffs.js";
 import { runRepoOf } from "../work/auth/run-repo.js";
@@ -63,7 +64,7 @@ export function buildServer(
   registerRateLimit(server);
   registerBearerScope(server, getPool);
   registerRepoAlias(server, mirrorOwnerOf);
-  registerRepoGuard(server, createRepoAccess(repoAccessPorts(getPool)));
+  registerRepoGuard(server, personRepoAccess(getPool));
   registerRunRepoGuard(server, (runId) => runRepoOf(poolOf(getPool), runId));
 
   const routes = registerRoutes(server, getPool, planFloor);
@@ -74,6 +75,15 @@ export function buildServer(
   }
 
   return server;
+}
+
+/** The guard asks GitHub with the person's own Step 3 token (FR-009). */
+function personRepoAccess(getPool: () => Pool | null) {
+  return createRepoAccess(
+    repoAccessPorts(getPool, process.env, (pool, tokenHash) =>
+      personGithubEnv(pool, { person: true, tokenHash }),
+    ),
+  );
 }
 
 function poolOf(getPool: () => Pool | null): Pool {

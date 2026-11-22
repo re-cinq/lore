@@ -110,7 +110,7 @@ describe("repo access", () => {
       writeOnWrite: true,
       writeOnAdmin: false,
       adminOnAdmin: true,
-      askedOnListedWrite: [["ana", "acme/app"]],
+      askedOnListedWrite: [["ana", "acme/app", "ana-hash"]],
     });
   });
 
@@ -143,6 +143,24 @@ describe("repo access", () => {
       write: await lore.canOpen(listed, "acme/app", "write"),
       admin: await lore.canOpen(listed, "acme/app", "admin"),
     }).toEqual({ write: false, admin: false });
+    warn.mockRestore();
+  });
+
+  it("rethrows PersonTokenUnavailable on write and admin instead of turning it into a refusal", async () => {
+    const { PersonTokenUnavailable } =
+      await import("../../outbound/repo-access-ports.js");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const unavailable = new PersonTokenUnavailable("refresh refused");
+    const lore = access(unavailable);
+    const listed = person(["acme/app"]);
+
+    await expect(lore.canOpen(listed, "acme/app", "write")).rejects.toEqual(
+      unavailable,
+    );
+    await expect(lore.canOpen(listed, "acme/app", "admin")).rejects.toEqual(
+      unavailable,
+    );
+    expect(warn.mock.calls).toEqual([]);
     warn.mockRestore();
   });
 });

@@ -1,8 +1,9 @@
 // Whether the person behind a session may reach a repository at the level a route declares: every level needs the repository on the sign-in installation list (FR-031), and write and admin then ask GitHub as Lore's App (ADR-053, ADR-054).
 
-import type {
-  RepoAccessPorts,
-  RepoPermission,
+import {
+  PersonTokenUnavailable,
+  type RepoAccessPorts,
+  type RepoPermission,
 } from "../../outbound/repo-access-ports.js";
 import { repoAllowed } from "./login-grant.js";
 
@@ -69,8 +70,11 @@ async function askedOfGitHub(
   }
 
   try {
-    return await ports.permissionOf(user.login, repo);
+    return await ports.permissionOf(user.login, repo, tokenHash);
   } catch (err) {
+    if (err instanceof PersonTokenUnavailable) {
+      throw err;
+    }
     console.warn(
       `[repo-access] GitHub could not say whether ${user.login} can open ${repo}: ${(err as Error).message}`,
     );

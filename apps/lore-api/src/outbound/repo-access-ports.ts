@@ -7,8 +7,12 @@ import { buildOctokit } from "@re-cinq/lore-shared/project/lib/platform-github-a
 export type RepoPermission = "admin" | "write" | "read" | "none";
 
 export interface RepoAccessPorts {
-  /** What GitHub says the person may do in the repo today, asked with Lore's own App. */
-  permissionOf(login: string, repo: string): Promise<RepoPermission>;
+  /** What GitHub says the person may do in the repo today, asked with the person's own Step 3 token when one is stored, else Lore's own App. */
+  permissionOf(
+    login: string,
+    repo: string,
+    tokenHash?: string,
+  ): Promise<RepoPermission>;
   /** Adds the repo to the session's list, so the next question needs no call to GitHub. */
   remember(tokenHash: string, repo: string): Promise<void>;
   now(): number;
@@ -21,16 +25,50 @@ const PERMISSIONS: readonly RepoPermission[] = [
   "none",
 ];
 
+/** The environment that acts as the signed-in person (their own Step 3 token), or undefined when the App stays the actor. */
+export type PersonEnv = (
+  pool: Pool,
+  tokenHash: string,
+) => Promise<NodeJS.ProcessEnv | undefined>;
+
+/** The person's own token could not be read: the question is not put to GitHub at all, and the caller fails rather than guess a level. */
+export class PersonTokenUnavailable extends Error {}
+
 export function repoAccessPorts(
   getPool: () => Pool | null,
   env: NodeJS.ProcessEnv = process.env,
+  personEnv?: PersonEnv,
 ): RepoAccessPorts {
+  const step3Env = env.LORE_USER_TOKEN_ENCRYPTION_KEY ? personEnv : undefined;
+
   return {
-    permissionOf: (login, repo) =>
-      permissionOnGitHub(env, login, repo).catch(noneWhenUnknown),
+    permissionOf: async (login, repo, tokenHash) =>
+      permissionOnGitHub(
+        await askingEnv(getPool(), env, tokenHash, step3Env),
+        login,
+        repo,
+      ).catch(noneWhenUnknown),
     remember: (tokenHash, repo) => rememberRepo(getPool(), tokenHash, repo),
     now: Date.now,
   };
+}
+
+/** From Step 3 the person's own token asks; without Step 3 tokens configured the App does (Step 2). A person whose token cannot be read rejects rather than falling back to the App. */
+async function askingEnv(
+  pool: Pool | null,
+  env: NodeJS.ProcessEnv,
+  tokenHash: string | undefined,
+  personEnv: PersonEnv | undefined,
+): Promise<NodeJS.ProcessEnv> {
+  if (!pool || !tokenHash || !personEnv) {
+    return env;
+  }
+
+  try {
+    return (await personEnv(pool, tokenHash)) ?? env;
+  } catch (err) {
+    throw new PersonTokenUnavailable((err as Error).message);
+  }
 }
 
 /** `GET /repos/{owner}/{repo}/collaborators/{username}/permission` with the installation's token (Metadata: read). An answer that is not one of GitHub's four roles is `none`. */

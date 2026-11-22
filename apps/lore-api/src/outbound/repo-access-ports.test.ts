@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getCollaboratorPermissionLevel = vi.fn();
 
 vi.mock("@re-cinq/lore-shared/project/lib/platform-github-auth.js", () => ({
-  buildOctokit: async () => ({
+  buildOctokit: vi.fn(async () => ({
     rest: { repos: { getCollaboratorPermissionLevel } },
-  }),
+  })),
 }));
 
 const { repoAccessPorts } = await import("./repo-access-ports.js");
@@ -112,5 +112,90 @@ describe("repo access ports", () => {
       nameDots: "none",
       asked: [],
     });
+  });
+
+  it("asks as the App, never reading the person's token, when no Step 3 encryption key is configured", async () => {
+    getCollaboratorPermissionLevel.mockResolvedValue({
+      data: { permission: "write" },
+    });
+    const appEnv = { GITHUB_APP_ID: "999" };
+    const personEnv = vi.fn(async () => ({ GITHUB_TOKEN: "ghu_ana" }));
+    const withoutKey = repoAccessPorts(
+      () => ({ query }) as never,
+      appEnv,
+      personEnv,
+    );
+    const { buildOctokit } =
+      await import("@re-cinq/lore-shared/project/lib/platform-github-auth.js");
+
+    expect({
+      answer: await withoutKey.permissionOf("ana", "acme/app", "ana-hash"),
+      personEnvCalls: personEnv.mock.calls,
+      octokitEnvs: vi.mocked(buildOctokit).mock.calls,
+    }).toEqual({
+      answer: "write",
+      personEnvCalls: [],
+      octokitEnvs: [[appEnv]],
+    });
+  });
+
+  it("asks with the person's Step 3 env when available and falls back to the App env without a pool, token hash, or stored token", async () => {
+    getCollaboratorPermissionLevel.mockResolvedValue({
+      data: { permission: "write" },
+    });
+    const pool = { query } as never;
+    const appEnv = { LORE_USER_TOKEN_ENCRYPTION_KEY: "k" };
+    const anaEnv = { GITHUB_TOKEN: "ghu_ana" };
+    const personEnv = vi.fn(async (_db: unknown, hash: string) =>
+      hash === "ana-hash" ? anaEnv : undefined,
+    );
+    const keyed = repoAccessPorts(() => pool, appEnv, personEnv);
+    const poolless = repoAccessPorts(() => null, appEnv, personEnv);
+    const { buildOctokit } =
+      await import("@re-cinq/lore-shared/project/lib/platform-github-auth.js");
+
+    expect({
+      withToken: await keyed.permissionOf("ana", "acme/app", "ana-hash"),
+      withoutPool: await poolless.permissionOf("ana", "acme/app", "ana-hash"),
+      withoutHash: await keyed.permissionOf("ana", "acme/app"),
+      withoutStoredToken: await keyed.permissionOf(
+        "ana",
+        "acme/app",
+        "legacy-hash",
+      ),
+      personEnvCalls: personEnv.mock.calls,
+      octokitEnvs: vi.mocked(buildOctokit).mock.calls,
+    }).toEqual({
+      withToken: "write",
+      withoutPool: "write",
+      withoutHash: "write",
+      withoutStoredToken: "write",
+      personEnvCalls: [
+        [pool, "ana-hash"],
+        [pool, "legacy-hash"],
+      ],
+      octokitEnvs: [[anaEnv], [appEnv], [appEnv], [appEnv]],
+    });
+  });
+
+  it("rejects with PersonTokenUnavailable, asking GitHub nothing, when the person's token cannot be read", async () => {
+    const keyed = repoAccessPorts(
+      () => ({ query }) as never,
+      { LORE_USER_TOKEN_ENCRYPTION_KEY: "k" },
+      async () => {
+        throw new Error("refresh refused");
+      },
+    );
+    const { PersonTokenUnavailable } = await import("./repo-access-ports.js");
+    const { buildOctokit } =
+      await import("@re-cinq/lore-shared/project/lib/platform-github-auth.js");
+
+    await expect(
+      keyed.permissionOf("ana", "acme/app", "ana-hash"),
+    ).rejects.toEqual(new PersonTokenUnavailable("refresh refused"));
+    expect({
+      octokitCalls: vi.mocked(buildOctokit).mock.calls,
+      asked: getCollaboratorPermissionLevel.mock.calls,
+    }).toEqual({ octokitCalls: [], asked: [] });
   });
 });
