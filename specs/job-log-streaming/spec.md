@@ -73,7 +73,7 @@ parseAgentLog → LogEntriesView (Formatted), or the log text as answered (Raw)
 
 13. The browser reads a node's log over the live socket from lore-api's route, whose path `nodeLogsUrl` builds from the encoded run id and node name. ([validated by builds the proxy path and encodes the run id and the agent CR name @9429be47](apps/web-ui/src/app/assembly-runs/[id]/node-pod-logs-presenter.test.ts#L20))
 
-14. lore-api refuses a person who cannot read the run's repository with `403` before the route reads the log. ([validated by refuses Ben the events of a run in a repo outside his list with 403 @ee83635a](apps/lore-api/src/transport/http/run-repo-guard.test.ts#L69))
+14. lore-api refuses a person who cannot read the run's repository with `403` before the route reads the log. ([validated by refuses Ben the events of a run in a repo outside his list with 403](apps/lore-api/src/transport/http/run-repo-guard.test.ts#L70))
 
 15. lore-api answers `404` for a floor node name that is no visit of the run. ([validated by answers 404 for a name of no visit of this run @c17afccb](apps/lore-api/src/transport/routes/floor/node-logs.test.ts#L45))
 

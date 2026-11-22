@@ -37,6 +37,7 @@ describe("GET /api/auth/callback", () => {
       redeemed: {
         returnUrl: RETURN,
         grant: {
+          githubId: 4242,
           login: "gedaiu",
           name: "Bogdan",
           avatarUrl: "https://a/1",
@@ -105,7 +106,7 @@ describe("GET /api/auth/callback", () => {
     expect(errors).toEqual(answers.map(() => "github_denied"));
   });
 
-  it("lets every GitHub account in as a member when no org is configured", async () => {
+  it("sends every GitHub account back with auth_error=not_in_org and stores no redeem row when no org is configured", async () => {
     const deps = testDeps({
       config: {
         clientId: "c",
@@ -116,15 +117,26 @@ describe("GET /api/auth/callback", () => {
       },
     });
     const { location } = await signIn(deps);
-    const redeemed = await deps.handoffs.take(
-      location.searchParams.get("code") as string,
-      "redeem",
-    );
 
-    expect(redeemed?.grant).toMatchObject({
-      scopes: ["admin"],
-      repos: ["re-cinq/lore", "someone/else"],
+    expect({
+      authError: location.searchParams.get("auth_error"),
+      code: location.searchParams.get("code"),
+    }).toEqual({ authError: "not_in_org", code: null });
+  });
+
+  it("sends a person back with auth_error=github_denied when GitHub's viewer has no numeric id", async () => {
+    const deps = testDeps({
+      github: {
+        fetchViewer: async () =>
+          ({ login: "gedaiu", name: "B", avatar_url: "" }) as never,
+      },
     });
+    const { location } = await signIn(deps);
+
+    expect({
+      authError: location.searchParams.get("auth_error"),
+      code: location.searchParams.get("code"),
+    }).toEqual({ authError: "github_denied", code: null });
   });
 
   it("sends a person who cancelled on GitHub back with auth_error=github_denied", async () => {

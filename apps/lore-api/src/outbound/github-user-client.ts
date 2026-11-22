@@ -22,7 +22,7 @@ export interface GithubTokenPair {
 }
 
 export interface GithubViewer {
-  id?: number;
+  id: number;
   login: string;
   name: string | null;
   avatar_url: string;
@@ -206,16 +206,20 @@ function optionalTokenFields(
 function viewerOf(body: unknown): GithubViewer | null {
   const record = asRecord(body);
 
-  if (!record || !isNonEmptyString(record.login)) {
+  if (!record || !isNonEmptyString(record.login) || !isGithubId(record.id)) {
     return null;
   }
 
   return {
-    id: typeof record.id === "number" ? record.id : undefined,
+    id: record.id,
     login: record.login,
     name: typeof record.name === "string" ? record.name : null,
     avatar_url: typeof record.avatar_url === "string" ? record.avatar_url : "",
   };
+}
+
+function isGithubId(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

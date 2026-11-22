@@ -104,6 +104,7 @@ describe("POST /api/assembly-runs/{id}/nodes/{node}/run", () => {
           {
             scopes: ["admin"],
             kind: "user",
+            github_id: "4242",
             login: "ana",
             repos: [],
             startedAt: new Date("2026-10-28T10:00:00Z"),

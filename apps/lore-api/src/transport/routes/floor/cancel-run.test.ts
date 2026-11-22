@@ -37,6 +37,7 @@ function poolOfSession(login: string): Pool {
         {
           scopes: ["admin"],
           kind: "user",
+          github_id: "4242",
           login,
           repos: [],
           startedAt: new Date("2026-10-28T10:00:00Z"),

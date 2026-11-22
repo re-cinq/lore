@@ -19,6 +19,7 @@ function lore() {
       {
         scopes: ["admin"],
         kind: "user",
+        github_id: "4242",
         login: "ben",
         repos: [],
         startedAt: new Date("2026-11-18T10:00:00Z"),
@@ -228,6 +229,7 @@ function leveledLore(grantedOnAcme: DeclaredLevel) {
       {
         scopes: ["admin"],
         kind: "user",
+        github_id: "4242",
         login: "ben",
         repos: [],
         startedAt: new Date("2026-11-18T10:00:00Z"),
@@ -287,6 +289,7 @@ describe("enforceRepoOpen", () => {
         {
           scopes: ["admin"],
           kind: "user",
+          github_id: "4242",
           login: "ben",
           repos: [],
           startedAt: new Date("2026-11-18T10:00:00Z"),

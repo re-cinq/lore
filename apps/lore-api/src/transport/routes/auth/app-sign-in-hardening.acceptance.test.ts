@@ -471,6 +471,7 @@ function routeGithubStubFetch(
 
   if (url === "https://api.github.com/user") {
     return jsonResponse({
+      id: 4242,
       login: "gedaiu",
       name: "Bogdan",
       avatar_url: "https://a/1",
@@ -669,7 +670,7 @@ function takeHandoffRow(
     rows: [
       {
         returnUrl: entry.return_url,
-        grant: entry.grant_json,
+        grant: JSON.parse(String(entry.grant_json)),
         encryptedTokens: entry.encrypted_tokens ?? null,
       },
     ],

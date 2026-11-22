@@ -139,21 +139,23 @@ function validViewer(viewer: unknown): viewer is GithubViewer {
     return false;
   }
 
-  return isNonEmptyString((viewer as { login?: unknown }).login);
+  const { id, login } = viewer as { id?: unknown; login?: unknown };
+
+  return isNonEmptyString(login) && Number.isSafeInteger(id) && Number(id) > 0;
 }
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-/** Everyone GitHub vouches for is a member when no org is configured; otherwise only the org's active members are, with their role there. */
+/** Only an active member of the configured org is admitted, with their role there; with no org configured nobody is (FR-012). */
 async function roleIn(
   deps: AuthDeps,
   config: OAuthConfig,
   token: string,
 ): Promise<OrgRole | "install_fault" | null> {
   if (!config.org) {
-    return "member";
+    return null;
   }
 
   try {
@@ -174,10 +176,10 @@ async function grantFor(
   const repos = await deps.github.fetchUserRepos(tokenPair.accessToken);
 
   return {
+    githubId: viewer.id,
     login: viewer.login,
     name: viewer.name ?? viewer.login,
     avatarUrl: viewer.avatar_url,
-    githubId: viewer.id,
     scopes: SESSION_SCOPES,
     repos: repos.map((repo) => repo.full_name),
   };

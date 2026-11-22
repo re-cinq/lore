@@ -9,6 +9,7 @@ export interface TokenUser {
   displayName: string;
   avatarUrl: string;
   repos: string[];
+  /** The person behind the row: a session's person, or the maker of a token (FR-044, FR-327). */
   githubId?: number;
 }
 

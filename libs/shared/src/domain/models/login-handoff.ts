@@ -4,12 +4,12 @@ import type { ColumnMap } from "../../lib/row.js";
 /* `lore.login_handoffs` — the one-time rows of the GitHub sign-in lore-api runs for the web UI: a `state` row binds the GitHub round trip to the page that started it, a `redeem` row holds the signed-in person until the web UI swaps its code for a session token. Only the sha256 of the code is stored, and taking a row deletes it. */
 
 export const UserGrantSchema = z.object({
+  githubId: z.number().int().positive(),
   login: z.string(),
   name: z.string(),
   avatarUrl: z.string(),
   scopes: z.array(z.string()),
   repos: z.array(z.string()),
-  githubId: z.number().optional(),
 });
 
 export type UserGrant = z.infer<typeof UserGrantSchema>;

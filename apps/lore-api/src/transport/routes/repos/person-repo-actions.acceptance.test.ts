@@ -1537,6 +1537,7 @@ function projectTokenRow(
     id: row.id,
     scopes: row.scopes,
     kind: row.kind,
+    github_id: row.github_id,
     login: row.login,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,

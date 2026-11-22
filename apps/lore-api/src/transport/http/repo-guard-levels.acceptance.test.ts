@@ -658,6 +658,7 @@ function personToken(
   return {
     scopes: ["admin"],
     kind: "user",
+    github_id: "4242",
     login,
     displayName,
     avatarUrl: null,

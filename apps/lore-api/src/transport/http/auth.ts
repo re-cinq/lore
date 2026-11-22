@@ -98,12 +98,12 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
 export interface UserIdentity {
+  /** The person's GitHub numeric user id, the key of every lock and revocation that concerns them. */
+  githubId: number;
   login: string;
   name: string;
   avatarUrl: string | null;
   repos: string[];
-  /** The person's GitHub numeric id, when the sign-in recorded it. */
-  githubId?: number | null;
   /** When the person signed in, and when that sign-in stops working. */
   startedAt: string;
   expiresAt: string | null;
@@ -234,6 +234,10 @@ async function lookupPrincipal(
     return null;
   }
 
+  if (rows[0].kind === "user" && rows[0].github_id == null) {
+    return null;
+  }
+
   if (!(await makerIsStillMember(pool, rows[0]))) {
     return null;
   }
@@ -286,17 +290,13 @@ function userOf(row: TokenRow): UserIdentity | null {
   }
 
   return {
+    githubId: Number(row.github_id),
     login: row.login,
     name: row.displayName ?? row.login,
     avatarUrl: row.avatarUrl ?? null,
     repos: row.repos ?? [],
-    githubId: githubIdOf(row),
     ...periodOf(row),
   };
-}
-
-function githubIdOf(row: TokenRow): number | null {
-  return row.github_id == null ? null : Number(row.github_id);
 }
 
 function periodOf(row: TokenRow) {

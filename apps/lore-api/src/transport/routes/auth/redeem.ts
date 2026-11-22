@@ -11,6 +11,7 @@ import {
   SESSION_LENGTH_KEY,
   sessionLengthMs,
 } from "@re-cinq/lore-shared/session-length.js";
+import { lockPerson } from "../../../work/auth/person-access.js";
 import { storeUserSessionTokens } from "../../../work/auth/user-session-tokens.js";
 import {
   mintApiToken,
@@ -69,6 +70,8 @@ async function redeemHandoff(
   const handoff = await deps.handoffs.take(code, "redeem", tx);
 
   enforceTrue(handoff?.grant, apiError(401), "invalid or used code");
+  enforceTrue(handoff.grant.githubId, apiError(401), "invalid or used code");
+  await lockPerson(tx, handoff.grant.githubId);
   const expiresAt = new Date(Date.now() + (await sessionLength(tx)));
   const minted = await mintApiToken(tx, sessionToken(handoff.grant, expiresAt));
 

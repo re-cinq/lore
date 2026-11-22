@@ -19,6 +19,13 @@ export const CONFIG: OAuthConfig = {
   org: "re-cinq",
 };
 
+const VIEWER = {
+  id: 4242,
+  login: "gedaiu",
+  name: "Bogdan",
+  avatar_url: "https://a/1",
+};
+
 export function fakeGithub(overrides: Partial<GithubUser> = {}): GithubUser {
   return {
     exchangeCode: async () => ({
@@ -26,11 +33,7 @@ export function fakeGithub(overrides: Partial<GithubUser> = {}): GithubUser {
       expiresIn: 28800,
       refreshToken: "ghr_abc",
     }),
-    fetchViewer: async () => ({
-      login: "gedaiu",
-      name: "Bogdan",
-      avatar_url: "https://a/1",
-    }),
+    fetchViewer: async () => VIEWER,
     fetchOrgRole: async () => "member",
     fetchUserRepos: async () => [
       { full_name: "re-cinq/lore", owner: { login: "re-cinq" } },
@@ -101,6 +104,7 @@ export const userPrincipal = (
   JSON.stringify({
     scopes,
     user: {
+      githubId: 4242,
       login: "gedaiu",
       name: "Bogdan",
       avatarUrl: "https://a/1",

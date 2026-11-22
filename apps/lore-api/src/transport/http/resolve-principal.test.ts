@@ -31,6 +31,7 @@ describe("resolvePrincipal", () => {
         {
           scopes: ["read", "write"],
           kind: "user",
+          github_id: "4242",
           login: "gedaiu",
           displayName: "Bogdan",
           avatarUrl: "https://a/1",
@@ -44,7 +45,7 @@ describe("resolvePrincipal", () => {
     expect(await resolvePrincipal(pool as never, "user-token")).toEqual({
       scopes: ["read", "write"],
       user: {
-        githubId: null,
+        githubId: 4242,
         login: "gedaiu",
         name: "Bogdan",
         avatarUrl: "https://a/1",
@@ -54,6 +55,26 @@ describe("resolvePrincipal", () => {
       },
       tokenHash: sha256("user-token"),
     });
+  });
+
+  it("resolves no principal for a user session row that carries no GitHub numeric user id", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          scopes: ["admin"],
+          kind: "user",
+          github_id: null,
+          login: "gedaiu",
+          repos: ["re-cinq/lore"],
+          startedAt: new Date("2026-10-28T10:00:00Z"),
+          expiresAt: new Date("2026-10-28T18:00:00Z"),
+        },
+      ],
+    });
+
+    expect(await resolvePrincipal(pool as never, "old-session")).toBeNull();
   });
 
   it("resolves a service token to its scopes and no person", async () => {

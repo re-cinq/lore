@@ -24,6 +24,7 @@ import {
 interface StoredTokenRow {
   scopes: string[];
   kind: string;
+  github_id: number;
   login: string;
   displayName: string;
   avatarUrl: string;
@@ -57,6 +58,7 @@ function createTokenPool() {
         tokens.set(String(params[1]), {
           scopes: params[2] as string[],
           kind: String(params[5]),
+          github_id: params[10] as number,
           login: String(params[6]),
           displayName: String(params[7]),
           avatarUrl: String(params[8]),
@@ -102,6 +104,7 @@ function buildSignInDeps(pool: Pool): AuthDeps {
         refreshToken: "ghr_user_token",
       }),
       fetchViewer: async () => ({
+        id: 7,
         login: "alice",
         name: "Alice",
         avatar_url: "https://avatars.example/alice",
@@ -215,6 +218,7 @@ describe("repository identity characterization (current name-based behaviour)", 
     const redeemCode = await deps.handoffs.put("redeem", {
       returnUrl: "https://lore.example/repos",
       grant: {
+        githubId: 7,
         login: "alice",
         name: "Alice",
         avatarUrl: "https://avatars.example/alice",

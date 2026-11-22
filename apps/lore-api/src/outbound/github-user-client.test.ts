@@ -93,6 +93,7 @@ describe("exchangeCode", () => {
 describe("fetchViewer", () => {
   it("returns the signed-in person's login, name and avatar", async () => {
     const viewer = {
+      id: 4242,
       login: "gedaiu",
       name: "Bogdan",
       avatar_url: "https://a/1",
@@ -121,6 +122,23 @@ describe("fetchViewer", () => {
     expect(await fetchViewer("gho_abc", fetchImpl)).toMatchObject({
       id: 987654,
     });
+  });
+
+  it("returns null when GitHub answers a viewer with no numeric id, a zero id or an id that is a string", async () => {
+    const answers = [
+      { login: "gedaiu" },
+      { id: 0, login: "gedaiu" },
+      { id: "4242", login: "gedaiu" },
+    ];
+    const viewers = [];
+
+    for (const answer of answers) {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(answer));
+
+      viewers.push(await fetchViewer("gho_abc", fetchImpl));
+    }
+
+    expect(viewers).toEqual([null, null, null]);
   });
 
   it("returns null when GitHub refuses the token", async () => {

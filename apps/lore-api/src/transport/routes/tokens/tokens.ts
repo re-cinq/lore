@@ -19,6 +19,8 @@ import {
   offsetParam,
 } from "../common-schemas.js";
 import { OkSchema } from "../../http/ok-schema.js";
+import { runInTransaction } from "@re-cinq/lore-shared";
+import { lockPerson } from "../../../work/auth/person-access.js";
 import {
   mintApiToken,
   type MintInput,
@@ -194,7 +196,7 @@ async function createToken(
   enforceTrue(body.name, apiError(400), "name required");
   refuseStationsKind(body.kind);
   const expiresAt = expiryDate(body.expires_in_days);
-  const { token, row } = await mintApiToken(pool, {
+  const { token, row } = await mintedBy(pool, maker, {
     name: body.name,
     scopes: resolveScopes(body.scopes),
     createdBy: maker?.login ?? "admin",
@@ -210,7 +212,7 @@ async function createToken(
 
 /** FR-044: a token a signed-in person mints records their GitHub numeric id. */
 function makerColumns(maker: UserIdentity | null): Partial<MintInput> {
-  if (maker?.githubId == null) {
+  if (!maker) {
     return {};
   }
 
@@ -223,6 +225,23 @@ function makerColumns(maker: UserIdentity | null): Partial<MintInput> {
       githubId: maker.githubId,
     },
   };
+}
+
+/** A person's session mints under the person's lock, so a sign-out or revocation of that person cannot interleave with the insert (FR-389). */
+async function mintedBy(
+  pool: Pool,
+  maker: UserIdentity | null,
+  input: MintInput,
+) {
+  if (!maker) {
+    return mintApiToken(pool, input);
+  }
+
+  return runInTransaction(pool, async (tx) => {
+    await lockPerson(tx, maker.githubId);
+
+    return mintApiToken(tx, input);
+  });
 }
 
 function resolveScopes(scopes: string[] | undefined): TokenScope[] {
