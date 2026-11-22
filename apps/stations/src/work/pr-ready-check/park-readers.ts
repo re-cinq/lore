@@ -10,6 +10,7 @@ import {
 } from "@re-cinq/lore-shared/project/pulls/check-runs.js";
 import type { CheckRun } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrReady, type PrReadyInput } from "./decide-ready.js";
+import { settleAnsweredThreads } from "./answered-threads.js";
 import {
   decideCiReady,
   redFeedback,
@@ -106,18 +107,19 @@ async function readPrFacts(
 async function readBuild(
   run: LoopRunSlice,
   deps: PrReadyCheckDeps,
-  { prNumber, headSha }: { prNumber: number; headSha: string },
+  judged: { prNumber: number; headSha: string },
 ) {
   const [checks, threads, openReviewRunCount, hasCiHistory] = await Promise.all(
     [
-      deps.listChecks(run.repo, headSha),
-      deps.listReviewThreads(run.repo, prNumber),
-      deps.countOpenReviewRuns(run.repo, prNumber),
+      deps.listChecks(run.repo, judged.headSha),
+      deps.listReviewThreads(run.repo, judged.prNumber),
+      deps.countOpenReviewRuns(run.repo, judged.prNumber),
       deps.hasCiHistory(run.repo),
     ],
   );
+  const settled = await settleAnsweredThreads(run, deps, judged, threads);
 
-  return { checks, threads, openReviewRunCount, hasCiHistory };
+  return { checks, threads: settled, openReviewRunCount, hasCiHistory };
 }
 
 /** Where the branch stands against main: what sends it to the sync before CI is read. */

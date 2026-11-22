@@ -90,9 +90,14 @@ interface ReviewThreadsResponse {
           id: string;
           isResolved: boolean;
           isOutdated: boolean;
+          path: string | null;
           comments: {
             pageInfo?: { hasNextPage: boolean };
-            nodes: Array<{ databaseId: number | null }>;
+            nodes: Array<{
+              databaseId: number | null;
+              author: { login: string } | null;
+              originalCommit: { oid: string } | null;
+            }>;
           };
         }>;
       };
@@ -110,9 +115,10 @@ const REVIEW_THREADS_QUERY = `query ($owner: String!, $name: String!, $number: I
                 id
                 isResolved
                 isOutdated
+                path
                 comments(first: 100) {
                   pageInfo { hasNextPage }
-                  nodes { databaseId }
+                  nodes { databaseId author { login } originalCommit { oid } }
                 }
               }
             }
@@ -172,15 +178,23 @@ function pushThreadPage(
 ): void {
   page.nodes.forEach((node) => {
     warnIfThreadTruncated(node, repo, number);
-    const { id, isResolved, isOutdated, comments } = node;
-
-    threads.push({
-      id,
-      isResolved,
-      isOutdated,
-      comments: comments.nodes.map((c) => ({ databaseId: c.databaseId })),
-    });
+    threads.push(threadOf(node));
   });
+}
+
+type ThreadNode = NonNullable<
+  NonNullable<ReviewThreadsResponse["repository"]>["pullRequest"]
+>["reviewThreads"]["nodes"][number];
+
+function threadOf({ comments, ...thread }: ThreadNode): ReviewThread {
+  return {
+    ...thread,
+    comments: comments.nodes.map((c) => ({
+      databaseId: c.databaseId,
+      author: c.author?.login ?? null,
+      commitSha: c.originalCommit?.oid ?? null,
+    })),
+  };
 }
 
 /** 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread". */

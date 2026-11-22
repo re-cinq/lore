@@ -865,7 +865,17 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
             id: "PRRT_1",
             isResolved: false,
             isOutdated: false,
-            comments: { nodes: [{ databaseId: 101 }, { databaseId: 102 }] },
+            path: "src/a.ts",
+            comments: {
+              nodes: [
+                {
+                  databaseId: 101,
+                  author: { login: "lore-reviewer" },
+                  originalCommit: { oid: "c0ffee" },
+                },
+                { databaseId: 102, author: null, originalCommit: null },
+              ],
+            },
           },
         ],
         pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
@@ -876,7 +886,10 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
             id: "PRRT_2",
             isResolved: true,
             isOutdated: true,
-            comments: { nodes: [{ databaseId: null }] },
+            path: null,
+            comments: {
+              nodes: [{ databaseId: null, author: null, originalCommit: null }],
+            },
           },
         ],
         pageInfo: { hasNextPage: false, endCursor: null },
@@ -890,13 +903,18 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
         id: "PRRT_1",
         isResolved: false,
         isOutdated: false,
-        comments: [{ databaseId: 101 }, { databaseId: 102 }],
+        path: "src/a.ts",
+        comments: [
+          { databaseId: 101, author: "lore-reviewer", commitSha: "c0ffee" },
+          { databaseId: 102, author: null, commitSha: null },
+        ],
       },
       {
         id: "PRRT_2",
         isResolved: true,
         isOutdated: true,
-        comments: [{ databaseId: null }],
+        path: null,
+        comments: [{ databaseId: null, author: null, commitSha: null }],
       },
     ]);
     expect(state.graphqlCalls[1]?.vars).toMatchObject({
