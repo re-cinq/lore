@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   enrollmentFromRepo,
   isoTimestamp,
-  needsWebhookSecret,
   overviewSettings,
 } from "./repo-overview";
 
@@ -57,23 +56,6 @@ describe("enrollmentFromRepo", () => {
     expect(
       enrollmentFromRepo({ onboarding_pr_merged: null }).onboardingPrMerged,
     ).toBe(false);
-  });
-});
-
-describe("needsWebhookSecret", () => {
-  it("returns false for a configured hook", () => {
-    expect(needsWebhookSecret({ state: "configured" })).toBe(false);
-  });
-
-  it("returns true for a missing and for a wrong_url hook", () => {
-    expect([
-      needsWebhookSecret({ state: "missing" }),
-      needsWebhookSecret({ state: "wrong_url" }),
-    ]).toEqual([true, true]);
-  });
-
-  it("returns false when the hook status could not be read", () => {
-    expect(needsWebhookSecret(null)).toBe(false);
   });
 });
 

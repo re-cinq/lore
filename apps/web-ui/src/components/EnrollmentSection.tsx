@@ -7,7 +7,6 @@ import {
 import EnrollmentHelp from "./EnrollmentHelp";
 import LocalSetupSteps from "./LocalSetupSteps";
 import CopyButton from "./CopyButton";
-import SecretReveal from "./SecretReveal";
 import ReonboardButton from "./ReonboardButton";
 import SetupWebhookButton from "./SetupWebhookButton";
 import Icon from "./Icon";
@@ -112,7 +111,6 @@ function CheckRow(props: CheckRowProps) {
       <CheckDetail check={check} />
       <SetupWebhookAction {...props} />
       <CheckCopy check={check} />
-      <CheckSecret check={check} />
     </div>
   );
 }
@@ -164,14 +162,6 @@ function CheckCopy({ check }: { check: Check }) {
       <CopyButton text={check.copy.value} />
     </span>
   );
-}
-
-function CheckSecret({ check }: { check: Check }) {
-  if (!check.secret) {
-    return null;
-  }
-
-  return <SecretReveal value={check.secret.value} label={check.secret.label} />;
 }
 
 function SetupWebhookAction({

@@ -117,7 +117,7 @@ describe("EnrollmentSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the setup-webhook button, copy value, and secret reveal for a webhook row", () => {
+  it("renders the setup-webhook button, and copy value for a webhook row", () => {
     const setupWebhookAction = vi.fn().mockResolvedValue(undefined);
     const webhookCheck: Check = {
       id: "webhook",
@@ -125,7 +125,6 @@ describe("EnrollmentSection", () => {
       status: "warn",
       action: { kind: "setup-webhook", text: "set up" },
       copy: { value: "https://lore/api/events", label: "set this URL" },
-      secret: { value: "shhh-secret", label: "and this secret" },
     };
 
     render(
@@ -138,8 +137,6 @@ describe("EnrollmentSection", () => {
     expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
     expect(screen.getByText("https://lore/api/events")).toBeInTheDocument();
     expect(screen.getByText("set this URL:")).toBeInTheDocument();
-    expect(screen.getByText("and this secret:")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reveal" })).toBeInTheDocument();
   });
 
   it("omits the setup-webhook button when no handler is provided", () => {

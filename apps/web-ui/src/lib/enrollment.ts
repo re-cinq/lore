@@ -10,8 +10,6 @@ export interface Check {
   action?: { kind: "setup-webhook"; text: string };
   /** A value to display verbatim with a copy button (e.g. the webhook URL to set by hand). */
   copy?: { value: string; label?: string };
-  /** A sensitive value (the webhook signing secret) — rendered masked with reveal + copy. */
-  secret?: { value: string; label?: string };
 }
 
 /** The repo's GitHub-webhook status, as classified by mcp-server (null = not fetched). */
@@ -29,8 +27,6 @@ export interface WebhookCheck {
   url?: string | null;
   lastCode?: number | null;
   reason?: string;
-  /** The HMAC signing secret — present only when fetched for manual setup. */
-  secret?: string;
 }
 
 export interface EnrollmentInput {
@@ -330,16 +326,12 @@ function applyGithubFileDetail(
   }
 }
 
-/** Manual setup fields (URL + signing secret) only make sense while the hook isn't already delivering. */
+/** Manual setup field (the URL) only make sense while the hook isn't already delivering. */
 function applyManualSetupFields(check: Check, w: WebhookCheck): void {
   if (!w.canonicalUrl || w.state === "configured") {
     return;
   }
   check.copy = { value: w.canonicalUrl, label: "set this URL" };
-
-  if (w.secret) {
-    check.secret = { value: w.secret, label: "and this secret" };
-  }
 }
 
 /** The label of the enrolment box's standing trigger, or null when it must not be offered. One run either way — the `onboard` assembly line opening ONE pull request: the first enrolment PR for a repo that has none, an update of the setup once that PR has merged. While the PR is open the guard refuses a second run, and the row's own "review & merge" link is the action. */

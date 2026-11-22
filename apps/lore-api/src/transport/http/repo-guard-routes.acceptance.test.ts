@@ -167,6 +167,53 @@ describe("repository guard route level declarations (FR-002..FR-004, FR-166..FR-
     );
   });
 
+  it("refuses a person below admin on agent definition delete, and admits admin", async () => {
+    expect(await adminLevelOutcomes(ADMIN_ROUTES_PART_5)).toEqual(
+      adminLevelExpected(ADMIN_ROUTES_PART_5),
+    );
+  });
+
+  it("asks GitHub again on every admin request, refusing a person whose level fell since the last one", async () => {
+    const permissions: Record<string, PermissionReply> = {
+      "acme/app:alice": { status: 200, permission: "admin" },
+    };
+    const { call, githubCalls } = createLoreServer(permissions);
+    const url = "/api/repos/acme/app/agent-definitions/reviewer";
+    const first = await call("DELETE", url, ALICE_TOKEN);
+
+    permissions["acme/app:alice"] = { status: 200, permission: "read" };
+    const second = await call("DELETE", url, ALICE_TOKEN);
+
+    expect({
+      firstRefused: first.statusCode === 403,
+      secondStatus: second.statusCode,
+      permissionLookups: githubCalls.filter((entry) =>
+        entry.path.endsWith("/collaborators/alice/permission"),
+      ).length,
+    }).toEqual({
+      firstRefused: false,
+      secondStatus: 403,
+      permissionLookups: 2,
+    });
+  });
+
+  it("answers an admin 404 and no secret on GET webhook/secret, which no longer exists", async () => {
+    process.env.LORE_WEBHOOK_SECRET = "s3cr3t-signing-value";
+    const { call } = createLoreServer({
+      "acme/app:alice": { status: 200, permission: "admin" },
+    });
+    const res = await call(
+      "GET",
+      "/api/repos/acme/app/webhook/secret",
+      ALICE_TOKEN,
+    );
+
+    expect({
+      status: res.statusCode,
+      leaksSecret: res.payload.includes("s3cr3t-signing-value"),
+    }).toEqual({ status: 404, leaksSecret: false });
+  });
+
   it("refuses a person with write on their own repository who posts an action on a task of another repository, and writes nothing", async () => {
     const { call, sqlCalls } = createLoreServer(
       {
@@ -622,6 +669,14 @@ const ADMIN_ROUTES_PART_4: RouteProbe[] = [
     method: "PUT",
     url: "/api/repos/acme/app/agent-definitions/reviewer",
     payload: { prompt: "Review it again" },
+  },
+];
+
+const ADMIN_ROUTES_PART_5: RouteProbe[] = [
+  {
+    name: "agent-definition-delete",
+    method: "DELETE",
+    url: "/api/repos/acme/app/agent-definitions/reviewer",
   },
 ];
 

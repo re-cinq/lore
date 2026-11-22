@@ -17,21 +17,10 @@ export interface WebhookStatus {
   active?: boolean;
   lastCode?: number | null;
   reason?: string;
-  /** The HMAC signing secret, only fetched (via getWebhookSecret) for manual setup. */
-  secret?: string;
 }
 
 export function getWebhookStatus(repo: string): Promise<WebhookStatus | null> {
   return loreApiGet<WebhookStatus>(`/api/repos/${repo}/webhook`);
-}
-
-/** Reveals HMAC signing secret for manual webhook setup (admin-scoped). */
-export async function getWebhookSecret(repo: string): Promise<string | null> {
-  const body = await loreApiGet<{ secret?: string }>(
-    `/api/repos/${repo}/webhook/secret`,
-  );
-
-  return body?.secret ?? null;
 }
 
 export async function ensureWebhook(

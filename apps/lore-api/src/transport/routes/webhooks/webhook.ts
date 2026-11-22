@@ -1,8 +1,6 @@
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
-// Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.
+// Webhook routes: GET/POST for read/admin with graceful degradation.
 
 import type {
   Request,
@@ -39,11 +37,6 @@ const WebhookStatusSchema = z.object({
   reason: z.string().optional(),
 });
 
-const WebhookSecretSchema = z.object({
-  secret: z.string(),
-  canonicalUrl: z.string(),
-});
-
 /** No configured host is reported as unknown rather than as an error: the deployment is simply not wired for webhooks yet. */
 const HOST_NOT_CONFIGURED = {
   state: "unknown",
@@ -51,9 +44,9 @@ const HOST_NOT_CONFIGURED = {
   reason: "webhook_host_not_configured",
 };
 
-/** A repository's own hook on GitHub: its state, its repair and its secret. */
+/** A repository's own hook on GitHub: its state and its repair. */
 export function repoWebhookRoutes(): ServerRoute[] {
-  return [webhookStatusRoute(), webhookEnsureRoute(), webhookSecretRoute()];
+  return [webhookStatusRoute(), webhookEnsureRoute()];
 }
 
 export function webhookStatusRoute(): ServerRoute {
@@ -65,25 +58,6 @@ export function webhookStatusRoute(): ServerRoute {
       description: "Whether the repo's webhook points at this platform",
     }),
     handler: (request, h) => serveWebhookStatus(request, h),
-  };
-}
-
-export function webhookSecretRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/webhook/secret",
-    // Admin-only: secret is shared across all hooks.
-    options: zodResponse(bearerScope("admin"), WebhookSecretSchema, {
-      name: "RepoWebhookSecret",
-      description: "The HMAC secret a repo's webhook must sign with",
-    }),
-    handler: async (_request, h) => {
-      const secret = process.env.LORE_WEBHOOK_SECRET || "";
-
-      enforceTrue(secret, apiError(503), "LORE_WEBHOOK_SECRET not configured");
-
-      return h.response({ secret, canonicalUrl: canonicalUrl() });
-    },
   };
 }
 
