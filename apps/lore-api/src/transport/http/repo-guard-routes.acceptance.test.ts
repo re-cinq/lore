@@ -156,54 +156,17 @@ describe("repository guard route level declarations (FR-002..FR-004, FR-166..FR-
   });
 
   it("refuses a person below admin on repo settings, webhook ensure, and utopia setup, backfill, and reset, and admits admin", async () => {
-    const { call, sqlCalls, githubCalls } = createLoreServer({
-      "acme/app:dana": { status: 200, permission: "write" },
-      "acme/app:alice": { status: 200, permission: "admin" },
-    });
-    const denied: Record<string, number> = {};
-
-    for (const entry of ADMIN_ROUTES) {
-      const res = await call(
-        entry.method,
-        entry.url,
-        DANA_TOKEN,
-        entry.payload,
-      );
-
-      denied[entry.name] = res.statusCode;
-    }
-    const repoTouchesOnDenial = sqlCalls.filter(touchesRepoTables);
-    const githubWritesOnDenial = githubCalls.filter(isGithubRepoWrite);
-
-    const allowed: Record<string, boolean> = {};
-
-    for (const entry of ADMIN_ROUTES) {
-      const res = await call(
-        entry.method,
-        entry.url,
-        ALICE_TOKEN,
-        entry.payload,
-      );
-
-      allowed[entry.name] = res.statusCode !== 403;
-    }
-
-    expect({
-      denied,
-      repoTouchesOnDenial,
-      githubWritesOnDenial,
-      allowed,
-    }).toEqual({
-      denied: Object.fromEntries(
-        ADMIN_ROUTES.map((entry) => [entry.name, 403]),
-      ),
-      repoTouchesOnDenial: [],
-      githubWritesOnDenial: [],
-      allowed: Object.fromEntries(
-        ADMIN_ROUTES.map((entry) => [entry.name, true]),
-      ),
-    });
+    expect(await adminLevelOutcomes(ADMIN_ROUTES)).toEqual(
+      adminLevelExpected(ADMIN_ROUTES),
+    );
   });
+
+  it("refuses a person below admin on utopia commits, memory, releases and tracker, loop switch and resume, and agent definition create and update, and admits admin", async () => {
+    expect(await adminLevelOutcomes(ADMIN_ROUTES_PART_4)).toEqual(
+      adminLevelExpected(ADMIN_ROUTES_PART_4),
+    );
+  });
+
   it("refuses a person with write on their own repository who posts an action on a task of another repository, and writes nothing", async () => {
     const { call, sqlCalls } = createLoreServer(
       {
@@ -367,6 +330,48 @@ describe("repository guard route level declarations (FR-002..FR-004, FR-166..FR-
     });
   });
 });
+
+async function adminLevelOutcomes(routes: RouteProbe[]) {
+  const { call, sqlCalls, githubCalls } = createLoreServer({
+    "acme/app:dana": { status: 200, permission: "write" },
+    "acme/app:alice": { status: 200, permission: "admin" },
+  });
+  const denied: Record<string, number> = {};
+  const allowed: Record<string, boolean> = {};
+
+  for (const entry of routes) {
+    const res = await call(entry.method, entry.url, DANA_TOKEN, entry.payload);
+
+    denied[entry.name] = res.statusCode;
+  }
+  const repoTouchesOnDenial = sqlCalls.filter(touchesRepoTables);
+  const githubWritesOnDenial = githubCalls.filter(isGithubRepoWrite);
+  const dataWritesOnDenial = sqlCalls.filter(isDataWrite);
+
+  for (const entry of routes) {
+    const res = await call(entry.method, entry.url, ALICE_TOKEN, entry.payload);
+
+    allowed[entry.name] = res.statusCode !== 403;
+  }
+
+  return {
+    denied,
+    repoTouchesOnDenial,
+    githubWritesOnDenial,
+    dataWritesOnDenial,
+    allowed,
+  };
+}
+
+function adminLevelExpected(routes: RouteProbe[]) {
+  return {
+    denied: Object.fromEntries(routes.map((entry) => [entry.name, 403])),
+    repoTouchesOnDenial: [],
+    githubWritesOnDenial: [],
+    dataWritesOnDenial: [],
+    allowed: Object.fromEntries(routes.map((entry) => [entry.name, true])),
+  };
+}
 
 interface RouteProbe {
   name: string;
@@ -571,6 +576,52 @@ const ADMIN_ROUTES: RouteProbe[] = [
     name: "utopia-reset",
     method: "POST",
     url: "/api/repos/acme/app/utopia/reset",
+  },
+];
+
+const ADMIN_ROUTES_PART_4: RouteProbe[] = [
+  {
+    name: "utopia-commits",
+    method: "POST",
+    url: "/api/repos/acme/app/utopia/commits",
+  },
+  {
+    name: "utopia-memory",
+    method: "POST",
+    url: "/api/repos/acme/app/utopia/memory",
+  },
+  {
+    name: "utopia-releases",
+    method: "POST",
+    url: "/api/repos/acme/app/utopia/releases",
+  },
+  {
+    name: "utopia-tracker",
+    method: "POST",
+    url: "/api/repos/acme/app/utopia/tracker",
+  },
+  {
+    name: "loop-switch",
+    method: "PUT",
+    url: "/api/repos/acme/app/loops/review",
+    payload: { enabled: true },
+  },
+  {
+    name: "loop-resume",
+    method: "DELETE",
+    url: "/api/repos/acme/app/loops/review/pause",
+  },
+  {
+    name: "agent-definition-create",
+    method: "POST",
+    url: "/api/repos/acme/app/agent-definitions",
+    payload: { name: "reviewer", prompt: "Review it" },
+  },
+  {
+    name: "agent-definition-update",
+    method: "PUT",
+    url: "/api/repos/acme/app/agent-definitions/reviewer",
+    payload: { prompt: "Review it again" },
   },
 ];
 

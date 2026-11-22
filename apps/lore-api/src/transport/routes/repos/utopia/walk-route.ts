@@ -3,9 +3,12 @@ import type { ServerRoute } from "@hapi/hapi";
 import type { ZodType } from "zod";
 import { zodResponse } from "../../../http/zod-response.js";
 import { bearerScope } from "../../../http/bearer-scope.js";
+import { repoLevel } from "../../../http/repo-guard.js";
 import { withPool } from "../../with-pool.js";
 import type { BackfillDeps } from "../../../../work/utopia/utopia-backfill.js";
 import { heldBackfillDeps } from "./backfill.js";
+
+const ADMIN_OPTIONS = { ...bearerScope("admin"), ...repoLevel("admin") };
 
 export interface UtopiaWalkRoute<T extends object> {
   /** The path's last segment, under `/api/repos/{owner}/{repo}/utopia/`. */
@@ -24,7 +27,7 @@ export function utopiaWalkRoute<T extends object>(
   return {
     method: "POST",
     path: `/api/repos/{owner}/{repo}/utopia/${route.segment}`,
-    options: zodResponse(bearerScope("admin"), route.schema, {
+    options: zodResponse(ADMIN_OPTIONS, route.schema, {
       name: route.name,
       description: route.description,
       errors: [404, 409],

@@ -19,12 +19,14 @@ import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent
 import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import type { Request } from "@hapi/hapi";
 import { OkTrue } from "../../http/ok-schema.js";
 
 // Per-repo agent definitions API; `image` is two-key gated (ADR-025).
 
+const ADMIN_OPTIONS = { ...bearerScope("admin"), ...repoLevel("admin") };
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 
 /** GET answers with ONE definition when a name is given, the list when it is not. */
@@ -65,7 +67,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: BASE,
-    options: zodResponse(bearerScope("admin"), AgentWrittenSchema, {
+    options: zodResponse(ADMIN_OPTIONS, AgentWrittenSchema, {
       name: "AgentDefinitionWritten",
       description: "The created definition, its ceremony, and the CRD outcome",
       errors: [400],
@@ -81,7 +83,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
     path: `${BASE}/{name}`,
-    options: zodResponse(bearerScope("admin"), AgentWrittenSchema, {
+    options: zodResponse(ADMIN_OPTIONS, AgentWrittenSchema, {
       name: "AgentDefinitionWritten",
       description: "The updated definition, its ceremony, and the CRD outcome",
       errors: [400],
