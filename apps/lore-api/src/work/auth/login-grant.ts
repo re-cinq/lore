@@ -2,7 +2,8 @@ import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
 
 export const HANDOFF_TTL_MS = 10 * 60 * 1000;
 
-export type LoginFailure = "not_in_org" | "github_denied" | "state_expired";
+export type LoginFailure =
+  "not_in_org" | "github_denied" | "state_expired" | "install_fault";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 

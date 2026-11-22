@@ -5,10 +5,11 @@ import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import type { UserGrant } from "@re-cinq/lore-shared/models/login-handoff.js";
-import type {
-  GithubTokenPair,
-  GithubViewer,
-  OrgRole,
+import {
+  MembershipPermissionRefused,
+  type GithubTokenPair,
+  type GithubViewer,
+  type OrgRole,
 } from "../../../outbound/github-user-client.js";
 import {
   errorRedirect,
@@ -70,6 +71,10 @@ async function signInOutcome(
     return errorRedirect(returnUrl, "github_denied");
   }
   const role = await roleIn(deps, config, session.tokenPair.accessToken);
+
+  if (role === "install_fault") {
+    return errorRedirect(returnUrl, "install_fault");
+  }
 
   if (!role) {
     return errorRedirect(returnUrl, "not_in_org");
@@ -146,8 +151,20 @@ async function roleIn(
   deps: AuthDeps,
   config: OAuthConfig,
   token: string,
-): Promise<OrgRole | null> {
-  return config.org ? deps.github.fetchOrgRole(token, config.org) : "member";
+): Promise<OrgRole | "install_fault" | null> {
+  if (!config.org) {
+    return "member";
+  }
+
+  try {
+    return await deps.github.fetchOrgRole(token, config.org);
+  } catch (err) {
+    if (err instanceof MembershipPermissionRefused) {
+      return "install_fault";
+    }
+
+    throw err;
+  }
 }
 
 async function grantFor(
@@ -160,6 +177,7 @@ async function grantFor(
     login: viewer.login,
     name: viewer.name ?? viewer.login,
     avatarUrl: viewer.avatar_url,
+    githubId: viewer.id,
     scopes: SESSION_SCOPES,
     repos: repos.map((repo) => repo.full_name),
   };

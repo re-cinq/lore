@@ -52,6 +52,7 @@ describe("mintApiToken", () => {
       null,
       null,
       [],
+      null,
     ]);
   });
 
@@ -84,6 +85,7 @@ describe("mintApiToken", () => {
       "Bogdan",
       "https://a/1",
       ["re-cinq/lore"],
+      null,
     ]);
   });
 

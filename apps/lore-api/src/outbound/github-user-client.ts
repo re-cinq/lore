@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // GitHub as one signed-in person: the OAuth code exchange and the reads that decide who they are and what they can open. Each takes the fetch to use, so a test never reaches GitHub.
 
 import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
@@ -21,6 +22,7 @@ export interface GithubTokenPair {
 }
 
 export interface GithubViewer {
+  id?: number;
   login: string;
   name: string | null;
   avatar_url: string;
@@ -71,7 +73,15 @@ export async function fetchViewer(
   return res.ok ? viewerOf(await res.json()) : null;
 }
 
-/** The person's role in the org, or null when they are not an active member. */
+/** GitHub refused the membership question for want of permission: a fault of the install, not an answer about the person (FR-043, FR-142). */
+export class MembershipPermissionRefused extends Error {
+  constructor(org: string) {
+    super(`GitHub refused the membership question for ${org} (403)`);
+    this.name = "MembershipPermissionRefused";
+  }
+}
+
+/** The person's role in the org, or null when they are not an active member. Throws MembershipPermissionRefused when GitHub answers 403. */
 export async function fetchOrgRole(
   token: string,
   org: string,
@@ -83,6 +93,8 @@ export async function fetchOrgRole(
     token,
     fetchImpl,
   );
+
+  enforceTrue(res.status !== 403, MembershipPermissionRefused, org);
 
   return res.ok ? activeRoleOf(await res.json()) : null;
 }
@@ -199,6 +211,7 @@ function viewerOf(body: unknown): GithubViewer | null {
   }
 
   return {
+    id: typeof record.id === "number" ? record.id : undefined,
     login: record.login,
     name: typeof record.name === "string" ? record.name : null,
     avatar_url: typeof record.avatar_url === "string" ? record.avatar_url : "",

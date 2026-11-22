@@ -10,16 +10,19 @@ import {
   API_TOKEN_COLUMNS,
 } from "@re-cinq/lore-shared/models/api-token.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { bearerScope } from "../../http/bearer-scope.js";
+import { bearerScope, principalOf } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import type { TokenScope } from "../../http/auth.js";
+import type { TokenScope, UserIdentity } from "../../http/auth.js";
 import {
   DB_UNAVAILABLE,
   clampedLimit,
   offsetParam,
 } from "../common-schemas.js";
 import { OkSchema } from "../../http/ok-schema.js";
-import { mintApiToken } from "../../../work/tokens/mint-token.js";
+import {
+  mintApiToken,
+  type MintInput,
+} from "../../../work/tokens/mint-token.js";
 
 interface TokensPostBody {
   action?: string;
@@ -27,6 +30,7 @@ interface TokensPostBody {
   scopes?: string[];
   expires_in_days?: number;
   token_id?: string;
+  kind?: string;
 }
 
 // GET query paging (POST never reads query, so no validation there).
@@ -157,7 +161,7 @@ async function writeToken(
       return revokeToken(pool, h, body.token_id);
     }
 
-    return await createToken(pool, h, body);
+    return await createToken(pool, h, body, principalOf(request).user);
   } catch (err) {
     // Guard refusals carry their status; shape only unexpected failures.
     rethrowBoom(err);
@@ -185,20 +189,40 @@ async function createToken(
   pool: Pool,
   h: ResponseToolkit,
   body: TokensPostBody,
+  maker: UserIdentity | null,
 ) {
   enforceTrue(body.name, apiError(400), "name required");
+  refuseStationsKind(body.kind);
   const expiresAt = expiryDate(body.expires_in_days);
   const { token, row } = await mintApiToken(pool, {
     name: body.name,
     scopes: resolveScopes(body.scopes),
-    createdBy: "admin",
+    createdBy: maker?.login ?? "admin",
     expiresAt,
+    ...makerColumns(maker),
   });
 
   // Return the raw token ONCE — it cannot be retrieved again
   return h
     .response({ ...row, token, expires_at: expiresAt?.toISOString() ?? null })
     .code(201);
+}
+
+/** FR-044: a token a signed-in person mints records their GitHub numeric id. */
+function makerColumns(maker: UserIdentity | null): Partial<MintInput> {
+  if (maker?.githubId == null) {
+    return {};
+  }
+
+  return {
+    user: {
+      login: maker.login,
+      displayName: maker.name,
+      avatarUrl: maker.avatarUrl ?? "",
+      repos: [],
+      githubId: maker.githubId,
+    },
+  };
 }
 
 function resolveScopes(scopes: string[] | undefined): TokenScope[] {
@@ -222,4 +246,13 @@ function tokensMethodNotAllowedRoute(): ServerRoute {
     handler: (_request: Request, h: ResponseToolkit) =>
       h.response({ error: "method not allowed" }).code(405),
   };
+}
+
+/** FR-047: the stations token is the install's own, never minted through this route. */
+function refuseStationsKind(kind: string | undefined): void {
+  enforceTrue(
+    kind !== "stations" && kind !== "station",
+    apiError(400),
+    "the stations token is provisioned by the install, not minted",
+  );
 }

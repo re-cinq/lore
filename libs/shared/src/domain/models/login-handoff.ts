@@ -9,6 +9,7 @@ export const UserGrantSchema = z.object({
   avatarUrl: z.string(),
   scopes: z.array(z.string()),
   repos: z.array(z.string()),
+  githubId: z.number().optional(),
 });
 
 export type UserGrant = z.infer<typeof UserGrantSchema>;

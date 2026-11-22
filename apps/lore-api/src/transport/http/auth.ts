@@ -3,6 +3,7 @@
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
 import { refreshedRepos } from "../../work/auth/session-repo-refresh.js";
+import { makerStillMember } from "../../work/auth/maker-membership.js";
 import { verifyIdentityToken } from "./ci-identity-token.js";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
@@ -101,6 +102,8 @@ export interface UserIdentity {
   name: string;
   avatarUrl: string | null;
   repos: string[];
+  /** The person's GitHub numeric id, when the sign-in recorded it. */
+  githubId?: number | null;
   /** When the person signed in, and when that sign-in stops working. */
   startedAt: string;
   expiresAt: string | null;
@@ -132,6 +135,8 @@ interface TokenRow {
   displayName?: string | null;
   avatarUrl?: string | null;
   repos?: string[];
+  github_id?: string | number | null;
+  membership_checked_at?: Date | null;
   startedAt: Date;
   expiresAt: Date | null;
 }
@@ -211,7 +216,7 @@ const LOOKUP_PRINCIPAL_SQL = `UPDATE pipeline.api_tokens SET last_used = now()
        WHERE token_hash = $1 AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > now())
        RETURNING id, scopes, kind, login, display_name AS "displayName",
-                 avatar_url AS "avatarUrl", repos,
+                 avatar_url AS "avatarUrl", repos, github_id, membership_checked_at,
                  repos_refreshed_at AS "reposRefreshedAt",
                  (SELECT encrypted_tokens FROM pipeline.user_session_tokens
                    WHERE token_id = pipeline.api_tokens.id) AS "encryptedTokens",
@@ -229,9 +234,29 @@ async function lookupPrincipal(
     return null;
   }
 
+  if (!(await makerIsStillMember(pool, rows[0]))) {
+    return null;
+  }
+
   const user = await userWithFreshRepos(pool, rows[0]);
 
   return { scopes: rows[0].scopes, user, tokenHash };
+}
+
+/** A token a person minted (not their own session) holds only while its maker is an active member of the org (FR-045, FR-046). */
+async function makerIsStillMember(pool: Pool, row: TokenRow): Promise<boolean> {
+  if (row.kind === "user" || row.github_id == null) {
+    return true;
+  }
+  const checkedAt = row.membership_checked_at;
+  const fresher = checkedAt && checkedAt > row.startedAt;
+  const answeredAt = fresher ? checkedAt : row.startedAt;
+
+  return makerStillMember(pool, {
+    githubId: Number(row.github_id),
+    login: row.login ?? null,
+    answeredAt,
+  });
 }
 
 async function userWithFreshRepos(
@@ -265,8 +290,13 @@ function userOf(row: TokenRow): UserIdentity | null {
     name: row.displayName ?? row.login,
     avatarUrl: row.avatarUrl ?? null,
     repos: row.repos ?? [],
+    githubId: githubIdOf(row),
     ...periodOf(row),
   };
+}
+
+function githubIdOf(row: TokenRow): number | null {
+  return row.github_id == null ? null : Number(row.github_id);
 }
 
 function periodOf(row: TokenRow) {

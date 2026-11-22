@@ -33,6 +33,14 @@ function serializedPayload(requestBody: unknown): string | undefined {
     : JSON.stringify(requestBody);
 }
 
+function insertParameters(pool: ReturnType<typeof makePool>): unknown[] {
+  const insertCall = pool.query.mock.calls.find(([sql]) =>
+    String(sql).includes("INSERT INTO pipeline.api_tokens"),
+  );
+
+  return insertCall?.[1] ?? [];
+}
+
 describe("/api/tokens", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -134,6 +142,47 @@ describe("/api/tokens", () => {
     const res = await req({ method: "POST", body: { name: "ci" } }, pool);
 
     expect((res.result as { expires_at: string | null }).expires_at).toBeNull();
+  });
+
+  it("attributes a token minted with no signed-in person to admin", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: 11, name: "ci" }] });
+    await req({ method: "POST", body: { name: "ci" } }, pool);
+
+    expect(insertParameters(pool)[3]).toBe("admin");
+  });
+
+  it("records the signed-in person's login as created_by when they mint a token", async () => {
+    const pool = makePool();
+
+    pool.query.mockImplementation(async (sql: string) => ({
+      rows: sql.includes("UPDATE pipeline.api_tokens SET last_used")
+        ? [
+            {
+              id: 1,
+              scopes: ["admin"],
+              kind: "user",
+              login: "alice",
+              displayName: "Alice",
+              avatarUrl: null,
+              repos: [],
+              github_id: 987654,
+              reposRefreshedAt: new Date("2026-11-22T00:00:00Z"),
+              startedAt: new Date("2026-11-22T00:00:00Z"),
+              expiresAt: null,
+            },
+          ]
+        : [{ id: 12, name: "ci" }],
+    }));
+    await buildServer(() => pool as any).inject({
+      method: "POST",
+      url: "/api/tokens",
+      headers: { authorization: "Bearer session-token" },
+      payload: JSON.stringify({ name: "ci" }),
+    });
+
+    expect(insertParameters(pool)[3]).toBe("alice");
   });
 
   it("returns 500 when the insert throws", async () => {

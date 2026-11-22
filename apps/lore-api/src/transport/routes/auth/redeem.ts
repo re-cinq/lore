@@ -101,6 +101,7 @@ function sessionToken(grant: UserGrant, expiresAt: Date): MintInput {
       displayName: grant.name,
       avatarUrl: grant.avatarUrl,
       repos: grant.repos,
+      githubId: grant.githubId,
     },
   };
 }

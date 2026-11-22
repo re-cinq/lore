@@ -108,6 +108,21 @@ describe("fetchViewer", () => {
     );
   });
 
+  it("returns the person's GitHub numeric id when GitHub sends one", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 987654,
+        login: "gedaiu",
+        name: "Bogdan",
+        avatar_url: "https://a/1",
+      }),
+    );
+
+    expect(await fetchViewer("gho_abc", fetchImpl)).toMatchObject({
+      id: 987654,
+    });
+  });
+
   it("returns null when GitHub refuses the token", async () => {
     const fetchImpl = vi
       .fn()

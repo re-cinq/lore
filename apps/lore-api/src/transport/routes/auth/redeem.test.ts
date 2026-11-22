@@ -100,6 +100,7 @@ describe("POST /api/auth/redeem", () => {
         "Bogdan",
         "https://a/1",
         ["re-cinq/lore"],
+        null,
       ],
     });
   });

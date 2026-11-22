@@ -44,6 +44,7 @@ describe("resolvePrincipal", () => {
     expect(await resolvePrincipal(pool as never, "user-token")).toEqual({
       scopes: ["read", "write"],
       user: {
+        githubId: null,
         login: "gedaiu",
         name: "Bogdan",
         avatarUrl: "https://a/1",
