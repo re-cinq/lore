@@ -8,6 +8,7 @@ import {
 } from "../../work/auth/session-repo-refresh.js";
 import { makerStillMember } from "../../work/auth/maker-membership.js";
 import { verifyIdentityToken } from "./ci-identity-token.js";
+import { storedCiPrincipal } from "./stored-ci-principal.js";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
@@ -126,6 +127,8 @@ export interface CiIdentity {
   repository: string;
   ref: string;
   defaultBranch: string;
+  /** True for a repository's stored CI token, which is bound to the repository and not to a ref. */
+  stored?: boolean;
 }
 
 interface TokenRow {
@@ -134,6 +137,7 @@ interface TokenRow {
   encryptedTokens?: string | null;
   scopes: TokenScope[];
   kind?: string;
+  githubRepoId?: string | null;
   login?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
@@ -219,7 +223,7 @@ const LOOKUP_PRINCIPAL_SQL = `UPDATE pipeline.api_tokens SET last_used = now()
        WHERE token_hash = $1 AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > now())
        RETURNING id, scopes, kind, login, display_name AS "displayName",
-                 avatar_url AS "avatarUrl", repos, github_id, membership_checked_at,
+                 avatar_url AS "avatarUrl", repos, github_id, github_repo_id AS "githubRepoId", membership_checked_at,
                  repos_refreshed_at AS "reposRefreshedAt",
                  (SELECT encrypted_tokens FROM pipeline.user_session_tokens
                    WHERE token_id = pipeline.api_tokens.id) AS "encryptedTokens",
@@ -237,17 +241,28 @@ async function lookupPrincipal(
     return null;
   }
 
-  if (rows[0].kind === "user" && rows[0].github_id == null) {
+  return principalFromRow(pool, rows[0], tokenHash);
+}
+
+async function principalFromRow(
+  pool: Pool,
+  row: TokenRow,
+  tokenHash: string,
+): Promise<Principal | null> {
+  if (row.kind === "user" && row.github_id == null) {
     return null;
   }
 
-  if (!(await personIsStillMember(pool, rows[0]))) {
+  if (!(await personIsStillMember(pool, row))) {
     return null;
   }
 
-  const user = await userWithFreshRepos(pool, rows[0]);
+  if (row.kind === "ci") {
+    return storedCiPrincipal(pool, row.githubRepoId, tokenHash);
+  }
+  const user = await userWithFreshRepos(pool, row);
 
-  return { scopes: rows[0].scopes, user, tokenHash };
+  return { scopes: row.scopes, user, tokenHash };
 }
 
 /** A session or a token a person minted holds only while its person is an active member of the org (FR-236, FR-041, FR-045, FR-046). */

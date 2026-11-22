@@ -110,6 +110,7 @@ describe("POST /api/auth/redeem", () => {
         ["re-cinq/lore"],
         4242,
         0,
+        null,
       ],
     });
   });

@@ -59,4 +59,5 @@ export const REPO_KEYED_TABLES: readonly RepoKeyedTable[] = [
 export const NOT_A_REPO_NAME_COLUMNS: readonly string[] = [
   "lore.github_installations.repository_selection",
   "pipeline.api_tokens.repos_refreshed_at",
+  "pipeline.api_tokens.github_repo_id",
 ];

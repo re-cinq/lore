@@ -71,7 +71,7 @@ function credentialsOf(principal: Principal) {
   };
 }
 
-// The routes a CI identity token may reach: ingest only from the default branch (FR-156, FR-157), checks from any ref (FR-287); every other route is refused.
+// The routes a CI identity token or a repository's stored CI token may reach (a stored token has no ref, so FR-314 admits it on all of them): ingest only from the default branch (FR-156, FR-157), checks from any ref (FR-287); every other route is refused.
 const CI_ROUTE_REFS: Partial<Record<string, "default" | "any">> = {
   "POST /api/repos/{owner}/{repo}/ingest": "default",
   "GET /api/repos/{owner}/{repo}/ingest-state": "default",
@@ -90,6 +90,7 @@ function enforceCiIdentityRoute(
 
   enforceTrue(
     refs === "any" ||
+      (refs !== undefined && ciIdentity.stored === true) ||
       (refs === "default" &&
         ciIdentity.ref === `refs/heads/${ciIdentity.defaultBranch}`),
     (message) => denied(403, message),

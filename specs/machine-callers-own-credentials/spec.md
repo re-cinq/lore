@@ -70,10 +70,11 @@ A run of the ingest client makes many requests (it reads the ingest state, posts
 - **FR-270**: The ingest client asks for a new identity token when the one it holds is less than a minute from its expiry.
 - **FR-271**: The ingest client asks for a new identity token, and sends the request once more, when lore-api answers a request `401`.
 - **FR-272**: The installed workflow passes no identity token to a step in an environment variable.
-- **FR-078**: Where the identity token cannot be used, a repository's CI holds a stored token of a kind of its own in `pipeline.api_tokens` (beside `service` and `user`), bound to that repository's GitHub numeric id.
-- **FR-314**: A repository's stored CI token is accepted on the routes an identity token is (`POST /api/ingest` with its own repository in the payload, `POST /api/repos/{owner}/{repo}/ingest`, `GET /api/repos/{owner}/{repo}/ingest-state`, `GET /api/repos/{owner}/{repo}/impact/base`, `POST /api/repos/{owner}/{repo}/impact`, `POST /api/spec-links/parse`). It carries no ref, so it is not split by branch.
-- **FR-315**: A repository's stored CI token is refused on every other route, whatever scope that route declares.
-- **FR-158**: A repository's stored CI token is refused for any other repository.
+- **FR-078**: Where the identity token cannot be used, a repository's CI holds a stored token of a kind of its own in `pipeline.api_tokens` (beside `service` and `user`), bound to that repository's GitHub numeric id ([validated by authenticates a stored ci token bound to an onboarded repository's GitHub numeric id and refuses unbound, unmatched, or ambiguous ids @04b79f9e](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L107), [validated by resolves to the one repository its numeric id names, whatever its name @0c8ac630](apps/lore-api/src/transport/http/stored-ci-principal.test.ts#L6), [validated by refuses a request on the ci routes with no bearer or a made-up stored ci token @cee99088](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L260), [validated by refuses a stored ci token when the repository lookup by numeric id fails @cb0c83a7](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L297)).
+- **FR-314**: A repository's stored CI token is accepted on the routes an identity token is (`POST /api/ingest` with its own repository in the payload, `POST /api/repos/{owner}/{repo}/ingest`, `GET /api/repos/{owner}/{repo}/ingest-state`, `GET /api/repos/{owner}/{repo}/impact/base`, `POST /api/repos/{owner}/{repo}/impact`, `POST /api/spec-links/parse`). It carries no ref, so it is not split by branch ([validated by accepts a repository's stored ci token on all ingest and check routes for its own repository without branch restriction @39f7f132](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L175)).
+- **FR-315**: A repository's stored CI token is refused on every other route, whatever scope that route declares ([validated by refuses a repository's stored ci token on every other route regardless of the scopes on the token row @307d7a58](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L199)).
+- **FR-158**: A repository's stored CI token is refused for any other repository ([validated by refuses a repository's stored ci token for any other repository @9f836ba8](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L227)).
+
 What calls Lore from a repository's CI today, each with the admin token from the repository secret `LORE_INGEST_TOKEN`:
 
 | Caller | Where it is defined | Runs on | Routes it calls |
@@ -103,7 +104,7 @@ A test report is a write of that repository's test results. It runs on the defau
 - **FR-320**: When `LORE_CI_AUTH` is `token`, the client reads the repository's stored CI token of FR-078 from its environment, even when Actions offers the identity-token request URL.
 - **FR-451**: The client never chooses its credential by whether Actions offers the request URL.
 - **FR-452**: When `LORE_CI_AUTH` is not set, the repository has not been moved, and the client reads `LORE_INGEST_TOKEN` as it does today.
-- **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token.
+- **FR-079**: The first Step 4 release accepts an ingest request with either the stored token or the identity token ([validated by accepts ingest requests with either the repository's stored ci token or a valid default-branch identity token @9d061706](apps/lore-api/src/transport/http/ci-stored-token.acceptance.test.ts#L327)).
 - **FR-159**: After a rollback to the first Step 4 release, a workflow already moved to the identity token still ingests.
 
 ### Agent runs
