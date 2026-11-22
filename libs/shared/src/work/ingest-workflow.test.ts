@@ -20,6 +20,16 @@ import {
 import { enforceTrue } from "../lib/enforce.js";
 
 describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
+  it("passes no identity token to a step in an environment variable", () => {
+    const envLines = LORE_INGEST_WORKFLOW_CONTENT.split("\n").filter((line) =>
+      /^\s+[A-Z][A-Z0-9_]*:/.test(line),
+    );
+    const names = envLines.map((line) => line.trim().split(":")[0]);
+
+    expect(names.filter((n) => /ID_TOKEN|OIDC|IDENTITY/.test(n))).toEqual([]);
+    expect(LORE_INGEST_WORKFLOW_CONTENT).not.toMatch(/ACTIONS_ID_TOKEN/);
+  });
+
   it("targets the workflows path", () => {
     expect(LORE_INGEST_WORKFLOW_PATH).toBe(".github/workflows/lore-ingest.yml");
   });
@@ -371,10 +381,8 @@ describe("the ingest job's run block", () => {
   it("exits 0 and prints HTTP 200 on success without warnings or errors", () => {
     const { result } = runScript(script, { CURL_STUB_STATUS: "200" });
 
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("HTTP 200");
-    expect(result.stdout).not.toContain("::warning");
-    expect(result.stdout).not.toContain("::error");
+    expect(result).toMatchObject({ status: 0 });
+    expect(result.stdout).toMatch(/^(?!.*::(warning|error)).*HTTP 200/s);
   });
 
   it("exits 1 with ::error and prints the response body on HTTP 401", () => {
@@ -384,9 +392,9 @@ describe("the ingest job's run block", () => {
     });
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toMatch(/^::error::/m);
-    expect(result.stdout).toContain("401");
-    expect(result.stdout).toContain("unauthorized");
+    expect(result.stdout).toMatch(
+      /^(?=[\s\S]*^::error::)(?=[\s\S]*401)(?=[\s\S]*unauthorized)/m,
+    );
   });
 
   it("exits 1 with ::error on an HTTP 308 redirect", () => {

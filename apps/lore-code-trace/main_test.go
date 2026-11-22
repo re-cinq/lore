@@ -197,3 +197,19 @@ func gitRun(t *testing.T, dir string, args ...string) {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }
+
+func TestRunPostRefusesWhenIdentityModeHasNoActionsEndpoint(t *testing.T) {
+	t.Setenv("LORE_API_URL", "https://lore.example.test")
+	t.Setenv("LORE_INGEST_TOKEN", "stored")
+	t.Setenv("LORE_CI_AUTH", "identity")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+
+	err := run(repoWithManifest(t, `list: "printf '%s' '[]'"
+run: "printf '%s' '{\"passed\":true,\"covered\":[]}' # {selector}"
+coverage_format: json
+`), true, true, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "LORE_CI_AUTH=identity") {
+		t.Fatalf("err = %v, want an error naming LORE_CI_AUTH=identity", err)
+	}
+}

@@ -35,7 +35,11 @@ func runDocs(startDir string, opts docsOptions, stdout io.Writer) error {
 
 	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
 	token := os.Getenv("LORE_INGEST_TOKEN")
-	if apiBase == "" || token == "" {
+	identity, err := identityTransportFromEnv(apiBase)
+	if err != nil {
+		return err
+	}
+	if apiBase == "" || (token == "" && identity == nil) {
 		return fmt.Errorf("docs --post requires LORE_API_URL and LORE_INGEST_TOKEN")
 	}
 	commit, _, repo, err := gitMeta(root)
@@ -46,7 +50,7 @@ func runDocs(startDir string, opts docsOptions, stdout io.Writer) error {
 	ctx := context.Background()
 	// A chunk is projected in-process before lore-api answers, the same reason
 	// the test report's delta client waits five minutes.
-	client := &http.Client{Timeout: deltaRequestTimeout}
+	client := &http.Client{Timeout: deltaRequestTimeout, Transport: identity}
 	failures := []error{}
 	for _, kind := range docKinds {
 		run := docsRun{kind: kind, commit: commit, patterns: patterns[kind], force: opts.force}

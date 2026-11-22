@@ -204,3 +204,19 @@ func TestRunLinksFailsWhenTheBaseCannotBeFound(t *testing.T) {
 		t.Fatalf("err = %v, want it to name the missing base", err)
 	}
 }
+
+func TestRunLinksFailsWhenIdentityModeHasNoActionsEndpoint(t *testing.T) {
+	dir := linksRepo(t)
+	t.Setenv("LORE_API_URL", "https://lore.example.test")
+	t.Setenv("LORE_INGEST_TOKEN", "")
+	t.Setenv("LORE_CI_AUTH", "identity")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+
+	var out bytes.Buffer
+	err := runLinks(dir, linksOptions{all: true}, &out)
+
+	if err == nil || !strings.Contains(err.Error(), "LORE_CI_AUTH=identity") {
+		t.Fatalf("err = %v, want an error naming LORE_CI_AUTH=identity", err)
+	}
+}

@@ -39,7 +39,11 @@ func runLinks(startDir string, opts linksOptions, stdout io.Writer) error {
 	}
 	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
 	token := os.Getenv("LORE_INGEST_TOKEN")
-	if apiBase == "" || token == "" {
+	identity, err := identityTransportFromEnv(apiBase)
+	if err != nil {
+		return err
+	}
+	if apiBase == "" || (token == "" && identity == nil) {
 		fmt.Fprintln(stdout, "::warning::spec links were NOT checked: LORE_API_URL and LORE_INGEST_TOKEN are both required")
 		return nil
 	}
@@ -48,7 +52,7 @@ func runLinks(startDir string, opts linksOptions, stdout io.Writer) error {
 		return err
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second, Transport: identity}
 	broken, err := checkLinks(context.Background(), linksDepsFor(root, apiBase, token, client), scope, patterns)
 	if errors.Is(err, errLoreUnavailable) {
 		fmt.Fprintf(stdout, "::warning::spec links were NOT checked: %v\n", err)

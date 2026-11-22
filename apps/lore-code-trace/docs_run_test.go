@@ -264,3 +264,18 @@ func TestParseArgsRefusesBaseWithNoValue(t *testing.T) {
 		t.Errorf("err = %v, want it to name --base", err)
 	}
 }
+
+func TestRunDocsPostRefusesWithNoStoredTokenAndNoIdentityEndpoint(t *testing.T) {
+	dir := docsRepo(t)
+	t.Setenv("LORE_API_URL", "https://lore.example")
+	t.Setenv("LORE_INGEST_TOKEN", "")
+	t.Setenv("LORE_CI_AUTH", "")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+
+	err := runDocs(dir, docsOptions{post: true}, io.Discard)
+
+	if err == nil || !strings.Contains(err.Error(), "LORE_INGEST_TOKEN") {
+		t.Fatalf("err = %v, want it to name LORE_INGEST_TOKEN", err)
+	}
+}

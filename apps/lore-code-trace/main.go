@@ -121,15 +121,22 @@ func run(startDir string, post, full bool, stdout io.Writer) error {
 	}
 
 	token := os.Getenv("LORE_INGEST_TOKEN")
-	if post && token == "" {
+	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
+	var identity http.RoundTripper
+	if post {
+		var err error
+		if identity, err = identityTransportFromEnv(apiBase); err != nil {
+			return err
+		}
+	}
+	if post && token == "" && identity == nil {
 		return fmt.Errorf("--post requires LORE_INGEST_TOKEN")
 	}
 	// A delta is projected IN-PROCESS by lore-api before it answers — a 900 KB
 	// chunk of tests plus coverage takes longer than the webhook's immediate
 	// 202 — so the delta path gets a client sized for the work rather than the
 	// 60 s that timed out a bootstrap full ingest on chunk 3/26.
-	deltaClient := &http.Client{Timeout: deltaRequestTimeout}
-	apiBase := strings.TrimRight(os.Getenv("LORE_API_URL"), "/")
+	deltaClient := &http.Client{Timeout: deltaRequestTimeout, Transport: identity}
 
 	ctx := context.Background()
 	ingestedBase := ""
