@@ -106,7 +106,11 @@ platform:
       keys: {anthropic-api-key: lore-anthropic-api-key, anthropic-admin-key: lore-anthropic-admin-api-key}
     - name: github-app-credentials
       namespace: lore-api
-      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id}
+      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id, client-id: lore-github-app-client-id, client-secret: lore-github-app-client-secret}
+    # The key that encrypts the GitHub token kept per session (FR-025); a Secret of its own.
+    - name: lore-user-token-key
+      namespace: lore-api
+      keys: {key: lore-user-token-encryption-key}
     - name: lore-api-db-password
       namespace: lore-api
       keys: {password: lore-db-password}
@@ -273,6 +277,7 @@ lore-api:
   webhookSecret: {name: lore-webhook-secret, key: secret}
   internalTokenSecret: {name: lore-agent-internal-token, key: token}
   githubOAuthSecret: {name: lore-github-oauth}
+  userTokenKeySecret: {name: lore-user-token-key, key: key}
   anthropicAdminKeySecret: {name: lore-anthropic-key, key: anthropic-admin-key}
   floor:
     enabled: true
