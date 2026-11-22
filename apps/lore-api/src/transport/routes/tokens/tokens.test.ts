@@ -259,7 +259,7 @@ describe("/api/tokens", () => {
         status: res.statusCode,
         statements,
         lockParams: pool.__client.query.mock.calls[1][1],
-        makerId: insert?.[1].at(-1),
+        makerId: insert?.[1].at(-2),
       }).toEqual({
         status: 201,
         statements: [

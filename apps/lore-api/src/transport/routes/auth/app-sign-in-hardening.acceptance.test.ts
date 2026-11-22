@@ -672,6 +672,7 @@ function takeHandoffRow(
         returnUrl: entry.return_url,
         grant: JSON.parse(String(entry.grant_json)),
         encryptedTokens: entry.encrypted_tokens ?? null,
+        generation: entry.generation ?? null,
       },
     ],
   };

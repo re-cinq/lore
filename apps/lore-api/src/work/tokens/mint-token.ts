@@ -11,6 +11,8 @@ export interface TokenUser {
   repos: string[];
   /** The person behind the row: a session's person, or the maker of a token (FR-044, FR-327). */
   githubId?: number;
+  /** The person's generation the session was created under (FR-437). */
+  generation?: number | null;
 }
 
 export interface MintInput {
@@ -28,8 +30,8 @@ export interface MintedToken {
 }
 
 const INSERT = `INSERT INTO pipeline.api_tokens
-  (name, token_hash, scopes, created_by, expires_at, kind, login, display_name, avatar_url, repos, github_id)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  (name, token_hash, scopes, created_by, expires_at, kind, login, display_name, avatar_url, repos, github_id, generation)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   RETURNING id, name, scopes, created_at`;
 
 export const hashToken = (token: string): string =>
@@ -53,7 +55,7 @@ export async function mintApiToken(
   return { token, row: rows[0] };
 }
 
-const NO_USER_COLUMNS = [null, null, null, [], null] as const;
+const NO_USER_COLUMNS = [null, null, null, [], null, null] as const;
 
 function userColumns(user: TokenUser | undefined) {
   return user
@@ -63,6 +65,7 @@ function userColumns(user: TokenUser | undefined) {
         user.avatarUrl,
         user.repos,
         user.githubId ?? null,
+        user.generation ?? null,
       ]
     : NO_USER_COLUMNS;
 }

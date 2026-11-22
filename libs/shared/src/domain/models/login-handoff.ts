@@ -22,6 +22,7 @@ export const LoginHandoffSchema = z.object({
   returnUrl: z.string(),
   grant: UserGrantSchema.nullable(),
   encryptedTokens: z.string().nullable(),
+  generation: z.number().int().nullable(),
   expiresAt: z.date(),
 });
 
@@ -33,5 +34,6 @@ export const LOGIN_HANDOFF_COLUMNS = {
   returnUrl: "return_url",
   grant: "grant_json",
   encryptedTokens: "encrypted_tokens",
+  generation: "generation",
   expiresAt: "expires_at",
 } as const satisfies ColumnMap<LoginHandoff>;

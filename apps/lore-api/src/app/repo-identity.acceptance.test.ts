@@ -225,6 +225,7 @@ describe("repository identity characterization (current name-based behaviour)", 
         scopes: ["read"],
         repos: [],
       },
+      generation: 0,
     });
     const redeemRes = await server.inject({
       method: "POST",

@@ -1422,6 +1422,7 @@ function claimHandoff(
         returnUrl: row.return_url,
         grant: JSON.parse(String(row.grant_json)),
         encryptedTokens: row.encrypted_tokens,
+        generation: row.generation ?? null,
       },
     ],
   };

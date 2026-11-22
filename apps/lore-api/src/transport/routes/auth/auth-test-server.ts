@@ -51,7 +51,7 @@ export interface TestDeps extends AuthDeps {
 export function testDeps(
   overrides: { github?: Partial<GithubUser>; config?: OAuthConfig | null } = {},
 ): TestDeps {
-  const query = vi.fn();
+  const query = vi.fn().mockResolvedValue({ rows: [] });
   const pool = { query } as unknown as Pool;
 
   return {

@@ -44,7 +44,37 @@ describe("GET /api/auth/callback", () => {
           scopes: ["admin"],
           repos: ["re-cinq/lore", "someone/else"],
         },
+        generation: 0,
       },
+    });
+  });
+
+  it("reads the person's generation before it asks GitHub for their membership and stores it on the redeem code's row", async () => {
+    const asked: string[] = [];
+    const deps = testDeps({
+      github: {
+        fetchOrgRole: async () => {
+          asked.push("membership");
+
+          return "member";
+        },
+      },
+    });
+
+    deps.query.mockImplementation(async (_sql: string, params: unknown[]) => {
+      asked.push(`generation of ${params[0]}`);
+
+      return { rows: [{ generation: 3 }] };
+    });
+    const { location } = await signIn(deps);
+    const redeemed = await deps.handoffs.take(
+      location.searchParams.get("code") as string,
+      "redeem",
+    );
+
+    expect({ asked, generation: redeemed?.generation }).toEqual({
+      asked: ["generation of 4242", "membership"],
+      generation: 3,
     });
   });
 

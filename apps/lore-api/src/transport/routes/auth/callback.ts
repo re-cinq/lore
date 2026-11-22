@@ -16,10 +16,11 @@ import {
   redeemRedirect,
   SESSION_SCOPES,
 } from "../../../work/auth/login-grant.js";
+import { generationOf } from "../../../work/auth/person-access.js";
 import { encryptTokenPair } from "../../../work/auth/token-cipher.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
-import { requireConfig, type AuthDeps } from "./auth-deps.js";
+import { poolOf, requireConfig, type AuthDeps } from "./auth-deps.js";
 import { CallbackQuery, RedirectSchema } from "./auth-schemas.js";
 import { callbackUrl, type OAuthConfig } from "./oauth-config.js";
 
@@ -38,6 +39,7 @@ const OPTIONS = zodResponse(
 interface GithubSession {
   tokenPair: GithubTokenPair;
   viewer: GithubViewer;
+  generation: number;
 }
 
 export function callbackRoute(deps: AuthDeps): ServerRoute {
@@ -96,7 +98,12 @@ async function storeRedeemHandoff(
 
   return redeemRedirect(
     returnUrl,
-    await deps.handoffs.put("redeem", { returnUrl, grant, encryptedTokens }),
+    await deps.handoffs.put("redeem", {
+      returnUrl,
+      grant,
+      encryptedTokens,
+      generation: session.generation,
+    }),
   );
 }
 
@@ -105,6 +112,7 @@ async function githubSession(
   config: OAuthConfig,
   code: string,
 ): Promise<GithubSession | null> {
+  const pool = poolOf(deps.getPool);
   const exchanged = await deps.github.exchangeCode({
     clientId: config.clientId,
     clientSecret: config.clientSecret,
@@ -116,7 +124,9 @@ async function githubSession(
     ? await deps.github.fetchViewer(tokenPair.accessToken)
     : null;
 
-  return tokenPair && validViewer(viewer) ? { tokenPair, viewer } : null;
+  return tokenPair && validViewer(viewer)
+    ? { tokenPair, viewer, generation: await generationOf(pool, viewer.id) }
+    : null;
 }
 
 /** An App with expiring user tokens answers with an access token, a positive expiry and a refresh token; anything less is refused (FR-011, FR-028, FR-026). */

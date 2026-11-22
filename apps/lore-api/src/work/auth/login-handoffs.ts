@@ -19,6 +19,8 @@ export interface HandoffContent {
   returnUrl: string;
   grant: UserGrant | null;
   encryptedTokens?: string | null;
+  /** The person's generation when the callback read it (FR-436). */
+  generation?: number | null;
 }
 
 /** Deletes every row whose expiry has passed, the encrypted pair with it; running it again, or from a second replica, changes nothing more. */
@@ -38,12 +40,12 @@ export interface LoginHandoffs {
 }
 
 const INSERT = `INSERT INTO ${TABLE} (${COLUMNS.codeHash}, ${COLUMNS.phase},
-  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.encryptedTokens}, ${COLUMNS.expiresAt})
-  VALUES ($1, $2, $3, $4, $5, $6)`;
+  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.encryptedTokens}, ${COLUMNS.generation}, ${COLUMNS.expiresAt})
+  VALUES ($1, $2, $3, $4, $5, $6, $7)`;
 const SWEEP_EXPIRED = `DELETE FROM ${TABLE} WHERE ${COLUMNS.expiresAt} < now()`;
 const TAKE = `DELETE FROM ${TABLE}
   WHERE ${COLUMNS.codeHash} = $1 AND ${COLUMNS.phase} = $2 AND ${COLUMNS.expiresAt} > now()
-  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant, ${COLUMNS.encryptedTokens} AS "encryptedTokens"`;
+  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant, ${COLUMNS.encryptedTokens} AS "encryptedTokens", ${COLUMNS.generation} AS generation`;
 
 const hashOf = (code: string): string =>
   createHash("sha256").update(code).digest("hex");
@@ -84,21 +86,24 @@ type MemoryRow = HandoffContent & { phase: HandoffPhase; expiresAt: number };
 async function putRow(
   db: () => Pool,
   phase: HandoffPhase,
-  { returnUrl, grant, encryptedTokens = null }: HandoffContent,
+  content: HandoffContent,
 ): Promise<string> {
   const code = newCode();
 
   await db().query(SWEEP_EXPIRED);
-  await db().query(INSERT, [
-    hashOf(code),
-    phase,
-    returnUrl,
-    JSON.stringify(grant),
-    encryptedTokens,
-    new Date(Date.now() + HANDOFF_TTL_MS),
-  ]);
+  await db().query(INSERT, [hashOf(code), phase, ...insertValues(content)]);
 
   return code;
+}
+
+function insertValues(content: HandoffContent) {
+  return [
+    content.returnUrl,
+    JSON.stringify(content.grant),
+    content.encryptedTokens ?? null,
+    content.generation ?? null,
+    new Date(Date.now() + HANDOFF_TTL_MS),
+  ];
 }
 
 async function takeRow(
@@ -139,5 +144,6 @@ function memoryContentOf(row: MemoryRow): HandoffContent {
     ...(row.encryptedTokens !== undefined && {
       encryptedTokens: row.encryptedTokens,
     }),
+    ...(row.generation !== undefined && { generation: row.generation }),
   };
 }

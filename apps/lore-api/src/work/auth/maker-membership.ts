@@ -1,5 +1,6 @@
 // Whether the person who minted a token is still an active member of the org: asked of GitHub as Lore's App once the last answer is five minutes old, and a removed person loses every token and session they hold (FR-045, FR-046, FR-048, FR-049).
 
+import { revokePersonAccess } from "./person-access.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { buildOctokit } from "@re-cinq/lore-shared/project/lib/platform-github-auth.js";
 import type { Pool } from "pg";
@@ -28,7 +29,7 @@ export async function makerStillMember(
   }
   const member = await askedOrInstallFault(isMember, maker.login ?? "");
 
-  await (member ? stampAnswer : revokeEverythingOf)(pool, maker.githubId);
+  await (member ? stampAnswer : revokePersonAccess)(pool, maker.githubId);
 
   return member;
 }
@@ -43,15 +44,6 @@ async function stampAnswer(pool: Pool, githubId: number): Promise<void> {
   await pool.query(
     `UPDATE pipeline.api_tokens SET membership_checked_at = now()
        WHERE github_id = $1`,
-    [githubId],
-  );
-}
-
-/** Every token the person minted and every session of theirs (FR-048, FR-049). */
-async function revokeEverythingOf(pool: Pool, githubId: number): Promise<void> {
-  await pool.query(
-    `UPDATE pipeline.api_tokens SET revoked_at = now()
-       WHERE github_id = $1 AND revoked_at IS NULL`,
     [githubId],
   );
 }

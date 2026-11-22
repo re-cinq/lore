@@ -63,6 +63,7 @@ interface PoolState {
   sessionTokens: Array<Record<string, unknown>>;
   handoffs: Map<string, Record<string, unknown>>;
   genericTables: Map<string, Array<Record<string, unknown>>>;
+  generations: Map<number, number>;
   repos: Array<Record<string, unknown>>;
   repoReadCount: number;
 }
@@ -170,6 +171,44 @@ describe("Membership checks and minted tokens (FR-043 to FR-049)", () => {
       aliceAllRevoked: true,
       bobKept: { tokenStatus: 200, sessionStatus: 200 },
     });
+  });
+
+  it("adds one to the removed person's generation so a sign-in that began before the removal creates no session after it", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const sessionToken = await signInPerson(harness, "alice");
+    const mintedToken = await mintUserToken(harness, sessionToken, "alice-ci");
+    const startedBeforeRemoval = await runSignInCallback(harness, "alice");
+    const handoffGeneration = harness.redeemHandoffGenerations();
+
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+    harness.setPersonMembership("alice", { appMembershipStatus: 404 });
+    await callApi(harness.server, "GET", "/api/repos", mintedToken);
+    const tokensBeforeRedeem = harness.apiTokens().length;
+    const redeemRes = await harness.server.inject({
+      method: "POST",
+      url: "/api/auth/redeem",
+      payload: { code: redirectParam(startedBeforeRemoval, "code") ?? "" },
+    });
+
+    expect({
+      handoffGeneration,
+      generationAfterRemoval: harness.generationOf(987654),
+      redeemStatus: redeemRes.statusCode,
+      newTokenRows: harness.apiTokens().length - tokensBeforeRedeem,
+    }).toEqual({
+      handoffGeneration: [0],
+      generationAfterRemoval: 1,
+      redeemStatus: 401,
+      newTokenRows: 0,
+    });
+  });
+
+  it("records the generation the person had at sign-in on the session row", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+
+    await signInPerson(harness, "alice");
+
+    expect(harness.apiTokens().map((row) => row.generation)).toEqual([0]);
   });
 
   it("refuses to mint a stations token through POST /api/tokens", async () => {
@@ -399,6 +438,7 @@ function createHarness(initialPeople: GithubPerson[]) {
     sessionTokens: [],
     handoffs: new Map(),
     genericTables: new Map(),
+    generations: new Map(),
     repos: [
       {
         id: "repo-1",
@@ -422,6 +462,11 @@ function createHarness(initialPeople: GithubPerson[]) {
     server,
     apiTokens: () => state.apiTokens,
     repoReadCount: () => state.repoReadCount,
+    generationOf: (githubId: number) => state.generations.get(githubId) ?? 0,
+    redeemHandoffGenerations: () =>
+      [...state.handoffs.values()]
+        .filter((row) => row.phase === "redeem")
+        .map((row) => row.generation),
     redeemHandoffCount: () =>
       [...state.handoffs.values()].filter((row) => row.phase === "redeem")
         .length,
@@ -1058,6 +1103,7 @@ function clonePoolState(source: PoolState): PoolState {
       [...source.handoffs.entries()].map(([key, row]) => [key, { ...row }]),
     ),
     genericTables,
+    generations: new Map(source.generations),
     repos: source.repos.map((row) => ({ ...row })),
     repoReadCount: source.repoReadCount,
   };
@@ -1076,6 +1122,12 @@ function copyPoolState(target: PoolState, source: PoolState): void {
     target.handoffs.set(key, row);
   }
 
+  target.generations.clear();
+
+  for (const [githubId, generation] of source.generations.entries()) {
+    target.generations.set(githubId, generation);
+  }
+
   target.genericTables.clear();
 
   for (const [table, rows] of source.genericTables.entries()) {
@@ -1088,6 +1140,10 @@ function executePoolSql(
   sql: string,
   params: unknown[],
 ): { rows: Array<Record<string, unknown>> } {
+  if (sql.includes("pipeline.person_generations")) {
+    return handleGenerationSql(state.generations, sql, params);
+  }
+
   if (sql.includes("lore.login_handoffs")) {
     return handleHandoffSql(state.handoffs, sql, params);
   }
@@ -1107,6 +1163,24 @@ function executePoolSql(
   }
 
   return handleGenericTableSql(state.genericTables, sql, params);
+}
+
+function handleGenerationSql(
+  generations: Map<number, number>,
+  sql: string,
+  params: unknown[],
+): { rows: Array<Record<string, unknown>> } {
+  const githubId = Number(params[0]);
+
+  if (sql.includes("INSERT INTO pipeline.person_generations")) {
+    generations.set(githubId, (generations.get(githubId) ?? 0) + 1);
+
+    return { rows: [] };
+  }
+
+  return generations.has(githubId)
+    ? { rows: [{ generation: generations.get(githubId) }] }
+    : { rows: [] };
 }
 
 function handleHandoffSql(
@@ -1140,6 +1214,7 @@ function handleHandoffSql(
         returnUrl: row.return_url,
         grant: JSON.parse(String(row.grant_json)),
         encryptedTokens: row.encrypted_tokens,
+        generation: row.generation ?? null,
       },
     ],
   };

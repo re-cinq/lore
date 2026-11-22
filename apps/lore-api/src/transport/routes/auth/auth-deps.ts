@@ -76,7 +76,7 @@ async function installationRepos(token: string): Promise<GithubRepo[]> {
   return fetchInstallationRepos(token, installationId);
 }
 
-function poolOf(getPool: () => Pool | null): Pool {
+export function poolOf(getPool: () => Pool | null): Pool {
   const pool = getPool();
 
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
