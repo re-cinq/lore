@@ -278,6 +278,7 @@ describe("the floor pipelines shipped in this folder", () => {
       "dod>open-pr",
       "open-pr>tdd-round",
       "tdd-round>await-ci",
+      "test-wrong-check>dod",
       "await-ci>test-review",
       "test-review>ready-for-review",
       "ready-for-review>sync-final",
@@ -303,6 +304,7 @@ describe("the floor pipelines shipped in this folder", () => {
     expect(budgets).toEqual([
       "await-ci>tdd-round on changes_requested: 12",
       "await-ci>repair-build on failed: 2",
+      "await-ci>dod on test_broken: 2",
       "await-pr>sync-pr on changes_requested: 14",
       "sync-pr>fix-ci on success: 8",
       "sync-pr>sync-pr-rebase on changes_requested: 6",
@@ -418,14 +420,57 @@ describe("the floor pipelines shipped in this folder", () => {
     });
   });
 
-  it("makes both loop waits human stations that produce the three CI values and the round brief as a file", () => {
+  it("makes both loop waits human stations that produce the three CI values and the round brief as a file, and await-ci the dod feedback beside them", () => {
     const { stations } = pipelineOf("implementation-loop");
     const waits = ["loop-await-ci", "loop-await-pr"].map((name) => ({
       kind: stations[name].kind,
       produces: stations[name].produces,
     }));
 
-    expect(waits).toEqual([LOOP_WAIT, LOOP_WAIT]);
+    expect(waits).toEqual([
+      {
+        ...LOOP_WAIT,
+        produces: [
+          ...LOOP_WAIT.produces,
+          { name: "dod_feedback", kind: "file" },
+        ],
+      },
+      LOOP_WAIT,
+    ]);
+  });
+
+  it("sends an acceptance test that could not run from await-ci, and one a round names as wrong through test-wrong-check, back to dod twice at most, handing dod the feedback as dod-feedback.md", () => {
+    const { line, stations } = pipelineOf("implementation-loop");
+    const route = (from: string, on: string) => {
+      const edge = line.edges.find(
+        (candidate) => candidate.from === from && candidate.on === on,
+      );
+
+      return { to: edge?.to, iteration_max: edge?.iteration_max };
+    };
+
+    expect({
+      broken: route("await-ci", "test_broken"),
+      wrong: route("tdd-round", "test_wrong"),
+      accepted: route("test-wrong-check", "success"),
+      refused: route("test-wrong-check", "failed"),
+      dodNeed: needOf(stations["loop-dod"], "dod_feedback"),
+      gateNeeds: stations["loop-test-wrong-check"].needs.map(
+        (need) => need.name,
+      ),
+    }).toEqual({
+      broken: { to: "dod", iteration_max: 2 },
+      wrong: { to: "test-wrong-check", iteration_max: undefined },
+      accepted: { to: "dod", iteration_max: 2 },
+      refused: { to: "tdd-round", iteration_max: 1 },
+      dodNeed: {
+        name: "dod_feedback",
+        kind: "file",
+        path: "dod-feedback.md",
+        optional: true,
+      },
+      gateNeeds: ["target", "tdd_test_wrong"],
+    });
   });
 
   it("hands tdd-round, repair-build and fix-ci the round brief as the optional file round-brief.md", () => {

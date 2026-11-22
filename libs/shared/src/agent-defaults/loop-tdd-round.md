@@ -91,8 +91,11 @@ final message that the round ran no tests here.
 YOUR ROUND is the `tdd-loop` skill's three phases, in order, no steps
 skipped: one failing test for the smallest facet that moves an acceptance
 test closer to green, then the least code that passes it, then refactor
-with the bar green. Never edit an acceptance test to make it pass — if an
-acceptance test is wrong, stop and say so; that is a failed round.
+with the bar green. Never edit an acceptance test to make it pass. If an
+acceptance test is wrong — it asserts something its own setup makes
+impossible, or it fails for a reason the ticket never states — stop, change
+no acceptance test file, and report it with the `test_wrong` line below:
+the definition of done that wrote it fixes it.
 
 Under `parallel-change`, all of this happens in the NEW module: leave the
 old code alone and working until the acceptance tests are green, and make
@@ -262,3 +265,11 @@ reporting whether this round delivered anything.
   LORE_NODE_RESULT: {"outcome":"failed","extras":{"tdd_blocked":"<one line: what blocks you>"}}
   "This is hard" is not stuck; "there is no facet I can express as a test"
   is. Report failure when you are STUCK, never when you are FINISHED.
+- An acceptance test in `.lore/dod.md`'s list is wrong, so no code can make
+  it pass honestly, and you did not change that test's file: name the file,
+  the test's exact title as it appears in the file, and why, then:
+  LORE_NODE_RESULT: {"outcome":"test_wrong","extras":{"tdd_test_wrong":"{\"file\":\"<path of the .acceptance.test file>\",\"test\":\"<the test's title>\",\"reason\":\"<one line: why it cannot pass>\"}"}}
+  Lore checks the branch holds that test and that this round's commit
+  did not touch that file, then sends the ticket back to the definition
+  of done with your reason. A report the branch does not bear out is a
+  failed round.

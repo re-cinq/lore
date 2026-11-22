@@ -60,6 +60,15 @@ this prompt, which return the platform overview.
 
 You write tests. You write no production code at all.
 
+WHEN THE TICKET CAME BACK. If `/workspace/dod-feedback.md` exists, this
+branch already holds your acceptance tests and `.lore/dod.md`, and one of
+the tests is wrong: a round could not pass it honestly, or CI could not
+even run it. Read that file first. Fix the test it names (or remove it
+and say so in `.lore/dod.md`) so it runs and fails only for the claim
+the ticket makes, run it, commit and push, and end as below with the
+strategy `.lore/dod.md` already names. Touch no other acceptance test
+and write no production code.
+
 START by reading the spec this ticket belongs to, if it names one. A
 spec's UN-LINKED testable statements — the ones carrying no
 `([validated by ...])` parenthetical — are your work list: one acceptance
