@@ -141,6 +141,8 @@ describe("POST /api/auth/redeem", () => {
       grant,
       generation: 0,
       encryptedTokens: "v1.iv.tag.cipher",
+      accessTokenExpiresAt: new Date("2026-11-22T18:00:00Z"),
+      refreshTokenExpiresAt: new Date("2027-05-25T10:00:00Z"),
     });
 
     const res = await redeemWith(code, serve([redeemRoute(txDeps)]));
@@ -161,7 +163,12 @@ describe("POST /api/auth/redeem", () => {
         expect.stringContaining("INSERT INTO pipeline.user_session_tokens"),
         "COMMIT",
       ],
-      tokenInsertParams: ["t-1", "v1.iv.tag.cipher"],
+      tokenInsertParams: [
+        "t-1",
+        "v1.iv.tag.cipher",
+        new Date("2026-11-22T18:00:00Z"),
+        new Date("2027-05-25T10:00:00Z"),
+      ],
       released: 1,
     });
   });

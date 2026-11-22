@@ -1120,6 +1120,8 @@ function takeHandoffRow(
         grant: JSON.parse(String(row.grant_json)),
         encryptedTokens: row.encrypted_tokens,
         generation: row.generation ?? null,
+        accessTokenExpiresAt: row.access_token_expires_at,
+        refreshTokenExpiresAt: row.refresh_token_expires_at,
       },
     ],
   };
@@ -1289,6 +1291,7 @@ function handleSessionTokensSql(
         tokenId: row.token_id,
         encrypted_tokens: row.encrypted_tokens,
         encryptedTokens: row.encrypted_tokens,
+        accessTokenExpiresAt: row.access_token_expires_at,
       },
     ],
   };

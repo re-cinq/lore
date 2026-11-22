@@ -43,21 +43,57 @@ const userHeaders = (token: string) => ({
   Accept: "application/vnd.github+json",
 });
 
-export async function exchangeCode(
+export function exchangeCode(
   exchange: OAuthExchange,
   fetchImpl: FetchLike = fetch,
   host: string = githubHost(),
+): Promise<GithubTokenPair | null> {
+  return postTokenRequest(
+    {
+      client_id: exchange.clientId,
+      client_secret: exchange.clientSecret,
+      code: exchange.code,
+      redirect_uri: exchange.redirectUri,
+    },
+    fetchImpl,
+    host,
+  );
+}
+
+export interface TokenRefresh {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}
+
+/** GitHub's answer to a refresh token: a new pair, or null when it gave none. */
+export function refreshUserToken(
+  refresh: TokenRefresh,
+  fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
+): Promise<GithubTokenPair | null> {
+  return postTokenRequest(
+    {
+      client_id: refresh.clientId,
+      client_secret: refresh.clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refresh.refreshToken,
+    },
+    fetchImpl,
+    host,
+  );
+}
+
+async function postTokenRequest(
+  body: Record<string, string>,
+  fetchImpl: FetchLike,
+  host: string,
 ): Promise<GithubTokenPair | null> {
   const res = await fetchImpl(githubUrls(host).oauthToken, {
     method: "POST",
     signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { Accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: exchange.clientId,
-      client_secret: exchange.clientSecret,
-      code: exchange.code,
-      redirect_uri: exchange.redirectUri,
-    }),
+    body: JSON.stringify(body),
   });
 
   return tokenPairOrWarn(res.status, res.ok ? await res.json() : null);

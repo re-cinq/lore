@@ -1,6 +1,13 @@
 // One person's lock, keyed by their GitHub numeric id: a login can change hands, the id cannot (FR-388, FR-389). The person's generation, one integer that a removal or a revocation adds one to, lets a sign-in or a mint that began before it be refused after it (FR-434, FR-394).
 
 import { runInTransaction, type PgPool } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import {
+  API_TOKEN_COLUMNS as COLUMNS,
+  API_TOKEN_TABLE as TABLE,
+  type ApiToken,
+} from "@re-cinq/lore-shared/models/api-token.js";
 
 /** Takes the person's lock until the transaction ends, so sign-in, minting and revocation for one person run one at a time (FR-388, FR-389). */
 export async function lockPerson(
@@ -42,4 +49,38 @@ export async function revokePersonAccess(
       [githubId],
     );
   });
+}
+
+type SessionState = Pick<ApiToken, "revokedAt" | "expiresAt" | "generation">;
+
+const SESSION_STATE = `SELECT ${COLUMNS.revokedAt} AS "revokedAt", ${COLUMNS.expiresAt} AS "expiresAt", ${COLUMNS.generation} AS generation
+  FROM ${TABLE} WHERE ${COLUMNS.tokenHash} = $1`;
+
+/** Under the person's lock, a session that has been ended, or that was created under another generation of the person, mints nothing (FR-396, FR-438). */
+export async function enforceSessionCurrent(
+  db: Pick<PgPool, "query">,
+  tokenHash: string | null,
+  githubId: number,
+): Promise<void> {
+  const { rows } = await db.query<SessionState>(SESSION_STATE, [tokenHash]);
+  const session = rows.at(0);
+
+  enforceTrue(
+    session && isOpen(session),
+    apiError(401),
+    "the session has ended",
+  );
+  enforceTrue(
+    session.generation === (await generationOf(db, githubId)),
+    apiError(401),
+    "the session was created before the person's access changed",
+  );
+}
+
+function isOpen({ revokedAt, expiresAt }: SessionState): boolean {
+  return revokedAt === null && !hasLapsed(expiresAt);
+}
+
+function hasLapsed(expiresAt: Date | null): boolean {
+  return expiresAt !== null && expiresAt <= new Date();
 }

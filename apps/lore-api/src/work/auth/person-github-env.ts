@@ -2,11 +2,9 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // The environment a GitHub adapter reads to act as the signed-in person: their stored access token replaces every App credential, so nothing falls back to the App (FR-175, FR-177).
 
 import type { Pool } from "pg";
-import { decryptTokenPair } from "./token-cipher.js";
+import { freshAccessToken } from "./user-token-refresh.js";
 
-const SEALED_TOKENS = `SELECT (SELECT encrypted_tokens FROM pipeline.user_session_tokens
-                  WHERE token_id = pipeline.api_tokens.id) AS "encryptedTokens"
-     FROM pipeline.api_tokens WHERE token_hash = $1`;
+const SESSION_ID = `SELECT id FROM pipeline.api_tokens WHERE token_hash = $1`;
 
 export interface Caller {
   person: boolean;
@@ -37,18 +35,13 @@ async function storedAccessToken(
   pool: Pool,
   tokenHash: string | null,
 ): Promise<string> {
-  const key = process.env.LORE_USER_TOKEN_ENCRYPTION_KEY;
-  const { rows } = await pool.query<{ encryptedTokens: string | null }>(
-    SEALED_TOKENS,
-    [tokenHash],
-  );
-  const sealed = rows[0]?.encryptedTokens;
+  const { rows } = await pool.query<{ id: string }>(SESSION_ID, [tokenHash]);
 
   enforceTrue(
-    !(!key || !sealed),
+    rows[0] && process.env.LORE_USER_TOKEN_ENCRYPTION_KEY,
     Error,
     "the signed-in person's GitHub token is not available",
   );
 
-  return decryptTokenPair(sealed, key).accessToken;
+  return freshAccessToken(pool, rows[0].id);
 }

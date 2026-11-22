@@ -1427,6 +1427,8 @@ function claimHandoff(
         grant: JSON.parse(String(row.grant_json)),
         encryptedTokens: row.encrypted_tokens,
         generation: row.generation ?? null,
+        accessTokenExpiresAt: row.access_token_expires_at,
+        refreshTokenExpiresAt: row.refresh_token_expires_at,
       },
     ],
   };
@@ -1549,6 +1551,8 @@ function projectTokenRow(
     repos: row.repos,
     startedAt: row.created_at,
     expiresAt: row.expires_at ?? null,
+    revokedAt: row.revoked_at,
+    generation: row.generation,
     reposRefreshedAt: refreshedAt,
     repos_refreshed_at: refreshedAt,
     encryptedTokens,
@@ -1579,6 +1583,7 @@ function handleSessionTokensSql(
             tokenId: row.token_id,
             encrypted_tokens: row.encrypted_tokens,
             encryptedTokens: row.encrypted_tokens,
+            accessTokenExpiresAt: row.access_token_expires_at,
           },
         ]
       : [],

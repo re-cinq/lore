@@ -21,6 +21,9 @@ export interface HandoffContent {
   encryptedTokens?: string | null;
   /** The person's generation when the callback read it (FR-436). */
   generation?: number | null;
+  /** When the stored access token and refresh token lapse, from the callback's exchange (FR-220, FR-221). */
+  accessTokenExpiresAt?: Date | null;
+  refreshTokenExpiresAt?: Date | null;
 }
 
 /** Deletes every row whose expiry has passed, the encrypted pair with it; running it again, or from a second replica, changes nothing more. */
@@ -40,12 +43,13 @@ export interface LoginHandoffs {
 }
 
 const INSERT = `INSERT INTO ${TABLE} (${COLUMNS.codeHash}, ${COLUMNS.phase},
-  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.encryptedTokens}, ${COLUMNS.generation}, ${COLUMNS.expiresAt})
-  VALUES ($1, $2, $3, $4, $5, $6, $7)`;
+  ${COLUMNS.returnUrl}, ${COLUMNS.grant}, ${COLUMNS.encryptedTokens}, ${COLUMNS.generation}, ${COLUMNS.accessTokenExpiresAt}, ${COLUMNS.refreshTokenExpiresAt}, ${COLUMNS.expiresAt})
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
 const SWEEP_EXPIRED = `DELETE FROM ${TABLE} WHERE ${COLUMNS.expiresAt} < now()`;
 const TAKE = `DELETE FROM ${TABLE}
   WHERE ${COLUMNS.codeHash} = $1 AND ${COLUMNS.phase} = $2 AND ${COLUMNS.expiresAt} > now()
-  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant, ${COLUMNS.encryptedTokens} AS "encryptedTokens", ${COLUMNS.generation} AS generation`;
+  RETURNING ${COLUMNS.returnUrl} AS "returnUrl", ${COLUMNS.grant} AS grant, ${COLUMNS.encryptedTokens} AS "encryptedTokens", ${COLUMNS.generation} AS generation,
+    ${COLUMNS.accessTokenExpiresAt} AS "accessTokenExpiresAt", ${COLUMNS.refreshTokenExpiresAt} AS "refreshTokenExpiresAt"`;
 
 const hashOf = (code: string): string =>
   createHash("sha256").update(code).digest("hex");
@@ -102,6 +106,8 @@ function insertValues(content: HandoffContent) {
     JSON.stringify(content.grant),
     content.encryptedTokens ?? null,
     content.generation ?? null,
+    content.accessTokenExpiresAt ?? null,
+    content.refreshTokenExpiresAt ?? null,
     new Date(Date.now() + HANDOFF_TTL_MS),
   ];
 }
@@ -138,12 +144,7 @@ function takeMemoryRow(
 }
 
 function memoryContentOf(row: MemoryRow): HandoffContent {
-  return {
-    returnUrl: row.returnUrl,
-    grant: row.grant,
-    ...(row.encryptedTokens !== undefined && {
-      encryptedTokens: row.encryptedTokens,
-    }),
-    ...(row.generation !== undefined && { generation: row.generation }),
-  };
+  const { phase: _phase, expiresAt: _expiresAt, ...content } = row;
+
+  return content;
 }

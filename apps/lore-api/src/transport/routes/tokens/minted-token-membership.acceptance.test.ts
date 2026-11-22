@@ -51,6 +51,7 @@ interface GithubPerson {
   userMembershipStatus: number;
   appMembershipStatus: number;
   userRepos: string[];
+  refreshes: number;
 }
 
 interface RecordedMembershipCall {
@@ -209,6 +210,50 @@ describe("Membership checks and minted tokens (FR-043 to FR-049)", () => {
     await signInPerson(harness, "alice");
 
     expect(harness.apiTokens().map((row) => row.generation)).toEqual([0]);
+  });
+
+  it("stores both expiries on the row of the session's tokens at sign-in, then replaces both tokens and both expiries once the access token lapses in under five minutes", async () => {
+    const harness = createHarness([makePerson(987654, "alice")]);
+    const sessionToken = await signInPerson(harness, "alice");
+    const [stored] = harness.sessionTokens();
+    const atSignIn = {
+      access: stored.access_token_expires_at,
+      refresh: stored.refresh_token_expires_at,
+      sealed: stored.encrypted_tokens,
+    };
+
+    delete process.env.GITHUB_ORG;
+    vi.setSystemTime(Date.now() + 28_800_000 - 4 * 60_000);
+    const res = await callApi(
+      harness.server,
+      "GET",
+      "/api/repos",
+      sessionToken,
+    );
+    const [replaced] = harness.sessionTokens();
+
+    expect({
+      atSignIn: [atSignIn.access, atSignIn.refresh],
+      status: res.statusCode,
+      refreshes: harness.refreshesOf("alice"),
+      afterRefresh: [
+        replaced.access_token_expires_at,
+        replaced.refresh_token_expires_at,
+      ],
+      pairReplaced: replaced.encrypted_tokens !== atSignIn.sealed,
+    }).toEqual({
+      atSignIn: [
+        new Date("2026-11-22T18:00:00Z"),
+        new Date("2027-05-24T10:00:00Z"),
+      ],
+      status: 200,
+      refreshes: 1,
+      afterRefresh: [
+        new Date(Date.now() + 28_800_000),
+        new Date(Date.now() + 15_811_200_000),
+      ],
+      pairReplaced: true,
+    });
   });
 
   it("refuses to mint a stations token through POST /api/tokens", async () => {
@@ -653,6 +698,7 @@ function makePerson(
     userMembershipStatus: 200,
     appMembershipStatus: 200,
     userRepos: ["acme/app"],
+    refreshes: 0,
     ...overrides,
   };
 }
@@ -688,6 +734,8 @@ function createHarness(initialPeople: GithubPerson[]) {
   return {
     server,
     apiTokens: () => state.apiTokens,
+    sessionTokens: () => state.sessionTokens,
+    refreshesOf: (login: string) => people.get(login)?.refreshes ?? 0,
     repoReadCount: () => state.repoReadCount,
     generationOf: (githubId: number) => state.generations.get(githubId) ?? 0,
     redeemHandoffGenerations: () =>
@@ -1088,7 +1136,15 @@ function oauthTokenResponse(
   init: RequestInit | undefined,
   people: Map<string, GithubPerson>,
 ): Response {
-  const payload = JSON.parse(String(init?.body ?? "{}")) as { code?: string };
+  const payload = JSON.parse(String(init?.body ?? "{}")) as {
+    code?: string;
+    grant_type?: string;
+    refresh_token?: string;
+  };
+
+  if (payload.grant_type === "refresh_token") {
+    return refreshResponse(people, String(payload.refresh_token));
+  }
   const login = String(payload.code ?? "").replace(/^code:/, "");
   const person = people.get(login);
 
@@ -1099,6 +1155,29 @@ function oauthTokenResponse(
   return jsonResponse({
     access_token: person.userAccessToken,
     token_type: "bearer",
+    expires_in: 28_800,
+    refresh_token: person.userRefreshToken,
+    refresh_token_expires_in: 15_811_200,
+  });
+}
+
+function refreshResponse(
+  people: Map<string, GithubPerson>,
+  refreshToken: string,
+): Response {
+  const person = [...people.values()].find(
+    (entry) => entry.userRefreshToken === refreshToken,
+  );
+
+  if (!person) {
+    return jsonResponse({ error: "bad_refresh_token" }, 400);
+  }
+  person.refreshes += 1;
+  person.userAccessToken = `ghu_access_${person.login}_${person.refreshes}`;
+  person.userRefreshToken = `ghr_refresh_${person.login}_${person.refreshes}`;
+
+  return jsonResponse({
+    access_token: person.userAccessToken,
     expires_in: 28_800,
     refresh_token: person.userRefreshToken,
     refresh_token_expires_in: 15_811_200,
@@ -1442,6 +1521,8 @@ function handleHandoffSql(
         grant: JSON.parse(String(row.grant_json)),
         encryptedTokens: row.encrypted_tokens,
         generation: row.generation ?? null,
+        accessTokenExpiresAt: row.access_token_expires_at,
+        refreshTokenExpiresAt: row.refresh_token_expires_at,
       },
     ],
   };
@@ -1606,6 +1687,7 @@ function projectTokenRow(
     avatarUrl: row.avatar_url,
     startedAt: row.created_at,
     expiresAt: row.expires_at ?? null,
+    revokedAt: row.revoked_at,
     reposRefreshedAt: refreshedAt,
     encryptedTokens,
   };
@@ -1627,6 +1709,39 @@ function handleSessionTokensSql(
   if (sql.includes("DELETE FROM pipeline.user_session_tokens")) {
     return deleteSessionTokens(state, sql, params);
   }
+
+  if (sql.includes("UPDATE pipeline.user_session_tokens")) {
+    return replaceSessionTokens(state, params);
+  }
+
+  const stored = state.sessionTokens.find(
+    (entry) => entry.token_id === params[0],
+  );
+
+  return {
+    rows: stored
+      ? [
+          {
+            encryptedTokens: stored.encrypted_tokens,
+            accessTokenExpiresAt: stored.access_token_expires_at,
+          },
+        ]
+      : [],
+  };
+}
+
+function replaceSessionTokens(
+  state: PoolState,
+  params: unknown[],
+): { rows: Array<Record<string, unknown>> } {
+  const [tokenId, encryptedTokens, accessExpiry, refreshExpiry] = params;
+  const stored = state.sessionTokens.find((row) => row.token_id === tokenId);
+
+  Object.assign(stored ?? {}, {
+    encrypted_tokens: encryptedTokens,
+    access_token_expires_at: accessExpiry,
+    refresh_token_expires_at: refreshExpiry,
+  });
 
   return { rows: [] };
 }

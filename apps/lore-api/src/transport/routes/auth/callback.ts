@@ -92,19 +92,39 @@ async function storeRedeemHandoff(
   returnUrl: string,
 ): Promise<string> {
   const grant = await grantFor(deps, session);
-  const encryptedTokens = config.tokenEncryptionKey
-    ? encryptTokenPair(session.tokenPair, config.tokenEncryptionKey)
-    : undefined;
+  const { generation } = session;
+  const sealed = sealedTokens(config, session.tokenPair);
 
   return redeemRedirect(
     returnUrl,
     await deps.handoffs.put("redeem", {
       returnUrl,
       grant,
-      encryptedTokens,
-      generation: session.generation,
+      generation,
+      ...sealed,
     }),
   );
+}
+
+/** The sealed pair with its expiries, or nothing while no key is configured. */
+function sealedTokens(config: OAuthConfig, pair: GithubTokenPair) {
+  return config.tokenEncryptionKey
+    ? {
+        encryptedTokens: encryptTokenPair(pair, config.tokenEncryptionKey),
+        ...tokenExpiries(pair),
+      }
+    : {};
+}
+
+/** When the access token and the refresh token lapse, counted from the exchange that gave them (FR-220, FR-221). */
+function tokenExpiries(pair: GithubTokenPair) {
+  const lapsesIn = (seconds: number | undefined) =>
+    seconds === undefined ? null : new Date(Date.now() + seconds * 1000);
+
+  return {
+    accessTokenExpiresAt: lapsesIn(pair.expiresIn),
+    refreshTokenExpiresAt: lapsesIn(pair.refreshTokenExpiresIn),
+  };
 }
 
 async function githubSession(
