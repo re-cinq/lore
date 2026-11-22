@@ -187,6 +187,20 @@ describe("/api/tokens", () => {
     expect(insertParameters(pool)[3]).toBe("alice");
   });
 
+  it("refuses kind emergency with 400 and inserts nothing", async () => {
+    const pool = makePool();
+
+    const res = await req(
+      { method: "POST", body: { name: "ops", kind: "emergency" } },
+      pool,
+    );
+
+    expect({ status: res.statusCode, insert: insertParameters(pool) }).toEqual({
+      status: 400,
+      insert: [],
+    });
+  });
+
   it("returns 500 when the insert throws", async () => {
     const pool = makePool();
 

@@ -194,7 +194,7 @@ async function createToken(
   maker: UserIdentity | null,
 ) {
   enforceTrue(body.name, apiError(400), "name required");
-  refuseStationsKind(body.kind);
+  refuseInstallKind(body.kind);
   const expiresAt = expiryDate(body.expires_in_days);
   const { token, row } = await mintedBy(pool, maker, {
     name: body.name,
@@ -267,11 +267,16 @@ function tokensMethodNotAllowedRoute(): ServerRoute {
   };
 }
 
-/** FR-047: the stations token is the install's own, never minted through this route. */
-function refuseStationsKind(kind: string | undefined): void {
+/** FR-047, FR-178: the stations and emergency tokens are the install's own, never minted through this route. */
+function refuseInstallKind(kind: string | undefined): void {
   enforceTrue(
     kind !== "stations" && kind !== "station",
     apiError(400),
     "the stations token is provisioned by the install, not minted",
+  );
+  enforceTrue(
+    kind !== "emergency",
+    apiError(400),
+    "an emergency token is provisioned by the operator, not minted",
   );
 }
