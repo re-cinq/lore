@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import type { CSSProperties } from "react";
 import { render, waitFor } from "@testing-library/react";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { undo } from "@codemirror/commands";
@@ -427,12 +428,14 @@ describe("PromptEditor", () => {
 
   it("gives the caret the text colour rather than CodeMirror's black", () => {
     const { container } = render(
-      <PromptEditor name="prompt" defaultValue="Read" />,
+      <div style={{ "--text": "rgb(1, 2, 3)" } as CSSProperties}>
+        <PromptEditor name="prompt" defaultValue="Read" />
+      </div>,
     );
 
     expect(
       getComputedStyle(container.querySelector(".cm-content")!).caretColor,
-    ).toBe("var(--text)");
+    ).toBe("rgb(1, 2, 3)");
   });
 
   it("draws each block of the shipped code-review prompt as one line", () => {
