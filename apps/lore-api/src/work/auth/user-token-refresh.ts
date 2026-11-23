@@ -9,10 +9,12 @@ import {
   USER_SESSION_TOKEN_TABLE as TABLE,
 } from "@re-cinq/lore-shared/models/user-session-token.js";
 import {
-  refreshUserToken,
+  refreshUserTokenOrRefuse,
+  RefreshTokenRefused,
   type GithubTokenPair,
   type TokenRefresh,
 } from "../../outbound/github-user-client.js";
+import { announceSessionEnded } from "./session-ended.js";
 import { decryptTokenPair, encryptTokenPair } from "./token-cipher.js";
 
 export const REFRESH_MARGIN_MS = 5 * 60_000;
@@ -27,13 +29,15 @@ const SELECT = `SELECT ${COLUMNS.encryptedTokens} AS "encryptedTokens", ${COLUMN
 const REPLACE = `UPDATE ${TABLE} SET ${COLUMNS.encryptedTokens} = $2, ${COLUMNS.accessTokenExpiresAt} = $3,
   ${COLUMNS.refreshTokenExpiresAt} = $4, ${COLUMNS.updatedAt} = now() WHERE ${COLUMNS.tokenId} = $1`;
 
+const DELETE = `DELETE FROM ${TABLE} WHERE ${COLUMNS.tokenId} = $1`;
+
 type RefreshCall = (refresh: TokenRefresh) => Promise<GithubTokenPair | null>;
 
 /** The person's access token, refreshed first when it lapses in under five minutes. A refresh GitHub gives no new pair for refuses the request and stores nothing. */
 export async function freshAccessToken(
   pool: Pool,
   tokenId: string,
-  refresh: RefreshCall = refreshUserToken,
+  refresh: RefreshCall = refreshUserTokenOrRefuse,
 ): Promise<string> {
   const settings = refreshSettings();
   const stored = await readRow(pool, SELECT, tokenId);
@@ -42,9 +46,66 @@ export async function freshAccessToken(
     return accessTokenOf(stored, settings);
   }
 
-  return runInTransaction(pool, (tx) =>
-    refreshLocked(tx, tokenId, settings, refresh),
+  return refreshOrEndSession(pool, tokenId, settings, refresh);
+}
+
+async function refreshOrEndSession(
+  pool: Pool,
+  tokenId: string,
+  settings: RefreshSettings,
+  refresh: RefreshCall,
+): Promise<string> {
+  try {
+    return await runInTransaction(pool, (tx) =>
+      refreshLocked(tx, tokenId, settings, refresh),
+    );
+  } catch (error) {
+    return endSessionWhenRefused(pool, tokenId, error);
+  }
+}
+
+async function endSessionWhenRefused(
+  pool: Pool,
+  tokenId: string,
+  error: unknown,
+): Promise<never> {
+  if (!(error instanceof RefreshTokenRefused)) {
+    throw error;
+  }
+
+  await endSession(pool, tokenId);
+  throw apiError(401)(
+    "GitHub refused the refresh token; the session has ended",
   );
+}
+
+/** GitHub refused the refresh token: the session ends and the person signs in again (FR-226). */
+async function endSession(pool: Pool, tokenId: string): Promise<void> {
+  await runInTransaction(pool, async (tx) => {
+    await tx.query(
+      `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`,
+      [tokenId],
+    );
+    await tx.query(DELETE, [tokenId]);
+  });
+  announceSessionEnded(tokenId);
+}
+
+/** Sign-out takes the lock a refresh of the session holds, waits for it, then leaves no stored token and no live API token (FR-022). */
+export async function signOutSession(
+  pool: Pool,
+  sessionId: string,
+  tokenHash: string,
+): Promise<void> {
+  await runInTransaction(pool, async (tx) => {
+    await tx.query(`${SELECT} FOR UPDATE`, [sessionId]);
+    await tx.query(DELETE, [sessionId]);
+    await tx.query(
+      `UPDATE pipeline.api_tokens SET revoked_at = now()
+         WHERE token_hash = $1 AND revoked_at IS NULL`,
+      [tokenHash],
+    );
+  });
 }
 
 /** Another request may have refreshed while this one waited for the lock: then its pair is the one to use (FR-225). */
@@ -78,7 +139,7 @@ async function newPairFor(
   refresh: RefreshCall,
 ) {
   const { refreshToken } = decryptTokenPair(row.encryptedTokens, settings.key);
-  const pair = await refresh({
+  const pair = await refreshOrRefuseUnreachable(refresh, {
     clientId: settings.clientId,
     clientSecret: settings.clientSecret,
     refreshToken: refreshToken ?? "",
@@ -91,6 +152,17 @@ async function newPairFor(
   );
 
   return pair;
+}
+
+function refreshOrRefuseUnreachable(
+  refresh: RefreshCall,
+  request: TokenRefresh,
+): Promise<GithubTokenPair | null> {
+  return refresh(request).catch((error: unknown) => {
+    throw connectionNeverOpened(error)
+      ? apiError(503)("GitHub could not be reached to refresh the token")
+      : error;
+  });
 }
 
 const accessTokenOf = (row: StoredRow, { key }: RefreshSettings): string =>
@@ -142,4 +214,19 @@ function refreshSettings(): RefreshSettings {
   );
 
   return { key, clientId, clientSecret };
+}
+
+const NEVER_CONNECTED = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+]);
+
+/** The request never reached GitHub: the connection could not be opened (FR-227). */
+function connectionNeverOpened(error: unknown): boolean {
+  const cause = (error as { cause?: { code?: unknown } } | null)?.cause;
+
+  return error instanceof TypeError && NEVER_CONNECTED.has(String(cause?.code));
 }

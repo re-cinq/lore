@@ -66,28 +66,57 @@ export interface TokenRefresh {
   refreshToken: string;
 }
 
+/** GitHub answered a refresh that the refresh token is invalid, expired or revoked (FR-226). */
+export class RefreshTokenRefused extends Error {
+  constructor() {
+    super("GitHub refused the refresh token as invalid, expired or revoked");
+    this.name = "RefreshTokenRefused";
+  }
+}
+
+const REFUSED_REFRESH_ERRORS = new Set(["bad_refresh_token", "invalid_grant"]);
+
 /** GitHub's answer to a refresh token: a new pair, or null when it gave none. */
 export function refreshUserToken(
   refresh: TokenRefresh,
   fetchImpl: FetchLike = fetch,
   host: string = githubHost(),
 ): Promise<GithubTokenPair | null> {
+  return postTokenRequest(refreshBody(refresh), fetchImpl, host);
+}
+
+/** Like refreshUserToken, but throws RefreshTokenRefused when GitHub says the refresh token is invalid, expired or revoked (FR-226). */
+export function refreshUserTokenOrRefuse(
+  refresh: TokenRefresh,
+  fetchImpl: FetchLike = fetch,
+  host: string = githubHost(),
+): Promise<GithubTokenPair | null> {
   return postTokenRequest(
-    {
-      client_id: refresh.clientId,
-      client_secret: refresh.clientSecret,
-      grant_type: "refresh_token",
-      refresh_token: refresh.refreshToken,
-    },
+    refreshBody(refresh),
     fetchImpl,
     host,
+    refuseBadRefreshToken,
   );
+}
+
+const refreshBody = (refresh: TokenRefresh): Record<string, string> => ({
+  client_id: refresh.clientId,
+  client_secret: refresh.clientSecret,
+  grant_type: "refresh_token",
+  refresh_token: refresh.refreshToken,
+});
+
+function refuseBadRefreshToken(answer: unknown): void {
+  if (REFUSED_REFRESH_ERRORS.has(String(asRecord(answer)?.error))) {
+    throw new RefreshTokenRefused();
+  }
 }
 
 async function postTokenRequest(
   body: Record<string, string>,
   fetchImpl: FetchLike,
   host: string,
+  inspect: (answer: unknown) => void = () => {},
 ): Promise<GithubTokenPair | null> {
   const res = await fetchImpl(githubUrls(host).oauthToken, {
     method: "POST",
@@ -96,7 +125,11 @@ async function postTokenRequest(
     body: JSON.stringify(body),
   });
 
-  return tokenPairOrWarn(res.status, res.ok ? await res.json() : null);
+  const answer: unknown = await res.json().catch(() => null);
+
+  inspect(answer);
+
+  return tokenPairOrWarn(res.status, res.ok ? answer : null);
 }
 
 /** The token pair GitHub answered, or null with a log line naming GitHub's error. */

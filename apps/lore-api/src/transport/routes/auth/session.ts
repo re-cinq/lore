@@ -6,6 +6,7 @@ import type { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { announceSessionEnded } from "../../../work/auth/session-ended.js";
+import { signOutSession } from "../../../work/auth/user-token-refresh.js";
 import { revokeTokenByHash } from "../../../work/tokens/mint-token.js";
 import { bearerScope, principalOf } from "../../http/bearer-scope.js";
 import { repoAccessOf } from "../../http/repo-guard.js";
@@ -78,7 +79,8 @@ export function logoutRoute(getPool: () => Pool | null): ServerRoute {
       const { tokenHash, user } = principalOf(request);
 
       enforceTrue(tokenHash, apiError(400), "no session to end");
-      await revokeTokenByHash(pool, tokenHash);
+
+      await endSessionTokens(pool, tokenHash, user?.sessionId);
 
       if (user?.sessionId) {
         announceSessionEnded(user.sessionId);
@@ -87,4 +89,16 @@ export function logoutRoute(getPool: () => Pool | null): ServerRoute {
       return h.response({ ok: true });
     }),
   };
+}
+
+async function endSessionTokens(
+  pool: Pool,
+  tokenHash: string,
+  sessionId: string | undefined,
+): Promise<void> {
+  if (!sessionId) {
+    return revokeTokenByHash(pool, tokenHash);
+  }
+
+  return signOutSession(pool, sessionId, tokenHash);
 }

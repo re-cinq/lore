@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  RefreshTokenRefused,
   exchangeCode,
   fetchUserRepos,
   fetchOrgRole,
   fetchViewer,
+  refreshUserTokenOrRefuse,
 } from "./github-user-client.js";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -58,6 +60,14 @@ describe("exchangeCode", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(jsonResponse({ error: "bad_verification_code" }));
+
+    expect(await exchangeCode(app, fetchImpl)).toBeNull();
+  });
+
+  it("returns null instead of throwing when GitHub answers ok with a body that is not JSON", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response("not json", { status: 200 }));
 
     expect(await exchangeCode(app, fetchImpl)).toBeNull();
   });
@@ -297,5 +307,46 @@ describe("GitHub Enterprise Server host ghe.example.com", () => {
     expect(urls).toEqual([
       "https://ghe.example.com/api/v3/user/repos?per_page=100&affiliation=owner,collaborator,organization_member",
     ]);
+  });
+});
+
+describe("refreshUserTokenOrRefuse", () => {
+  const refresh = {
+    clientId: "id",
+    clientSecret: "secret",
+    refreshToken: "ghr_1",
+  };
+
+  it("throws RefreshTokenRefused for both invalid_grant and bad_refresh_token", async () => {
+    for (const error of ["invalid_grant", "bad_refresh_token"]) {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ error }, { status: 400 }));
+
+      await expect(
+        refreshUserTokenOrRefuse(refresh, fetchImpl),
+      ).rejects.toEqual(new RefreshTokenRefused());
+    }
+  });
+
+  it("returns null instead of throwing when GitHub answers with another error", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ error: "server_error" }, { status: 200 }),
+      );
+
+    expect(await refreshUserTokenOrRefuse(refresh, fetchImpl)).toBeNull();
+  });
+
+  it("returns null when GitHub answers with HTML or a non-object JSON body", async () => {
+    for (const response of [
+      new Response("<html>502 Bad Gateway</html>", { status: 502 }),
+      jsonResponse(["not-an-object"], { status: 200 }),
+    ]) {
+      const fetchImpl = vi.fn().mockResolvedValue(response);
+
+      expect(await refreshUserTokenOrRefuse(refresh, fetchImpl)).toBeNull();
+    }
   });
 });
