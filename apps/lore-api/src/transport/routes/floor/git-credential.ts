@@ -8,6 +8,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { secretEquals } from "@re-cinq/lore-shared/lib/secret-equals.js";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import {
   zodResponse,
@@ -108,14 +109,18 @@ async function serveFloorGitCredential(
 }
 
 function liveDeps(getPool: () => Pool | null): FloorGitCredentialDeps {
-  const github = new PlatformGitHub(process.env);
+  const pool = getPool();
+  const github = new PlatformGitHub(
+    process.env,
+    pool ? new PgGithubInstallations(pool) : undefined,
+  );
 
   return {
     tokens: configuredTokens(process.env.FLOOR_GIT_CREDENTIAL_TOKEN),
     mint: (repo, access) =>
       github.getInstallationToken(repo, podPermissions(access)),
-    isOnboarded: (repo) => isOnboarded(getPool(), repo),
-    audit: (mint) => auditMint(getPool(), mint),
+    isOnboarded: (repo) => isOnboarded(pool, repo),
+    audit: (mint) => auditMint(pool, mint),
   };
 }
 

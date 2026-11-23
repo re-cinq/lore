@@ -17,6 +17,7 @@ import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-def
 import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
 import { registerBilledCostGauge } from "./outbound/billed-cost-gauge.js";
+import { setGitHubInstallationsPool } from "./outbound/github-client.js";
 import { createRequire } from "node:module";
 import { reportServiceStart } from "@re-cinq/lore-shared/project/service-versions/package-versions.js";
 import { PgServiceVersions } from "@re-cinq/lore-shared/project/service-versions/service-versions-pg.js";
@@ -80,6 +81,7 @@ function connectDatabase(dbHost: string): Pool {
   setPool(dbPool);
   setMemoryPool(dbPool);
   setPipelinePool(dbPool);
+  setGitHubInstallationsPool(() => dbPool);
   Llm.configure({ usage: new PgUsage(dbPool) });
   const settings = new PgSettings(dbPool);
 

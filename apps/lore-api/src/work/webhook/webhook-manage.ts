@@ -10,7 +10,7 @@ export async function listRepoWebhooks(
   repo: string,
   octokit?: Octokit,
 ): Promise<RepoHook[]> {
-  const repos = await reposApi(octokit);
+  const repos = await reposApi(repo, octokit);
   const [owner, name] = ownerRepo(repo);
   const { data: hooks } = await repos.listWebhooks({
     owner,
@@ -21,8 +21,8 @@ export async function listRepoWebhooks(
   return hooks as unknown as RepoHook[];
 }
 
-async function reposApi(octokit?: Octokit): Promise<ReposApi> {
-  const { rest } = octokit ?? (await getOctokit());
+async function reposApi(repo: string, octokit?: Octokit): Promise<ReposApi> {
+  const { rest } = octokit ?? (await getOctokit({ repo }));
 
   return rest.repos;
 }
@@ -39,7 +39,7 @@ export async function ensureRepoWebhook(
   secret: string,
   events: string[],
 ): Promise<{ hookId: number; created: boolean }> {
-  return ensureRepoWebhookWith(await getOctokit(), repo, {
+  return ensureRepoWebhookWith(await getOctokit({ repo }), repo, {
     url,
     secret,
     events,
@@ -52,7 +52,7 @@ export async function ensureRepoWebhookWith(
   repo: string,
   { url, secret, events }: { url: string; secret: string; events: string[] },
 ): Promise<{ hookId: number; created: boolean }> {
-  const repos = await reposApi(octokit);
+  const repos = await reposApi(repo, octokit);
   const [owner, name] = ownerRepo(repo);
   const target = { owner, name };
   const spec = { config: { url, content_type: "json", secret }, events };

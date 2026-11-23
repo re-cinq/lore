@@ -125,7 +125,7 @@ export async function getAvailableRepos(
   pool: Pool,
 ): Promise<InstallationRepo[]> {
   const [installation, onboarded] = await Promise.all([
-    getInstallationRepos(),
+    getInstallationRepos(pool),
     getOnboardedRepos(pool),
   ]);
 

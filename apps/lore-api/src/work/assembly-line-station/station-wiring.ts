@@ -21,6 +21,7 @@ import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assem
 import { planSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { PLANNING_DEFINITION } from "@re-cinq/lore-shared/project/plans/plan-run.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
 import { PgTaskEvents } from "@re-cinq/lore-shared/project/task-events/task-events-pg.js";
 import { fetchPrStatus } from "../../outbound/github-client.js";
 import { pgPlanStore } from "../../outbound/plans/plan-store-pg.js";
@@ -72,7 +73,8 @@ export function planRunChannelDepsFromPool(
       (await pgPlanStore(pool).getMeta(planId)) !== null,
     planRuns: (planId) => planRunsOfBoth(pool(), planId),
     runs: run.runs,
-    prStatus: (repo, prNumber) => fetchPrStatus(repo, prNumber),
+    prStatus: (repo, prNumber) =>
+      fetchPrStatus(repo, prNumber, new PgGithubInstallations(pool())),
     feeds: run.feeds,
     watch: floorConfigured()
       ? new PlanRunWatch({ feed: floorRunsFeed(), runs: run.runs })
@@ -117,12 +119,13 @@ function boundOnce(getPool: () => Pool | null): () => RunChannelDeps {
 }
 
 function bind(pool: Pool): RunChannelDeps {
+  const installations = new PgGithubInstallations(pool);
   const runs = runsReadingFloor(pool);
   const local = new RunFeedRegistry({
     runs,
     events: new PgAgentRunEvents(pool),
     taskEvents: new PgTaskEvents(pool),
-    prStatus: fetchPrStatus,
+    prStatus: (repo, prNumber) => fetchPrStatus(repo, prNumber, installations),
     notifier: pgRunNotifier(),
   });
 

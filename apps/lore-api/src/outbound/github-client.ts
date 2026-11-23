@@ -3,99 +3,31 @@
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
 import { listReviewThreads } from "@re-cinq/lore-shared/project/lib/platform-github-pulls-review-reads.js";
-import { guardAppClient } from "@re-cinq/lore-shared/project/lib/app-client-guard.js";
-import { createAppAuth } from "@octokit/auth-app";
-import { request } from "@octokit/request";
-import { githubHost, githubUrls } from "@re-cinq/lore-shared/github-host.js";
 import { octokitOptions } from "@re-cinq/lore-shared/project/lib/platform-github-auth.js";
+import type { GithubInstallationsRepository } from "@re-cinq/lore-shared/project/github-installations/github-installations-port.js";
+import {
+  appAuthOptions,
+  getGitHubToken,
+  getOctokit,
+  githubApiUrl,
+  isAppConfigured,
+  isGitHubConfigured,
+  setGitHubInstallationsPool,
+  type GitHubAuthScope,
+  type InstallationsSource,
+} from "./github-client-auth.js";
 
-const APP_ID = process.env.GITHUB_APP_ID || "";
-const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY || "";
-const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID || "";
-
-let appAuth: ReturnType<typeof createAppAuth> | null = null;
-
-export function isGitHubConfigured(): boolean {
-  return (
-    !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID) || !!process.env.GITHUB_TOKEN
-  );
-}
-
-export function isAppConfigured(): boolean {
-  return !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID);
-}
-
-// Authenticated Octokit; prefers App auth, falls back to personal token
-export async function getOctokit(): Promise<Octokit> {
-  if (isAppConfigured()) {
-    return appAuthOctokit();
-  }
-  const token = process.env.GITHUB_TOKEN;
-
-  if (token) {
-    return guardAppClient(
-      withoutBlindRetryOnCreates(
-        new Octokit({ ...octokitOptions(process.env), auth: token }),
-      ),
-    );
-  }
-  throw new Error(
-    "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
-  );
-}
-
-// App auth mints its own installation token per call, so no token is read from the environment here.
-function appAuthOctokit(): Octokit {
-  return guardAppClient(
-    withoutBlindRetryOnCreates(
-      new Octokit({
-        ...octokitOptions(process.env),
-        authStrategy: createAppAuth,
-        auth: {
-          appId: APP_ID,
-          privateKey: PRIVATE_KEY,
-          installationId: INSTALLATION_ID,
-        },
-      }),
-    ),
-  );
-}
-
-// Raw Bearer token for direct fetch calls; prefers App token, falls back to GITHUB_TOKEN
-export async function getGitHubToken(): Promise<string | null> {
-  if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
-    try {
-      const { token } = await sharedAppAuth()({ type: "installation" });
-
-      return token;
-    } catch {
-      /* fall through */
-    }
-  }
-
-  return process.env.GITHUB_TOKEN || null;
-}
-
-/** What a standalone App auth needs: it does not inherit an Octokit base URL, so its request is pointed at the configured GitHub host. */
-export function appAuthOptions(env: NodeJS.ProcessEnv) {
-  return {
-    appId: env.GITHUB_APP_ID ?? "",
-    privateKey: env.GITHUB_APP_PRIVATE_KEY ?? "",
-    installationId: env.GITHUB_APP_INSTALLATION_ID ?? "",
-    request: request.defaults({ baseUrl: githubUrls(githubHost(env)).api }),
-  };
-}
-
-export function githubApiUrl(path: string, env: NodeJS.ProcessEnv): string {
-  return `${githubUrls(githubHost(env)).api}${path}`;
-}
-
-/** One App auth per process: it caches the installation token and renews it before it expires, so a read does not start by asking GitHub for a new one. */
-function sharedAppAuth(): ReturnType<typeof createAppAuth> {
-  appAuth ??= createAppAuth(appAuthOptions(process.env));
-
-  return appAuth;
-}
+export {
+  appAuthOptions,
+  getGitHubToken,
+  getOctokit,
+  githubApiUrl,
+  isAppConfigured,
+  isGitHubConfigured,
+  setGitHubInstallationsPool,
+  type GitHubAuthScope,
+  type InstallationsSource,
+};
 
 // ── Convenience helpers ─────────────────────────────────────────────
 
@@ -104,7 +36,7 @@ export async function createBranch(
   branchName: string,
   baseBranch: string = "main",
 ): Promise<void> {
-  const octokit = await getOctokit();
+  const octokit = await getOctokit({ repo });
   const { git } = octokit.rest;
   const [owner, repoName] = repo.split("/");
   const { data: ref } = await git.getRef({
@@ -127,7 +59,7 @@ export async function postReviewComment(
   body: string,
   event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" = "COMMENT",
 ): Promise<void> {
-  const octokit = await getOctokit();
+  const octokit = await getOctokit({ repo });
   const { pulls } = octokit.rest;
   const [owner, repoName] = repo.split("/");
 
@@ -150,8 +82,9 @@ type RawReview = {
 export async function fetchPrStatus(
   repo: string,
   prNumber: number,
+  installations?: GithubInstallationsRepository,
 ): Promise<Record<string, unknown> | null> {
-  const token = await getGitHubToken();
+  const token = await getGitHubToken({ repo, installations });
 
   if (!token) {
     return null;

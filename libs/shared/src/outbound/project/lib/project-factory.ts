@@ -23,7 +23,12 @@ export async function createProject(
   const ports = new Map<string, unknown>();
 
   await registerStoredPorts(ports, { pgPool, dgraphClient, providers });
-  await registerOutsidePorts(ports, { pgPool, env, providers });
+  await registerOutsidePorts(ports, {
+    fullName,
+    pgPool,
+    env,
+    providers,
+  });
   ports.set("leases", await leasesForEnv(env, pgPool, providers));
 
   return new Project(fullName, ports, env);
@@ -92,6 +97,7 @@ function registerPipelinePorts(
 }
 
 interface OutsidePortDeps {
+  fullName: string;
   pgPool: PgPool;
   env: NodeJS.ProcessEnv;
   providers: ReturnType<typeof resolveProjectOptions>["providers"];
@@ -100,9 +106,9 @@ interface OutsidePortDeps {
 /** The ports that reach OUTSIDE this process: GitHub, git, the test runner. Settings sits here rather than with the stores because it reads the repo through GitHub as well as the database. */
 async function registerOutsidePorts(
   ports: Map<string, unknown>,
-  { pgPool, env, providers }: OutsidePortDeps,
+  { fullName, pgPool, env, providers }: OutsidePortDeps,
 ): Promise<void> {
-  const github = await gitHubPort(env);
+  const github = await gitHubPort(env, pgPool, fullName);
   const [settings, knowledge, git, tests] = await outsideModules();
 
   ports.set("github", github);
@@ -112,14 +118,20 @@ async function registerOutsidePorts(
   ports.set("git", new git.GitCli(env));
   ports.set("tests", new tests.ExecTestRunner());
 
-  await registerLedgerPorts(ports, { pgPool, env, providers });
+  await registerLedgerPorts(ports, { fullName, pgPool, env, providers });
 }
 
 /** One adapter answers both the read and the write side: fetching a PR and commenting on it go through the same installation token. */
-async function gitHubPort(env: NodeJS.ProcessEnv) {
+async function gitHubPort(
+  env: NodeJS.ProcessEnv,
+  pgPool: PgPool,
+  fullName: string,
+) {
   const { PlatformGitHub } = await import("./platform-github.js");
+  const { PgGithubInstallations } =
+    await import("../github-installations/github-installations-pg.js");
 
-  return new PlatformGitHub(env);
+  return new PlatformGitHub(env, new PgGithubInstallations(pgPool), fullName);
 }
 
 /** The adapters that reach outside the process, imported lazily for the same reason the stored ones are. */

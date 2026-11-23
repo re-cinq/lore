@@ -221,8 +221,9 @@ export interface PullRequestsPort {
   enablePullRequestAutoMerge(
     prId: string,
     mergeMethod?: MergeMethod,
+    repo?: string,
   ): Promise<void>;
-  disablePullRequestAutoMerge(prId: string): Promise<void>;
+  disablePullRequestAutoMerge(prId: string, repo?: string): Promise<void>;
   open(repo: string, branch: string, pr: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
   update(
@@ -281,8 +282,8 @@ export interface PullRequestsPort {
   jobLog(repo: string, jobId: number): Promise<string | null>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
-  /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */
-  resolveReviewThread(threadId: string): Promise<void>;
+  /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads, and repo selects the owner's App installation when known. */
+  resolveReviewThread(threadId: string, repo?: string): Promise<void>;
 }
 
 /** The pull request reads and writes the public mirror's sync needs. */

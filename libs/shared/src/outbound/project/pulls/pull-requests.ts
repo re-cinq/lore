@@ -70,11 +70,11 @@ export class PullRequests {
 
   /** Takes the PR's GraphQL node id (`PullRef.nodeId`), not its number: the mutation is GraphQL-only. */
   enableAutoMerge(nodeId: string, method?: MergeMethod): Promise<void> {
-    return this.pulls.enablePullRequestAutoMerge(nodeId, method);
+    return this.pulls.enablePullRequestAutoMerge(nodeId, method, this.repo);
   }
 
   cancelAutoMerge(nodeId: string): Promise<void> {
-    return this.pulls.disablePullRequestAutoMerge(nodeId);
+    return this.pulls.disablePullRequestAutoMerge(nodeId, this.repo);
   }
 
   getBranchRule(branch: string): Promise<BranchRule> {
@@ -187,8 +187,8 @@ export class PullRequests {
     return this.pulls.listReviewThreads(this.repo, number);
   }
 
-  /** Pass-through for globally unique node id; kept on facade for caller convenience. */
+  /** Forwards the repo alongside the globally unique node id so the adapter selects the owner's App installation. */
   resolveReviewThread(threadId: string): Promise<void> {
-    return this.pulls.resolveReviewThread(threadId);
+    return this.pulls.resolveReviewThread(threadId, this.repo);
   }
 }

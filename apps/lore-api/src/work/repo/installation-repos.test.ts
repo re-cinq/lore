@@ -2,12 +2,14 @@ import { describe, it, expect, vi } from "vitest";
 
 const listReposAccessibleToInstallation = vi.fn();
 
-vi.mock("../../outbound/github-client.js", () => ({
+vi.mock("../../outbound/github-client.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../outbound/github-client.js")>()),
   getOctokit: async () => ({
     rest: { apps: { listReposAccessibleToInstallation } },
   }),
 }));
 
+import { InMemoryGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-memory.js";
 import { getInstallationRepos } from "./installation-repos.js";
 
 const repositories = (count: number, owner: string | null) =>
@@ -43,6 +45,39 @@ describe("getInstallationRepos", () => {
         full_name: "re-cinq/repo-bare-0",
         owner: "re-cinq",
         name: "repo-bare-0",
+      },
+    ]);
+  });
+
+  it("returns re-cinq's repos when GitHub refuses the suspended acme-corp installation", async () => {
+    const installations = new InMemoryGithubInstallations(
+      () => new Date("2026-11-21T00:00:00.000Z"),
+    );
+
+    for (const [installationId, accountLogin] of [
+      ["81111111", "acme-corp"],
+      ["82222222", "re-cinq"],
+    ]) {
+      await installations.upsert({
+        installationId,
+        accountLogin,
+        accountType: "Organization",
+        repositorySelection: "all",
+        suspendedAt: null,
+      });
+    }
+    listReposAccessibleToInstallation
+      .mockReset()
+      .mockRejectedValueOnce(new Error("This installation has been suspended"))
+      .mockResolvedValueOnce({
+        data: { repositories: repositories(1, "re-cinq") },
+      });
+
+    expect(await getInstallationRepos(installations)).toEqual([
+      {
+        full_name: "re-cinq/repo-re-cinq-0",
+        owner: "re-cinq",
+        name: "repo-re-cinq-0",
       },
     ]);
   });

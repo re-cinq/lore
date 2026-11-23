@@ -90,7 +90,7 @@ export async function ingestFiles(
     schema,
     repo,
     commit,
-    githubCtx: await resolveGithubFetchContext(files, repo),
+    githubCtx: await resolveGithubFetchContext(files, repo, pool),
     landed,
     onContent: (path, content) => resolvedContents.push({ path, content }),
   });

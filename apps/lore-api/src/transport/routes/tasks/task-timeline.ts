@@ -10,6 +10,8 @@ import {
   PipelineTaskSchema,
   PIPELINE_TASK_COLUMNS,
 } from "@re-cinq/lore-shared/models/pipeline-task.js";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
+import type { GithubInstallationsRepository } from "@re-cinq/lore-shared/project/github-installations/github-installations-port.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 
@@ -142,6 +144,7 @@ async function branchTimeline(
     branch.repo,
     branch.name,
     task.pr_number,
+    new PgGithubInstallations(pool),
   );
 
   if (history === "branch-deleted") {
@@ -166,9 +169,10 @@ async function readBranchHistory(
   repo: string,
   branch: string,
   prNumber: number | null,
+  installations?: GithubInstallationsRepository,
 ): Promise<BranchHistory> {
   try {
-    return await fetchBranchHistory(repo, branch, prNumber);
+    return await fetchBranchHistory(repo, branch, prNumber, installations);
   } catch (err) {
     if ((err as { status?: number }).status === 404) {
       return "branch-deleted";
@@ -184,9 +188,10 @@ async function fetchBranchHistory(
   repo: string,
   branch: string,
   prNumber: number | null,
+  installations?: GithubInstallationsRepository,
 ): Promise<BranchCommits> {
   const [owner, repoName] = repo.split("/");
-  const { repos, pulls } = (await getOctokit()).rest;
+  const { repos, pulls } = (await getOctokit({ repo, installations })).rest;
   const target = { owner, repo: repoName, branch };
   const commits = await listBranchCommits(repos, target);
 

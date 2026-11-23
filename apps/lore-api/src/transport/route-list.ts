@@ -168,7 +168,7 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     ...orgSettingsRoutes(getPool),
     repoSettingsRoute(getPool),
     ...utopiaRoutes(getPool),
-    prStatusRoute(),
+    prStatusRoute(getPool),
     pullFilesRoute(),
     ciFailuresRoute(),
     ciJobLogRoute(),

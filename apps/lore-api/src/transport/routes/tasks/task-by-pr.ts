@@ -10,6 +10,8 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
+import type { GithubInstallationsRepository } from "@re-cinq/lore-shared/project/github-installations/github-installations-port.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 
@@ -52,7 +54,7 @@ async function serveTaskByPr(
     return h.response({ task_id: dbTaskId, trailer_source: "db" });
   }
 
-  return githubFallback(target, h);
+  return githubFallback(target, new PgGithubInstallations(pool), h);
 }
 
 interface PrTarget {
@@ -99,11 +101,12 @@ async function taskIdFromDb(
 
 // Not in the DB: read the PR body and its final commit for a `Lore-Task:` trailer, which is the only cross-reference a dark-factory PR carries.
 async function githubFallback(
-  { owner, repoName, prNumber }: PrTarget,
+  target: PrTarget,
+  installations: GithubInstallationsRepository,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   try {
-    const fromGithub = await taskIdFromGithub(owner, repoName, prNumber);
+    const fromGithub = await taskIdFromGithub(target, installations);
 
     return fromGithub
       ? h.response(fromGithub)
@@ -126,11 +129,11 @@ type PrTrailerResult = {
 } | null;
 
 async function taskIdFromGithub(
-  owner: string,
-  repoName: string,
-  prNumber: number,
+  { owner, repoName, prNumber }: PrTarget,
+  installations: GithubInstallationsRepository,
 ): Promise<PrTrailerResult> {
-  const { pulls, git } = (await getOctokit()).rest;
+  const repo = `${owner}/${repoName}`;
+  const { pulls, git } = (await getOctokit({ repo, installations })).rest;
   const { data: pr } = await pulls.get({
     owner,
     repo: repoName,

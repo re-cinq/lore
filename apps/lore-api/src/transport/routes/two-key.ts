@@ -27,7 +27,7 @@ export async function checkApproval(
   }
 
   try {
-    const octokit = await getOctokit();
+    const octokit = await getOctokit({ repo });
     const evidence = await verifyApproval({ octokit, prRef, targetRepo: repo });
 
     return { ok: true, evidence };

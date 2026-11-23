@@ -10,7 +10,9 @@ import type {
   ResponseToolkit,
   ServerRoute,
 } from "@hapi/hapi";
+import type { Pool } from "pg";
 import { z } from "zod";
+import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-installations/github-installations-pg.js";
 import { fetchPrStatus } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { repoLevel } from "../../http/repo-guard.js";
@@ -48,7 +50,9 @@ const PrStatusSchema = z.object({
   ]),
 });
 
-export function prStatusRoute(): ServerRoute {
+type PoolGetter = () => Pool | null;
+
+export function prStatusRoute(getPool: PoolGetter = () => null): ServerRoute {
   return {
     method: "GET",
     path: "/api/pr-status",
@@ -65,22 +69,21 @@ export function prStatusRoute(): ServerRoute {
         errors: [400, 404],
       },
     ),
-    handler: (request, h) => servePrStatus(request, h),
+    handler: (request, h) => servePrStatus(getPool, request, h),
   };
 }
 
 /** Checks, reviews and the computed state of one PR — the same inputs auto-merge decides on, so a human sees what the machine sees. A 424 rather than a 500 when GitHub is unconfigured: nothing failed, the dependency is simply absent. */
 async function servePrStatus(
+  getPool: PoolGetter,
   request: Request,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
-  const { repo, pr_number: prNumber } =
-    request.query as unknown as PrStatusQuery;
+  const { repo, pr_number: prNumber } = prStatusQueryOf(request);
 
   try {
     await onboardedProject(repo);
-
-    const result = await fetchPrStatus(repo, prNumber);
+    const result = await readPrStatus(getPool(), repo, prNumber);
 
     enforceTrue(
       result,
@@ -95,4 +98,14 @@ async function servePrStatus(
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
+}
+
+function prStatusQueryOf(request: Request): PrStatusQuery {
+  return request.query as unknown as PrStatusQuery;
+}
+
+function readPrStatus(pool: Pool | null, repo: string, prNumber: number) {
+  return pool
+    ? fetchPrStatus(repo, prNumber, new PgGithubInstallations(pool))
+    : fetchPrStatus(repo, prNumber);
 }

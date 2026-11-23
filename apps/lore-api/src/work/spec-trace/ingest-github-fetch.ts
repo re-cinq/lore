@@ -2,6 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   getOctokit,
   isAppConfigured as isConfigured,
+  type InstallationsSource,
 } from "../../outbound/github-client.js";
 
 // Resolves one ingest file's content: inline content wins, else fetches it from GitHub (falling back to HEAD).
@@ -36,17 +37,18 @@ export interface GithubFetchContext {
 export async function resolveGithubFetchContext(
   files: IngestFile[],
   repo: string,
+  source?: InstallationsSource,
 ): Promise<GithubFetchContext | null> {
   if (!files.some((f) => typeof f === "string")) {
     return null;
   }
 
   enforceTrue(
-    isConfigured(),
+    isConfigured(source),
     Error,
     "GitHub App not configured — cannot fetch file content",
   );
-  const octokit = await getOctokit();
+  const octokit = await getOctokit({ repo, installations: source });
   const [owner, repoName] = repo.split("/");
 
   return { octokit, owner, repoName };
