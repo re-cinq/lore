@@ -395,7 +395,7 @@
     "copy:ontology": "cp -f src/domain/lore-ontology.ttl dist/domain/"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.124.0",
+    "@anthropic-ai/sdk": "^1.11.0",
     "@google-cloud/storage": "^9.0.0",
     "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
