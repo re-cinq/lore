@@ -44,7 +44,7 @@ const ResultSchema = z.object({
 const OPTIONS = zodResponse(
   {
     ...bearerScope("admin"),
-    ...repoLevel("admin"),
+    ...repoLevel("write"),
     validate: { params: zodValidate(PARAMS) },
   },
   ResultSchema,

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { repoDeclarationOf } from "../../../http/repo-guard.js";
 import { buildServer } from "../../../../app/build-server.js";
 import {
   AUTH,
@@ -34,5 +35,21 @@ describe("POST /api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/st
     );
 
     expect(statuses).toEqual([400, 400, 400]);
+  });
+
+  it("declares write, not admin, as the repository level it needs", () => {
+    const route = buildServer(() => null)
+      .table()
+      .find(
+        (r) =>
+          r.method === "post" &&
+          r.path ===
+            "/api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start",
+      );
+
+    expect(
+      route &&
+        repoDeclarationOf({ route: { settings: route.settings } })?.level,
+    ).toBe("write");
   });
 });

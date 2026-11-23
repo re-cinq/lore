@@ -12,6 +12,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   RepoNumberParams,
@@ -35,6 +36,7 @@ export function issueRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read"),
         validate: { params: zodValidate(RepoNumberParams) },
       },
       IssueSchema,

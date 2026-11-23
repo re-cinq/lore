@@ -142,3 +142,15 @@ export const AuditLogPageSchema = z.object({
     ),
   ),
 });
+
+export const TaskTimelineSchema = z.object({
+  task_id: z.string(),
+  branch_name: z.string().nullable(),
+  repo: z.string().nullable(),
+  pr_number: z.number().nullable(),
+  pr_url: z.string().nullable(),
+  pr_state: z.string().nullable(),
+  commits: z.array(z.record(z.string(), z.unknown())),
+  current_stage: z.string().nullable(),
+  lease: z.record(z.string(), z.unknown()).nullable().optional(),
+});

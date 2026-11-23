@@ -9,8 +9,10 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
+import { groupRepoByParamId } from "./task-repo.js";
 
 // One multi-repo feature's task rollup; an unknown group answers empty, not 404 — `task_group_id` is free-form, so "no rows" ≡ "never used".
 
@@ -32,19 +34,27 @@ export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/task-groups/{id}",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { params: zodValidate(GroupParams) },
-      },
-      TaskGroupSchema,
-      {
-        name: "TaskGroup",
-        description: "Every task in a group, with completion",
-      },
-    ),
+    options: taskGroupOptions(getPool),
     handler: withPool(getPool, serveTaskGroup),
   };
+}
+
+function taskGroupOptions(getPool: () => Pool | null) {
+  return zodResponse(
+    {
+      ...bearerScope("read"),
+      ...repoLevel("read", {
+        from: "record",
+        find: groupRepoByParamId(getPool),
+      }),
+      validate: { params: zodValidate(GroupParams) },
+    },
+    TaskGroupSchema,
+    {
+      name: "TaskGroup",
+      description: "Every task in a group, with completion",
+    },
+  );
 }
 
 /** Every task in one feature's group, with completion state — the view that answers whether a multi-repo feature is done. */

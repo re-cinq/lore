@@ -12,6 +12,7 @@ import type {
 import { z } from "zod";
 import { readCiFailures, type CiTarget } from "../../../work/ci/ci-failures.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { githubFailureResponse, onboardedProject } from "./github-read.js";
 
@@ -57,6 +58,7 @@ const CiFailuresSchema = z.object({
 const ROUTE_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: {
       params: zodValidate(RepoParams),
       query: zodValidate(CiFailuresQuery),

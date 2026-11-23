@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 
 export function autoMergeKpisRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -16,6 +17,7 @@ export function autoMergeKpisRoute(getPool: () => Pool | null): ServerRoute {
     path: "/api/repos/{owner}/{repo}/auto-merge/kpis",
     options: {
       ...bearerScope("read"),
+      ...repoLevel("read"),
       description: "Auto-merge KPIs from pipeline.v_auto_merge_kpis",
     },
     handler: (request, h) => serveAutoMergeKpis(request, h, getPool),

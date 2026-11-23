@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   RepoNumberParams,
@@ -37,6 +38,7 @@ export function pullFilesRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read"),
         validate: { params: zodValidate(RepoNumberParams) },
       },
       PullFilesSchema,

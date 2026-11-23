@@ -19,6 +19,7 @@ import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js
 import { PgChangelogWeeks } from "@re-cinq/lore-shared/project/changelog-weeks/changelog-weeks-pg.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -29,23 +30,26 @@ import {
   WeekKey,
 } from "./changelog-schema.js";
 
+const CHANGELOG_OPTIONS = zodResponse(
+  {
+    ...bearerScope("read"),
+    ...repoLevel("read"),
+    validate: { query: zodValidate(ChangelogQuerySchema) },
+  },
+  ChangelogPageSchema,
+  {
+    name: "ChangelogPage",
+    description:
+      "A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. A repository with releases answers mode releases instead: its releases newest first and, on the first page, what is unreleased.",
+    errors: [400],
+  },
+);
+
 export function changelogRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/changelog",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ChangelogQuerySchema) },
-      },
-      ChangelogPageSchema,
-      {
-        name: "ChangelogPage",
-        description:
-          "A page of the repository's weeks, newest first: what merged and closed in each, with the introduction written once the week ended. A repository with releases answers mode releases instead: its releases newest first and, on the first page, what is unreleased.",
-        errors: [400],
-      },
-    ),
+    options: CHANGELOG_OPTIONS,
     handler: withPool(getPool, serveChangelog),
   };
 }

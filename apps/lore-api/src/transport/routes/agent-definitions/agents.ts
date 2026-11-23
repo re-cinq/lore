@@ -54,11 +54,15 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: `${BASE}/{name?}`,
-    options: zodResponse(bearerScope("read"), AgentReadSchema, {
-      name: "AgentDefinitionRead",
-      description: "One resolved agent definition, or the repo's list",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      AgentReadSchema,
+      {
+        name: "AgentDefinitionRead",
+        description: "One resolved agent definition, or the repo's list",
+        errors: [404],
+      },
+    ),
     handler: (request, h) => serveAgentsGet(getPool, request, h),
   };
 }

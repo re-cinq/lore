@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ResponseObject, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { createDgraphClient, listAllAdrDocuments } from "@re-cinq/lore-shared";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 
 /** GET /api/trace/adrs — cross-repo ADR list for the global viewer (not per-repo, so not via Project). */
 /** Every ADR the graph holds; empty when no graph is configured. */
@@ -14,10 +15,14 @@ export function traceAdrsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/trace/adrs",
-    options: zodResponse(bearerScope("read"), AdrListSchema, {
-      name: "AdrList",
-      description: "Every ADR in the traceability graph",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+      AdrListSchema,
+      {
+        name: "AdrList",
+        description: "Every ADR in the traceability graph",
+      },
+    ),
     handler: (_request, h) => serveAdrList(h),
   };
 }

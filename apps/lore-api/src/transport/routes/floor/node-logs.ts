@@ -11,6 +11,8 @@ import type {
   StoredRunHistory,
 } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 const NodeLogsSchema = z.object({
@@ -51,12 +53,16 @@ export function nodeLogsRoute(logsOf: NodeLogsOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/nodes/{name}/logs",
-    options: zodResponse(bearerScope("read"), NodeLogsSchema, {
-      name: "NodeLogs",
-      description:
-        "One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      NodeLogsSchema,
+      {
+        name: "NodeLogs",
+        description:
+          "One node's log: stored stdout for a node of a run Postgres has, the floor's log for a visit named floor-<visit id>; 404 for a name of no node of this run",
+        errors: [404],
+      },
+    ),
     handler: (request: Request, h: ResponseToolkit) =>
       serveNodeLogs(logsOf, request, h),
   };

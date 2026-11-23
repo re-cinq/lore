@@ -2,6 +2,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { answerRepoRead } from "../repos/github-read.js";
@@ -54,6 +55,7 @@ function loopReadOptions({
   return zodResponse(
     {
       ...bearerScope("read"),
+      ...repoLevel("read"),
       validate: {
         params: zodValidate(RepoParams),
         query: zodValidate(SectionLimitsQuery),

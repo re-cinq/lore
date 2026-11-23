@@ -135,6 +135,7 @@ const SpecReworkSchema = z.object({ run_id: z.string() });
 const SPEC_REWORK_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    ...repoLevel("write"),
     validate: { payload: zodValidate(SpecReworkBody) },
   },
   SpecReworkSchema,
@@ -153,6 +154,7 @@ const PlanValidateSchema = z.object({ run_id: z.string() });
 const VALIDATE_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    ...repoLevel("write"),
     validate: { payload: zodValidate(PlanValidateBody) },
   },
   PlanValidateSchema,
@@ -171,6 +173,7 @@ const PlanPrototypeSchema = z.object({ run_id: z.string() });
 const PROTOTYPE_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    ...repoLevel("write"),
     validate: { payload: zodValidate(PlanPrototypeBody) },
   },
   PlanPrototypeSchema,
@@ -186,7 +189,7 @@ const PROTOTYPE_OPTIONS = zodResponse(
 const AuthorWaitingSchema = z.object({ reopened: z.boolean() });
 
 const AUTHOR_WAITING_OPTIONS = zodResponse(
-  bearerScope("write"),
+  { ...bearerScope("write"), ...repoLevel("write") },
   AuthorWaitingSchema,
   {
     name: "PlanOpenedForAuthor",

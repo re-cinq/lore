@@ -14,6 +14,7 @@ import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-insta
 import type { GithubInstallationsRepository } from "@re-cinq/lore-shared/project/github-installations/github-installations-port.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 
 const LORE_TASK_TRAILER_RE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
 
@@ -27,11 +28,15 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/by-pr/{owner}/{repo}/{number}",
-    options: zodResponse(bearerScope("read"), TaskByPrSchema, {
-      name: "TaskByPr",
-      description: "The task a pull request belongs to",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      TaskByPrSchema,
+      {
+        name: "TaskByPr",
+        description: "The task a pull request belongs to",
+        errors: [404],
+      },
+    ),
     handler: (request, h) => serveTaskByPr(getPool, request, h),
   };
 }

@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
@@ -64,6 +65,7 @@ function graphBrowseRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(GraphBrowseQuery) },
       },
       GraphBrowseSchema,
@@ -239,6 +241,7 @@ function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(EpisodesQuery) },
       },
       EpisodePageSchema,

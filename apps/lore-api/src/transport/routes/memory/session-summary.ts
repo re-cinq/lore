@@ -15,6 +15,7 @@ import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memo
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { mirrorWritable } from "../../http/repo-alias.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { makeGraphLlmCall } from "../helpers.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
@@ -41,22 +42,24 @@ const SessionSummarySchema = z.union([
   z.object({ status: z.literal("duplicate") }),
 ]);
 
+const SESSION_SUMMARY_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    ...mirrorWritable(repoLevel("write", { from: "payload", name: "repo" })),
+    validate: { payload: zodValidate(SessionSummaryBody) },
+  },
+  SessionSummarySchema,
+  {
+    name: "SessionSummaryResult",
+    description: "What became of the posted session",
+  },
+);
+
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/session-summary",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        ...mirrorWritable(),
-        validate: { payload: zodValidate(SessionSummaryBody) },
-      },
-      SessionSummarySchema,
-      {
-        name: "SessionSummaryResult",
-        description: "What became of the posted session",
-      },
-    ),
+    options: SESSION_SUMMARY_OPTIONS,
     handler: (request, h) => serveSessionSummary(getPool, request, h),
   };
 }

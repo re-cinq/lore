@@ -5,7 +5,10 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { UserIdentity } from "./auth.js";
 import { principalOf } from "./bearer-scope.js";
-import { enforceRepoOpen } from "./repo-guard.js";
+import { enforceRepoOpen, type RepoSource } from "./repo-guard.js";
+
+/** Run routes declare their level with this source; `registerRunRepoGuard` resolves the run's repository, answers 404 when absent, and enforces that level. */
+export const RUN_RECORD: RepoSource = { from: "record", find: () => null };
 
 /** The run routes and their older spelling, which serves the same reads. */
 const RUN_ROUTES = ["/api/assembly-runs/", "/api/assembly-lines/"];

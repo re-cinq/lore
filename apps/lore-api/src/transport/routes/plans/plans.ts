@@ -53,9 +53,13 @@ function listPlansRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: BASE,
-    options: zodResponse(bearerScope("read"), PlanListSchema, {
-      name: "PlanList",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      PlanListSchema,
+      {
+        name: "PlanList",
+      },
+    ),
     handler: withPool(getPool, async (pool, request, h) =>
       h.response({ plans: await listPlanMetas(() => pool, repoOf(request)) }),
     ),
@@ -114,6 +118,7 @@ const CollabTokenSchema = z.object({
 const COLLAB_TOKEN_OPTIONS = zodResponse(
   {
     ...bearerScope("write"),
+    ...repoLevel("read"),
     validate: { payload: zodValidate(CollabTokenBody) },
   },
   CollabTokenSchema,
@@ -188,7 +193,7 @@ const DraftingBody = z.object({
 const DraftingSchema = z.object({ task_id: z.string() });
 
 const DRAFTING_OPTIONS = zodResponse(
-  { ...bearerScope("write"), validate: { payload: zodValidate(DraftingBody) } },
+  { ...WRITE_OPTIONS, validate: { payload: zodValidate(DraftingBody) } },
   DraftingSchema,
   {
     name: "PlanDraftingStarted",
@@ -232,7 +237,7 @@ const RefineBody = z.object({
 const RefineSchema = z.object({ slot: z.string() });
 
 const REFINE_OPTIONS = zodResponse(
-  { ...bearerScope("write"), validate: { payload: zodValidate(RefineBody) } },
+  { ...WRITE_OPTIONS, validate: { payload: zodValidate(RefineBody) } },
   RefineSchema,
   {
     name: "PlanRefineAsked",

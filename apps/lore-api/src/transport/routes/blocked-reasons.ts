@@ -3,6 +3,7 @@ import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { zodResponse } from "../http/zod-response.js";
 import { bearerScope } from "../http/bearer-scope.js";
+import { repoLevel } from "../http/repo-guard.js";
 import { zodValidate } from "../http/zod-validate.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { labelForReason } from "@re-cinq/lore-shared/blocked-reason.js";
@@ -35,7 +36,11 @@ const BlockedPullsSchema = z.object({
 type BlockedReason = z.infer<typeof BlockedReasonSchema>;
 
 const reasonRouteOpts = zodResponse(
-  { ...bearerScope("read"), validate: { params: zodValidate(PrParam) } },
+  {
+    ...bearerScope("read"),
+    ...repoLevel("read"),
+    validate: { params: zodValidate(PrParam) },
+  },
   BlockedReasonSchema,
   {
     name: "BlockedReason",
@@ -44,7 +49,11 @@ const reasonRouteOpts = zodResponse(
 );
 
 const pullsRouteOpts = zodResponse(
-  { ...bearerScope("read"), validate: { params: zodValidate(RepoParam) } },
+  {
+    ...bearerScope("read"),
+    ...repoLevel("read"),
+    validate: { params: zodValidate(RepoParam) },
+  },
   BlockedPullsSchema,
   {
     name: "BlockedPulls",

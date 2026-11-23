@@ -5,6 +5,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
@@ -75,6 +76,7 @@ export function contextEvalRoute(getPool: () => Pool | null): ServerRoute {
       {
         // Not `read`: every call spends on three model calls.
         ...bearerScope("write"),
+        ...repoLevel("write", { from: "payload", name: "repo" }),
         validate: { payload: zodValidate(ContextEvalBody) },
       },
       DocumentEvalSchema,

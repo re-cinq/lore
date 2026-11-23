@@ -8,7 +8,11 @@ import type {
 import { REF_REPO_PATTERN } from "@re-cinq/lore-shared/utopia/memory-documents.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { readableReposOf, repoLevel } from "../../http/repo-guard.js";
+import {
+  readableReposOf,
+  repoLevel,
+  SPANS_REPOS,
+} from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   MemorySearchQuery,
@@ -110,6 +114,7 @@ export function listMemoriesRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(MemoriesQuery) },
       },
       MemoryListSchema,

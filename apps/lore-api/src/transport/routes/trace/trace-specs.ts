@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ResponseObject, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { createDgraphClient, listAllSpecDocuments } from "@re-cinq/lore-shared";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 
 /** GET /api/trace/specs — cross-repo spec list for the global viewer (not per-repo, so not via Project). */
 /** Every spec the graph holds; empty when no graph is configured. */
@@ -14,10 +15,14 @@ export function traceSpecsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/trace/specs",
-    options: zodResponse(bearerScope("read"), SpecListSchema, {
-      name: "SpecList",
-      description: "Every spec in the traceability graph",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+      SpecListSchema,
+      {
+        name: "SpecList",
+        description: "Every spec in the traceability graph",
+      },
+    ),
     handler: (_request, h) => serveSpecList(h),
   };
 }

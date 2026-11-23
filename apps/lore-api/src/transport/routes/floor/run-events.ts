@@ -9,6 +9,8 @@ import {
 import { floorRunHistory } from "../../../work/floor/floor-run-history.js";
 import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { pageLimit } from "./page-limit.js";
 
@@ -62,11 +64,15 @@ export function runEventsRoute(pageOf: EventPageOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/events",
-    options: zodResponse(bearerScope("read"), EventPageSchema, {
-      name: "RunEvents",
-      description:
-        "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      EventPageSchema,
+      {
+        name: "RunEvents",
+        description:
+          "One page of a run's agent events, oldest first; empty for a run neither Postgres nor the floor has",
+      },
+    ),
     handler: async (request: Request, h: ResponseToolkit) =>
       h.response(await pageOf(request.params.id as string, request.query)),
   };

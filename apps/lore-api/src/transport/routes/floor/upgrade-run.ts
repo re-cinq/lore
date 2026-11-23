@@ -5,26 +5,36 @@ import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import type { UpgradeRunFloor } from "../../../work/floor/upgrade-run.js";
 import { upgradeFor, upgradeRun } from "../../../work/floor/upgrade-run.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 const UpgradeState = z.object({ available: z.boolean() });
 
 const UpgradedRun = z.object({ run_id: z.string() });
 
-const UPGRADE_STATE_OPTIONS = zodResponse(bearerScope("read"), UpgradeState, {
-  name: "AssemblyRunUpgrade",
-  description:
-    "Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have",
-  errors: [404],
-});
+const UPGRADE_STATE_OPTIONS = zodResponse(
+  { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+  UpgradeState,
+  {
+    name: "AssemblyRunUpgrade",
+    description:
+      "Whether a newer version of the run's assembly line is available. 404 for a run the floor does not have",
+    errors: [404],
+  },
+);
 
-const UPGRADE_RUN_OPTIONS = zodResponse(bearerScope("task"), UpgradedRun, {
-  name: "AssemblyRunUpgraded",
-  status: 201,
-  description:
-    "A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version",
-  errors: [404, 409],
-});
+const UPGRADE_RUN_OPTIONS = zodResponse(
+  { ...bearerScope("task"), ...repoLevel("write", RUN_RECORD) },
+  UpgradedRun,
+  {
+    name: "AssemblyRunUpgraded",
+    status: 201,
+    description:
+      "A new run on the latest version of the assembly line, retaining the source run's inputs; the source run is cancelled when it is still open. 404 for a run the floor does not have, 409 for a run already on the latest version",
+    errors: [404, 409],
+  },
+);
 
 const upgradeFloor = (): UpgradeRunFloor => floorRunReader().upgradeFloor();
 

@@ -47,11 +47,13 @@ const StationTaskListSchema = z.object({
   ),
 });
 
+const READ_OPTIONS = { ...bearerScope("read"), ...repoLevel("read") };
+
 export function driftTasksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/tasks/drift",
-    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
+    options: zodResponse(READ_OPTIONS, StationTaskListSchema, {
       name: "DriftTaskList",
       description: "Tasks already open for a spec",
     }),
@@ -89,7 +91,7 @@ export function openLikeTasksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/tasks/open-like",
-    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
+    options: zodResponse(READ_OPTIONS, StationTaskListSchema, {
       name: "OpenLikeTaskList",
       description: "Open tasks matching a prefix",
     }),

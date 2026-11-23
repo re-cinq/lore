@@ -6,6 +6,7 @@ import { zodResponse } from "../../http/zod-response.js";
 import type { Request, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 
 /** The only kinds this route projects — both read from repo markdown. */
@@ -35,6 +36,7 @@ export function ingestGraphRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write"),
         validate: { payload: zodValidate(IngestGraphBody) },
       },
       IngestTriggeredSchema,

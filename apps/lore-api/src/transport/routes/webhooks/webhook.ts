@@ -53,10 +53,14 @@ export function webhookStatusRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/webhook",
-    options: zodResponse(bearerScope("read"), WebhookStatusSchema, {
-      name: "RepoWebhookStatus",
-      description: "Whether the repo's webhook points at this platform",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      WebhookStatusSchema,
+      {
+        name: "RepoWebhookStatus",
+        description: "Whether the repo's webhook points at this platform",
+      },
+    ),
     handler: (request, h) => serveWebhookStatus(request, h),
   };
 }

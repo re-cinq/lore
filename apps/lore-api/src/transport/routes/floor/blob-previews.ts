@@ -12,6 +12,8 @@ import {
   type RunBlob,
 } from "../../../work/floor/floor-run-blob.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { BLOB_HASH, RunBlobSchema } from "./run-blob.js";
 
@@ -37,12 +39,16 @@ export function blobPreviewsRoute(previewsOf: BlobPreviewsOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/blob-previews",
-    options: zodResponse(bearerScope("read"), BlobPreviewsSchema, {
-      name: "BlobPreviews",
-      description:
-        "The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have",
-      errors: [400, 404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      BlobPreviewsSchema,
+      {
+        name: "BlobPreviews",
+        description:
+          "The first 4 KiB of each blob the run references, by hash; a hash it does not reference is left out. 400 for a malformed hash or more than 50, 404 for a run the floor does not have",
+        errors: [400, 404],
+      },
+    ),
     handler: (request: Request, h: ResponseToolkit) =>
       serveBlobPreviews(previewsOf, request, h),
   };

@@ -10,6 +10,7 @@ import type {
 } from "@hapi/hapi";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 
 // Vector-store chunk reads for detection jobs, via `project.chunks` (not direct DB) so a station pod's ChunksHttp adapter never opens Postgres (ADR-031 D7); body shape varies by {kind}.
 const CHUNK_KINDS = new Set([
@@ -63,11 +64,15 @@ export function chunksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/chunks/{kind}",
-    options: zodResponse(bearerScope("read"), RepoChunksSchema, {
-      name: "RepoChunks",
-      description: "A chunk collection, shaped by {kind}",
-      errors: [400],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      RepoChunksSchema,
+      {
+        name: "RepoChunks",
+        description: "A chunk collection, shaped by {kind}",
+        errors: [400],
+      },
+    ),
     handler: (request, h) => serveChunks(request, h),
   };
 }

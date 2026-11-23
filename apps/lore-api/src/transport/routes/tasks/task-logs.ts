@@ -12,8 +12,10 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE, offsetParam } from "../common-schemas.js";
+import { taskLogRepoOf } from "./task-repo.js";
 import {
   readTurnSlice,
   parseTurnCursor,
@@ -55,6 +57,7 @@ export function taskLogsPostRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write", { from: "payload", name: "repo" }),
         validate: { payload: zodValidate(TaskLogsBody) },
       },
       LogsAcceptedSchema,
@@ -104,6 +107,7 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("read", { from: "record", find: taskLogRepoOf(getPool) }),
         validate: { query: zodValidate(TaskLogsQuery) },
       },
       TaskLogSliceSchema,

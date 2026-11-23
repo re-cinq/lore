@@ -8,6 +8,8 @@ import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-run
 import { toRunRow } from "../../../work/assembly-runs/run-row.js";
 import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { pullFilesOf, PullFilesSchema } from "../repos/pull-files.js";
 import { withPool } from "../with-pool.js";
@@ -27,6 +29,17 @@ const PRODUCTION: RunPullFilesSeams = {
   reads: { costsByRun: async () => new Map() },
 };
 
+const RUN_PULL_FILES_OPTIONS = zodResponse(
+  { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+  PullFilesSchema,
+  {
+    name: "AssemblyRunPullFiles",
+    description:
+      "Every changed file on the run's pull request with its unified patch. 404 for a run with no pull request",
+    errors: [404],
+  },
+);
+
 export function runPullFilesRoute(
   getPool: () => Pool | null,
   seams: RunPullFilesSeams = PRODUCTION,
@@ -34,12 +47,7 @@ export function runPullFilesRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/pull-files",
-    options: zodResponse(bearerScope("read"), PullFilesSchema, {
-      name: "AssemblyRunPullFiles",
-      description:
-        "Every changed file on the run's pull request with its unified patch. 404 for a run with no pull request",
-      errors: [404],
-    }),
+    options: RUN_PULL_FILES_OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
       servePullFiles(seams, { pool, runId: request.params.id }, h),
     ),

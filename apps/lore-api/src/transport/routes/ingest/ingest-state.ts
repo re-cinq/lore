@@ -10,6 +10,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 import { withPool } from "../with-pool.js";
 import { storedCommit } from "./ingest-delta-state.js";
@@ -25,11 +26,15 @@ export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/ingest-state",
-    options: zodResponse(bearerScope("read"), IngestStateSchema, {
-      name: "IngestState",
-      description: "The last commit ingested for a repo and kind",
-      errors: [400],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      IngestStateSchema,
+      {
+        name: "IngestState",
+        description: "The last commit ingested for a repo and kind",
+        errors: [400],
+      },
+    ),
     handler: withPool(getPool, serveIngestState),
   };
 }

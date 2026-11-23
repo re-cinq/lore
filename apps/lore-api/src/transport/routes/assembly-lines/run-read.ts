@@ -15,6 +15,8 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { runsReadingFloor } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 
 // GET /api/assembly-runs/{id} — the run, its nodes, and the Station each dispatches to; moved from the Floor (#1347) once lore-api's Dockerfile started building libs/assembly-lines too. stationInherited surfaces station inheritance in the response rather than leaving it to be reconstructed from YAML.
 
@@ -34,11 +36,15 @@ export function runReadRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}",
-    options: zodResponse(bearerScope("read"), RunReadSchema, {
-      name: "AssemblyRunRead",
-      description: "A run joined to the graph it walked",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      RunReadSchema,
+      {
+        name: "AssemblyRunRead",
+        description: "A run joined to the graph it walked",
+        errors: [404],
+      },
+    ),
     handler: (request) => serveRunRead(getPool, runs, request),
   };
 }

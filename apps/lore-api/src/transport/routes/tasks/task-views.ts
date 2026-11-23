@@ -10,8 +10,9 @@ import type {
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
-import { repoLevel } from "../../http/repo-guard.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
+import { taskRepoByParamId } from "./task-repo.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   RepoTasksQuery,
@@ -110,14 +111,20 @@ async function rowsOrEmpty<T>(
   }
 }
 
+const TASK_STATS_OPTIONS = zodResponse(
+  { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+  TaskStatsSchema,
+  {
+    name: "TaskStats",
+    description: "Pipeline task counts",
+  },
+);
+
 function taskStatsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/task-stats",
-    options: zodResponse(bearerScope("read"), TaskStatsSchema, {
-      name: "TaskStats",
-      description: "Pipeline task counts",
-    }),
+    options: TASK_STATS_OPTIONS,
     handler: async (_request, h) => {
       const pool = getPool();
 
@@ -140,6 +147,7 @@ function agentActivityRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(AgentActivityQuery) },
       },
       AgentActivitySchema,
@@ -213,36 +221,26 @@ function taskRuntimeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/{id}/runtime",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        ...repoLevel("read", { from: "record", find: taskRepoOf(getPool) }),
-      },
-      TaskRuntimeSchema,
-      {
-        name: "TaskRuntime",
-        description: "A task's transitions and LLM calls",
-      },
-    ),
+    options: taskRuntimeOptions(getPool),
     handler: withPool(getPool, serveTaskRuntime),
   };
 }
 
-/** The repository a task targets, found before the handler runs; null when the task or the pool is missing, so the handler answers as it always did. */
-function taskRepoOf(getPool: () => Pool | null) {
-  return async (request: Request): Promise<string | null> => {
-    const pool = getPool();
-
-    if (!pool) {
-      return null;
-    }
-    const { rows } = await pool.query(
-      "SELECT target_repo FROM pipeline.tasks WHERE id = $1",
-      [request.params.id],
-    );
-
-    return (rows[0]?.target_repo as string | undefined) ?? null;
-  };
+function taskRuntimeOptions(getPool: () => Pool | null) {
+  return zodResponse(
+    {
+      ...bearerScope("read"),
+      ...repoLevel("read", {
+        from: "record",
+        find: taskRepoByParamId(getPool),
+      }),
+    },
+    TaskRuntimeSchema,
+    {
+      name: "TaskRuntime",
+      description: "A task's transitions and LLM calls",
+    },
+  );
 }
 
 /** A task's transitions and the LLM calls it made, both in creation order. */
@@ -266,6 +264,7 @@ function auditLogRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", { from: "query", name: "repo" }),
         validate: { query: zodValidate(AuditLogQuery) },
       },
       AuditLogPageSchema,

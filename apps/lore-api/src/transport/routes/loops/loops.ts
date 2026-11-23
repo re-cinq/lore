@@ -71,12 +71,16 @@ function readLoopsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: PATH,
-    options: zodResponse(bearerScope("read"), RepoLoopsSchema, {
-      name: "RepoLoops",
-      description:
-        "Every loop the repository can switch, in display order, with its name and whether it is on.",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      RepoLoopsSchema,
+      {
+        name: "RepoLoops",
+        description:
+          "Every loop the repository can switch, in display order, with its name and whether it is on.",
+        errors: [404],
+      },
+    ),
     handler: withPool(getPool, serveReadLoops),
   };
 }

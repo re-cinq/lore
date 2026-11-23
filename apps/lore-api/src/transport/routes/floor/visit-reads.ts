@@ -8,6 +8,8 @@ import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import type { ModelCall } from "../../../work/floor/floor-model-calls.js";
 import type { VisitEventRow } from "../../../work/floor/floor-visit-events.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 const ModelCallSchema = z.object({
@@ -96,11 +98,15 @@ function visitRead<Body>(spec: VisitRead<Body>): ServerRoute {
   return {
     method: "GET",
     path: spec.path,
-    options: zodResponse(bearerScope("read"), spec.schema, {
-      name: spec.name,
-      description: spec.description,
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      spec.schema,
+      {
+        name: spec.name,
+        description: spec.description,
+        errors: [404],
+      },
+    ),
     handler: (request: Request, h: ResponseToolkit) =>
       serveVisitRead(spec, request, h),
   };

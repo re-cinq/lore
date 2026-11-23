@@ -1,7 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { zodResponse } from "../../http/zod-response.js";
-import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
@@ -14,6 +13,9 @@ import { PgGithubInstallations } from "@re-cinq/lore-shared/project/github-insta
 import type { GithubInstallationsRepository } from "@re-cinq/lore-shared/project/github-installations/github-installations-port.js";
 import { getOctokit } from "../../../outbound/github-client.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { taskRepoByParamId } from "./task-repo.js";
+import { TaskTimelineSchema } from "./task-views-schemas.js";
 
 export interface TimelineCommit {
   sha: string;
@@ -31,29 +33,11 @@ interface RawCommit {
   commit: { message: string; committer: { date?: string | null } | null };
 }
 
-// Folds the raw GitHub commit list (most-recent-first) into the ordered stage-commit timeline; only commits carrying Lore stage trailers contribute.
-/** The branch-as-state view: what each stage committed, and who holds the lease. */
-const TaskTimelineSchema = z.object({
-  task_id: z.string(),
-  branch_name: z.string().nullable(),
-  repo: z.string().nullable(),
-  pr_number: z.number().nullable(),
-  pr_url: z.string().nullable(),
-  pr_state: z.string().nullable(),
-  commits: z.array(z.record(z.string(), z.unknown())),
-  current_stage: z.string().nullable(),
-  lease: z.record(z.string(), z.unknown()).nullable().optional(),
-});
-
 export function timelineRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/{id}/timeline",
-    options: zodResponse(bearerScope("read"), TaskTimelineSchema, {
-      name: "TaskTimeline",
-      description: "A task's stage commits and lease",
-      errors: [404],
-    }),
+    options: timelineOptions(getPool),
     handler: async (request, h) => {
       const pool = getPool();
 
@@ -62,6 +46,24 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       return h.response(await taskTimeline(pool, request.params.id));
     },
   };
+}
+
+function timelineOptions(getPool: () => Pool | null) {
+  return zodResponse(
+    {
+      ...bearerScope("read"),
+      ...repoLevel("read", {
+        from: "record",
+        find: taskRepoByParamId(getPool),
+      }),
+    },
+    TaskTimelineSchema,
+    {
+      name: "TaskTimeline",
+      description: "A task's stage commits and lease",
+      errors: [404],
+    },
+  );
 }
 
 async function taskTimeline(

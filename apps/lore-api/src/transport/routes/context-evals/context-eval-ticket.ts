@@ -4,6 +4,7 @@ import type { ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { ContextBackendSchema } from "@re-cinq/lore-shared/knowledge-backend.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import {
   zodResponse,
   type ZodResponseOptions,
@@ -67,6 +68,7 @@ export function contextEvalTicketRoute(
     options: zodResponse(
       {
         ...bearerScope("write"),
+        ...repoLevel("write", { from: "payload", name: "repo" }),
         validate: { payload: zodValidate(TicketEvalBody) },
       },
       TicketEvalSchema,

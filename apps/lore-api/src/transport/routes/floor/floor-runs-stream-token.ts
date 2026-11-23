@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import type { z } from "zod";
 import { LIVE_RUNS_SUBJECT } from "@re-cinq/lore-shared/models/live-token.js";
 import { mintLiveToken } from "../../../work/assembly-line-station/live-tokens.js";
+import { SPANS_REPOS } from "../../http/repo-guard.js";
 import {
   StreamTokenBody,
   streamTokenOptions,
@@ -13,11 +14,14 @@ import { withPool } from "../with-pool.js";
 
 type LiveUser = { id: string; name: string };
 
-const OPTIONS = streamTokenOptions({
-  name: "FloorRunsStreamToken",
-  description:
-    "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
-});
+const OPTIONS = streamTokenOptions(
+  {
+    name: "FloorRunsStreamToken",
+    description:
+      "A short-lived token that opens the floor run list's channel of the live socket (/api/ws) as one person",
+  },
+  SPANS_REPOS,
+);
 
 export function floorRunsStreamTokenRoute(
   getPool: () => Pool | null,

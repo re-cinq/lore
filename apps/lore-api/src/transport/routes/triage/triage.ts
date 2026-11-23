@@ -10,6 +10,7 @@ import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { isOpenStatus } from "../../../work/floor/floor-run-query.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   capSections,
@@ -72,6 +73,7 @@ function issueNumberOf(args: Record<string, unknown>): string | undefined {
 const TRIAGE_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: {
       params: zodValidate(RepoParams),
       query: zodValidate(SectionLimitsQuery),

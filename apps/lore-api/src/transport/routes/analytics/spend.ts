@@ -14,6 +14,7 @@ import type {
   ServerRoute,
 } from "@hapi/hapi";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { withPool } from "../with-pool.js";
 
 // The analytics screen's six reads, one caller (old month-to-date /api/spend moved into /api/analytics/spend-window); job_runs alone derives from the pipeline.job_runs model, not an inline aggregate.
@@ -65,10 +66,14 @@ export function analyticsOverviewRoute(
   return {
     method: "GET",
     path: "/api/analytics-overview",
-    options: zodResponse(bearerScope("read"), AnalyticsOverviewSchema, {
-      name: "AnalyticsOverview",
-      description: "Pipeline and usage roll-ups",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+      AnalyticsOverviewSchema,
+      {
+        name: "AnalyticsOverview",
+        description: "Pipeline and usage roll-ups",
+      },
+    ),
     handler: withPool(getPool, serveAnalyticsOverview),
   };
 }

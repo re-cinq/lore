@@ -9,6 +9,7 @@ import type {
 } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   ANALYTICS_PERIODS,
@@ -32,6 +33,7 @@ export function analyticsRoute(getPool: () => Pool | null): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(AnalyticsQuery) },
       },
       PipelineAnalyticsSchema,

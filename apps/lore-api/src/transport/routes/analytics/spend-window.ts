@@ -7,6 +7,7 @@ import type {
 } from "@hapi/hapi";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { spendInterval } from "../../../work/analytics/compute-cost.js";
 import { SpendWindowSchema } from "./spend-window-schema.js";
@@ -32,6 +33,17 @@ const defaultDeps = (): SpendWindowDeps => ({
   floor: floorIfConfigured(),
 });
 
+const SPEND_WINDOW_OPTIONS = zodResponse(
+  { ...bearerScope("read"), ...repoLevel("read", SPANS_REPOS) },
+  SpendWindowSchema,
+  {
+    name: "SpendWindow",
+    description:
+      "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
+    errors: [400],
+  },
+);
+
 export function spendWindowRoute(
   getPool: () => Pool | null,
   deps: SpendWindowDeps = defaultDeps(),
@@ -39,12 +51,7 @@ export function spendWindowRoute(
   return {
     method: "GET",
     path: "/api/analytics/spend-window",
-    options: zodResponse(bearerScope("read"), SpendWindowSchema, {
-      name: "SpendWindow",
-      description:
-        "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, and the estimated Kubernetes compute cost",
-      errors: [400],
-    }),
+    options: SPEND_WINDOW_OPTIONS,
     handler: withPool(getPool, (pool, request, h) =>
       serveSpendWindow(pool, deps, request, h),
     ),

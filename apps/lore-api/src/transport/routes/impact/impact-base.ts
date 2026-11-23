@@ -10,6 +10,7 @@ import type {
 } from "@hapi/hapi";
 import { createDgraphClient, readGraphBaseline } from "@re-cinq/lore-shared";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { failureReason } from "./impact-failure.js";
 
 // Shared object (hapi serializes to JSON, never hands to caller).
@@ -24,10 +25,14 @@ export function impactBaseRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/impact/base",
-    options: zodResponse(bearerScope("read"), ImpactBaseSchema, {
-      name: "ImpactBase",
-      description: "The stamped base commit, or unstamped",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      ImpactBaseSchema,
+      {
+        name: "ImpactBase",
+        description: "The stamped base commit, or unstamped",
+      },
+    ),
     handler: (request, h) => serveImpactBase(request, h),
   };
 }

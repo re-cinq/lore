@@ -222,14 +222,20 @@ async function readUnionChunkTypes(
   return [...new Set(rows.map((r) => r.content_type).filter(Boolean))];
 }
 
+const CHUNK_SUMMARY_OPTIONS = zodResponse(
+  { ...bearerScope("read"), ...repoLevel("read") },
+  ChunkSummarySchema,
+  {
+    name: "RepoChunkSummary",
+    description: "How much context a repo has ingested",
+  },
+);
+
 function chunkSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/chunk-summary",
-    options: zodResponse(bearerScope("read"), ChunkSummarySchema, {
-      name: "RepoChunkSummary",
-      description: "How much context a repo has ingested",
-    }),
+    options: CHUNK_SUMMARY_OPTIONS,
     handler: async (request, h) => {
       const pool = getPool();
 

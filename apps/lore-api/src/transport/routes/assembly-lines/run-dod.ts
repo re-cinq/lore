@@ -19,6 +19,8 @@ import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assem
 import { PgTestReports } from "@re-cinq/lore-shared/project/test-reports/test-reports-pg.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 // GET /api/assembly-runs/{id}/dod — the run's Definition of Done (`.lore/dod.md` on its branch) with each acceptance test matched against the branch's latest CI report (specs/implementation-loop FR16). A terminal run answers "not present" without a GitHub read: pr-ready removes the file, and a finished branch has nothing left to show.
@@ -72,12 +74,16 @@ export function runDodRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/dod",
-    options: zodResponse(bearerScope("read"), DodProgressSchema, {
-      name: "DodProgress",
-      description:
-        "The run's Definition of Done with each acceptance test matched against the branch's latest CI report",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      DodProgressSchema,
+      {
+        name: "DodProgress",
+        description:
+          "The run's Definition of Done with each acceptance test matched against the branch's latest CI report",
+        errors: [404],
+      },
+    ),
     handler: (request) => serveRunDod(getPool, deps, request),
   };
 }

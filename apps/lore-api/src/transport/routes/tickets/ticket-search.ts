@@ -14,6 +14,7 @@ import { utopiaReadsFrom } from "@re-cinq/lore-shared/utopia/utopia-reads.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { kindSourceFor } from "../../../outbound/utopia/kind-sources.js";
 import {
   githubFailureResponse,
@@ -68,6 +69,7 @@ const RepoParams = z.object({
 const ROUTE_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: {
       params: zodValidate(RepoParams),
       query: zodValidate(TicketSearchQuery),

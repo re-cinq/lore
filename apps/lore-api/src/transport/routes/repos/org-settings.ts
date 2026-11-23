@@ -11,6 +11,7 @@ import type {
 import { z } from "zod";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { withPool } from "../with-pool.js";
@@ -215,10 +216,14 @@ function repoSessionsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/sessions",
-    options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
-      name: "RepoSessions",
-      description: "Local-session activity against a repo",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      RepoSessionsSchema,
+      {
+        name: "RepoSessions",
+        description: "Local-session activity against a repo",
+      },
+    ),
     handler: withPool(getPool, serveRepoSessions),
   };
 }

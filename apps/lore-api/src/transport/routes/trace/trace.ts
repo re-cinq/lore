@@ -11,6 +11,7 @@ import { z } from "zod";
 import { parseRanges } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { TraceReadSchema } from "./trace-schemas.js";
 
@@ -90,6 +91,7 @@ export function traceRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read"),
         validate: { query: zodValidate(TraceQuery) },
       },
       TraceReadSchema,

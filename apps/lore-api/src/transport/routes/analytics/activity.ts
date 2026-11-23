@@ -291,10 +291,14 @@ function activityCountsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/activity-counts",
-    options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
-      name: "RepoActivityCounts",
-      description: "Seven-day activity counters for a repo",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      ActivityCountsSchema,
+      {
+        name: "RepoActivityCounts",
+        description: "Seven-day activity counters for a repo",
+      },
+    ),
     handler: withPool(getPool, serveActivityCounts),
   };
 }

@@ -14,6 +14,7 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { ImplementationLoopSchema, type Onboarding } from "./backlog-schema.js";
@@ -62,6 +63,7 @@ export function implementationLoopRoutes(
 const BACKLOG_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: { query: zodValidate(SectionLimitsQuery) },
   },
   ImplementationLoopSchema,

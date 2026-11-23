@@ -1,10 +1,15 @@
 // The routes under /api/plans name a plan, not a repository, so the repository guard cannot see them. This guard finds the plan's repository and asks the guard's own question (FR-488, FR-489).
-import type { Lifecycle, Request, Server } from "@hapi/hapi";
+import type { Lifecycle, Request, RequestRoute, Server } from "@hapi/hapi";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Principal, TokenScope } from "./auth.js";
 import { principalOfCredentials } from "./bearer-scope.js";
-import { repoAccessOf } from "./repo-guard.js";
+import {
+  repoAccessOf,
+  repoDeclarationOf,
+  repoLevel,
+  type RepoSource,
+} from "./repo-guard.js";
 
 export const PLANS_PREFIX = "/api/plans";
 
@@ -16,25 +21,34 @@ export function planRouteGuard(
   server: Server,
   repoOf: PlanRepoOf,
 ): Lifecycle.Method {
+  declarePlanRoutes(server, repoOf);
+
   return async (request, h) => {
-    if (!request.path.startsWith(PLANS_PREFIX)) {
-      return h.continue;
+    if (request.path.startsWith(PLANS_PREFIX)) {
+      await checkPlanRoute(server, repoOf, request);
     }
-    const { credentials } = await server.auth.test("bearer-scope", request);
-    const principal = principalOfCredentials(credentials);
-
-    carryPrincipal(request, credentials);
-    const repo = principal.user ? await planRepoNamed(request, repoOf) : null;
-
-    if (repo === null) {
-      enforceScope(request, principal.scopes);
-
-      return h.continue;
-    }
-    await enforceRepoOpen(request, principal, repo);
 
     return h.continue;
   };
+}
+
+async function checkPlanRoute(
+  server: Server,
+  repoOf: PlanRepoOf,
+  request: Request,
+): Promise<void> {
+  const { credentials } = await server.auth.test("bearer-scope", request);
+  const principal = principalOfCredentials(credentials);
+
+  carryPrincipal(request, credentials);
+  const repo = principal.user ? await planRepoNamed(request, repoOf) : null;
+
+  if (repo === null) {
+    enforceScope(request, principal.scopes);
+
+    return;
+  }
+  await enforceRepoOpen(request, principal, repo);
 }
 
 /** hapi leaves `request.auth` empty on a route without auth of its own; set it the way hapi does, so the handler serves the person (FR-290, FR-311) and `principalOf` reads them. */
@@ -105,10 +119,37 @@ function newPlanRepoOf(request: Request): string | null {
 }
 
 /** hapi answers a HEAD through the GET route and keeps the method as `head`. */
-function isRead(request: Request): boolean {
+function isRead(request: { method: string }): boolean {
   return request.method === "get" || request.method === "head";
 }
 
 function mayChange(scopes: TokenScope[]): boolean {
   return scopes.includes("write") || scopes.includes("admin");
+}
+
+function declarePlanRoutes(server: Server, repoOf: PlanRepoOf): void {
+  const recordSource: RepoSource = {
+    from: "record",
+    find: (request) => {
+      const id = planIdOf(request);
+
+      return id ? repoOf(id) : null;
+    },
+  };
+
+  for (const route of server.table()) {
+    if (route.path.startsWith(PLANS_PREFIX) && !repoDeclarationOf({ route })) {
+      stampPlanRoute(route, recordSource);
+    }
+  }
+}
+
+function stampPlanRoute(route: RequestRoute, recordSource: RepoSource): void {
+  const source: RepoSource =
+    route.path === PLANS_PREFIX
+      ? { from: "payload", name: "repo" }
+      : recordSource;
+  const { app } = repoLevel(isRead(route) ? "read" : "write", source);
+
+  route.settings.app = { ...(route.settings.app as object), ...app };
 }

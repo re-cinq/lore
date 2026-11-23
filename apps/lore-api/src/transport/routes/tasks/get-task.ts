@@ -12,10 +12,13 @@ import {
 } from "@re-cinq/lore-shared/models/task-event.js";
 import type Hapi from "@hapi/hapi";
 import type { ServerRoute } from "@hapi/hapi";
+import type { Pool } from "pg";
 import { z } from "zod";
 import { getTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
+import { taskRepoByParamId } from "./task-repo.js";
 
 // Task row plus its transition trail, keyed by COLUMN names — that's what deployed web-ui reads; flipping it is expand/contract work.
 const TaskDetailSchema = wireSchema(
@@ -25,17 +28,33 @@ const TaskDetailSchema = wireSchema(
   events: z.array(wireSchema(TaskEventSchema, TASK_EVENT_COLUMNS)),
 });
 
-export function getTaskRoute(): ServerRoute {
+export function getTaskRoute(
+  getPool: () => Pool | null = () => null,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/task/{id}",
-    options: zodResponse(bearerScope("read"), TaskDetailSchema, {
+    options: taskDetailOptions(getPool),
+    handler: serveGetTask,
+  };
+}
+
+function taskDetailOptions(getPool: () => Pool | null) {
+  return zodResponse(
+    {
+      ...bearerScope("read"),
+      ...repoLevel("read", {
+        from: "record",
+        find: taskRepoByParamId(getPool),
+      }),
+    },
+    TaskDetailSchema,
+    {
       name: "TaskDetail",
       description: "One task and the transitions it has recorded",
       errors: [404],
-    }),
-    handler: serveGetTask,
-  };
+    },
+  );
 }
 
 async function serveGetTask(

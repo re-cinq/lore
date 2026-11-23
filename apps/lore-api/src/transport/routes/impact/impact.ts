@@ -18,6 +18,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { failureReason } from "./impact-failure.js";
 import { MAX_DOCUMENT_BODY_BYTES } from "@re-cinq/lore-shared/http/body-limits.js";
@@ -49,23 +50,26 @@ const UNAVAILABLE: ImpactReport = {
 /** A change-impact report plus the PR annotations and comment it produced. */
 const ImpactReportSchema = z.record(z.string(), z.unknown());
 
+const IMPACT_OPTIONS = zodResponse(
+  {
+    ...bearerScope("write"),
+    ...repoLevel("read"),
+    payload: { maxBytes: MAX_DOCUMENT_BODY_BYTES },
+    validate: { payload: zodValidate(ImpactBody) },
+  },
+  ImpactReportSchema,
+  {
+    name: "ImpactReport",
+    description: "Coupled spec statements and orphans for a diff",
+    errors: [400],
+  },
+);
+
 export function impactRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/impact",
-    options: zodResponse(
-      {
-        ...bearerScope("write"),
-        payload: { maxBytes: MAX_DOCUMENT_BODY_BYTES },
-        validate: { payload: zodValidate(ImpactBody) },
-      },
-      ImpactReportSchema,
-      {
-        name: "ImpactReport",
-        description: "Coupled spec statements and orphans for a diff",
-        errors: [400],
-      },
-    ),
+    options: IMPACT_OPTIONS,
     handler: (request, h) => serveImpact(request, h),
   };
 }

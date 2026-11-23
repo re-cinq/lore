@@ -9,6 +9,8 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { runBag, type RunBag } from "../../../work/floor/floor-run-bag.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 
 const BagItemSchema = z.object({
@@ -30,12 +32,16 @@ export function runBagRoute(bagOf: RunBagOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/bag",
-    options: zodResponse(bearerScope("read"), RunBagSchema, {
-      name: "RunBag",
-      description:
-        "The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      RunBagSchema,
+      {
+        name: "RunBag",
+        description:
+          "The items the external floor holds in a run's bag right now, by name, each with its kind (value, file or git), its ref, who put it there and, for a git item, the commit; 404 for a run the floor does not have",
+        errors: [404],
+      },
+    ),
     handler: (request: Request, h: ResponseToolkit) =>
       serveRunBag(bagOf, request, h),
   };

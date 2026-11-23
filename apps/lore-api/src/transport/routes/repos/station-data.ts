@@ -11,6 +11,7 @@ import { z } from "zod";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import {
   driftTasksRoute,
   openLikeTasksRoute,
@@ -60,11 +61,13 @@ export function stationDataRoutes(): ServerRoute[] {
   ];
 }
 
+const READ_OPTIONS = { ...bearerScope("read"), ...repoLevel("read") };
+
 function repoOnboardedRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/onboarded",
-    options: zodResponse(bearerScope("read"), OnboardedSchema, {
+    options: zodResponse(READ_OPTIONS, OnboardedSchema, {
       name: "RepoOnboarded",
       description: "Whether the repo has completed onboarding",
     }),
@@ -84,7 +87,7 @@ function listIssuesRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/issues",
-    options: zodResponse(bearerScope("read"), IssueListSchema, {
+    options: zodResponse(READ_OPTIONS, IssueListSchema, {
       name: "RepoIssueList",
       description: "The repo's issues",
     }),
@@ -116,7 +119,7 @@ function listLabelsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/labels",
-    options: zodResponse(bearerScope("read"), LabelListSchema, {
+    options: zodResponse(READ_OPTIONS, LabelListSchema, {
       name: "RepoLabelList",
       description: "The repo's labels",
     }),
@@ -136,7 +139,7 @@ function ciConclusionRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/ci-conclusion",
-    options: zodResponse(bearerScope("read"), CiConclusionSchema, {
+    options: zodResponse(READ_OPTIONS, CiConclusionSchema, {
       name: "RepoCiConclusion",
       description: "CI's verdict for a ref",
     }),

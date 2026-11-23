@@ -6,6 +6,8 @@ import { floorConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import type { StoredRunHistory } from "../../../work/floor/stored-run-history.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { pageLimit } from "./page-limit.js";
 
@@ -50,11 +52,15 @@ export function runTurnsRoute(pageOf: TurnPageOf): ServerRoute {
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/turns",
-    options: zodResponse(bearerScope("read"), TurnPageSchema, {
-      name: "RunTurns",
-      description:
-        "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read", RUN_RECORD) },
+      TurnPageSchema,
+      {
+        name: "RunTurns",
+        description:
+          "One page of a run's turns, oldest first; empty for a run neither Postgres nor the floor has",
+      },
+    ),
     handler: async (request: Request, h: ResponseToolkit) =>
       h.response(await pageOf(request.params.id as string, request.query)),
   };

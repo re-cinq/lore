@@ -10,6 +10,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
@@ -43,23 +44,26 @@ export function setExplainDepsForTests(deps: ExplainDeps | undefined): void {
   depsOverride = deps;
 }
 
+const EXPLAIN_OPTIONS = zodResponse(
+  {
+    ...bearerScope("read"),
+    ...repoLevel("read"),
+    validate: { payload: zodValidate(ExplainBody) },
+  },
+  ExplanationSchema,
+  {
+    name: "Explanation",
+    description:
+      "What a span of code does, in at most two paragraphs grounded in the spec statements linked to it; I don't know when none are",
+    errors: [400],
+  },
+);
+
 export function explainCodeRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/explain",
-    options: zodResponse(
-      {
-        ...bearerScope("read"),
-        validate: { payload: zodValidate(ExplainBody) },
-      },
-      ExplanationSchema,
-      {
-        name: "Explanation",
-        description:
-          "What a span of code does, in at most two paragraphs grounded in the spec statements linked to it; I don't know when none are",
-        errors: [400],
-      },
-    ),
+    options: EXPLAIN_OPTIONS,
     handler: (request, h) => serveExplain(request, h),
   };
 }

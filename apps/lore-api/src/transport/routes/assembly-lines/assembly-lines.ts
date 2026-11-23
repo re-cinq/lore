@@ -10,6 +10,7 @@ import type {
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit } from "../common-schemas.js";
@@ -187,6 +188,11 @@ async function runsOfTask(
     : await port.listSummaries({ taskId, limit });
 }
 
+const RUN_READ_OPTIONS = {
+  ...bearerScope("read"),
+  ...repoLevel("read", RUN_RECORD),
+};
+
 function runNodesRoute(
   getPool: () => Pool | null,
   portFor: (pool: Pool) => AssemblyRunsPort,
@@ -194,7 +200,7 @@ function runNodesRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/nodes",
-    options: zodResponse(bearerScope("read"), StationRunListSchema, {
+    options: zodResponse(RUN_READ_OPTIONS, StationRunListSchema, {
       name: "StationRunList",
       description: "The run's station visits, in visit order",
     }),
@@ -229,7 +235,7 @@ function runTokenUsageRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}/token-usage",
-    options: zodResponse(bearerScope("read"), TokenUsageSchema, {
+    options: zodResponse(RUN_READ_OPTIONS, TokenUsageSchema, {
       name: "AssemblyRunTokenUsage",
       description: "Tokens spent so far on the run",
     }),
@@ -287,7 +293,7 @@ function runDetailRoute(
   return {
     method: "GET",
     path: "/api/assembly-lines/{id}",
-    options: zodResponse(bearerScope("read"), RunRowSchema, {
+    options: zodResponse(RUN_READ_OPTIONS, RunRowSchema, {
       name: "AssemblyRunDetail",
       description: "One run, carrying the blueprint clone it walked",
       errors: [404],

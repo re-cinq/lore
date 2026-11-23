@@ -11,6 +11,7 @@ import type {
 } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 
 /** Ingest station's payload-by-reference fetch (~1MB too large for argv). */
 /** The stored event params, verbatim — shape varies by event name. */
@@ -20,11 +21,15 @@ export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/events/{id}/payload",
-    options: zodResponse(bearerScope("read"), EventPayloadSchema, {
-      name: "EventPayload",
-      description: "One event's stored params",
-      errors: [404],
-    }),
+    options: zodResponse(
+      { ...bearerScope("read"), ...repoLevel("read") },
+      EventPayloadSchema,
+      {
+        name: "EventPayload",
+        description: "One event's stored params",
+        errors: [404],
+      },
+    ),
     handler: (request, h) => serveEventPayload(getPool, request, h),
   };
 }

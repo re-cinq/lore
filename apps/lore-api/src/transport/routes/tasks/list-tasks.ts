@@ -5,6 +5,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel, SPANS_REPOS } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { clampedLimit, offsetParam } from "../common-schemas.js";
 
@@ -36,6 +37,7 @@ export function listTasksRoute(): ServerRoute {
     options: zodResponse(
       {
         ...bearerScope("read"),
+        ...repoLevel("read", SPANS_REPOS),
         validate: { query: zodValidate(ListTasksQuery) },
       },
       TaskPageSchema,

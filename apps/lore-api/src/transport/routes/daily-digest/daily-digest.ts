@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
@@ -31,6 +32,7 @@ const POSTS_SQL = `SELECT run_id, status, posted_at
 const OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: {
       params: zodValidate(RepoParams),
       query: zodValidate(SectionLimitsQuery),

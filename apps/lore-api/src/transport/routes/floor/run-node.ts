@@ -13,6 +13,8 @@ import {
   type RunNodeAsk,
 } from "../../../work/floor/run-node-by-hand.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
+import { RUN_RECORD } from "../../http/run-repo-guard.js";
 import { zodResponse } from "../../http/zod-response.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import { withPool } from "../with-pool.js";
@@ -33,6 +35,7 @@ const NodeRunAsked = z.object({ run_id: z.string(), pending: z.boolean() });
 const RUN_NODE_OPTIONS = zodResponse(
   {
     ...bearerScope("task"),
+    ...repoLevel("write", RUN_RECORD),
     validate: { payload: zodValidate(RunNodeBody) },
   },
   NodeRunAsked,

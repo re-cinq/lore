@@ -13,6 +13,7 @@ import type {
 import { z } from "zod";
 import { readCiJobLog } from "../../../work/ci/ci-job-log.js";
 import { bearerScope } from "../../http/bearer-scope.js";
+import { repoLevel } from "../../http/repo-guard.js";
 import { zodValidate } from "../../http/zod-validate.js";
 import {
   githubFailureResponse,
@@ -48,6 +49,7 @@ const JobLogSchema = z.object({
 const ROUTE_OPTIONS = zodResponse(
   {
     ...bearerScope("read"),
+    ...repoLevel("read"),
     validate: {
       params: zodValidate(JobParams),
       query: zodValidate(JobLogQuery),

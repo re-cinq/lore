@@ -211,7 +211,7 @@ function taskRoutes(getPool: PoolGetter, plans: PlanVerbSeams): ServerRoute[] {
 /** One task: its record, the runs that executed it, and the logs those runs left behind. */
 function taskRunRoutes(getPool: PoolGetter): ServerRoute[] {
   return [
-    getTaskRoute(),
+    getTaskRoute(getPool),
     listTasksRoute(),
     timelineRoute(getPool),
     ...taskViewRoutes(getPool),
