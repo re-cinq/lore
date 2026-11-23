@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 import path from "node:path";
 import { planningPackageVersions } from "./src/lib/build-packages";
+import { SECURITY_HEADERS } from "./src/lib/security-headers";
 
 // Old paths (/pipeline, /assembly-lines) live on in GitHub Issues/PR bodies posted before the ADR-024/FR6.41 renames; permanent:false since a 301 can't be undone.
 const LEGACY_REDIRECTS = [
@@ -44,13 +45,7 @@ const nextConfig: NextConfig = {
     "@octokit/auth-app",
   ],
   redirects: async () => LEGACY_REDIRECTS,
-  // Internal tool: keep every page, including the sign-in page, out of search indexes.
-  headers: async () => [
-    {
-      source: "/:path*",
-      headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
-    },
-  ],
+  headers: async () => [{ source: "/:path*", headers: SECURITY_HEADERS }],
 };
 
 export default nextConfig;
