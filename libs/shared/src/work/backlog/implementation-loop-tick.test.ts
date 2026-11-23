@@ -28,7 +28,7 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
     listRepos: async () => ["acme/widgets"],
     rawSettings: async () => ({ implementation_loop: { enabled: true } }),
     isOnboarded: async () => true,
-    findOpenBySubject: async () => null,
+    countOpenTicketRuns: async () => 0,
     activeTaskByIssue: async () => null,
     listIssues: async () => [issue(7, ["priority:high"])],
     createTask: async (input) => {
@@ -112,12 +112,84 @@ describe("createImplementationLoopTickHandler", () => {
     expect(d.minted).toEqual([]);
   });
 
-  it("skips a repo whose backlog subject already has an open run", async () => {
-    const d = deps({ findOpenBySubject: async () => ({ id: "run-1" }) });
+  it("starts nothing for a repo with 1 open ticket run when max_parallel is absent", async () => {
+    const d = deps({ countOpenTicketRuns: async () => 1 });
 
     await createImplementationLoopTickHandler(d.deps)({});
 
     expect(d.minted).toEqual([]);
+  });
+
+  it("starts 2 runs, for tickets 7 and 9, in a repo with 1 of 3 open when max_parallel is 3 and 3 tickets wait", async () => {
+    const d = deps({
+      countOpenTicketRuns: async () => 1,
+      rawSettings: async () => ({
+        implementation_loop: { enabled: true, max_parallel: 3 },
+      }),
+      listIssues: async () => [
+        issue(7, ["priority:high"]),
+        issue(9, ["priority:medium"]),
+        issue(11, ["priority:low"]),
+      ],
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started.map(({ issue: { number } }) => number)).toEqual([7, 9]);
+  });
+
+  it("starts nothing for a repo with 2 open ticket runs when max_parallel is 2", async () => {
+    const d = deps({
+      countOpenTicketRuns: async () => 2,
+      rawSettings: async () => ({
+        implementation_loop: { enabled: true, max_parallel: 2 },
+      }),
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started).toEqual([]);
+  });
+
+  it("starts ticket 9 and 13 when max_parallel is 2, walking past ticket 7 whose task is active and ticket 11 whose blocker 4 is open", async () => {
+    const d = deps({
+      rawSettings: async () => ({
+        implementation_loop: { enabled: true, max_parallel: 2 },
+      }),
+      listIssues: async () => [
+        issue(7, ["priority:high"]),
+        { ...issue(11, ["priority:high"]), blockedByCount: 1 },
+        issue(9, ["priority:medium"]),
+        issue(13, ["priority:low"]),
+      ],
+      activeTaskByIssue: async (_repo, number) =>
+        number === 7 ? { id: "task-0", status: "running" } : null,
+      openBlockers: async () => [4],
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started.map(({ issue: { number } }) => number)).toEqual([9, 13]);
+  });
+
+  it("starts nothing while the implementation loop is paused, with 0 runs open and max_parallel 3", async () => {
+    const d = deps({
+      rawSettings: async () => ({
+        implementation_loop: { enabled: true, max_parallel: 3 },
+        loop_pauses: {
+          implementation: {
+            reason: "model credit ran out",
+            run_id: "run-1",
+            at: "2026-11-20T00:00:00Z",
+            until: null,
+          },
+        },
+      }),
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.started).toEqual([]);
   });
 
   it("skips the pick while its task is still active (mint-to-run gap)", async () => {

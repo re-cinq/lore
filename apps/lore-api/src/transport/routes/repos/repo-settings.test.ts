@@ -254,6 +254,53 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it.each([0, 6, 2.5, "3"])(
+    "returns 400 for an implementation_loop.max_parallel of %s",
+    async (maxParallel) => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      });
+
+      const res = await put(
+        { settings: { implementation_loop: { max_parallel: maxParallel } } },
+        pool,
+      );
+
+      expect({ status: res.statusCode, result: res.result }).toMatchObject({
+        status: 400,
+        result: {
+          error:
+            "implementation_loop.max_parallel must be a whole number from 1 to 5",
+        },
+      });
+    },
+  );
+
+  it("saves an implementation_loop.max_parallel of 3 beside the Loops tab's enabled switch", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValue({ rows: [] });
+    const res = await put(
+      { settings: { implementation_loop: { max_parallel: 3 } } },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      pool.query.mock.calls.some(
+        ([sql, values]) =>
+          String(sql).includes("implementation_loop") &&
+          (values as string[]).includes('{"max_parallel":3}'),
+      ),
+    ).toBe(true);
+  });
+
   it("returns 400 for a context_backend of dgraph", async () => {
     const pool = makePool();
 

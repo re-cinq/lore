@@ -155,3 +155,26 @@ describe("parseSettingsForm public mirror and release", () => {
     ).toEqual([]);
   });
 });
+
+describe("parseSettingsForm implementation_loop.max_parallel", () => {
+  it("sends max_parallel 3 beside done_check when the field holds 3", () => {
+    expect(
+      parseSettingsForm(form({ implementation_loop_max_parallel: "3" }))
+        .implementation_loop,
+    ).toEqual({ done_check: false, max_parallel: 3 });
+  });
+
+  it("sends no max_parallel when the field is blank, so the stored one stays", () => {
+    expect(
+      parseSettingsForm(form({ implementation_loop_max_parallel: " " }))
+        .implementation_loop,
+    ).toEqual({ done_check: false });
+  });
+
+  it("sends 6 as typed, for lore-api to refuse", () => {
+    expect(
+      parseSettingsForm(form({ implementation_loop_max_parallel: "6" }))
+        .implementation_loop,
+    ).toEqual({ done_check: false, max_parallel: 6 });
+  });
+});

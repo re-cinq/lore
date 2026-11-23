@@ -1,19 +1,12 @@
-import { MAX_TASK_DESCRIPTION_CHARS } from "../../domain/task-description.js";
-import {
-  backlogSubject,
-  implementationLoopBranch,
-} from "../../outbound/project/assembly-runs/subject-keys.js";
+import { implementationLoopBranch } from "../../outbound/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../outbound/project/events/drain-loop.js";
 import type { IssueRef } from "../../outbound/project/lib/github-port.js";
-import { implementationLoopEnabled } from "../../domain/loops/implementation-loop-enabled.js";
+import { implementationLoopMaxParallel } from "../../domain/loops/implementation-loop-max-parallel.js";
 import { decideBranchResume, type OpenPr } from "./resume-branch.js";
 import { UPKEEP_ENTRY } from "./loop-pr-upkeep.js";
 import { orderBacklog, type RankingCriterion } from "./select-next-issue.js";
-import { taskHoldingTicket } from "./ticket-holder.js";
-import {
-  implementationTicketDescription,
-  ticketTextTooLong,
-} from "./ticket-description.js";
+import { candidateGuardOf, loopGuardOf } from "./ticket-guards.js";
+import { implementationTicketDescription } from "./ticket-description.js";
 
 /** Narrow data slice so the tick is testable without the kernel (specs/implementation-loop FR2). */
 export interface LoopTickDeps {
@@ -21,10 +14,8 @@ export interface LoopTickDeps {
   rawSettings(repo: string): Promise<unknown>;
   /** Whether the repo's onboarding PR has merged; the loop never picks for a repo that has not finished onboarding. */
   isOnboarded(repo: string): Promise<boolean>;
-  findOpenBySubject(
-    repo: string,
-    subjectKey: string,
-  ): Promise<{ id: string } | null>;
+  /** The repository's open ticket runs, under either key a ticket's run has had; upkeep runs and plan tasks are not counted. */
+  countOpenTicketRuns(repo: string): Promise<number>;
   activeTaskByIssue(
     repo: string,
     issueNumber: number,
@@ -98,8 +89,9 @@ interface BacklogPick {
 
 async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   const settings = await deps.rawSettings(repo);
+  const free = await freeSlots(repo, settings, deps);
 
-  if (!(await readyToPick(repo, settings, deps))) {
+  if (free === 0) {
     return;
   }
 
@@ -108,18 +100,32 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     await deps.listIssues(repo),
     criteria !== undefined ? { criteria } : undefined,
   );
-  const { picked, guarded } = await pickBacklogTicket(repo, ordered, deps);
 
-  if (!picked) {
-    logNoPick(repo, guarded);
+  await startUpTo(free, { repo, ordered }, deps);
+}
 
-    return;
+interface BacklogWalk {
+  repo: string;
+  ordered: IssueRef[];
+}
+
+/** Starts a run for each of the next `slots` unguarded tickets, in pick order; a ticket started is taken off the list, because its task may not show as active yet. */
+async function startUpTo(
+  slots: number,
+  { repo, ordered }: BacklogWalk,
+  deps: LoopTickDeps,
+): Promise<void> {
+  let candidates = ordered;
+
+  for (let started = 0; started < slots; started++) {
+    const { picked, guarded } = await pickBacklogTicket(repo, candidates, deps);
+
+    if (!picked) {
+      return logNoPick(repo, started === 0 ? guarded : []);
+    }
+    await startTicket(repo, picked, deps);
+    candidates = candidates.filter(({ number }) => number !== picked.number);
   }
-
-  const branch = implementationLoopBranch(picked.number);
-  const resume = await resolveResume(repo, picked, branch, deps);
-
-  await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
 
 const VALID_RANKING_CRITERIA = new Set<string>([
@@ -152,25 +158,21 @@ function toRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
-/** Whether this tick may pick for the repo: its loop is on, it has finished onboarding, and it is not already driving a run. A repo that is on but not onboarded says so, because a tick that only walked onboarded repos once skipped such a repo with no trace at all. */
-async function readyToPick(
+/** How many runs this tick may start for the repo: nothing while a loop guard holds it, otherwise what `implementation_loop.max_parallel` leaves over the ticket runs already open. */
+async function freeSlots(
   repo: string,
   settings: unknown,
   deps: LoopTickDeps,
-): Promise<boolean> {
-  if (!implementationLoopEnabled(settings)) {
-    return false;
+): Promise<number> {
+  if (await loopGuardOf(repo, settings, deps)) {
+    return 0;
   }
 
-  if (!(await deps.isOnboarded(repo))) {
-    console.log(
-      `[implementation-loop] ${repo}: loop enabled but the repo is not onboarded — its onboarding PR has not merged, so no ticket is picked`,
-    );
-
-    return false;
-  }
-
-  return !(await deps.findOpenBySubject(repo, backlogSubject()));
+  return Math.max(
+    0,
+    implementationLoopMaxParallel(settings) -
+      (await deps.countOpenTicketRuns(repo)),
+  );
 }
 
 /** Walks past guarded tickets rather than stopping on the first one — returning on the guarded HEAD froze the backlog behind one unmerged PR twice (27h 2026-08-30, overnight 2026-09-02). */
@@ -182,63 +184,18 @@ async function pickBacklogTicket(
   const guarded: number[] = [];
 
   for (const candidate of ordered) {
-    if (await walkedPast(repo, candidate, deps)) {
-      continue;
+    const guard = await candidateGuardOf(repo, candidate, deps);
+
+    if (guard === null) {
+      return { picked: candidate, guarded };
     }
 
-    if (await taskHoldingTicket(deps, repo, candidate.number)) {
+    if (guard === "active_task") {
       guarded.push(candidate.number);
-      continue;
     }
-
-    return { picked: candidate, guarded };
   }
 
   return { picked: null, guarded };
-}
-
-/** A ticket no pod could start on is walked past, not dispatched, and the driver logs why. */
-async function walkedPast(
-  repo: string,
-  candidate: IssueRef,
-  deps: LoopTickDeps,
-): Promise<boolean> {
-  if (ticketTextTooLong(candidate)) {
-    logTextTooLong(repo, candidate.number);
-
-    return true;
-  }
-
-  return waitsOnOpenBlockers(repo, candidate, deps);
-}
-
-/** A ticket whose blockers are still open is walked past, not dispatched: no pod can build on work that has not landed (run db0304bb). It is picked again on the first tick after its last blocker closes, with no label to lift. */
-async function waitsOnOpenBlockers(
-  repo: string,
-  candidate: IssueRef,
-  deps: LoopTickDeps,
-): Promise<boolean> {
-  if (!candidate.blockedByCount) {
-    return false;
-  }
-  const open = await deps.openBlockers(repo, candidate.number);
-
-  if (open.length === 0) {
-    return false;
-  }
-
-  console.log(
-    `[implementation-loop] ${repo}: skipped #${candidate.number} — waits on open blocker(s) ${open.map((n) => `#${n}`).join(", ")}`,
-  );
-
-  return true;
-}
-
-/** A ticket whose text is too long is walked past, not minted: task creation would refuse it, and a refusal thrown at the head froze re-cinq/Otto's backlog for two days. */
-function logTextTooLong(repo: string, issueNumber: number): void {
-  console.log(
-    `[implementation-loop] ${repo}: skipped #${issueNumber} — ticket text too long: its title and body exceed the ${MAX_TASK_DESCRIPTION_CHARS}-char task description limit`,
-  );
 }
 
 /** A backlog that EXISTS but can't be picked must say so — silence here once ate a morning of diagnosis. */
@@ -250,6 +207,18 @@ function logNoPick(repo: string, guarded: number[]): void {
   console.log(
     `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
   );
+}
+
+/** Mints the ticket's task and hands it to whoever starts it, on its own branch and continuing the work the branch already has. */
+export async function startTicket(
+  repo: string,
+  picked: IssueRef,
+  deps: LoopTickDeps,
+): Promise<void> {
+  const branch = implementationLoopBranch(picked.number);
+  const resume = await resolveResume(repo, picked, branch, deps);
+
+  await dispatchLoopTask({ repo, picked, branch, resume }, deps);
 }
 
 interface LoopDispatchInput {

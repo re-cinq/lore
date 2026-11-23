@@ -8460,6 +8460,79 @@
         ]
       }
     },
+    "/api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_loops_implementation_tickets_issue_start",
+        "summary": "POST /api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Start one named ticket of the implementation loop now, beside the runs it already has and outside implementation_loop.max_parallel. The ticket still passes the loop's guards: the loop is on and not paused, the repository is onboarded, the issue is open, has no active task and no open blocker. A refused ticket answers 409 naming the guard; one already running answers 409 with its run_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopTicketStart"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "issue",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/loops/{key}": {
       "put": {
         "operationId": "put_api_repos_owner_repo_loops_key",
@@ -18214,6 +18287,12 @@
           "current_run_id": {
             "type": ["string", "null"]
           },
+          "current_run_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "next": {
             "type": "array",
             "items": {
@@ -18644,6 +18723,7 @@
           "onboarding",
           "current",
           "current_run_id",
+          "current_run_ids",
           "next",
           "parked",
           "recent",
@@ -20427,6 +20507,20 @@
           }
         },
         "required": ["ok", "key", "enabled"],
+        "additionalProperties": false
+      },
+      "LoopTicketStart": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "issue_number": {
+            "type": "number"
+          }
+        },
+        "required": ["ok", "issue_number"],
         "additionalProperties": false
       },
       "MemoryAuditPage": {
@@ -22334,6 +22428,9 @@
                       },
                       "done_check": {
                         "type": "boolean"
+                      },
+                      "max_parallel": {
+                        "type": "number"
                       }
                     },
                     "additionalProperties": {}
@@ -22821,6 +22918,9 @@
                             },
                             "done_check": {
                               "type": "boolean"
+                            },
+                            "max_parallel": {
+                              "type": "number"
                             }
                           },
                           "additionalProperties": {}

@@ -57,6 +57,8 @@ export const ImplementationLoopSchema = z.object({
   current: z.array(TicketSchema),
   /** The open backlog run's id — the live run view at /assembly-runs/{id}. */
   current_run_id: z.string().nullable(),
+  /** Every open ticket run, one per ticket being worked. */
+  current_run_ids: z.array(z.string()),
   next: z.array(TicketSchema),
   /** Open tickets someone queued that the picker leaves out (`lore:blocked`, or two priority labels), each with its hold. */
   parked: z.array(TicketSchema),

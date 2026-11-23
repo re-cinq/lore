@@ -28,6 +28,8 @@ import {
   loopUpkeepHandlers,
   type LoopUpkeepDeps,
 } from "./loop-upkeep-handlers.js";
+import { loopTicketStartHandlers } from "./loop-ticket-start-handlers.js";
+import { tickDeps } from "../work/loop-tick/run.js";
 import { judgeFloorPullRequest } from "../work/pr-ready-check/pr-ready-check.js";
 import {
   floorSpecTicketsHandlers,
@@ -312,6 +314,7 @@ function addFloorHandlers(handlers: Map<string, EventHandler>): void {
   addHandlers(handlers, floorPlanHandlers(floorPlanDeps));
   addHandlers(handlers, loopMergeHandlers(loopMergeDeps));
   addHandlers(handlers, loopUpkeepHandlers(loopUpkeepDeps));
+  addHandlers(handlers, loopTicketStartHandlers({ tick: tickDeps() }));
   addHandlers(handlers, floorSpecTicketsHandlers(floorSpecTicketsDeps));
 }
 

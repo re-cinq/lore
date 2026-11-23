@@ -11,6 +11,7 @@ function renderView(over: Partial<ImplementationLoop>) {
     onboarding: { merged: true, pr_url: null, last_task: null },
     current: [],
     current_run_id: null,
+    current_run_ids: [],
     next: [],
     parked: [],
     recent: [],

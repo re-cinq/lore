@@ -1,5 +1,5 @@
 // The implementation loop on the external floor (ADR-049): how a ticket the tick has minted a task for becomes a run there, and how the tick asks whether a repository already has one open.
-import type { FloorClient } from "@re-cinq/floor-client";
+import type { FloorClient, RunView } from "@re-cinq/floor-client";
 import { errorMessage } from "../../lib/error-classify.js";
 import {
   fileItem,
@@ -7,14 +7,22 @@ import {
   gitItem,
   valueItem,
 } from "../../outbound/floor/floor-items.js";
+import { startValueOf } from "../../outbound/floor/run-start-items.js";
 import { startLine } from "../review/floor-line-start.js";
 import type { StartedTicket } from "./implementation-loop-tick.js";
 import type { OpenPr } from "./resume-branch.js";
 
 export const LOOP_LINE = "implementation-loop";
 
-/** The value every backlog ticket's run of a repository is keyed on, so the floor holds one open run per repository: one ticket at a time. */
-const BACKLOG = "tickets";
+/** What every ticket run was keyed on before a ticket had a key of its own: one open run per repository. Runs open at deploy still carry it. */
+const LEGACY_TICKETS_BACKLOG = "tickets";
+
+const TICKET_BACKLOG = "ticket-";
+
+/** What a backlog ticket's run is keyed on: its issue, so the floor's unique subject index guards one open run per ticket. */
+export function ticketBacklog(issueNumber: number): string {
+  return `${TICKET_BACKLOG}${issueNumber}`;
+}
 
 const PLAN_TASK_BACKLOG = "spec-task-";
 
@@ -26,9 +34,6 @@ export function planTaskBacklog(taskId: string): string {
 export function isPlanTaskBacklog(backlog: string | undefined): boolean {
   return backlog?.startsWith(PLAN_TASK_BACKLOG) ?? false;
 }
-
-/** The floor's subject key for a repository's loop run: `<the line's subject argument>:<its value>`. */
-export const FLOOR_BACKLOG_SUBJECT = `backlog:${BACKLOG}`;
 
 export interface LoopFloor {
   lines: Pick<FloorClient["lines"], "start">;
@@ -54,7 +59,7 @@ export async function startTicketOnFloor(
 
   try {
     await deps.ensureBranch(ticket.repo, ticket.branch);
-    await startLoopRun(deps.floor, ticket);
+    await startLoopRun(deps.floor, ticketRunStart(ticket));
   } catch (err) {
     await deps.failTask(
       ticket.taskId,
@@ -62,6 +67,10 @@ export async function startTicketOnFloor(
     );
     throw err;
   }
+}
+
+function ticketRunStart(ticket: StartedTicket): LoopRunStart {
+  return { ...ticket, backlog: ticketBacklog(ticket.issue.number) };
 }
 
 /** What a loop run is started for: a backlog ticket, or a plan's task. */
@@ -73,8 +82,8 @@ export interface LoopRunStart {
   issue: { title: string; number?: number };
   /** The work as the agents read it. */
   description: string;
-  /** The value the run is keyed on; left out, the repository's one backlog. */
-  backlog?: string;
+  /** The value the run is keyed on. */
+  backlog: string;
   /** The pull request the branch already has, a start item so the run page shows it before its open-pr node finds it again. */
   openPr?: OpenPr | null;
   /** The node the run starts at; left out, the line's entry. An upkeep run of a settled pull request starts at `sync-pr`. */
@@ -103,7 +112,7 @@ function loopStartItems(
 ) {
   return {
     repo: gitItem(repo, branch),
-    backlog: valueItem(backlog ?? BACKLOG),
+    backlog: valueItem(backlog),
     task_id: valueItem(taskId),
     ticket: fileItem(ticketHash),
     issue_title: valueItem(issue.title),
@@ -116,18 +125,39 @@ export interface LoopRunsFloor {
   runs: Pick<FloorClient["runs"], "list">;
 }
 
-/** The repository's open loop run, or null: what keeps the tick from picking a second ticket while one is being worked. */
-export async function openFloorLoopRun(
+/** Whether a run is a backlog ticket's, under either key: its issue's, or the one every ticket run shared before. An upkeep run and a plan's task are not. */
+export function isTicketRun(run: RunView): boolean {
+  const backlog = startValueOf(run, "backlog");
+
+  return (
+    backlog === LEGACY_TICKETS_BACKLOG ||
+    (backlog?.startsWith(TICKET_BACKLOG) ?? false)
+  );
+}
+
+/** The repository's open ticket runs: what keeps the tick from starting more than `implementation_loop.max_parallel`. */
+export async function openFloorTicketRuns(
   floor: LoopRunsFloor,
   repo: string,
-): Promise<{ id: string } | null> {
+): Promise<RunView[]> {
   const { items: openRuns } = await floor.runs.list({
     repo: floorRepoOf(repo),
     line: LOOP_LINE,
-    subject: FLOOR_BACKLOG_SUBJECT,
     open: true,
   });
-  const run = openRuns.at(0);
+
+  return openRuns.filter(isTicketRun);
+}
+
+/** The open run of one ticket, or null: how a named ticket already running is told from one that can start. */
+export async function openRunOfTicket(
+  floor: LoopRunsFloor,
+  repo: string,
+  issueNumber: number,
+): Promise<{ id: string } | null> {
+  const run = (await openFloorTicketRuns(floor, repo)).find(
+    (open) => startValueOf(open, "issue_number") === String(issueNumber),
+  );
 
   return run ? { id: run.id } : null;
 }

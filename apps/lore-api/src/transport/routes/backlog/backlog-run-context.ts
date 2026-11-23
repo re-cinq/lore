@@ -1,11 +1,23 @@
 // A loop task's run and node visits: Postgres first, the floor on a miss (every implementation-loop run has lived there since ADR-049).
 import type { Pool } from "pg";
-import { LOOP_LINE } from "@re-cinq/lore-shared/backlog/floor-loop.js";
+import {
+  LOOP_LINE,
+  openFloorTicketRuns,
+  type LoopRunsFloor,
+} from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import type {
   FloorRunReader,
   TaskRunContext,
 } from "../../../work/floor/floor-run-reader.js";
 import type { LoopRunRow, LoopTaskRow, NodeRow } from "./backlog-ticket.js";
+
+/** The ids of the repository's open ticket runs on the floor, under either key a ticket's run has had. */
+export async function ticketRunIdsOf(
+  floor: LoopRunsFloor,
+  repo: string,
+): Promise<string[]> {
+  return (await openFloorTicketRuns(floor, repo)).map(({ id }) => id);
+}
 
 interface RunContext {
   taskRuns: LoopRunRow[];

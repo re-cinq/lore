@@ -36,6 +36,8 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
 
 /** Write routes with no request body: action driven by path params + server state. */
 export const BODYLESS_WRITES = new Set<string>([
+  // The repo and the ticket are the path params; the guards read the ticket from GitHub.
+  "POST /api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start",
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
   // The job to run is the path param; a courier posts it with no body at all.
   "POST /api/maintenance/{job}",

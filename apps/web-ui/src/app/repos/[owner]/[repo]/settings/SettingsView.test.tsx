@@ -124,6 +124,24 @@ describe("SettingsView (general only)", () => {
       ["set-policy", true],
     ]);
   });
+
+  it("shows the implementation loop's tickets worked at once under Run policy, 1 when unset and 3 once saved", () => {
+    const field = (settings: RepoSettingsShape) => {
+      const input = renderView(settings).container.querySelector(
+        'input[name="implementation_loop_max_parallel"]',
+      ) as HTMLInputElement;
+
+      return [input.closest("section")?.id, input.value];
+    };
+
+    expect([
+      field({}),
+      field({ implementation_loop: { max_parallel: 3 } }),
+    ]).toEqual([
+      ["set-policy", "1"],
+      ["set-policy", "3"],
+    ]);
+  });
 });
 
 describe("SettingsView mirror and release card", () => {

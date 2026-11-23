@@ -1,7 +1,7 @@
 // Binds the implementation loop's backlog tick to the ports this process holds (composition root).
 import { tickPortsOf } from "@re-cinq/lore-shared/backlog/driver-ports.js";
 import {
-  openFloorLoopRun,
+  openFloorTicketRuns,
   startTicketOnFloor,
   type FloorTicketDeps,
 } from "@re-cinq/lore-shared/backlog/floor-loop.js";
@@ -14,6 +14,7 @@ import {
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { ensureBranch } from "@re-cinq/lore-shared/project/repo/ensure-branch.js";
+import { backlogSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { projectFor } from "../../outbound/project-boot.js";
 import { pipeline, settings, taskStore } from "../../outbound/queues.js";
 
@@ -31,7 +32,7 @@ export async function runLoopTick(
   return "ticked";
 }
 
-function tickDeps(): LoopTickDeps {
+export function tickDeps(): LoopTickDeps {
   return {
     ...tickPortsOf({
       settings: settings(),
@@ -39,19 +40,20 @@ function tickDeps(): LoopTickDeps {
       tasks: taskStore(),
       projectOf: projectFor,
     }),
-    findOpenBySubject: openRunOf,
+    countOpenTicketRuns: openTicketRunsOf,
     started: (ticket) => startTicketOnFloor(floorTicketDeps(), ticket),
   };
 }
 
-/** A repository is busy while either engine holds a loop run for it: a run Lore's own Floor started before the cutover finishes there, and no second ticket starts beside it. */
-async function openRunOf(
-  repo: string,
-  subjectKey: string,
-): Promise<{ id: string } | null> {
+/** The ticket runs both engines hold open for a repository: a run Lore's own Floor started before the cutover finishes there, and counts as one beside the floor's. */
+async function openTicketRunsOf(repo: string): Promise<number> {
+  const legacy = await pipeline().assemblyRuns.findOpenBySubject(
+    repo,
+    backlogSubject(),
+  );
+
   return (
-    (await pipeline().assemblyRuns.findOpenBySubject(repo, subjectKey)) ??
-    (await openFloorLoopRun(floorClient(), repo))
+    (legacy ? 1 : 0) + (await openFloorTicketRuns(floorClient(), repo)).length
   );
 }
 

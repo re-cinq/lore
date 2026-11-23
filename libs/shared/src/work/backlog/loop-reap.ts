@@ -2,11 +2,7 @@
 import { floorRepoOf } from "../../outbound/floor/floor-items.js";
 import { startValueOf } from "../../outbound/floor/run-start-items.js";
 import type { StuckRunningTask } from "../../outbound/project/tasks/task-store-port.js";
-import {
-  LOOP_LINE,
-  FLOOR_BACKLOG_SUBJECT,
-  type LoopRunsFloor,
-} from "./floor-loop.js";
+import { LOOP_LINE, type LoopRunsFloor } from "./floor-loop.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
 import type { TaskTransitionDeps } from "./task-transition-deps.js";
 
@@ -80,7 +76,6 @@ async function hasFloorRun(
   const { items: floorRuns } = await floor.runs.list({
     repo: floorRepoOf(task.target_repo),
     line: LOOP_LINE,
-    subject: FLOOR_BACKLOG_SUBJECT,
   });
 
   return floorRuns.some((run) => startValueOf(run, "task_id") === task.id);

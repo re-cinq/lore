@@ -1,8 +1,7 @@
 // A merged pull request is the loop's own definition of success, whoever merged it: a ticket the run left blocked or still open on the floor must not stay that way once a human has already closed out the work by merging its branch.
-import { floorRepoOf } from "../../outbound/floor/floor-items.js";
 import { recordLoopTicket } from "../../outbound/otel/metrics.js";
 import { startValueOf } from "../../outbound/floor/run-start-items.js";
-import { LOOP_LINE, FLOOR_BACKLOG_SUBJECT } from "./floor-loop.js";
+import { openFloorTicketRuns } from "./floor-loop.js";
 import { LORE_BLOCKED_LABEL } from "./labels.js";
 import { linkedIssueNumber } from "../../domain/pr-body.js";
 import type { TaskTransitionDeps } from "./task-transition-deps.js";
@@ -27,7 +26,6 @@ export interface MergeSuccessFloor {
     list(filter: {
       repo: string;
       line: string;
-      subject: string;
       open: boolean;
     }): Promise<RunPage>;
     cancel(runId: string, reason: string): Promise<RunView>;
@@ -128,13 +126,7 @@ async function cancelOpenRun(
   repo: string,
   taskId: string,
 ): Promise<void> {
-  const { items: open } = await floor.runs.list({
-    repo: floorRepoOf(repo),
-    line: LOOP_LINE,
-    subject: FLOOR_BACKLOG_SUBJECT,
-    open: true,
-  });
-  const run = open.find(
+  const run = (await openFloorTicketRuns(floor, repo)).find(
     (candidate) => startValueOf(candidate, "task_id") === taskId,
   );
 

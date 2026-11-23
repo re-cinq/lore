@@ -12,6 +12,7 @@ import { FLOOR_SPEC_TICKETS_EVENTS } from "./floor-spec-tickets-handlers.js";
 import { FLOOR_REVIEW_EVENTS } from "./floor-review-handlers.js";
 import { LOOP_MERGE_EVENTS } from "./loop-merge-handlers.js";
 import { LOOP_PROGRESS_EVENTS } from "./loop-progress-handlers.js";
+import { LOOP_TICKET_START_EVENTS } from "./loop-ticket-start-handlers.js";
 import { LOOP_UPKEEP_EVENTS } from "./loop-upkeep-handlers.js";
 import { REPO_EVENTS } from "./repo-handlers.js";
 import { SPEC_REVIEW_RESULT_EVENTS } from "./spec-review-result-handlers.js";
@@ -49,6 +50,7 @@ function floorEvents(env: FloorEnv): readonly string[] {
         ...FLOOR_PLAN_EVENTS,
         ...LOOP_MERGE_EVENTS,
         ...LOOP_UPKEEP_EVENTS,
+        ...LOOP_TICKET_START_EVENTS,
         ...FLOOR_SPEC_TICKETS_EVENTS,
       ]
     : [];

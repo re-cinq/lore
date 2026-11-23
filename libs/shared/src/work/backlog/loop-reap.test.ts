@@ -111,6 +111,27 @@ describe("reapStuckLoopTasks", () => {
     expect(flipped).toEqual([]);
   });
 
+  it("leaves a task alone when its run is keyed backlog:ticket-7, whatever the subject the floor was asked for", async () => {
+    const keyed = run({ subjectKey: "backlog:ticket-7" });
+    const { deps: d, flipped } = deps({
+      floor: {
+        runs: {
+          list: async (filter) => ({
+            items: [keyed].filter(
+              ({ subjectKey }) =>
+                !("subject" in filter) || filter.subject === subjectKey,
+            ),
+            nextCursor: null,
+          }),
+        },
+      },
+    });
+
+    await reapStuckLoopTasks(d);
+
+    expect(flipped).toEqual([]);
+  });
+
   it("reaps the task when the only floor run found belongs to a different task_id", async () => {
     const otherTaskRun = run({
       startItems: { task_id: { kind: "value", ref: "task-2", by: "lore" } },

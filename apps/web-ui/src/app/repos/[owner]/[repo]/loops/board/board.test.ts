@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { RepoLoop } from "@/lib/api/loops";
+import type { ImplementationLoop } from "@/lib/api/backlog";
 import type { CodeReview } from "@/lib/api/code-review";
 import type { IssueTriage } from "@/lib/api/triage";
 import {
+  implementationSections,
   loopBoard,
   pausedNotice,
   mergeSections,
@@ -413,3 +415,49 @@ const EVERY_ROW = {
   awaiting_merge: 200,
   recent: 200,
 };
+
+describe("implementationSections", () => {
+  const IMPLEMENTATION = loop("implementation", "Implementation loop");
+  const running = (issueNumber: number) => ({
+    issue_number: issueNumber,
+    issue_url: `https://github.com/acme/widgets/issues/${issueNumber}`,
+    title: `Ticket ${issueNumber}`,
+    priority: "priority:high",
+    pr_url: null,
+    state: "running",
+    created_at: "2026-08-01T00:00:00Z",
+    hold: null,
+    run_id: `run-${issueNumber}`,
+    pipeline: null,
+  });
+
+  it("shows tickets 7 and 9, each linked to its own run, under Current", () => {
+    const backlog: ImplementationLoop = {
+      enabled: true,
+      onboarding: { merged: true, pr_url: null, last_task: null },
+      current: [running(7), running(9)],
+      current_run_id: "run-7",
+      current_run_ids: ["run-7", "run-9"],
+      next: [],
+      parked: [],
+      recent: [],
+      awaiting_merge: [],
+    };
+
+    const board = loopBoard(
+      [
+        {
+          loop: IMPLEMENTATION,
+          sections: implementationSections(IMPLEMENTATION, backlog),
+        },
+      ],
+      EVERY_ROW,
+    );
+    const current = board.sections.find((s) => s.key === "current");
+
+    expect(current?.rows.map((r) => [r.ref, r.runId])).toEqual([
+      ["#7", "run-7"],
+      ["#9", "run-9"],
+    ]);
+  });
+});

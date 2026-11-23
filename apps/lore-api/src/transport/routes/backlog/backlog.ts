@@ -12,7 +12,6 @@ import {
   floorClient,
   floorConfigured,
 } from "@re-cinq/lore-shared/floor/floor-client.js";
-import { openFloorLoopRun } from "@re-cinq/lore-shared/backlog/floor-loop.js";
 import { floorRunReader } from "../../../work/floor/floor-backed-runs.js";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodValidate } from "../../http/zod-validate.js";
@@ -24,7 +23,11 @@ import {
   type LoopTaskRow,
   type NodeRow,
 } from "./backlog-ticket.js";
-import { fetchRunContext, fillFromFloor } from "./backlog-run-context.js";
+import {
+  fetchRunContext,
+  fillFromFloor,
+  ticketRunIdsOf,
+} from "./backlog-run-context.js";
 import { withPool } from "../with-pool.js";
 import { onboardingOf, readRepoRow, type RepoRead } from "./backlog-repo.js";
 import {
@@ -101,14 +104,17 @@ async function serveReadBacklog(
     recentLimit: recentWindow(limits, RECENT_LIMIT),
   });
 
-  return h
-    .response({
-      enabled: state.enabled,
-      current_run_id: state.currentRunId,
-      onboarding: state.onboarding,
-      ...cappedBacklog(projectBacklog(state), limits),
-    })
-    .code(200);
+  return h.response(backlogBody(state, limits)).code(200);
+}
+
+function backlogBody(state: BacklogState, limits: SectionLimits) {
+  return {
+    enabled: state.enabled,
+    current_run_id: state.currentRunIds.at(0) ?? null,
+    current_run_ids: state.currentRunIds,
+    onboarding: state.onboarding,
+    ...cappedBacklog(projectBacklog(state), limits),
+  };
 }
 
 export interface BacklogState extends BacklogIssues {
@@ -118,7 +124,7 @@ export interface BacklogState extends BacklogIssues {
   onboarding: Onboarding;
   criteria?: import("@re-cinq/lore-shared/backlog/select-next-issue.js").RankingCriterion[];
   taskRows: LoopTaskRow[];
-  currentRunId: string | null;
+  currentRunIds: string[];
   runByTask: Map<string, LoopRunRow>;
   nodeRows: NodeRow[];
 }
@@ -141,7 +147,7 @@ async function loadBacklogState(
   );
 
   return assembleBacklogState(args, read, issues, {
-    currentId: await readCurrentRunId(args.reads.pool, args.repo),
+    currentIds: await readCurrentRunIds(args.reads.pool, args.repo),
     index: await readRunIndex(args.reads.pool, args.repo, issues.taskRows),
   });
 }
@@ -152,7 +158,7 @@ function assembleBacklogState(
   issues: BacklogIssues & Pick<BacklogState, "taskRows">,
   runs: {
     index: Pick<BacklogState, "runByTask" | "nodeRows">;
-    currentId: string | null;
+    currentIds: string[];
   },
 ): BacklogState {
   return Object.assign(issues, runs.index, {
@@ -160,7 +166,7 @@ function assembleBacklogState(
     enabled: resolveEnabled(read.repo.settings),
     onboarding: onboardingOf(read),
     criteria: rankingCriteriaFor(read.repo.settings),
-    currentRunId: runs.currentId,
+    currentRunIds: runs.currentIds,
   });
 }
 
@@ -210,11 +216,8 @@ function resolveEnabled(settings: Record<string, unknown> | null): boolean {
   return loop?.enabled === true;
 }
 
-/** The run driving this repo's backlog, if one is open. Keyed on the `backlog` subject rather than on a task, because the driver run outlives any single ticket it works. Postgres only ever held this for Lore's own retired engine (ADR-049), so an open run today is answered by the floor. */
-async function readCurrentRunId(
-  pool: Pool,
-  repo: string,
-): Promise<string | null> {
+/** The runs driving this repo's backlog: every open ticket run. Postgres only ever held one, for Lore's own retired engine (ADR-049), so the open runs today are the floor's. */
+async function readCurrentRunIds(pool: Pool, repo: string): Promise<string[]> {
   const { rows } = await pool.query<{ id: string }>(
     `SELECT id FROM pipeline.assembly_runs
           WHERE repo = $1 AND subject_key = 'backlog'
@@ -222,18 +225,11 @@ async function readCurrentRunId(
           ORDER BY created_at DESC LIMIT 1`,
     [repo],
   );
+  const legacyIds = rows.map(({ id }) => id);
 
-  if (rows[0]) {
-    return rows[0].id;
-  }
-
-  if (!floorConfigured()) {
-    return null;
-  }
-
-  const open = await openFloorLoopRun(floorClient(), repo);
-
-  return open?.id ?? null;
+  return floorConfigured()
+    ? [...legacyIds, ...(await ticketRunIdsOf(floorClient(), repo))]
+    : legacyIds;
 }
 
 // Last, and in this order: the node read is scoped to the task ids above, and the run lookup shares its cursor. A task the Postgres read found nothing for is tried on the floor instead (FR17/ADR-049): every implementation-loop run has lived there since the external-floor cutover.

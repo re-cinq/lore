@@ -74,6 +74,19 @@ describe("the review events, which only a deployment with a floor asks for", () 
     ]);
   });
 
+  it("claims loop.ticket.start only when a floor is configured, since only a floor starts a ticket's run", () => {
+    const names = (env: Record<string, string>) =>
+      stationSubscriptions(env).map((s) => s.eventName);
+
+    expect([
+      names({
+        FLOOR_API_URL: "http://floor-api:8080",
+        FLOOR_SERVICE_TOKEN: "secret",
+      }).includes("loop.ticket.start"),
+      names({}).includes("loop.ticket.start"),
+    ]).toEqual([true, false]);
+  });
+
   it("claims github.push whether or not a floor is configured, so a merge to main reaches the Utopia commit mirror", () => {
     expect(stationSubscriptions({}).map((s) => s.eventName)).toContain(
       "github.push",

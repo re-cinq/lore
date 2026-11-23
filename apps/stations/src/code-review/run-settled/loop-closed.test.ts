@@ -66,19 +66,22 @@ describe("closedLoopRunOf", () => {
     });
   });
 
-  it("reads a run keyed on backlog tickets as a backlog ticket's", () => {
-    const { run } = closedLoopRunOf(
-      loopRun({
-        startItems: {
-          ...loopRun().startItems,
-          backlog: { kind: "value", ref: "tickets", by: "lore" },
-        },
-      }),
-      [OPENED],
-    );
+  it.each(["tickets", "ticket-7"])(
+    "reads a run keyed on backlog %s as a backlog ticket's",
+    (backlog) => {
+      const { run } = closedLoopRunOf(
+        loopRun({
+          startItems: {
+            ...loopRun().startItems,
+            backlog: { kind: "value", ref: backlog, by: "lore" },
+          },
+        }),
+        [OPENED],
+      );
 
-    expect(run.source).toBe("backlog");
-  });
+      expect(run.source).toBe("backlog");
+    },
+  );
 
   it("reads a run keyed on spec-task-5e7c01d7 as a plan's task", () => {
     const { run } = closedLoopRunOf(

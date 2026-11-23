@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../../outbound/project-boot.js", () => ({ projectFor: vi.fn() }));
 
+import {
+  planRun,
+  recordedPlanFloor,
+} from "@re-cinq/lore-shared/floor/recorded-plan-floor.js";
 import { buildServer } from "../../../app/build-server.js";
 import { projectFor } from "../../../outbound/project-boot.js";
 import {
@@ -245,6 +249,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       enabled: true,
       onboarding: { merged: false, pr_url: null, last_task: null },
       current_run_id: "run-42",
+      current_run_ids: ["run-42"],
       current: [
         {
           created_at: "2026-08-26T06:00:00.000Z",
@@ -1157,6 +1162,30 @@ describe("GET /api/repos/{owner}/{repo}/implementation-loop past ten recent tick
     expect(asked).toEqual([
       ["re-cinq/lore", 20, []],
       ["re-cinq/lore", 32, []],
+    ]);
+  });
+});
+
+describe("ticketRunIdsOf", () => {
+  it("answers run-7 and run-old, keyed ticket-7 and tickets, and leaves out the upkeep run of pull request 12", async () => {
+    const { ticketRunIdsOf } = await import("./backlog-run-context.js");
+    const keyed = (id: string, backlog: string) =>
+      planRun({
+        id,
+        lineId: "implementation-loop",
+        startItems: { backlog: { kind: "value", ref: backlog, by: "lore" } },
+      });
+    const { floor } = recordedPlanFloor({
+      runs: [
+        keyed("run-7", "ticket-7"),
+        keyed("run-upkeep", "upkeep-12"),
+        keyed("run-old", "tickets"),
+      ],
+    });
+
+    expect(await ticketRunIdsOf(floor, "re-cinq/lore")).toEqual([
+      "run-7",
+      "run-old",
     ]);
   });
 });

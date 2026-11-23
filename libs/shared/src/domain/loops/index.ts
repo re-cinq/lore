@@ -1,6 +1,7 @@
 export * from "./auto-review-enabled.js";
 export * from "./credit-failure.js";
 export * from "./implementation-loop-enabled.js";
+export * from "./implementation-loop-max-parallel.js";
 export * from "./loop-enabled.js";
 export * from "./loop-kinds.js";
 export * from "./loop-of-line.js";

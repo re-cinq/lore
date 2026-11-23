@@ -19,6 +19,7 @@ import { withPool } from "../with-pool.js";
 import { OkSchema } from "../../http/ok-schema.js";
 import {
   AutoMergeSettingsSchema,
+  ImplementationLoopSettingsSchema,
   PublicMirrorSchema,
   ReleaseSettingsSchema,
 } from "@re-cinq/lore-shared/models/repo-settings.js";
@@ -94,19 +95,29 @@ function enforceBodyInvariants(body: RepoSettingsBody): void {
     (body.settings as { digest?: unknown } | undefined)?.digest,
   );
   enforceReleaseValid(body.settings?.release);
-  const autoMerge = AutoMergeSettingsSchema.optional();
-
-  enforceTrue(
-    autoMerge.safeParse(body.settings?.auto_merge).success,
-    apiError(400),
-    "auto_merge.enabled must be a boolean and auto_merge.min_age_hours a whole number of hours, 0 or more",
-  );
+  enforceLoopSettingsValid(body);
   const contextBackend = KnowledgeBackendSchema.optional();
 
   enforceTrue(
     contextBackend.safeParse(body.settings?.context_backend).success,
     apiError(400),
     "context_backend must be lore, utopia or both",
+  );
+}
+
+function enforceLoopSettingsValid(body: RepoSettingsBody): void {
+  const autoMerge = AutoMergeSettingsSchema.optional();
+  const implementationLoop = ImplementationLoopSettingsSchema.optional();
+
+  enforceTrue(
+    autoMerge.safeParse(body.settings?.auto_merge).success,
+    apiError(400),
+    "auto_merge.enabled must be a boolean and auto_merge.min_age_hours a whole number of hours, 0 or more",
+  );
+  enforceTrue(
+    implementationLoop.safeParse(body.settings?.implementation_loop).success,
+    apiError(400),
+    "implementation_loop.max_parallel must be a whole number from 1 to 5",
   );
 }
 

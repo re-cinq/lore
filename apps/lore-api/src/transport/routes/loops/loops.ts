@@ -29,6 +29,7 @@ import { specUpkeepRoute } from "../spec-upkeep/spec-upkeep.js";
 import { dailyDigestRoute } from "../daily-digest/daily-digest.js";
 import { specTicketsRoute } from "../spec-tickets/spec-tickets.js";
 import { floorRunPagesWithoutCost } from "../floor/floor-runs.js";
+import { ticketStartRoute } from "./ticket-start/ticket-start.js";
 import { loopPullReads } from "./loop-pull-reads.js";
 import {
   LoopKeySchema,
@@ -57,6 +58,7 @@ export function loopsRoutes(getPool: () => Pool | null): ServerRoute[] {
     readLoopsRoute(getPool),
     switchLoopRoute(getPool),
     resumeLoopRoute(getPool),
+    ticketStartRoute(getPool),
     codeReviewRoute(floorRunPagesWithoutCost, pullReads),
     autoMergeRoute(getPool, floorRunPagesWithoutCost, pullReads),
     specUpkeepRoute(floorRunPagesWithoutCost, pullReads),

@@ -5,7 +5,8 @@ import {
   recordedPlanFloor,
 } from "../../outbound/floor/recorded-plan-floor.js";
 import {
-  openFloorLoopRun,
+  openFloorTicketRuns,
+  openRunOfTicket,
   startTicketOnFloor,
   type FloorTicketDeps,
 } from "./floor-loop.js";
@@ -63,7 +64,7 @@ describe("startTicketOnFloor", () => {
     ]);
   });
 
-  it("starts the run on the branch with the backlog subject, the task, the ticket as a file and the issue's title and number", async () => {
+  it("starts the run on the branch keyed on backlog ticket-7, with the task, the ticket as a file and the issue's title and number", async () => {
     const { deps, started } = scene();
 
     await startTicketOnFloor(deps, TICKET);
@@ -76,7 +77,7 @@ describe("startTicketOnFloor", () => {
           ref: "github.com/acme/widgets@lore/implementation-loop/issue-7",
           by: "lore",
         },
-        backlog: { kind: "value", ref: "tickets", by: "lore" },
+        backlog: { kind: "value", ref: "ticket-7", by: "lore" },
         task_id: { kind: "value", ref: "task-1", by: "lore" },
         ticket: { kind: "file", ref: PLAN_BLOB_HASH, by: "lore" },
         issue_title: {
@@ -132,30 +133,101 @@ describe("startTicketOnFloor", () => {
   });
 });
 
-describe("openFloorLoopRun", () => {
-  it("asks the floor for the open implementation-loop run of github.com/acme/widgets on subject backlog:tickets", async () => {
+function loopRun(id: string, backlog: string) {
+  return planRun({
+    id,
+    lineId: "implementation-loop",
+    startItems: { backlog: { kind: "value", ref: backlog, by: "lore" } },
+  });
+}
+
+describe("openFloorTicketRuns", () => {
+  it("asks the floor for the open implementation-loop runs of github.com/acme/widgets, whatever their subject", async () => {
     const { floor, requests } = recordedPlanFloor();
 
-    await openFloorLoopRun(floor, "Acme/Widgets");
+    await openFloorTicketRuns(floor, "Acme/Widgets");
 
     expect(requests.map((request) => request.path)).toEqual([
-      "/assembly-runs?repo=github.com%2Facme%2Fwidgets&line=implementation-loop&subject=backlog%3Atickets&open=true",
+      "/assembly-runs?repo=github.com%2Facme%2Fwidgets&line=implementation-loop&open=true",
     ]);
   });
 
-  it("answers the id of the open run", async () => {
+  it("answers the runs keyed backlog:ticket-7 and backlog:ticket-9", async () => {
     const { floor } = recordedPlanFloor({
-      runs: [planRun({ id: "run-7", lineId: "implementation-loop" })],
+      runs: [loopRun("run-7", "ticket-7"), loopRun("run-9", "ticket-9")],
     });
 
-    expect(await openFloorLoopRun(floor, "acme/widgets")).toEqual({
-      id: "run-7",
+    const open = await openFloorTicketRuns(floor, "acme/widgets");
+
+    expect(open.map(({ id }) => id)).toEqual(["run-7", "run-9"]);
+  });
+
+  it("counts a run keyed backlog:tickets, started before tickets had a key of their own, as an open ticket run", async () => {
+    const { floor } = recordedPlanFloor({
+      runs: [loopRun("run-old", "tickets")],
+    });
+
+    const open = await openFloorTicketRuns(floor, "acme/widgets");
+
+    expect(open.map(({ id }) => id)).toEqual(["run-old"]);
+  });
+
+  it("leaves out an upkeep run keyed backlog:upkeep-12 and a plan task run keyed backlog:spec-task-t1", async () => {
+    const { floor } = recordedPlanFloor({
+      runs: [
+        loopRun("run-upkeep", "upkeep-12"),
+        loopRun("run-plan", "spec-task-t1"),
+        loopRun("run-7", "ticket-7"),
+      ],
+    });
+
+    const open = await openFloorTicketRuns(floor, "acme/widgets");
+
+    expect(open.map(({ id }) => id)).toEqual(["run-7"]);
+  });
+
+  it("answers nothing when the repository has no loop run open", async () => {
+    const { floor } = recordedPlanFloor();
+
+    expect(await openFloorTicketRuns(floor, "acme/widgets")).toEqual([]);
+  });
+});
+
+describe("openRunOfTicket", () => {
+  const forIssue = (id: string, backlog: string, issueNumber: number) => {
+    const run = loopRun(id, backlog);
+
+    return {
+      ...run,
+      startItems: {
+        ...run.startItems,
+        issue_number: {
+          kind: "value" as const,
+          ref: `${issueNumber}`,
+          by: "lore",
+        },
+      },
+    };
+  };
+
+  it("answers the id of run-9, whose issue_number is 9, among the open runs of tickets 7 and 9", async () => {
+    const { floor } = recordedPlanFloor({
+      runs: [
+        forIssue("run-7", "ticket-7", 7),
+        forIssue("run-9", "ticket-9", 9),
+      ],
+    });
+
+    expect(await openRunOfTicket(floor, "acme/widgets", 9)).toEqual({
+      id: "run-9",
     });
   });
 
-  it("answers null when the repository has no loop run open", async () => {
-    const { floor } = recordedPlanFloor();
+  it("answers null when no open ticket run is for issue 11", async () => {
+    const { floor } = recordedPlanFloor({
+      runs: [forIssue("run-9", "ticket-9", 9)],
+    });
 
-    expect(await openFloorLoopRun(floor, "acme/widgets")).toBeNull();
+    expect(await openRunOfTicket(floor, "acme/widgets", 11)).toBeNull();
   });
 });

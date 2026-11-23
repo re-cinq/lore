@@ -2,6 +2,7 @@
 import type { Project } from "../../outbound/project/index.js";
 import type { LoopTickDeps } from "./implementation-loop-tick.js";
 import type { LoopRunClosedDeps } from "./loop-run-closed.js";
+import type { TicketGuardDeps } from "./ticket-guards.js";
 import { openPrOnBranch } from "./ticket-holder.js";
 
 type ProjectOf = (
@@ -27,15 +28,29 @@ export function tickPortsOf({
   taskQueue,
   tasks,
   projectOf,
-}: TickSources): Omit<LoopTickDeps, "findOpenBySubject" | "started"> {
+}: TickSources): Omit<LoopTickDeps, "countOpenTicketRuns" | "started"> {
   return {
+    ...ticketGuardPortsOf({ settings, taskQueue, projectOf }),
     listRepos: () => settings.allRepos(),
+    createTask: (input) => tasks.create(input),
+    setTaskColumns: (taskId, columns) => taskQueue.setColumns(taskId, columns),
+    ...repoPortsOf(projectOf),
+  };
+}
+
+/** What asking whether one ticket may start reads, for a process that starts nothing itself. */
+export function ticketGuardPortsOf({
+  settings,
+  taskQueue,
+  projectOf,
+}: Pick<TickSources, "settings" | "projectOf"> & {
+  taskQueue: Pick<TickSources["taskQueue"], "activeTaskByIssue">;
+}): TicketGuardDeps {
+  return {
     rawSettings: (repo) => settings.rawSettings(repo),
     isOnboarded: (repo) => settings.isOnboarded(repo),
     activeTaskByIssue: (repo, issueNumber) =>
       taskQueue.activeTaskByIssue(repo, issueNumber),
-    createTask: (input) => tasks.create(input),
-    setTaskColumns: (taskId, columns) => taskQueue.setColumns(taskId, columns),
     ...repoPortsOf(projectOf),
   };
 }

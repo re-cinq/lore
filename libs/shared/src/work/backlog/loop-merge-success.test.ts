@@ -26,7 +26,10 @@ function run(overrides: Partial<RunView> = {}): RunView {
     lineHash: "hash-1",
     repo: "github.com/acme/widgets",
     subjectKey: "backlog:tickets",
-    startItems: { task_id: { kind: "value", ref: "task-1", by: "lore" } },
+    startItems: {
+      task_id: { kind: "value", ref: "task-1", by: "lore" },
+      backlog: { kind: "value", ref: "tickets", by: "lore" },
+    },
     createdAt: "2026-10-21T10:00:00.000Z",
     outcome: null,
     reason: null,
@@ -154,6 +157,41 @@ describe("settleMergedLoopTicket", () => {
 
     expect(cancelled).toEqual([{ runId: "run-1", reason: "pr-merged" }]);
   });
+
+  it.each(["ticket-7", "tickets"])(
+    "cancels the open run of task-1 keyed backlog:%s when its pull request merges",
+    async (backlog) => {
+      const keyed = run({
+        subjectKey: `backlog:${backlog}`,
+        startItems: {
+          task_id: { kind: "value", ref: "task-1", by: "lore" },
+          backlog: { kind: "value", ref: backlog, by: "lore" },
+        },
+      });
+      const { deps: d, cancelled } = deps({
+        floor: () => ({
+          runs: {
+            list: async (filter) => ({
+              items: [keyed].filter(
+                ({ subjectKey }) =>
+                  !("subject" in filter) || filter.subject === subjectKey,
+              ),
+              nextCursor: null,
+            }),
+            cancel: async (runId: string, reason: string) => {
+              cancelled.push({ runId, reason });
+
+              return run();
+            },
+          },
+        }),
+      });
+
+      await settleMergedLoopTicket(d, REPO, BRANCH);
+
+      expect(cancelled).toEqual([{ runId: "run-1", reason: "pr-merged" }]);
+    },
+  );
 
   it("leaves other tickets' open runs alone", async () => {
     const otherTaskRun = run({

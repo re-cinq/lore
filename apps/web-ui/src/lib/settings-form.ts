@@ -35,7 +35,7 @@ function settingsFields(
     dispatch_default_type: optionalText(formData, "dispatch_default_type"),
     digest: parseDigestBlock(formData),
     auto_merge: minAgeBlock(formData),
-    implementation_loop: doneCheckBlock(formData),
+    implementation_loop: implementationLoopBlock(formData),
     base_image: baseImageField(formData),
     public_mirror: parsePublicMirror(formData, stored.public_mirror),
     release: parseReleasePatch(formData, stored.release),
@@ -64,10 +64,21 @@ function minAgeBlock(
   return raw !== "" && wholeHours ? { min_age_hours: hours } : undefined;
 }
 
-/** The implementation loop's done check, a checkbox, so an unticked box is an absent field and means false. The loop's on/off switch lives on the Loops tab, and lore-api merges this block into the stored one. */
-function doneCheckBlock(formData: FormData): { done_check: boolean } {
+/** The implementation loop's done check, a checkbox, so an unticked box is an absent field and means false, and how many tickets it works at once, left out when blank so the stored one stays; lore-api refuses a number outside 1 to 5. The loop's on/off switch lives on the Loops tab, and lore-api merges this block into the stored one. */
+function implementationLoopBlock(formData: FormData): {
+  done_check: boolean;
+  max_parallel?: number;
+} {
+  const raw = (
+    (formData.get("implementation_loop_max_parallel") as string) || ""
+  ).trim();
+  const maxParallel = Number(raw);
+
   return {
     done_check: formData.get("implementation_loop_done_check") === "on",
+    ...(raw !== "" && !Number.isNaN(maxParallel)
+      ? { max_parallel: maxParallel }
+      : {}),
   };
 }
 

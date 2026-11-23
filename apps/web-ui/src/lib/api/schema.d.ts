@@ -1902,6 +1902,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/loops/implementation/tickets/{issue}/start */
+    post: operations["post_api_repos_owner_repo_loops_implementation_tickets_issue_start"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/loops/{key}": {
     parameters: {
       query?: never;
@@ -4259,6 +4276,7 @@ export interface components {
         unblocks_count?: number;
       }[];
       current_run_id: string | null;
+      current_run_ids: string[];
       next: {
         issue_number: number;
         issue_url: string | null;
@@ -4883,6 +4901,11 @@ export interface components {
         | "tickets";
       enabled: boolean;
     };
+    LoopTicketStart: {
+      /** @constant */
+      ok: true;
+      issue_number: number;
+    };
     MemoryAuditPage: {
       entries: {
         id: string;
@@ -5424,6 +5447,7 @@ export interface components {
             implementation_loop?: {
               enabled?: boolean;
               done_check?: boolean;
+              max_parallel?: number;
             } & {
               [key: string]: unknown;
             };
@@ -5568,6 +5592,7 @@ export interface components {
               implementation_loop?: {
                 enabled?: boolean;
                 done_check?: boolean;
+                max_parallel?: number;
               } & {
                 [key: string]: unknown;
               };
@@ -10814,6 +10839,37 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_loops_implementation_tickets_issue_start: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        issue: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Start one named ticket of the implementation loop now, beside the runs it already has and outside implementation_loop.max_parallel. The ticket still passes the loop's guards: the loop is on and not paused, the repository is onboarded, the issue is open, has no active task and no open blocker. A refused ticket answers 409 naming the guard; one already running answers 409 with its run_id. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopTicketStart"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

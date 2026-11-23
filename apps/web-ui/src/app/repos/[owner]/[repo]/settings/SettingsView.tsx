@@ -9,6 +9,7 @@ import { SettingsCard } from "@/components/SettingsCard";
 import type { components } from "@/lib/api/schema";
 import styles from "./page.module.css";
 import BaseImageSelector from "../agents/BaseImageSelector";
+import RunPolicyFields from "./RunPolicyFields";
 
 export type RepoSettingsShape = NonNullable<
   components["schemas"]["Repo"]["settings"]
@@ -68,7 +69,7 @@ function SettingsSections(props: SettingsSectionsProps) {
   return (
     <>
       <GeneralFields team={team} settings={settings} />
-      <RunPolicyFields {...selectFieldDefaults(settings)} />
+      <RunPolicyFields settings={settings} />
       <CrossRepoField
         allRepos={allRepos}
         selectedRepos={settings.cross_repo_repos ?? []}
@@ -160,14 +161,6 @@ function textFieldDefaults(settings: RepoSettingsShape) {
   };
 }
 
-function selectFieldDefaults(settings: RepoSettingsShape) {
-  return {
-    trustLevel: settings.trust?.level ?? "implementation",
-    minAgeHours: settings.auto_merge?.min_age_hours ?? DEFAULT_MIN_AGE_HOURS,
-    doneCheck: settings.implementation_loop?.done_check === true,
-  };
-}
-
 interface TextFieldProps {
   label: string;
   name: string;
@@ -186,95 +179,6 @@ function TextField({ label, name, value, placeholder }: TextFieldProps) {
         defaultValue={value}
         placeholder={placeholder}
       />
-    </div>
-  );
-}
-
-/** What the auto-merge loop waits when the repository saved no minimum age (lore-shared `autoMergeMinAgeHours`). */
-const DEFAULT_MIN_AGE_HOURS = 24;
-
-interface RunPolicyFieldsProps {
-  trustLevel: string;
-  minAgeHours: number;
-  doneCheck: boolean;
-}
-
-/** Trust level decides which task types this repo accepts at all; the minimum age is how long the auto-merge loop waits. The loops' switches (code review, auto merge, …) live on the Loops tab. */
-function RunPolicyFields(props: RunPolicyFieldsProps) {
-  const { trustLevel, minAgeHours, doneCheck } = props;
-
-  return (
-    <SettingsCard
-      id="set-policy"
-      title="Run policy"
-      description="How much Lore does on this repository without a person asking."
-      headingLevel={3}
-    >
-      <TrustLevelField trustLevel={trustLevel} />
-      <MinAgeField minAgeHours={minAgeHours} />
-      <DoneCheckField doneCheck={doneCheck} />
-    </SettingsCard>
-  );
-}
-
-/** The auto-merge loop's one setting: how long a pull request stays open before the loop merges it. Its on/off switch is on the Loops tab. */
-function MinAgeField({ minAgeHours }: { minAgeHours: number }) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor="setting-auto_merge_min_age_hours">
-        Auto merge: hours a pull request stays open before it merges
-      </label>
-      <input
-        id="setting-auto_merge_min_age_hours"
-        name="auto_merge_min_age_hours"
-        type="number"
-        min={0}
-        step={1}
-        defaultValue={minAgeHours}
-      />
-      <span className={styles.hint}>
-        Switch the auto-merge loop on or off on the Loops tab.
-      </span>
-    </div>
-  );
-}
-
-/** The implementation loop's "already done?" check (FR12.20). Its on/off switch for the loop itself is on the Loops tab. */
-function DoneCheckField({ doneCheck }: { doneCheck: boolean }) {
-  return (
-    <div className={styles.field}>
-      <label className={styles.choice}>
-        <input
-          type="checkbox"
-          id="setting-implementation_loop_done_check"
-          name="implementation_loop_done_check"
-          defaultChecked={doneCheck}
-        />{" "}
-        Implementation loop: close a ticket a merged pull request already did,
-        before the definition-of-done agent runs
-      </label>
-      <span className={styles.hint}>
-        A small model reads the merged pull requests that touched the files the
-        ticket names. Switch the loop itself on or off on the Loops tab.
-      </span>
-    </div>
-  );
-}
-
-function TrustLevelField({ trustLevel }: { trustLevel: string }) {
-  return (
-    <div className={styles.field}>
-      <label htmlFor="setting-trust_level">Trust Level</label>
-      <select
-        id="setting-trust_level"
-        name="trust_level"
-        defaultValue={trustLevel}
-      >
-        <option value="docs">Docs only (gap-fill, runbook)</option>
-        <option value="tests">Tests (+ review)</option>
-        <option value="implementation">Implementation (default)</option>
-        <option value="full">Full (all task types)</option>
-      </select>
     </div>
   );
 }
