@@ -711,12 +711,14 @@ const POOL_SQL_HANDLERS: Array<{
     run: (state, sql, params) => handleHandoffSql(state.handoffs, sql, params),
   },
   {
-    matches: (sql) => sql.includes("pipeline.api_tokens"),
-    run: (state, sql, params) => handleApiTokensSql(state, sql, params),
+    matches: (sql) =>
+      sql.includes("pipeline.user_session_tokens") &&
+      !sql.trimStart().startsWith("UPDATE pipeline.api_tokens"),
+    run: (state, sql, params) => handleSessionTokensSql(state, sql, params),
   },
   {
-    matches: (sql) => sql.includes("pipeline.user_session_tokens"),
-    run: (state, sql, params) => handleSessionTokensSql(state, sql, params),
+    matches: (sql) => sql.includes("pipeline.api_tokens"),
+    run: (state, sql, params) => handleApiTokensSql(state, sql, params),
   },
   {
     matches: (sql) => sql.includes("lore.repos"),

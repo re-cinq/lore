@@ -26,6 +26,9 @@ interface StoredRow {
 
 const SELECT = `SELECT ${COLUMNS.encryptedTokens} AS "encryptedTokens", ${COLUMNS.accessTokenExpiresAt} AS "accessTokenExpiresAt"
   FROM ${TABLE} WHERE ${COLUMNS.tokenId} = $1`;
+/** A session marked ended (its API token revoked) reads as holding no stored token, even while a row remains (FR-015, FR-341). */
+const SELECT_LIVE = `${SELECT} AND EXISTS (
+  SELECT 1 FROM pipeline.api_tokens WHERE id = $1 AND revoked_at IS NULL)`;
 const REPLACE = `UPDATE ${TABLE} SET ${COLUMNS.encryptedTokens} = $2, ${COLUMNS.accessTokenExpiresAt} = $3,
   ${COLUMNS.refreshTokenExpiresAt} = $4, ${COLUMNS.updatedAt} = now() WHERE ${COLUMNS.tokenId} = $1`;
 
@@ -40,13 +43,21 @@ export async function freshAccessToken(
   refresh: RefreshCall = refreshUserTokenOrRefuse,
 ): Promise<string> {
   const settings = refreshSettings();
-  const stored = await readRow(pool, SELECT, tokenId);
+  const stored = await readRow(pool, SELECT_LIVE, tokenId);
 
   if (!isDue(stored)) {
     return accessTokenOf(stored, settings);
   }
 
   return refreshOrEndSession(pool, tokenId, settings, refresh);
+}
+
+class UnknownRefreshOutcome extends Error {}
+
+interface CompleteTokenPair extends GithubTokenPair {
+  expiresIn: number;
+  refreshToken: string;
+  refreshTokenExpiresIn: number;
 }
 
 async function refreshOrEndSession(
@@ -60,26 +71,31 @@ async function refreshOrEndSession(
       refreshLocked(tx, tokenId, settings, refresh),
     );
   } catch (error) {
-    return endSessionWhenRefused(pool, tokenId, error);
+    return endSessionOnTerminalRefresh(pool, tokenId, error);
   }
 }
 
-async function endSessionWhenRefused(
+async function endSessionOnTerminalRefresh(
   pool: Pool,
   tokenId: string,
   error: unknown,
 ): Promise<never> {
-  if (!(error instanceof RefreshTokenRefused)) {
-    throw error;
+  if (error instanceof RefreshTokenRefused) {
+    await endSession(pool, tokenId);
+    throw apiError(401)(
+      "GitHub refused the refresh token; the session has ended",
+    );
   }
 
-  await endSession(pool, tokenId);
-  throw apiError(401)(
-    "GitHub refused the refresh token; the session has ended",
-  );
+  if (error instanceof UnknownRefreshOutcome) {
+    await endSession(pool, tokenId);
+    throw apiError(503)("GitHub gave no new token pair");
+  }
+
+  throw error;
 }
 
-/** GitHub refused the refresh token: the session ends and the person signs in again (FR-226). */
+/** Ends the session and deletes its stored tokens in one transaction on a refused or unknown refresh outcome (FR-226, FR-016, FR-471, FR-472, FR-439). */
 async function endSession(pool: Pool, tokenId: string): Promise<void> {
   await runInTransaction(pool, async (tx) => {
     await tx.query(
@@ -115,7 +131,7 @@ async function refreshLocked(
   settings: RefreshSettings,
   refresh: RefreshCall,
 ): Promise<string> {
-  const locked = await readRow(tx, `${SELECT} FOR UPDATE`, tokenId);
+  const locked = await readRow(tx, `${SELECT_LIVE} FOR UPDATE`, tokenId);
 
   if (!isDue(locked)) {
     return accessTokenOf(locked, settings);
@@ -137,7 +153,7 @@ async function newPairFor(
   row: StoredRow,
   settings: RefreshSettings,
   refresh: RefreshCall,
-) {
+): Promise<CompleteTokenPair> {
   const { refreshToken } = decryptTokenPair(row.encryptedTokens, settings.key);
   const pair = await refreshOrRefuseUnreachable(refresh, {
     clientId: settings.clientId,
@@ -145,11 +161,9 @@ async function newPairFor(
     refreshToken: refreshToken ?? "",
   });
 
-  enforceTrue(
-    isCompletePair(pair),
-    apiError(503),
-    "GitHub gave no new token pair",
-  );
+  if (!isCompletePair(pair)) {
+    throw new UnknownRefreshOutcome();
+  }
 
   return pair;
 }
@@ -159,9 +173,15 @@ function refreshOrRefuseUnreachable(
   request: TokenRefresh,
 ): Promise<GithubTokenPair | null> {
   return refresh(request).catch((error: unknown) => {
-    throw connectionNeverOpened(error)
-      ? apiError(503)("GitHub could not be reached to refresh the token")
-      : error;
+    if (connectionNeverOpened(error)) {
+      throw apiError(503)("GitHub could not be reached to refresh the token");
+    }
+
+    if (error instanceof RefreshTokenRefused) {
+      throw error;
+    }
+
+    throw new UnknownRefreshOutcome();
   });
 }
 
@@ -188,8 +208,19 @@ function isDue(row: StoredRow): boolean {
 
 function isCompletePair(
   pair: GithubTokenPair | null,
-): pair is GithubTokenPair & { expiresIn: number; refreshToken: string } {
-  return Boolean(pair?.expiresIn && pair.refreshToken);
+): pair is CompleteTokenPair {
+  if (!pair?.accessToken || !pair.refreshToken) {
+    return false;
+  }
+
+  return (
+    isPositiveSeconds(pair.expiresIn) &&
+    isPositiveSeconds(pair.refreshTokenExpiresIn)
+  );
+}
+
+function isPositiveSeconds(seconds: number | undefined): seconds is number {
+  return typeof seconds === "number" && seconds > 0;
 }
 
 function lapsesIn(seconds: number | undefined): Date | null {

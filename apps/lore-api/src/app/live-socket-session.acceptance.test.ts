@@ -1276,15 +1276,22 @@ function executePoolSql(
     return handlePlanCollabTokensSql(state, sql, params);
   }
 
+  if (isSessionTokenSql(sql)) {
+    return handleSessionTokensSql(state, sql, params);
+  }
+
   if (sql.includes("pipeline.api_tokens")) {
     return handleApiTokensSql(state, sql, params);
   }
 
-  if (sql.includes("pipeline.user_session_tokens")) {
-    return handleSessionTokensSql(state, sql, params);
-  }
-
   return executeSecondarySql(state, sql, params);
+}
+
+function isSessionTokenSql(sql: string): boolean {
+  return (
+    sql.includes("pipeline.user_session_tokens") &&
+    !sql.trimStart().startsWith("UPDATE pipeline.api_tokens")
+  );
 }
 
 function executeSecondarySql(

@@ -37,7 +37,7 @@ function poolHolding(readings: StoredRow[]) {
   const run = async (sql: string, params: unknown[] = []) => {
     const statement = sql.trim().split(/\s+/).slice(0, 2).join(" ");
 
-    if (sql.includes("FROM pipeline.user_session_tokens")) {
+    if (isSessionTokenRead(sql)) {
       events.push(sql.includes("FOR UPDATE") ? "read locked" : "read");
 
       return { rows: [remaining.shift() ?? readings.at(-1)] };
@@ -57,6 +57,13 @@ function poolHolding(readings: StoredRow[]) {
   } as unknown as Pool;
 
   return { pool, events, updates };
+}
+
+function isSessionTokenRead(sql: string): boolean {
+  return (
+    sql.startsWith("SELECT") &&
+    sql.includes("FROM pipeline.user_session_tokens")
+  );
 }
 
 const statusOf = (attempt: Promise<unknown>) =>
@@ -178,7 +185,16 @@ describe("freshAccessToken", () => {
     expect({ outcome, updates, events }).toEqual({
       outcome: 503,
       updates: [],
-      events: ["read", "BEGIN", "read locked", "ROLLBACK"],
+      events: [
+        "read",
+        "BEGIN",
+        "read locked",
+        "ROLLBACK",
+        "BEGIN",
+        "UPDATE pipeline.api_tokens",
+        "DELETE FROM",
+        "COMMIT",
+      ],
     });
   });
 
@@ -305,7 +321,8 @@ describe("personGithubEnv", () => {
   function poolOfSessions(sessionIds: string[], tokenRow: StoredRow) {
     const { pool: tokenPool } = poolHolding([tokenRow]);
     const query = vi.fn(async (sql: string, params: unknown[] = []) =>
-      sql.includes("FROM pipeline.api_tokens")
+      sql.includes("FROM pipeline.api_tokens") &&
+      !sql.includes("FROM pipeline.user_session_tokens")
         ? { rows: sessionIds.map((id) => ({ id })) }
         : tokenPool.query(sql, params),
     );

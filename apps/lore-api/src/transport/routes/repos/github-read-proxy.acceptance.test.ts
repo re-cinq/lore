@@ -497,15 +497,22 @@ function executeSql(
     return handleHandoffSql(state.handoffs, sql, params);
   }
 
+  if (isSessionTokenSql(sql)) {
+    return handleSessionTokenSql(state, sql, params);
+  }
+
   if (sql.includes("pipeline.api_tokens")) {
     return handleApiTokenSql(state, sql, params);
   }
 
-  if (sql.includes("pipeline.user_session_tokens")) {
-    return handleSessionTokenSql(state, sql, params);
-  }
-
   return { rows: [] };
+}
+
+function isSessionTokenSql(sql: string): boolean {
+  return (
+    sql.includes("pipeline.user_session_tokens") &&
+    !sql.trimStart().startsWith("UPDATE pipeline.api_tokens")
+  );
 }
 
 function handleHandoffSql(

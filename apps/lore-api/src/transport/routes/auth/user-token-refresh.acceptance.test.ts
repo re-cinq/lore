@@ -267,7 +267,7 @@ describe("User token refresh concurrency, failures, and sign-out race (FR-014, F
     });
   });
 
-  it("refuses with 503 and keeps the session and stored token pair when GitHub answers a refresh with an error that is not about the refresh token", async () => {
+  it("refuses and ends the session and deletes its stored token pair when GitHub answers a refresh with 200 and an error that is not about the refresh token", async () => {
     const harness = createHarness(() =>
       jsonResponse({
         error: "incorrect_client_credentials",
@@ -281,13 +281,13 @@ describe("User token refresh concurrency, failures, and sign-out race (FR-014, F
     );
 
     expect({
-      refreshStatus,
+      refused: refreshStatus === 401 || refreshStatus === 503,
       revoked: harness.state.apiTokens[0]?.revoked_at !== null,
       storedTokenRows: harness.state.sessionTokens.length,
-    }).toEqual({ refreshStatus: 503, revoked: false, storedTokenRows: 1 });
+    }).toEqual({ refused: true, revoked: true, storedTokenRows: 0 });
   });
 
-  it("refuses and keeps the session and stored token pair when the refresh request fails after the connection opened", async () => {
+  it("refuses and ends the session and deletes its stored token pair when the refresh request fails after the connection opened", async () => {
     const harness = createHarness(() => {
       const cause = Object.assign(new Error("socket hang up"), {
         code: "ECONNRESET",
@@ -301,10 +301,10 @@ describe("User token refresh concurrency, failures, and sign-out race (FR-014, F
     );
 
     expect({
-      refused: refreshStatus !== 200,
+      refused: refreshStatus === 401 || refreshStatus === 503,
       revoked: harness.state.apiTokens[0]?.revoked_at !== null,
       storedTokenRows: harness.state.sessionTokens.length,
-    }).toEqual({ refused: true, revoked: false, storedTokenRows: 1 });
+    }).toEqual({ refused: true, revoked: true, storedTokenRows: 0 });
   });
 
   it("refuses POST /api/auth/logout with no credential or a made-up one with 401 and ends no session", async () => {
@@ -685,12 +685,12 @@ function executeSql(
     return executeHandoffSql(state, sql, params, writes);
   }
 
-  if (sql.includes("pipeline.api_tokens")) {
-    return executeApiTokensSql(state, sql, params, writes);
+  if (isSessionTokenSql(sql)) {
+    return executeSessionTokensSql(state, sql, params, writes);
   }
 
-  if (sql.includes("pipeline.user_session_tokens")) {
-    return executeSessionTokensSql(state, sql, params, writes);
+  if (sql.includes("pipeline.api_tokens")) {
+    return executeApiTokensSql(state, sql, params, writes);
   }
 
   if (sql.includes("lore.repos")) {
@@ -700,6 +700,13 @@ function executeSql(
   }
 
   return { rows: [] };
+}
+
+function isSessionTokenSql(sql: string): boolean {
+  return (
+    sql.includes("pipeline.user_session_tokens") &&
+    !sql.trimStart().startsWith("UPDATE pipeline.api_tokens")
+  );
 }
 
 function executeHandoffSql(

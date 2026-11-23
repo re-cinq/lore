@@ -793,12 +793,15 @@ function executeDomainSql(
   sql: string,
   params: unknown[],
 ): { rows: Array<Record<string, unknown>> } {
-  if (sql.includes("pipeline.api_tokens")) {
-    return handleApiTokensSql(state, sql, params);
+  if (
+    sql.includes("pipeline.user_session_tokens") &&
+    !sql.trimStart().startsWith("UPDATE pipeline.api_tokens")
+  ) {
+    return handleSessionTokensSql(state, sql, params);
   }
 
-  if (sql.includes("pipeline.user_session_tokens")) {
-    return handleSessionTokensSql(state, sql, params);
+  if (sql.includes("pipeline.api_tokens")) {
+    return handleApiTokensSql(state, sql, params);
   }
 
   if (sql.includes("pipeline.tasks")) {
