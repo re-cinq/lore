@@ -5,14 +5,11 @@ import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { FloorAgentDefs } from "@re-cinq/lore-shared/project/agents/agent-defs-floor.js";
 import { NO_FLOOR_DETAIL } from "@re-cinq/lore-shared/project/agents/agent-defs-no-floor.js";
 import { floorIfConfigured } from "@re-cinq/lore-shared/floor/floor-client.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import type { Pool } from "pg";
 import { bearerScope } from "../../http/bearer-scope.js";
 import { zodResponse } from "../../http/zod-response.js";
-import {
-  PackAwareAgentSchema,
-  packManagedNames,
-  withPackManaged,
-} from "./agent-common.js";
+import { PackAwareAgentSchema, withPackManaged } from "./agent-common.js";
 
 // The org-default catalog (no project layer): listed for no repo, so no variant applies.
 
@@ -53,6 +50,6 @@ async function listOrgAgents(pool: Pool | null, definitions: FloorDefinitions) {
 
   return withPackManaged(
     await new FloorAgentDefs(floor).list(""),
-    await packManagedNames(pool),
+    await packManagedNames(pool, "agents"),
   );
 }

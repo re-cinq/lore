@@ -15,6 +15,8 @@ const applied: PackStatusCardProps["pack"] = {
   refused_files: [],
   agents: ["acme-triage"],
   pipelines: ["acme-flow"],
+  skill_count: 4,
+  skills: ["acme-review"],
   error: null,
   error_at: null,
 };
@@ -30,18 +32,18 @@ function renderCard(pack: Partial<PackStatusCardProps["pack"]> = {}) {
 }
 
 describe("PackStatusCard", () => {
-  it("shows acme/lore-pack on branch main with the applied commit 9a7b72d, its time, and 3 agents, 1 line, 2 extras", () => {
+  it("shows acme/lore-pack on branch main with the applied commit 9a7b72d, its time, and 3 agents, 1 line, 2 extras and 4 skills", () => {
     renderCard();
     const card = screen.getByRole("region", { name: "Pack" });
 
     expect({
       text: card.textContent,
-      stats: ["agents", "lines", "extras"].map(
+      stats: ["agents", "lines", "extras", "skills"].map(
         (label) => screen.getByText(label).nextElementSibling?.textContent,
       ),
     }).toEqual({
-      text: "Packacme/lore-packbranch: mainAppliedagents3lines1extras2Last applied: 9a7b72d · 2026-11-17 10:30 UTCOpen repoSync now",
-      stats: ["3", "1", "2"],
+      text: "Packacme/lore-packbranch: mainAppliedagents3lines1extras2skills4Last applied: 9a7b72d · 2026-11-17 10:30 UTCOpen repoSync now",
+      stats: ["3", "1", "2", "4"],
     });
   });
 

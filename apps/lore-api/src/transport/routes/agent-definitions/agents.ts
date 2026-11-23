@@ -3,13 +3,13 @@ import {
   repoOf,
   CeremonySchema,
   PackAwareAgentSchema,
-  packManagedNames,
   withPackManaged,
 } from "./agent-common.js";
 import {
   createAgentDefinition,
   updateAgentDefinition,
 } from "./agent-writes.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
 import { rethrowBoom, apiError } from "@re-cinq/lore-shared/http/api-error.js";
@@ -145,7 +145,7 @@ async function readAgentDefinitions(
 ): Promise<ResponseObject> {
   const project = await projectFor(repoOf(request.params));
   const name = request.params.name as string | undefined;
-  const packAgents = await packManagedNames(pool);
+  const packAgents = await packManagedNames(pool, "agents");
 
   if (!name) {
     return h.response({

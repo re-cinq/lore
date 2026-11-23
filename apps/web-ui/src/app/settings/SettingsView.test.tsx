@@ -83,6 +83,8 @@ describe("SettingsView", () => {
         refused_files: [],
         agents: [],
         pipelines: [],
+        skill_count: 0,
+        skills: [],
         error: null,
         error_at: null,
       },

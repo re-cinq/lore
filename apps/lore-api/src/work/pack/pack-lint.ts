@@ -52,7 +52,7 @@ export async function packLintMain(
 }
 
 function summaryOf(counts: PackOverlay["counts"]): string {
-  return `pack ok: ${counts.agents} agents, ${counts.pipelines} pipelines, ${counts.extensions} extensions`;
+  return `pack ok: ${counts.agents} agents, ${counts.pipelines} pipelines, ${counts.extensions} extensions, ${counts.skills} skills`;
 }
 
 async function packFilesIn(root: string): Promise<PackFile[]> {

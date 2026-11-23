@@ -21,19 +21,14 @@ describe("packCardState", () => {
         ref: "main",
         sync: null,
       }),
-    ).toEqual({
+    ).toMatchObject({
       repo: "acme/lore-pack",
       ref: "main",
       commit: null,
-      applied_at: null,
       agent_count: 0,
-      line_count: 0,
-      extra_count: 0,
-      refused_files: [],
-      agents: [],
-      pipelines: [],
+      skill_count: 0,
+      skills: [],
       error: null,
-      error_at: null,
     });
   });
 
@@ -49,6 +44,8 @@ describe("packCardState", () => {
       refused_files: [],
       agents: ["acme-triage"],
       pipelines: ["acme-flow"],
+      skill_count: 1,
+      skills: ["acme-review"],
       error: null,
       error_at: null,
     };

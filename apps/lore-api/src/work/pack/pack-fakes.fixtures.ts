@@ -3,9 +3,14 @@ import type {
   FloorAgents,
   FloorAgentSettings,
 } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import {
+  parseSkillFile,
+  type SkillFile,
+} from "@re-cinq/lore-shared/agent-defaults/skill-file.js";
 import type { PackSyncState } from "@re-cinq/lore-shared";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import type { PackDeps } from "./apply-pack.js";
+import type { ShippedCatalog } from "./pack-loader.js";
 import type { PackFile } from "./fetch-pack.js";
 
 export const SHIPPED_REVIEWER: FloorAgentSettings = {
@@ -62,6 +67,31 @@ export const CODE_REVIEW_PIPELINE_TEXT = TRIAGE_PIPELINE_TEXT.replace(
   "id: code-review",
 ).replace("agent_definition: triager", "agent_definition: reviewer");
 
+export function skillText(title: string, sentence: string): string {
+  return [
+    "---",
+    `description: ${sentence}`,
+    "---",
+    `# ${title}`,
+    sentence,
+    "<!-- lore-help:begin -->",
+    `**Summary.** ${sentence}`,
+    "**Usage:** /skill",
+    "<!-- lore-help:end -->",
+    "",
+  ].join("\n");
+}
+
+export const SHIPPED_TDD_START = parseSkillFile(
+  "tdd-start",
+  skillText("TDD start", "Starts a TDD cycle."),
+);
+
+export const ACME_REVIEW_TEXT = skillText(
+  "Acme review",
+  "Reviews the Acme way.",
+);
+
 export const EXTENSION: PackFile = {
   path: "code-review/agents/reviewer.extra.md",
   text: "Check our naming rules.",
@@ -70,6 +100,12 @@ export const EXTENSION: PackFile = {
 export const EXTENDED_REVIEWER: FloorAgentSettings = {
   ...SHIPPED_REVIEWER,
   prompt: "Review the diff.\n\nCheck our naming rules.",
+};
+
+const SHIPPED_CATALOG: ShippedCatalog = {
+  pipelines: ["code-review"],
+  agents: new Map([["reviewer", SHIPPED_REVIEWER]]) as FloorAgents,
+  skills: new Map([["tdd-start", SHIPPED_TDD_START]]),
 };
 
 export interface FakePack {
@@ -83,6 +119,10 @@ export interface FakePack {
   /** The shipped lines put back, by name. */
   shippedPuts: string[];
   agentPuts: string[];
+  /** The org catalogue, by skill name. */
+  catalogue: Map<string, SkillFile>;
+  skillPuts: string[];
+  skillRemovals: string[];
   sync: PackSyncState | null;
   deps(): PackDeps;
 }
@@ -99,6 +139,9 @@ export function fakePack(): FakePack {
     archived: [],
     shippedPuts: [],
     agentPuts: [],
+    catalogue: new Map(),
+    skillPuts: [],
+    skillRemovals: [],
     sync: null,
     deps: () => depsOf(pack),
   };
@@ -118,12 +161,10 @@ function depsOf(pack: FakePack): PackDeps {
 
       return { commit: pack.commit, files: pack.files };
     },
-    shipped: async () => ({
-      pipelines: ["code-review"],
-      agents: new Map([["reviewer", SHIPPED_REVIEWER]]) as FloorAgents,
-    }),
+    shipped: async () => SHIPPED_CATALOG,
     ...agentPortsOf(pack),
     ...pipelinePortsOf(pack),
+    ...skillPortsOf(pack),
     ...syncPortsOf(pack),
   };
 }
@@ -148,6 +189,22 @@ function agentPortsOf(
       }
       pack.agentPuts.push(name);
       pack.floorAgents.set(name, settings);
+    },
+  };
+}
+
+function skillPortsOf(
+  pack: FakePack,
+): Pick<PackDeps, "orgSkill" | "putSkill" | "removeSkill"> {
+  return {
+    orgSkill: async (name) => pack.catalogue.get(name) ?? null,
+    putSkill: async (skill) => {
+      pack.skillPuts.push(skill.name);
+      pack.catalogue.set(skill.name, skill);
+    },
+    removeSkill: async (name) => {
+      pack.skillRemovals.push(name);
+      pack.catalogue.delete(name);
     },
   };
 }

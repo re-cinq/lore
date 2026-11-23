@@ -8,6 +8,7 @@ import {
   selectList,
   type DbRow,
 } from "@re-cinq/lore-shared/lib/row.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { hasValidHelpBlock } from "@re-cinq/lore-shared/agent-defaults/skill-help-block.js";
 import {
   SKILL_DEFINITION_COLUMNS,
@@ -58,7 +59,11 @@ const UPDATE_SQL = `UPDATE ${SKILL_DEFINITION_TABLE}
 const DELETE_SQL = `DELETE FROM ${SKILL_DEFINITION_TABLE}
    WHERE name = $1 AND project_id IS NULL RETURNING name`;
 
-const SkillsListSchema = z.object({ skills: z.array(SkillDefinitionSchema) });
+/** A skill and whether the client's pack owns it: a pack-managed skill is read-only (specs/client-packs). */
+const PackAwareSkillSchema = SkillDefinitionSchema.extend({
+  pack_managed: z.boolean(),
+});
+const SkillsListSchema = z.object({ skills: z.array(PackAwareSkillSchema) });
 const SkillWrittenSchema = z.object({
   ok: OkTrue,
   skill: SkillDefinitionSchema,
@@ -103,7 +108,7 @@ const UPDATE_OPTIONS = zodResponse(
   {
     name: "SkillDefinitionUpdated",
     description: "Replace an org-level skill definition",
-    errors: [400, 404],
+    errors: [400, 404, 409],
   },
 );
 
@@ -113,7 +118,7 @@ const DELETE_OPTIONS = zodResponse(
   {
     name: "SkillDefinitionDeleted",
     description: "Delete an org-level skill definition",
-    errors: [404],
+    errors: [404, 409],
   },
 );
 
@@ -136,12 +141,18 @@ function listRoute(getPool: () => Pool | null): ServerRoute {
       name: "SkillDefinitionsList",
       description: "The org-level skill definitions",
     }),
-    handler: async () => {
-      const { rows } = await poolOf(getPool).query(LIST_SQL);
-
-      return { skills: rows.map(toSkill) };
-    },
+    handler: async () => ({ skills: await listedSkills(poolOf(getPool)) }),
   };
+}
+
+async function listedSkills(pool: Pool) {
+  const { rows } = await pool.query(LIST_SQL);
+  const packSkills = await packManagedNames(pool, "skills");
+
+  return rows.map(toSkill).map((skill) => ({
+    ...skill,
+    pack_managed: packSkills.includes(skill.name),
+  }));
 }
 
 function createRoute(getPool: () => Pool | null): ServerRoute {
@@ -171,7 +182,10 @@ function updateRoute(getPool: () => Pool | null): ServerRoute {
     options: UPDATE_OPTIONS,
     handler: async (request) => {
       const { name } = request.params;
-      const stored = await writtenSkill(poolOf(getPool), {
+      const pool = poolOf(getPool);
+
+      await enforceNotPackManaged(pool, name);
+      const stored = await writtenSkill(pool, {
         sql: UPDATE_SQL,
         name,
         skill: request.payload as SkillFields,
@@ -191,13 +205,25 @@ function deleteRoute(getPool: () => Pool | null): ServerRoute {
     options: DELETE_OPTIONS,
     handler: async (request) => {
       const { name } = request.params;
-      const { rowCount } = await poolOf(getPool).query(DELETE_SQL, [name]);
+      const pool = poolOf(getPool);
+
+      await enforceNotPackManaged(pool, name);
+      const { rowCount } = await pool.query(DELETE_SQL, [name]);
 
       enforceTrue(rowCount, apiError(404), `no skill named ${name}`);
 
       return { ok: true, deleted: name };
     },
   };
+}
+
+/** A pack-managed skill is the pack repo's to change (specs/client-packs). */
+async function enforceNotPackManaged(pool: Pool, name: string): Promise<void> {
+  enforceTrue(
+    !(await packManagedNames(pool, "skills")).includes(name),
+    apiError(409),
+    "pack_managed",
+  );
 }
 
 function poolOf(getPool: () => Pool | null): Pool {

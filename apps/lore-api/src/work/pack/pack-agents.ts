@@ -1,4 +1,5 @@
 import { floorSettingsOf, readAgentDefaultFile } from "@re-cinq/lore-shared";
+import type { SkillFile } from "@re-cinq/lore-shared/agent-defaults/skill-file.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
   FloorAgents,
@@ -14,6 +15,8 @@ export interface ShippedCatalog {
   pipelines: readonly string[];
   /** The shipped agents, their settings as the md files write them (environment not yet filled in). */
   agents: FloorAgents;
+  /** The catalogue skills Lore ships, by name. */
+  skills: ReadonlyMap<string, SkillFile>;
 }
 
 export interface PackOverlayInput {

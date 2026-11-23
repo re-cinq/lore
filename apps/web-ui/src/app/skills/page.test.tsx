@@ -17,6 +17,7 @@ const tdd = {
   content: "x",
   enabled: true,
   projectId: null,
+  pack_managed: false,
 };
 
 describe("SkillsPage", () => {
@@ -78,6 +79,29 @@ describe("SkillsPage", () => {
       add: screen.getByRole("link", { name: "Add skill" }).getAttribute("href"),
       edit: screen.getByRole("link", { name: "Edit" }).getAttribute("href"),
     }).toEqual({ add: "/skills/new", edit: "/skills/tdd" });
+  });
+
+  it("shows Managed by pack and no Edit link for the pack's tdd while Edit stays for cli-design", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          skills: [
+            { ...tdd, pack_managed: true },
+            { ...tdd, name: "cli-design", title: "CLI" },
+          ],
+        }),
+      ),
+    );
+
+    render(await SkillsPage({ searchParams: Promise.resolve({}) }));
+
+    expect({
+      managed: screen.getAllByText("Managed by pack").length,
+      edits: screen
+        .getAllByRole("link", { name: "Edit" })
+        .map((link) => link.getAttribute("href")),
+      deletes: screen.getAllByRole("button", { name: /Delete/ }).length,
+    }).toEqual({ managed: 1, edits: ["/skills/cli-design"], deletes: 1 });
   });
 
   it("redirects ?edit=cli-design to /skills/cli-design", async () => {

@@ -6,6 +6,8 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { floorClientFrom } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { DbLeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
+import { PgSkillDefs } from "@re-cinq/lore-shared/project/skills/skill-defs-pg.js";
 import { shippedFloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import {
   readPackSync,
@@ -34,6 +36,7 @@ export function productionPackDeps(
     fetch: () => fetchPack(githubPackReader(env), packConfigOf(env)),
     shipped: shippedCatalog,
     ...floorPorts(env),
+    ...skillPorts(pool),
     readSync: () => readPackSync(pool),
     writeSync: (state) => writePackSync(pool, state),
   };
@@ -79,6 +82,18 @@ function floorPorts(env: Env): FloorPorts {
     putShippedPipeline: async (name) => {
       await importPipeline(access, await shippedPipeline(name, env));
     },
+  };
+}
+
+function skillPorts(
+  pool: Pool,
+): Pick<PackDeps, "orgSkill" | "putSkill" | "removeSkill"> {
+  const skills = new PgSkillDefs(pool);
+
+  return {
+    orgSkill: (name) => skills.orgSkill(name),
+    putSkill: (skill) => skills.putOrgSkill(skill),
+    removeSkill: (name) => skills.deleteOrgSkill(name),
   };
 }
 
@@ -134,6 +149,7 @@ export async function shippedCatalog() {
   return {
     pipelines: files.map((file) => readPipelineFile(file.text).line?.id ?? ""),
     agents: shippedFloorAgents(),
+    skills: new Map(loadSkillDefaults().map((skill) => [skill.name, skill])),
   };
 }
 

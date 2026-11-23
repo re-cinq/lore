@@ -54,11 +54,34 @@ describe("SkillForm", () => {
       content: "stored",
       enabled: true,
       projectId: null,
+      pack_managed: false,
     };
 
     render(<SkillForm skill={skill} action={refusing} />);
 
     expect(submittedContent()).toBe("stored");
+  });
+
+  it("renders tdd as read-only text with no Save and no form when the pack manages it", () => {
+    const skill = {
+      name: "tdd",
+      title: "TDD",
+      description: "Pack TDD",
+      model: null,
+      content: "stored by the pack",
+      enabled: true,
+      projectId: null,
+      pack_managed: true,
+    };
+
+    render(<SkillForm skill={skill} action={refusing} />);
+
+    expect({
+      save: screen.queryByRole("button", { name: "Save" }),
+      form: document.querySelector("form"),
+      note: screen.getByText("Managed by pack").tagName,
+      content: screen.getByText("stored by the pack").tagName,
+    }).toEqual({ save: null, form: null, note: "P", content: "PRE" });
   });
 
   it("edits the content in the prompt editor instead of a textarea", () => {
@@ -88,6 +111,7 @@ describe("SkillForm", () => {
       content: "stored",
       enabled: false,
       projectId: null,
+      pack_managed: false,
     };
 
     render(<SkillForm skill={skill} action={refusing} />);
@@ -125,6 +149,7 @@ describe("SkillForm", () => {
       content: "stored",
       enabled: true,
       projectId: null,
+      pack_managed: false,
     };
 
     render(<SkillForm skill={skill} action={refusing} />);
@@ -144,6 +169,7 @@ describe("SkillForm", () => {
         "---\nname: tdd\ndescription: Drives tests\ncontext: fork\n---\n\n# TDD\n\nRed, green.\n",
       enabled: true,
       projectId: null,
+      pack_managed: false,
     };
 
     render(<SkillForm skill={skill} action={refusing} />);

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ACME_REVIEW_TEXT } from "./pack-fakes.fixtures.js";
 import { lintPackDirectory, packLintMain } from "./pack-lint.js";
 
 const PIPELINE_YAML = `line:
@@ -66,7 +67,7 @@ function collected() {
 describe("lintPackDirectory", () => {
   it("refuses nothing in a pack with a new pipeline folder and its new agent", async () => {
     const root = packOnDisk({
-      "acme-flow/pipeline.yaml": PIPELINE_YAML,
+      "acme-flow/assembly-line.yaml": PIPELINE_YAML,
       "acme-flow/agents/acme-worker.md": NEW_AGENT,
     });
 
@@ -74,7 +75,7 @@ describe("lintPackDirectory", () => {
 
     expect(report).toMatchObject({
       refused: [],
-      counts: { agents: 1, pipelines: 1, extensions: 0 },
+      counts: { agents: 1, pipelines: 1, extensions: 0, skills: 0 },
     });
   });
 
@@ -94,7 +95,7 @@ describe("lintPackDirectory", () => {
     const root = packOnDisk({
       "acme-flow/agents/acme-worker.md": NEW_AGENT,
       "acme-flow/agents/broken.md": "no frontmatter at all",
-      "other/pipeline.yaml": "not: a pipeline",
+      "other/assembly-line.yaml": "not: a pipeline",
     });
 
     const report = await lintPackDirectory(root);
@@ -103,7 +104,7 @@ describe("lintPackDirectory", () => {
       refused: report.refused.map((refusal) => refusal.path).sort(),
       agents: report.counts.agents,
     }).toEqual({
-      refused: ["acme-flow/agents/broken.md", "other/pipeline.yaml"],
+      refused: ["acme-flow/agents/broken.md", "other/assembly-line.yaml"],
       agents: 1,
     });
   });
@@ -152,8 +153,9 @@ describe("packLintMain", () => {
 
   it("prints what the pack supplies and exits 0 when nothing is refused", async () => {
     const root = packOnDisk({
-      "acme-flow/pipeline.yaml": PIPELINE_YAML,
+      "acme-flow/assembly-line.yaml": PIPELINE_YAML,
       "acme-flow/agents/acme-worker.md": NEW_AGENT,
+      "skills/acme-review.md": ACME_REVIEW_TEXT,
     });
     const { lines, out } = collected();
 
@@ -161,7 +163,7 @@ describe("packLintMain", () => {
 
     expect({ code, lines }).toEqual({
       code: 0,
-      lines: ["pack ok: 1 agents, 1 pipelines, 0 extensions"],
+      lines: ["pack ok: 1 agents, 1 pipelines, 0 extensions, 1 skills"],
     });
   });
 

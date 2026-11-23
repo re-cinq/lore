@@ -18,7 +18,7 @@ import {
 import { withPool } from "../with-pool.js";
 import { OkTrue } from "../../http/ok-schema.js";
 import { skillsSourceWrite } from "../../../work/agents/skills-source.js";
-import { packManagedNames } from "./agent-common.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { floorDefinitions, type FloorDefinitions } from "./org-list.js";
 
 // Writes the ORG DEFAULT, the floor definition's own settings (#3995), image included: admin scope is its gate org-wide; the two-key ceremony guards a repo's image.
@@ -110,7 +110,7 @@ export async function enforceNotPackManaged(
   name: string,
 ): Promise<void> {
   enforceTrue(
-    !(await packManagedNames(pool)).includes(name),
+    !(await packManagedNames(pool, "agents")).includes(name),
     apiError(409),
     "pack_managed",
   );

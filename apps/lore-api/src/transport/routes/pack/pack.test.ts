@@ -23,6 +23,8 @@ const SYNCED: PackSyncState = {
   refused_files: [],
   agents: ["triager", "reviewer"],
   pipelines: ["triage"],
+  skill_count: 1,
+  skills: ["acme-review"],
   error: null,
   error_at: null,
 };

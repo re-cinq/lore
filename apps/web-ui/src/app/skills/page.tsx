@@ -64,6 +64,18 @@ function SkillRow({ skill }: { skill: SkillDefinition }) {
       <td>{skill.name}</td>
       <td>{skill.title}</td>
       <td>{skill.model ?? "(Inherit)"}</td>
+      {skill.pack_managed ? (
+        <td colSpan={2}>Managed by pack</td>
+      ) : (
+        <SkillActions skill={skill} />
+      )}
+    </tr>
+  );
+}
+
+function SkillActions({ skill }: { skill: SkillDefinition }) {
+  return (
+    <>
       <td>
         <Link href={`/skills/${encodeURIComponent(skill.name)}`}>Edit</Link>
       </td>
@@ -73,6 +85,6 @@ function SkillRow({ skill }: { skill: SkillDefinition }) {
           remove={deleteSkill.bind(null, skill.name)}
         />
       </td>
-    </tr>
+    </>
   );
 }

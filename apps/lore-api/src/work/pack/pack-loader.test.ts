@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { FloorAgents } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
+import { parseSkillFile } from "@re-cinq/lore-shared/agent-defaults/skill-file.js";
 import { packOverlay, type ShippedCatalog } from "./pack-loader.js";
+import { SHIPPED_TDD_START, skillText } from "./pack-fakes.fixtures.js";
 
 const SHIPPED_REVIEWER = {
   image: "agent:1",
@@ -14,6 +16,7 @@ const SHIPPED: ShippedCatalog = {
     ["reviewer", SHIPPED_REVIEWER],
     ["merger", { ...SHIPPED_REVIEWER, prompt: "Merge it." }],
   ]) as FloorAgents,
+  skills: new Map([["tdd-start", SHIPPED_TDD_START]]),
 };
 
 const TRIAGE_AGENT =
@@ -240,7 +243,7 @@ describe("packOverlay", () => {
 
   it("parses a pipeline folder into a pipeline for the floor named after the folder", () => {
     const overlay = overlayOf({
-      "triage/pipeline.yaml": pipelineYaml("triage", "triager"),
+      "triage/assembly-line.yaml": pipelineYaml("triage", "triager"),
       "triage/agents/triager.md": TRIAGE_AGENT,
     });
 
@@ -253,9 +256,9 @@ describe("packOverlay", () => {
     }).toEqual({ lines: ["triage"], stations: ["work"], refused: [] });
   });
 
-  it("imports code-review/pipeline.yaml as the pack's version of the shipped line code-review", () => {
+  it("imports code-review/assembly-line.yaml as the pack's version of the shipped line code-review", () => {
     const overlay = overlayOf({
-      "code-review/pipeline.yaml": pipelineYaml("code-review", "reviewer"),
+      "code-review/assembly-line.yaml": pipelineYaml("code-review", "reviewer"),
     });
 
     expect({
@@ -270,7 +273,7 @@ describe("packOverlay", () => {
       "code-review/agent/reviewer.md": TRIAGE_AGENT,
     });
     const reason =
-      "Lore does not read this path: a line folder holds pipeline.yaml, agents/<agent>.md and agents/<agent>.extra.md";
+      "Lore does not read this path: a line folder holds assembly-line.yaml, agents/<agent>.md and agents/<agent>.extra.md, and skills/ holds <name>.md";
 
     expect({
       lines: overlay.pipelines.length,
@@ -286,41 +289,95 @@ describe("packOverlay", () => {
     });
   });
 
+  it("reads code-review/assembly-line.yaml as the line code-review", () => {
+    const overlay = overlayOf({
+      "code-review/assembly-line.yaml": pipelineYaml("code-review", "reviewer"),
+    });
+
+    expect({
+      lines: overlay.pipelines.map((pipeline) => pipeline.line?.id),
+      refused: overlay.refused,
+    }).toEqual({ lines: ["code-review"], refused: [] });
+  });
+
+  it("still reads code-review/pipeline.yaml as the line code-review", () => {
+    const overlay = overlayOf({
+      "code-review/pipeline.yaml": pipelineYaml("code-review", "reviewer"),
+    });
+
+    expect({
+      lines: overlay.pipelines.map((pipeline) => pipeline.line?.id),
+      refused: overlay.refused,
+    }).toEqual({ lines: ["code-review"], refused: [] });
+  });
+
+  it("refuses code-review/pipeline.yaml when the folder also holds assembly-line.yaml, naming the folder", () => {
+    const overlay = overlayOf({
+      "code-review/assembly-line.yaml": pipelineYaml("code-review", "reviewer"),
+      "code-review/pipeline.yaml": pipelineYaml("code-review", "reviewer"),
+    });
+
+    expect({
+      lines: overlay.pipelines.map((pipeline) => pipeline.line?.id),
+      refused: overlay.refused,
+    }).toEqual({
+      lines: ["code-review"],
+      refused: [
+        {
+          path: "code-review/pipeline.yaml",
+          reason:
+            "the folder code-review holds its line twice: assembly-line.yaml is read, so remove pipeline.yaml",
+        },
+      ],
+    });
+  });
+
+  it("refuses skills/assembly-line.yaml as a path Lore does not read", () => {
+    const overlay = overlayOf({
+      "skills/assembly-line.yaml": pipelineYaml("skills", "reviewer"),
+    });
+
+    expect({
+      lines: overlay.pipelines.length,
+      refused: overlay.refused.map((file) => file.path),
+    }).toEqual({ lines: 0, refused: ["skills/assembly-line.yaml"] });
+  });
+
   it("refuses a pipeline whose line is not named after its folder", () => {
     const overlay = overlayOf({
-      "triage/pipeline.yaml": pipelineYaml("sorting", "reviewer"),
+      "triage/assembly-line.yaml": pipelineYaml("sorting", "reviewer"),
     });
 
     expect(overlay.refused).toEqual([
       {
-        path: "triage/pipeline.yaml",
+        path: "triage/assembly-line.yaml",
         reason:
-          "the folder triage must hold the pipeline of that name, and its line is sorting",
+          "the folder triage must hold the assembly line of that name, and its line is sorting",
       },
     ]);
   });
 
   it("refuses a pipeline naming an agent that neither Lore ships nor the pack defines", () => {
     const overlay = overlayOf({
-      "triage/pipeline.yaml": pipelineYaml("triage", "ghost"),
+      "triage/assembly-line.yaml": pipelineYaml("triage", "ghost"),
     });
 
     expect(overlay.refused.map((refusal) => refusal.path)).toEqual([
-      "triage/pipeline.yaml",
+      "triage/assembly-line.yaml",
     ]);
   });
 
   it("refuses a pipeline file that is not a pipeline", () => {
-    const overlay = overlayOf({ "triage/pipeline.yaml": "line: [" });
+    const overlay = overlayOf({ "triage/assembly-line.yaml": "line: [" });
 
     expect(overlay.refused.map((refusal) => refusal.path)).toEqual([
-      "triage/pipeline.yaml",
+      "triage/assembly-line.yaml",
     ]);
   });
 
   it("accepts a pipeline naming a shipped agent the pack does not touch, and keeps its agents out of the pipeline", () => {
     const overlay = overlayOf({
-      "triage/pipeline.yaml": pipelineYaml("triage", "reviewer"),
+      "triage/assembly-line.yaml": pipelineYaml("triage", "reviewer"),
     });
 
     expect({
@@ -334,12 +391,17 @@ describe("packOverlay", () => {
 
   it("counts the agents the pack sets, its pipelines and its extensions", () => {
     const overlay = overlayOf({
-      "triage/pipeline.yaml": pipelineYaml("triage", "triager"),
+      "triage/assembly-line.yaml": pipelineYaml("triage", "triager"),
       "triage/agents/triager.md": TRIAGE_AGENT,
       "triage/agents/reviewer.extra.md": "More.",
     });
 
-    expect(overlay.counts).toEqual({ agents: 2, pipelines: 1, extensions: 1 });
+    expect(overlay.counts).toEqual({
+      agents: 2,
+      pipelines: 1,
+      extensions: 1,
+      skills: 0,
+    });
   });
 
   it("leaves a shipped agent the pack does not name out of the overlay", () => {
@@ -348,5 +410,92 @@ describe("packOverlay", () => {
     });
 
     expect([...overlay.agents.keys()]).toEqual(["reviewer"]);
+  });
+
+  it("reads skills/acme-review.md as the new skill acme-review", () => {
+    const text = skillText("Acme review", "Reviews the Acme way.");
+    const overlay = overlayOf({ "skills/acme-review.md": text });
+
+    expect({
+      skills: [...overlay.skills],
+      counts: overlay.counts.skills,
+      refused: overlay.refused,
+    }).toEqual({
+      skills: [
+        [
+          "acme-review",
+          { source: "pack-new", skill: parseSkillFile("acme-review", text) },
+        ],
+      ],
+      counts: 1,
+      refused: [],
+    });
+  });
+
+  it("marks skills/tdd-start.md as a replacement of the shipped tdd-start", () => {
+    const overlay = overlayOf({
+      "skills/tdd-start.md": skillText("TDD start", "Starts it our way."),
+    });
+
+    expect(overlay.skills.get("tdd-start")?.source).toBe("replaced");
+  });
+
+  it("refuses skills/Bad_Name.md for its name", () => {
+    const overlay = overlayOf({
+      "skills/Bad_Name.md": skillText("Bad", "Bad."),
+    });
+
+    expect({ skills: overlay.skills.size, refused: overlay.refused }).toEqual({
+      skills: 0,
+      refused: [
+        {
+          path: "skills/Bad_Name.md",
+          reason:
+            "Bad_Name is not a skill name: use lower-case letters, digits and hyphens",
+        },
+      ],
+    });
+  });
+
+  it("refuses skills/acme.md without a lore-help block", () => {
+    const overlay = overlayOf({ "skills/acme.md": "# Acme\nNo help." });
+
+    expect(overlay.refused).toEqual([
+      {
+        path: "skills/acme.md",
+        reason:
+          "acme must carry a lore-help block with a Summary and a Usage line",
+      },
+    ]);
+  });
+
+  it("refuses skills/acme/SKILL.md and skills/pipeline.yaml as paths Lore does not read", () => {
+    const overlay = overlayOf({
+      "skills/acme/SKILL.md": skillText("Acme", "Acme."),
+      "skills/pipeline.yaml": pipelineYaml("skills", "reviewer"),
+    });
+
+    expect({
+      lines: overlay.pipelines.length,
+      skills: overlay.skills.size,
+      refused: overlay.refused.map((file) => file.path),
+    }).toEqual({
+      lines: 0,
+      skills: 0,
+      refused: ["skills/acme/SKILL.md", "skills/pipeline.yaml"],
+    });
+  });
+
+  it("ignores agent-skills/skills/tdd-loop/SKILL.md", () => {
+    const overlay = overlayOf({
+      "agent-skills/skills/tdd-loop/SKILL.md": skillText("TDD", "Loop."),
+      "agent-skills/pipeline.yaml": pipelineYaml("agent-skills", "reviewer"),
+    });
+
+    expect({
+      skills: overlay.skills.size,
+      lines: overlay.pipelines.length,
+      refused: overlay.refused,
+    }).toEqual({ skills: 0, lines: 0, refused: [] });
   });
 });

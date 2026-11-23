@@ -6,22 +6,24 @@ One install reads one pack.
 
 ## Layout
 
-The pack holds one folder per pipeline. The folder name is the pipeline name.
+The pack holds one folder per assembly line, and the folder name is the line name, plus an optional `skills/` folder for catalogue skills.
 
 ```
 acme-flow/
-  pipeline.yaml              a new pipeline (optional)
+  assembly-line.yaml         a new assembly line (optional)
   agents/acme-worker.md      a full agent definition
 code-review/
-  pipeline.yaml              your version of a shipped pipeline (optional)
+  assembly-line.yaml         your version of a shipped line (optional)
   agents/code-review.md      your version of a shipped agent
 implementation-loop/
   agents/loop-dod.extra.md   text appended to a shipped agent's prompt
+skills/
+  acme-review.md             a catalogue skill of your own, or your version of a shipped one
 ```
 
 The template [re-cinq/lore-assembly-lines](https://github.com/re-cinq/lore-assembly-lines) holds a copy of every shipped pipeline and agent in this layout.
 
-Files at the top of the repository, under `docs/` and under a folder whose name starts with a dot are ignored, so a README or a CI workflow is fine. Inside a line folder, a markdown or YAML file at any other path is refused, so a misspelt `pipeline.yml` or `agent/` folder shows up instead of quietly doing nothing.
+Files at the top of the repository, under `docs/` and under a folder whose name starts with a dot are ignored, so a README or a CI workflow is fine. Inside a line folder, a markdown or YAML file at any other path is refused, so a misspelt `assembly-line.yml` or `agent/` folder shows up instead of quietly doing nothing.
 
 ### Three kinds of agent file
 
@@ -46,9 +48,9 @@ Work the ticket. Follow the Acme naming rules.
 
 An extension may contradict the shipped prompt. That is allowed: you own the behaviour that results and you test it. Lore does not check the two for consistency.
 
-### Pipelines
+### Assembly lines
 
-`<folder>/pipeline.yaml` is a pipeline in the same format as the shipped files in `libs/assembly-lines/src/floor-pipelines/`. The `line.id` must equal the folder name. Every agent a station names must be shipped by Lore or defined by the pack.
+`<folder>/assembly-line.yaml` is an assembly line in the same format as the shipped files in `libs/assembly-lines/src/floor-pipelines/`. A pack written before the rename keeps working: `<folder>/pipeline.yaml` is still read as the same file. A folder that holds both is refused for `pipeline.yaml` and `assembly-line.yaml` is applied. The `line.id` must equal the folder name. Every agent a station names must be shipped by Lore or defined by the pack.
 
 A folder named like a shipped pipeline holds your version of that line, and it replaces Lore's on the floor. You own that line from then on. Lore's later changes to it do not reach the install until you copy them into the pack, and a broken version can stop the work the line does, such as code review or the implementation loop. Lore's boot puts its shipped pipelines on the floor, but it skips a line your pack replaced, so a restart never puts Lore's version back in front of yours.
 
@@ -60,13 +62,15 @@ A pipeline that needs your own code uses a `kind: service` station. Lore runs no
 
 Each file is checked on its own. A refused file is recorded with its reason and the rest of the pack is still applied. Lore refuses:
 
-- a markdown or YAML file in a line folder at a path Lore does not read, such as `pipeline.yml` or `agent/reviewer.md`;
+- a markdown or YAML file in a line folder at a path Lore does not read, such as `assembly-line.yml`, `agent/reviewer.md`, `skills/acme/SKILL.md` or `skills/assembly-line.yaml`;
+- a folder that holds both `assembly-line.yaml` and `pipeline.yaml` (the message says `the folder F holds its line twice: assembly-line.yaml is read, so remove pipeline.yaml`);
 - a pipeline whose `line.id` is not the folder name, or that two folders define;
 - a pipeline that is not valid, or that names an agent neither Lore nor the pack provides;
 - an `.extra.md` for an agent nothing ships;
 - an agent file that is not valid markdown with frontmatter, or that lacks `image`, `timeout_minutes` or a prompt;
 - an agent given both as `<agent>.md` and `<agent>.extra.md`, or defined in two folders;
-- an agent file naming an environment variable the install does not set.
+- an agent file naming an environment variable the install does not set;
+- a `skills/<name>.md` whose name is not lower-case letters, digits and hyphens, or that lacks a lore-help block with a `**Summary.**` line and a `**Usage:**` line.
 
 The refused files and their reasons show on the Pack card of the Settings page and are stored with the last sync in the `pack.sync` setting, which `GET /api/pack` returns.
 
@@ -79,13 +83,25 @@ Applying a pack is a comparison with the previous apply, so removing a file undo
 - Remove an `.extra.md` or a replacement of a shipped agent, and the agent goes back to the shipped prompt.
 - Remove a new agent and the floor keeps its last definition; archive it on the floor if you want it gone.
 - Remove a pipeline folder and the pipeline is archived on the floor, not deleted. Runs in progress finish.
-- Remove your `pipeline.yaml` of a shipped line and Lore's own line goes back on the floor.
+- Remove your `assembly-line.yaml` of a shipped line and Lore's own line goes back on the floor.
+- Remove a `skills/<name>.md` and, if Lore ships a skill of that name, the shipped skill is written back; if only the pack had it, the skill is deleted from the catalogue. A file that is still in the pack but refused keeps the skill the last sync applied.
 
 Applying is idempotent: only a file whose content changed produces a new agent or pipeline version.
 
-## Agents the pack manages are read-only
+## Skills
 
-An agent the pack supplies cannot be edited as an organisation default in the web UI or through `PUT /api/agent-definitions/{name}`: the write answers `409 {"error":"pack_managed"}`, and the Edit link is hidden. Edit the file in the pack instead. A per-repository override of the same agent stays editable and is kept when the pack updates the organisation default.
+`skills/<name>.md` is a catalogue skill in the format of the shipped files in `libs/shared/src/agent-defaults/skills/`: optional frontmatter with `description` and `model`, a `# Title` heading, and the lore-help block between `<!-- lore-help:begin -->` and `<!-- lore-help:end -->`. A name Lore ships replaces that skill; any other name adds a skill. The skill is written to the organisation catalogue only when its title, description, model or content differs from what is there, and the row keeps its Enabled flag.
+
+`skills` and `agent-skills` are reserved folder names, never a line folder. Inside `skills/` only `<name>.md` is read; any other path is refused. Everything under `agent-skills/` is ignored.
+
+Two limits to know:
+
+- A pack skill named like a skill baked into the gateway image (`tdd-loop`, `lore-context` or `legacy-characterize`, under `apps/mcp-server/agent-skills/skills/`) reaches developer laptops but not agent pods, where the image's copy wins.
+- A skill an administrator wrote by hand and the pack then takes over is deleted when the pack later drops it, as an agent is.
+
+## Agents and skills the pack manages are read-only
+
+An agent the pack supplies cannot be edited as an organisation default in the web UI or through `PUT /api/agent-definitions/{name}`: the write answers `409 {"error":"pack_managed"}`, and the Edit link is hidden. Edit the file in the pack instead. A skill the pack supplies is read-only the same way: `PUT` and `DELETE` on `/api/skill-definitions/{name}` answer `409 {"error":"pack_managed"}`, the Skills list shows "Managed by pack", and the skill page has no Save. Once `LORE_PACK_REPO` is unset nothing is pack-managed. A per-repository override of the same agent stays editable and is kept when the pack updates the organisation default.
 
 ## When the pack is applied
 
@@ -183,7 +199,7 @@ Serve it:
 ```ts
 import { defineStation } from "@re-cinq/floor-station";
 
-// The name must equal the station's key in pipeline.yaml.
+// The name must equal the station's key in assembly-line.yaml.
 defineStation("notify-owner", async (brief, tools) => {
   const ticket = brief.needs.ticket;
 

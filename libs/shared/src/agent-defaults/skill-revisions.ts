@@ -87,10 +87,12 @@ const REPLACE_ORG_ROWS_AND_RECORD_SQL = `
     ON CONFLICT (version) DO NOTHING
     `;
 
+/** `packManaged` names the skills the client's pack sets: a revision records its version without touching them. */
 export async function applySkillRevisions(
   pool: PgPool,
   skills: SkillFile[],
   revisions: SkillRevision[] = SKILL_REVISIONS,
+  packManaged: readonly string[] = [],
 ): Promise<string[]> {
   const recorded = await recordedVersions(pool);
   const pending = revisions.filter(
@@ -99,7 +101,7 @@ export async function applySkillRevisions(
   const shippedByName = new Map(skills.map((skill) => [skill.name, skill]));
   const writes = pending.map((revision) => ({
     version: revision.version,
-    shipped: shippedSkillsOf(revision, shippedByName),
+    shipped: shippedSkillsOf(revision, shippedByName, packManaged),
   }));
 
   for (const write of writes) {
@@ -118,8 +120,9 @@ async function recordedVersions(pool: PgPool): Promise<Set<string>> {
 function shippedSkillsOf(
   revision: SkillRevision,
   shippedByName: Map<string, SkillFile>,
+  packManaged: readonly string[],
 ): SkillFile[] {
-  return revision.names.map((name) => {
+  const named = revision.names.map((name) => {
     const skill = shippedByName.get(name);
 
     enforceTrue(
@@ -130,6 +133,8 @@ function shippedSkillsOf(
 
     return skill;
   });
+
+  return named.filter((skill) => !packManaged.includes(skill.name));
 }
 
 async function replaceOrgRows(

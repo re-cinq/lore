@@ -10,6 +10,7 @@ const CLI_DESIGN: SkillDefinition = {
   content: "",
   enabled: true,
   projectId: null,
+  pack_managed: false,
 };
 
 const TDD_LOOP_OFF: SkillDefinition = {

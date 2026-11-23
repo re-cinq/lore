@@ -17,6 +17,8 @@ const synced = {
   ],
   agents: ["acme-triage", "loop-dod"],
   pipelines: ["acme-release"],
+  skill_count: 2,
+  skills: ["acme-review", "tdd-start"],
   error: null,
   error_at: null,
 };
@@ -38,11 +40,23 @@ describe("PackSyncStateSchema", () => {
       refused_files: [],
       agents: [],
       pipelines: [],
+      skill_count: 0,
+      skills: [],
       error: "GET /repos/acme/lore-pack/commits/main answered 404",
       error_at: "2026-11-17T10:15:00.000Z",
     };
 
     expect(PackSyncStateSchema.parse(failed)).toEqual(failed);
+  });
+
+  it("reads a pack.sync stored before skills as no skills and a count of 0", () => {
+    const { skill_count: _count, skills: _skills, ...stored } = synced;
+
+    expect(PackSyncStateSchema.parse(stored)).toEqual({
+      ...stored,
+      skill_count: 0,
+      skills: [],
+    });
   });
 
   it("refuses a state with a negative agent count", () => {

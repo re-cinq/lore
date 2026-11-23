@@ -1,13 +1,11 @@
 // What both halves of the agent-definitions routes need: the two-key ceremony gate, the pod-resource merge, and the audit writer. Here rather than in either half, because importing one from the other made a cycle.
 
-import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
 import type { Request } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { projectFor } from "../../../outbound/project-boot.js";
 import { checkApproval, type ApprovalOutcome } from "../two-key.js";
 import { z } from "zod";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
-import { readPackSync } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import {
   skillsSourceDefault,
   skillsSourceWrite,
@@ -232,18 +230,6 @@ export async function audit(
 export const PackAwareAgentSchema = ResolvedAgentDefinitionSchema.extend({
   pack_managed: z.boolean(),
 });
-
-/** The agents the last pack sync set, while the install reads a pack; none once LORE_PACK_REPO is unset, whatever the last sync recorded. */
-export async function packManagedNames(
-  pool: Pool | null,
-  env: Record<string, string | undefined> = process.env,
-): Promise<string[]> {
-  if (!pool || !packConfig(env)) {
-    return [];
-  }
-
-  return (await readPackSync(pool))?.agents ?? [];
-}
 
 /** Marks each ORG DEFAULT the pack manages; a project variant is the repo's own and stays editable. */
 export function withPackManaged<

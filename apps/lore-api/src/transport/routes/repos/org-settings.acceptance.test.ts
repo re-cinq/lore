@@ -68,6 +68,10 @@ describe("org settings + pack.sync", () => {
     const packSync = result.settings.find((s) => s.key === "pack.sync");
 
     expect(packSync?.value).toBe(JSON.stringify(mockJson));
-    expect(result.pack_sync).toEqual(mockJson);
+    expect(result.pack_sync).toEqual({
+      ...mockJson,
+      skill_count: 0,
+      skills: [],
+    });
   });
 });

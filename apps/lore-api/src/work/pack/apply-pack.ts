@@ -1,10 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 import type { Pipeline, Put } from "@re-cinq/floor-pipeline";
-import type { PackSyncState } from "@re-cinq/lore-shared";
+import { PackSyncStateSchema, type PackSyncState } from "@re-cinq/lore-shared";
 import type { FloorAgentSettings } from "@re-cinq/lore-shared/project/agents/pipeline-agents.js";
 import type { FetchedPack } from "./fetch-pack.js";
 import type { PackConfig } from "@re-cinq/lore-shared/pack-config.js";
-import { agentFileOf, pipelineFolderOf } from "./pack-paths.js";
+import { droppedBy } from "./pack-dropped.js";
+import { putSkills, type SkillPorts } from "./apply-skills.js";
 import { settingsWithEnvironment } from "../floor/seed-floor-pipelines.js";
 import {
   packOverlay,
@@ -12,7 +13,7 @@ import {
   type ShippedCatalog,
 } from "./pack-loader.js";
 
-export interface PackDeps {
+export interface PackDeps extends SkillPorts {
   /** Null when the install has no pack. */
   config: PackConfig | null;
   env: Record<string, string | undefined>;
@@ -58,8 +59,10 @@ export async function applyPack(deps: PackDeps): Promise<PackApplyResult> {
   }
 }
 
+const NO_ERROR = { error: null, error_at: null };
+
 function firstSync(config: PackConfig): PackSyncState {
-  return {
+  return PackSyncStateSchema.parse({
     repo: config.repo,
     ref: config.ref ?? null,
     commit: null,
@@ -70,9 +73,8 @@ function firstSync(config: PackConfig): PackSyncState {
     refused_files: [],
     agents: [],
     pipelines: [],
-    error: null,
-    error_at: null,
-  };
+    ...NO_ERROR,
+  });
 }
 
 async function applyFetched(
@@ -88,6 +90,7 @@ async function applyFetched(
     ...(await putAgents(deps, overlay, dropped.agents, shipped)),
     ...(await importPipelines(deps, overlay.pipelines)),
     ...(await dropPipelines(deps, dropped.pipelines, shipped)),
+    ...(await putSkills(deps, overlay, dropped.skills, shipped)),
   ];
 
   await deps.writeSync(syncStateOf(deps, { config, pack, overlay, dropped }));
@@ -179,8 +182,6 @@ function syncStateOf(
   deps: PackDeps,
   { config, pack, overlay, dropped }: Applied,
 ): PackSyncState {
-  const lineIds = overlay.pipelines.map((pipeline) => pipeline.line?.id ?? "");
-
   return {
     repo: config.repo,
     ref: config.ref ?? null,
@@ -191,32 +192,10 @@ function syncStateOf(
     extra_count: overlay.counts.extensions,
     refused_files: overlay.refused,
     agents: [...overlay.agents.keys(), ...dropped.keptAgents].sort(),
-    pipelines: [...lineIds, ...dropped.keptPipelines].sort(),
-    error: null,
-    error_at: null,
-  };
-}
-
-/** What the last sync set that this pack no longer names. A name whose file the pack still holds, only malformed, is kept: a typo must not revert an agent or archive a pipeline. */
-function droppedBy(overlay: PackOverlay, previous: PackSyncState | null) {
-  const refusedAgents = new Set(
-    overlay.refused.flatMap((file) => agentFileOf(file.path)?.agent ?? []),
-  );
-  const refusedPipelines = new Set(
-    overlay.refused.flatMap((file) => pipelineFolderOf(file.path) ?? []),
-  );
-  const agents = (previous?.agents ?? []).filter(
-    (name) => !overlay.agents.has(name),
-  );
-  const pipelines = (previous?.pipelines ?? []).filter(
-    (name) => !overlay.pipelines.some((pipeline) => pipeline.line?.id === name),
-  );
-
-  return {
-    agents: agents.filter((name) => !refusedAgents.has(name)),
-    keptAgents: agents.filter((name) => refusedAgents.has(name)),
-    pipelines: pipelines.filter((name) => !refusedPipelines.has(name)),
-    keptPipelines: pipelines.filter((name) => refusedPipelines.has(name)),
+    pipelines: [...overlay.lineIds, ...dropped.keptPipelines].sort(),
+    skill_count: overlay.counts.skills,
+    skills: [...overlay.skills.keys(), ...dropped.keptSkills].sort(),
+    ...NO_ERROR,
   };
 }
 

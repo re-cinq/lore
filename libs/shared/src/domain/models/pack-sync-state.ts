@@ -14,6 +14,9 @@ export const PackSyncStateSchema = z.object({
   agents: z.array(z.string()),
   /** The pipelines the pack added. */
   pipelines: z.array(z.string()),
+  /** The catalogue skills the pack set, replaced or new. A value stored before skills existed has none. */
+  skill_count: z.number().int().min(0).default(0),
+  skills: z.array(z.string()).default([]),
   error: z.string().nullable(),
   error_at: z.string().nullable(),
 });

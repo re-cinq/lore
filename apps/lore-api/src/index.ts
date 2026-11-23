@@ -13,6 +13,8 @@ import { enforceBootEnv } from "./app/boot-env.js";
 import { startHttpServer } from "./app/http-server.js";
 import { dbConfigFromEnv } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { seedFloor, migrateFloor, syncPackAtBoot } from "./app/seed-floor.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
+import type { SkillFile } from "@re-cinq/lore-shared/agent-defaults/skill-file.js";
 import { loadSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-files.js";
 import { applySkillRevisions } from "@re-cinq/lore-shared/agent-defaults/skill-revisions.js";
 import { seedSkillDefaults } from "@re-cinq/lore-shared/agent-defaults/skill-defaults-seed.js";
@@ -102,17 +104,30 @@ async function seedShippedSkills(pool: Pool): Promise<void> {
     console.error(`[lore-api] failed to seed skill defaults:`, err);
   }
 
+  await reviseShippedSkills(pool, skills);
+}
+
+const REVISIONS_FAILED =
+  "[lore-api] failed to apply skill revisions, they run again next boot:";
+
+async function reviseShippedSkills(
+  pool: Pool,
+  skills: SkillFile[],
+): Promise<void> {
   try {
-    const revised = await applySkillRevisions(pool, skills);
+    const packSkills = await packManagedNames(pool, "skills");
+    const revised = await applySkillRevisions(
+      pool,
+      skills,
+      undefined,
+      packSkills,
+    );
 
     console.error(
       `[lore-api] skill revisions applied: ${revised.join(", ") || "none"}`,
     );
   } catch (err) {
-    console.error(
-      `[lore-api] failed to apply skill revisions, they run again next boot:`,
-      err,
-    );
+    console.error(REVISIONS_FAILED, err);
   }
 }
 

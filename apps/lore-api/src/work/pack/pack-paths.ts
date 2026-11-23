@@ -1,8 +1,16 @@
-/** The layout of a pack: `<pipeline>/pipeline.yaml`, `<pipeline>/agents/<agent>.md` and `<pipeline>/agents/<agent>.extra.md`. */
-const PIPELINE_FILE = /^([^/]+)\/pipeline\.yaml$/;
-const AGENT_FILE = /^[^/]+\/agents\/([^/]+?)(\.extra)?\.md$/;
+/** The layout of a pack: `<line>/assembly-line.yaml` (`<line>/pipeline.yaml` is the same file under its old name), `<pipeline>/agents/<agent>.md`, `<pipeline>/agents/<agent>.extra.md` and `skills/<name>.md`. */
+const RESERVED_FOLDERS = ["skills", "agent-skills"];
 
-/** The pipeline folder a `pipeline.yaml` sits in. */
+const LINE_FOLDER = `(?!(?:${RESERVED_FOLDERS.join("|")})/)[^/]+`;
+const PIPELINE_FILE = new RegExp(
+  `^(${LINE_FOLDER})/(assembly-line|pipeline)\\.yaml$`,
+);
+const AGENT_FILE = new RegExp(
+  `^${LINE_FOLDER}/agents/([^/]+?)(\\.extra)?\\.md$`,
+);
+const SKILL_FILE = /^skills\/([^/]+)\.md$/;
+
+/** The line folder an `assembly-line.yaml`, or a `pipeline.yaml`, sits in. */
 export function pipelineFolderOf(path: string): string | undefined {
   return PIPELINE_FILE.exec(path)?.[1];
 }
@@ -17,16 +25,24 @@ export function agentFileOf(
     : undefined;
 }
 
-/** A markdown or YAML file inside a line folder: Lore reads it, or refuses it as a path it does not read. A file at the top, under `docs/` or under a dot folder is not the pack's. */
-const LINE_FOLDER_FILE = /^(?!docs\/)[^./][^/]*\/.+\.(md|ya?ml)$/;
-
-export function isPackFile(path: string): boolean {
-  return LINE_FOLDER_FILE.test(path);
+/** The name a `skills/<name>.md` file carries, valid or not. */
+export function skillFileOf(path: string): string | undefined {
+  return SKILL_FILE.exec(path)?.[1];
 }
 
-/** A path Lore applies: a pipeline or an agent file. */
+/** A markdown or YAML file inside a folder: Lore reads it, or refuses it as a path it does not read. A file at the top, under `docs/`, under `agent-skills/` or under a dot folder is not the pack's. */
+const PACK_FOLDER_FILE =
+  /^(?!docs\/|agent-skills\/)[^./][^/]*\/.+\.(md|ya?ml)$/;
+
+export function isPackFile(path: string): boolean {
+  return PACK_FOLDER_FILE.test(path);
+}
+
+/** A path Lore applies: a pipeline, an agent file or a skill. */
 export function isReadPath(path: string): boolean {
   return (
-    pipelineFolderOf(path) !== undefined || agentFileOf(path) !== undefined
+    pipelineFolderOf(path) !== undefined ||
+    agentFileOf(path) !== undefined ||
+    skillFileOf(path) !== undefined
   );
 }

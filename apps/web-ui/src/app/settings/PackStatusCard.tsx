@@ -25,6 +25,7 @@ export default function PackStatusCard({
         <Stat label="agents" value={pack.agent_count} />
         <Stat label="lines" value={pack.line_count} />
         <Stat label="extras" value={pack.extra_count} />
+        <Stat label="skills" value={pack.skill_count} />
       </div>
       <RefusedFiles files={pack.refused_files} />
       <PackFooter pack={pack} githubWebUrl={githubWebUrl} syncPack={syncPack} />

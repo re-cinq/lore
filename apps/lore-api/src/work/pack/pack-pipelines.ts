@@ -11,6 +11,8 @@ import type { OverlayAgent, PackOverlayInput } from "./pack-agents.js";
 import { pipelineFolderOf } from "./pack-paths.js";
 import { attempt, type Refusal } from "./pack-refusal.js";
 
+const NEW_FILE_NAME = "assembly-line.yaml";
+
 interface PipelineFile extends PackFile {
   folder: string;
 }
@@ -23,10 +25,14 @@ export function pipelinesOverlay(
   const pipelines: Pipeline[] = [];
   const refused: Refusal[] = [];
 
-  for (const file of pipelineFilesOf(input.files)) {
-    const result = attempt(file.path, () =>
-      pipelineOfFile(file, input, packAgents),
-    );
+  const files = pipelineFilesOf(input.files);
+
+  for (const file of files) {
+    const result = attempt(file.path, () => {
+      enforceNotTwice(file, files);
+
+      return pipelineOfFile(file, input, packAgents);
+    });
 
     if ("refusal" in result) {
       refused.push(result.refusal);
@@ -48,6 +54,20 @@ function pipelineFilesOf(files: readonly PackFile[]): PipelineFile[] {
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/** The file under the old name gives way when the folder holds the new one too. */
+function enforceNotTwice(file: PipelineFile, files: PipelineFile[]): void {
+  const holdsNewName = files.some(
+    (other) =>
+      other.folder === file.folder && other.path.endsWith(NEW_FILE_NAME),
+  );
+
+  enforceTrue(
+    !holdsNewName || file.path.endsWith(NEW_FILE_NAME),
+    Error,
+    `the folder ${file.folder} holds its line twice: ${NEW_FILE_NAME} is read, so remove pipeline.yaml`,
+  );
+}
+
 function pipelineOfFile(
   file: PipelineFile,
   { shipped, env }: PackOverlayInput,
@@ -61,7 +81,7 @@ function pipelineOfFile(
   enforceTrue(
     pipeline.line?.id === file.folder,
     Error,
-    `the folder ${file.folder} must hold the pipeline of that name, and its line is ${pipeline.line?.id}`,
+    `the folder ${file.folder} must hold the assembly line of that name, and its line is ${pipeline.line?.id}`,
   );
 
   return pipeline;

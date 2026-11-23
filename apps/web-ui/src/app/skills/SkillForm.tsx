@@ -32,6 +32,44 @@ const NEW_SKILL_VALUES: SkillFormValues = {
 };
 
 export function SkillForm({ skill, action }: SkillFormProps) {
+  return skill?.pack_managed ? (
+    <PackManagedSkill skill={skill} />
+  ) : (
+    <EditableSkillForm skill={skill} action={action} />
+  );
+}
+
+/** A skill the client's pack sets is the pack repo's to change (specs/client-packs). */
+function PackManagedSkill({ skill }: { skill: SkillDefinition }) {
+  return (
+    <div>
+      <div className="breadcrumb">
+        <Link href="/skills">Skills</Link> / <strong>{skill.name}</strong>
+      </div>
+      <h1>Skill: {skill.name}</h1>
+      <p>Managed by pack</p>
+      <SkillFacts skill={skill} />
+      <pre>{skill.content}</pre>
+    </div>
+  );
+}
+
+function SkillFacts({ skill }: { skill: SkillDefinition }) {
+  return (
+    <dl>
+      <dt>Title</dt>
+      <dd>{skill.title}</dd>
+      <dt>Description</dt>
+      <dd>{skill.description}</dd>
+      <dt>Model</dt>
+      <dd>{skill.model ?? "(Inherit)"}</dd>
+      <dt>Enabled</dt>
+      <dd>{skill.enabled ? "Yes" : "No"}</dd>
+    </dl>
+  );
+}
+
+function EditableSkillForm({ skill, action }: SkillFormProps) {
   const [state, formAction] = useActionState(action, {});
   const initial = state.values ?? valuesOf(skill);
 

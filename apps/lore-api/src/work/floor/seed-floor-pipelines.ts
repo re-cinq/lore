@@ -1,7 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import type { Pool } from "pg";
-import { packConfig } from "@re-cinq/lore-shared/pack-config.js";
-import { readPackSync } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
+import { packManagedNames } from "@re-cinq/lore-shared/project/settings/pack-sync-store.js";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { isFloorProblem } from "@re-cinq/floor-client";
@@ -196,23 +195,11 @@ export function productionSeedDeps(
   return {
     env,
     files: readFloorPipelineFiles,
-    packLines: () => packLinesOf(env, pool),
+    packLines: () => packManagedNames(pool, "pipelines", env),
     heldAgentDefinitions: async () =>
       (await floorClientFrom(env).agentDefinitions.list()).map((row) => row.id),
     importPipeline: (pipeline) => importPipeline(floor, pipeline),
   };
-}
-
-/** The lines the last sync of the configured pack set; none when no pack is configured, whatever an old sync recorded. */
-async function packLinesOf(
-  env: Record<string, string | undefined>,
-  pool: Pool | null,
-): Promise<string[]> {
-  if (!pool || !packConfig(env)) {
-    return [];
-  }
-
-  return (await readPackSync(pool))?.pipelines ?? [];
 }
 
 function floorAccessOf(env: Record<string, string | undefined>) {

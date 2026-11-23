@@ -139,4 +139,26 @@ describe("applySkillRevisions", () => {
       SKILL_REVISIONS.map((revision) => revision.version),
     );
   });
+
+  it("leaves the pack's sample in place when a revision names it", async () => {
+    const { pool, queries } = ledgerPool([]);
+    const revision: SkillRevision = {
+      version: "skills/0001_sample",
+      names: ["sample", "other"],
+    };
+
+    const applied = await applySkillRevisions(
+      pool,
+      [SAMPLE_SKILL, OTHER_SKILL],
+      [revision],
+      ["sample"],
+    );
+
+    expect({
+      applied,
+      names: queries
+        .filter((query) => !query.sql.includes("SELECT version"))
+        .map((query) => query.params[1]),
+    }).toEqual({ applied: ["skills/0001_sample"], names: [["other"]] });
+  });
 });

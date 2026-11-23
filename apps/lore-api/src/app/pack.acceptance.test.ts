@@ -64,7 +64,7 @@ async function appliedScratchPack() {
 
   pack.files = [
     EXTENSION,
-    { path: "acme-flow/pipeline.yaml", text: ACME_PIPELINE },
+    { path: "acme-flow/assembly-line.yaml", text: ACME_PIPELINE },
     { path: "acme-flow/agents/acme-worker.md", text: ACME_WORKER },
   ];
   pack.floorAgents.set("reviewer", SHIPPED_REVIEWER);

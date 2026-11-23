@@ -60,6 +60,36 @@ function poolAnswering(rows: unknown[], rowCount = rows.length) {
   return pool;
 }
 
+const packSyncOf = (skills: string[]) =>
+  JSON.stringify({
+    repo: "acme/lore-pack",
+    ref: null,
+    commit: "9a7b72d96c4cbaadf77c7bcdc9f885dfb099c36d",
+    applied_at: "2026-11-17T10:00:00.000Z",
+    agent_count: 0,
+    line_count: 0,
+    extra_count: 0,
+    refused_files: [],
+    agents: [],
+    pipelines: [],
+    skill_count: skills.length,
+    skills,
+    error: null,
+    error_at: null,
+  });
+
+function poolOfPack(skills: string[], rows: unknown[]) {
+  const pool = makePool();
+
+  pool.query.mockImplementation(async (sql: string) =>
+    sql.includes("lore.settings")
+      ? { rows: [{ value: packSyncOf(skills) }], rowCount: 1 }
+      : { rows, rowCount: rows.length },
+  );
+
+  return pool;
+}
+
 describe("skill-definitions routes", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -73,7 +103,9 @@ describe("skill-definitions routes", () => {
     const res = await send(poolAnswering([storedRow]), "GET", BASE);
 
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ skills: [storedSkill] });
+    expect(JSON.parse(res.payload)).toEqual({
+      skills: [{ ...storedSkill, pack_managed: false }],
+    });
   });
 
   it("POST creates tdd-loop and returns the stored row", async () => {
@@ -141,5 +173,61 @@ describe("skill-definitions routes", () => {
     const res = await send(poolAnswering([]), "DELETE", `${BASE}/ghost`);
 
     expect(res.statusCode).toBe(404);
+  });
+
+  it("lists tdd-loop with pack_managed true while the pack sets it", async () => {
+    process.env.LORE_PACK_REPO = "acme/lore-pack";
+
+    const res = await send(poolOfPack(["tdd-loop"], [storedRow]), "GET", BASE);
+
+    expect(JSON.parse(res.payload)).toEqual({
+      skills: [{ ...storedSkill, pack_managed: true }],
+    });
+  });
+
+  it("answers 409 pack_managed to PUT tdd-loop while the pack sets it", async () => {
+    process.env.LORE_PACK_REPO = "acme/lore-pack";
+    const pool = poolOfPack(["tdd-loop"], [storedRow]);
+
+    const res = await send(pool, "PUT", `${BASE}/tdd-loop`, {
+      title: "Mine",
+      content: HELP,
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 409,
+      body: { error: "pack_managed" },
+    });
+    expect(
+      pool.query.mock.calls.filter(([sql]) => sql.includes("UPDATE")),
+    ).toEqual([]);
+  });
+
+  it("answers 409 pack_managed to DELETE tdd-loop while the pack sets it", async () => {
+    process.env.LORE_PACK_REPO = "acme/lore-pack";
+    const pool = poolOfPack(["tdd-loop"], [{ name: "tdd-loop" }]);
+
+    const res = await send(pool, "DELETE", `${BASE}/tdd-loop`);
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 409,
+      body: { error: "pack_managed" },
+    });
+    expect(
+      pool.query.mock.calls.filter(([sql]) => sql.includes("DELETE")),
+    ).toEqual([]);
+  });
+
+  it("accepts PUT tdd-loop once LORE_PACK_REPO is unset", async () => {
+    delete process.env.LORE_PACK_REPO;
+
+    const res = await send(
+      poolOfPack(["tdd-loop"], [storedRow]),
+      "PUT",
+      `${BASE}/tdd-loop`,
+      { title: "TDD loop", content: HELP },
+    );
+
+    expect(res.statusCode).toBe(200);
   });
 });
