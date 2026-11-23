@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { planningPackageVersions } from "./build-packages";
@@ -38,4 +38,30 @@ describe("planningPackageVersions", () => {
       "@re-cinq/planning-editor": "0.16.0",
     });
   });
+});
+
+it("pins Next.js to the exact version resolved in the UI lockfile", () => {
+  const manifest = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  ) as { dependencies: { next: string } };
+  const lockfile = JSON.parse(
+    readFileSync(new URL("../../package-lock.json", import.meta.url), "utf8"),
+  ) as { packages: { "node_modules/next": { version: string } } };
+
+  expect(manifest.dependencies.next).toBe(
+    lockfile.packages["node_modules/next"].version,
+  );
+});
+
+it("resolves Next.js 16.4.5 or later, the first release with the November 2026 security fixes", () => {
+  const lockfile = JSON.parse(
+    readFileSync(new URL("../../package-lock.json", import.meta.url), "utf8"),
+  ) as { packages: { "node_modules/next": { version: string } } };
+  const [major, minor, patch] = lockfile.packages["node_modules/next"].version
+    .split(".")
+    .map(Number);
+
+  expect(major * 1_000_000 + minor * 1_000 + patch).toBeGreaterThanOrEqual(
+    16_004_005,
+  );
 });
