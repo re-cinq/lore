@@ -32,24 +32,24 @@
     "services:down": "docker compose -f infra/compose.yaml down"
   },
   "devDependencies": {
-    "@eslint/css": "^2.0.0",
+    "@eslint/css": "^2.0.1",
     "@eslint/js": "^10.0.1",
     "@eslint/markdown": "^9.0.0",
     "@re-cinq/eslint-plugin-re-lint": "^1.15.1",
     "@stylistic/eslint-plugin": "^6.0.1",
     "@types/react": "^19.3.0",
-    "eslint": "^10.10.0",
+    "eslint": "^10.15.0",
     "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-import-x": "^4.18.1",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.12.0",
+    "globals": "^17.14.0",
     "ink": "^8.0.0",
-    "jscpd": "^5.2.0",
-    "prettier": "^3.9.6",
+    "jscpd": "^5.4.3",
+    "prettier": "^3.10.1",
     "react": "^19.3.1",
     "tsx": "^4.23.15",
-    "typescript-eslint": "^8.70.0",
-    "yaml": "^2.9.0"
+    "typescript-eslint": "^8.73.0",
+    "yaml": "^2.9.1"
   },
   "optionalDependencies": {
     "@typescript/typescript-darwin-arm64": "^7.0.2",

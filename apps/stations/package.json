@@ -15,22 +15,22 @@
     "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js"
   },
   "dependencies": {
-    "@hapi/hapi": "21.4.10",
+    "@hapi/hapi": "21.4.13",
     "@octokit/auth-app": "^8.3.1",
     "@re-cinq/floor-client": "0.1.11",
     "@re-cinq/floor-station": "0.1.9",
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
     "octokit": "^5.0.5",
-    "pg": "^8.23.0",
+    "pg": "^8.23.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.5",
     "@types/pg": "^8.23.1",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "^5.1.1",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.1.1"
   },
   "exports": {
     ".": {
