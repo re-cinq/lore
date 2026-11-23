@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/_build-image.yml'
+      - 'package.json'
+      - 'package-lock.json'
       - "apps/mcp-server/**"
       # The compiled shared + server-core packages are bundled into the image —
       # a lib-only change must rebuild + redeploy or the gateway runs stale code.
@@ -18,6 +20,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/_build-image.yml'
+      - 'package.json'
+      - 'package-lock.json'
       - "apps/mcp-server/**"
       - "libs/shared/**"
       - "libs/server-core/**"

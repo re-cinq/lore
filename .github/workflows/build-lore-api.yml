@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/_build-image.yml'
+      - 'package.json'
+      - 'package-lock.json'
       - 'apps/lore-api/**'
       # The compiled `shared` + `server-core` packages are bundled into the
       # image — a lib-only change must rebuild + redeploy, or the cluster runs
@@ -38,6 +40,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/_build-image.yml'
+      - 'package.json'
+      - 'package-lock.json'
       - 'apps/lore-api/**'
       - 'libs/shared/**'
       - 'libs/server-core/**'
