@@ -406,7 +406,7 @@
     "cron-parser": "^5.10.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
-    "minimatch": "^10.2.6",
+    "minimatch": "^11.0.9",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0",
