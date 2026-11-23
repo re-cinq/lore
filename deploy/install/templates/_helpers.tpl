@@ -4,7 +4,7 @@ namespace, so both are fixed.
 */}}
 {{- define "lore-install.checks" -}}
 {{- if or (ne .Release.Name "lore") (ne .Release.Namespace "lore-floor") -}}
-{{- fail "the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor --create-namespace -f <values>" -}}
+{{- fail "the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor -f <values>" -}}
 {{- end -}}
 {{- include "lore-install.noPlaceholders" (dict "path" "" "values" .Values) -}}
 {{- if .Values.utopia.enabled -}}

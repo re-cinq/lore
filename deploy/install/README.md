@@ -5,6 +5,59 @@ Start from `values.minimal.example.yaml` (GitHub, one model key, hostnames, noth
 or the example for your cluster: `values.aks.example.yaml`, `values.gke.example.yaml`,
 `values.local.example.yaml`. Only GitHub is mandatory.
 
+## Namespace safety on upgrade
+
+`lore-databases` creates `lore-floor` before Lore is installed. Use the existing
+namespace when installing `lore-install`. With your own databases, create
+`lore-floor` separately first if it is missing. Helm 4's `--create-namespace`
+can remove the database release's metadata from an existing `lore-floor`.
+
+If a database upgrade stops with a message about protecting `lore-floor`,
+verify that the existing namespace is the intended one and is `Active`. Apply
+the retention annotation to that namespace, then retry the database upgrade.
+This protects it from pruning by a previous database release while preserving
+its current ownership.
+
+```bash
+kubectl get namespace lore-floor
+kubectl annotate namespace lore-floor helm.sh/resource-policy=keep --overwrite
+```
+
+Both releases apply `lore-floor` with server-side apply under the same field
+manager, `helm`. When `--create-namespace` applies it again, Helm removes the
+fields that apply leaves out: the database release's annotations and its
+`helm.sh/resource-policy: keep`. Reproduced with Helm 4.3.1.
+
+After the annotation, `lore-floor` is no longer part of the database release.
+`helm uninstall lore-databases` then leaves the namespace and its
+`floor-postgres` Secret in place, because both keep the retention policy. Delete
+them yourself when you remove Lore.
+
+If an earlier upgrade already deleted `lore-floor`, recover in this order:
+
+1. If Utopia was enabled, its data and database volumes lived in `lore-floor`.
+   Before you install anything, find what is left of them: released
+   PersistentVolumes (`kubectl get pv`), disk snapshots or backups. Plan their
+   restore first, because a new install provisions empty volumes.
+2. Upgrade `lore-databases` with this version. It creates the namespace again
+   and writes `floor-postgres` with the password kept in `lore-db`.
+3. Restored Utopia data needs the keys and passwords it was written with. The
+   chart generated `utopia-app` (`secret-key`), `utopia-db-credentials` and
+   `utopia-app-db-credentials` in `lore-floor`, and a new install generates
+   different ones. Take the originals from your backup or secret store and set
+   them as `secrets.utopia.secretKey`, `secrets.utopia.dbPassword` and
+   `secrets.utopia.appDbPassword`, or create those Secrets yourself. Without
+   the original `secret-key`, the provider credentials stored in Utopia cannot
+   be read and must be entered again.
+4. Create again, in `lore-floor`, every Secret you supply yourself, such as
+   `utopia-oauth` when the OIDC values are left empty. The install stops while
+   a required one is missing.
+5. Upgrade `lore-install`, which writes its Secrets from your values again.
+6. Fill `agent-secrets` again. The floor creates it empty, so agents have no
+   model credentials until you do. See
+   [Give the agents their model key](../../docs/install/aks.md#5-give-the-agents-their-model-key)
+   (AKS), or the same step of your cluster's guide.
+
 ## Secrets: your values, or your own Secret
 
 For every group in `secrets:` of `values.yaml` you choose one way.

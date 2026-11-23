@@ -8,7 +8,7 @@
 # others, because in-cluster addresses below are derived from them):
 #
 #   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version 1.1.1 \
-#     -n lore-floor --create-namespace -f my-values.yaml
+#     -n lore-floor -f my-values.yaml
 
 # Placement and policy for every workload of the three charts.
 global:
@@ -36,7 +36,7 @@ global:
     issuer: ""          # Microsoft Entra ID: https://login.microsoftonline.com/<tenant id>/v2.0
     allowedDomains: ""  # email domains that may sign in, comma separated
 # Created before anything else. lore-floor is the release namespace and comes
-# from --create-namespace. A namespace that already exists is left alone.
+# from lore-databases or is pre-created by the installer.
 namespaces: [lore-api, lore-ui, lore-stations]
 
 # ---- Secrets ------------------------------------------------------------------

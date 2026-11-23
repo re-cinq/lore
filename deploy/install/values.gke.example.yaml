@@ -2,7 +2,8 @@
 # --version X.Y.Z --untar`), copy this file, fill it in, then:
 #
 #   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
-#     -n lore-floor --create-namespace -f my-values.yaml
+#     -n lore-floor -f my-values.yaml
+# Use the namespace created by lore-databases, or create it first with your own databases.
 #
 # First (docs/install/gke.md): CloudNativePG, Traefik, cert-manager, and the
 # lore-databases chart. Every CHANGE-ME must be replaced; the install stops

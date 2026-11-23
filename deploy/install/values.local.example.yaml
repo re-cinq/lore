@@ -3,7 +3,8 @@
 # Traefik. Pull the chart, copy this file, then:
 #
 #   helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version X.Y.Z \
-#     -n lore-floor --create-namespace -f my-values.yaml
+#     -n lore-floor -f my-values.yaml
+# Use the namespace created by lore-databases, or create it first with your own databases.
 #
 # First: CloudNativePG, Traefik and the lore-databases chart. The GitHub and
 # model credentials are yours; with dummies the install runs but sign-in,

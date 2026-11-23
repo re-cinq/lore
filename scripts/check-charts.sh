@@ -116,6 +116,9 @@ rendered_count "$(render_databases --set podSecurity=baseline)" "Pod Security la
   '.kind == "Namespace" and .metadata.labels["pod-security.kubernetes.io/enforce"] == "baseline"' 3
 finish_assertions "lore-databases render assertions"
 
+say "lookup-dependent lore-floor upgrade assertions"
+python3 "$root/scripts/ci/test_database_namespace_upgrade.py" "$databases"
+
 if (( failed )); then
   say "FAILED"
   exit 1

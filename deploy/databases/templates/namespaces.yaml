@@ -3,10 +3,32 @@ Created when missing, kept on uninstall. A namespace this release created
 earlier is rendered again, so it stays part of the release and its labels can
 change. The release's own namespace is Helm's (--create-namespace).
 */ -}}
+{{- /*
+Helm 4's --create-namespace can leave only its name label after it applies the
+already existing lore-floor namespace. If the previous DB release tracked that
+namespace, omitting it without a live keep annotation would let Helm delete it.
+The check reads the live namespace whatever secretNamespaces lists now, since
+taking lore-floor out of the list is exactly what would omit it. Stop before
+changing anything and let the operator protect the live namespace without
+claiming ownership of a namespace they provisioned themselves.
+*/ -}}
+{{- $floor := "lore-floor" }}
+{{- if and .Release.IsUpgrade (ne $floor .Release.Namespace) }}
+{{- $live := lookup "v1" "Namespace" "" $floor }}
+{{- $liveMetadata := $live.metadata | default dict }}
+{{- $liveAnnotations := $liveMetadata.annotations | default dict }}
+{{- if and $live (not (get $liveAnnotations "meta.helm.sh/release-name")) (eq (get ($liveMetadata.labels | default dict) "name") $floor) (ne (get $liveAnnotations "helm.sh/resource-policy") "keep") }}
+{{- fail "lore-databases: upgrade stopped to protect lore-floor. Verify the live namespace and set helm.sh/resource-policy=keep before retrying. See the Namespace safety on upgrade section in deploy/install/README.md." }}
+{{- end }}
+{{- end }}
 {{- $podSecurity := .Values.podSecurity }}
 {{- range (concat (list .Values.namespace) .Values.secretNamespaces | uniq) }}
 {{- $existing := lookup "v1" "Namespace" "" . }}
-{{- if and (ne . $.Release.Namespace) (or (not $existing) (eq ($existing.metadata.annotations | default dict | dig "meta.helm.sh/release-name" "") $.Release.Name)) }}
+{{- $metadata := $existing.metadata | default dict }}
+{{- $annotations := $metadata.annotations | default dict }}
+{{- $releaseName := get $annotations "meta.helm.sh/release-name" }}
+{{- $owned := and (eq $releaseName $.Release.Name) (eq (get $annotations "meta.helm.sh/release-namespace") $.Release.Namespace) }}
+{{- if and (ne . $.Release.Namespace) (or (not $existing) $owned) }}
 ---
 apiVersion: v1
 kind: Namespace

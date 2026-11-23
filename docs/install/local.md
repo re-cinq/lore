@@ -105,9 +105,11 @@ kubectl -n lore-db wait --for=condition=Ready cluster/lore-db cluster/floor-db -
 
 The wait prints `cluster.postgresql.cnpg.io/lore-db condition met` and the same for `floor-db`. Then install Lore. The release must be named `lore` and live in `lore-floor`, or the chart refuses it.
 
+`lore-databases` already created `lore-floor`. With your own databases, create the namespace separately first if it is missing. [Namespace setup and upgrade safety](../../deploy/install/README.md#namespace-safety-on-upgrade).
+
 ```bash
 helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install \
-  -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 9m
+  -n lore-floor -f my-values.yaml --wait --timeout 9m
 ```
 
 It ends with `STATUS: deployed`. The migrations of the floor and of Lore run before the pods start.
@@ -157,6 +159,8 @@ Without an embedding endpoint, search is keyword-only. To add one, set `secrets.
 
 ## Upgrade
 
+See [namespace safety on upgrade](../../deploy/install/README.md#namespace-safety-on-upgrade) before upgrading an installation made with Helm 4 and `--create-namespace`.
+
 ```bash
 helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version <new version> \
   -n lore-floor -f my-values.yaml --wait --timeout 9m
@@ -183,7 +187,7 @@ kind delete cluster --name lore-trial
 | ------- | ------------- |
 | `lore-platform.lore-api.env.GITHUB_ORG still holds the placeholder CHANGE-ME` (the value path differs) | A placeholder is left in `my-values.yaml`. Run `grep -n CHANGE-ME my-values.yaml` and replace it. |
 | `Secret lore-api/github-app-credentials does not exist: set secrets.githubApp, or create it yourself with the keys app-id, installation-id, private-key` | You emptied a credential group and made no Secret of your own. Fill the group, or create the Secret with those keys and run the install again. |
-| `the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor --create-namespace -f <values>` | The release name or the namespace is not `lore` and `lore-floor`. Use `-n lore-floor` and the name `lore`. |
+| `the release must be named lore and live in lore-floor: helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor -f <values>` | The release name or the namespace is not `lore` and `lore-floor`. Use `-n lore-floor` and the name `lore`. |
 
 A pod stuck in `Pending` or `OOMKilled` means Docker has too little memory. Raise Docker's limit and run the install again.
 

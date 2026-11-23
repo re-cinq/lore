@@ -101,10 +101,12 @@ helm template lore oci://ghcr.io/re-cinq/charts/lore-install -n lore-floor -f my
 
 ## 4. Install Lore
 
+`lore-databases` already created `lore-floor`. With your own databases, create the namespace separately first if it is missing. [Namespace setup and upgrade safety](../../deploy/install/README.md#namespace-safety-on-upgrade).
+
 ```bash
 kubectl config current-context
 helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install \
-  -n lore-floor --create-namespace -f my-values.yaml --wait --timeout 15m
+  -n lore-floor -f my-values.yaml --wait --timeout 15m
 ```
 
 The release must be named `lore` and live in `lore-floor`. It ends with `STATUS: deployed`. Tokens you left empty are generated and kept.
@@ -208,6 +210,8 @@ unset UTOPIA_TOKEN
 Then set `lore-platform.lore-api.utopia.tokenSecret: utopia-token` and `lore-platform.lore-api.utopia.workspaceId` (the id in the workspace's Utopia URL, `/workspaces/<id>`) in `my-values.yaml` and run the upgrade below. Without the token Lore still starts, and a person sets each repository's knowledge base up by hand.
 
 ## Upgrade
+
+See [namespace safety on upgrade](../../deploy/install/README.md#namespace-safety-on-upgrade) before upgrading an installation made with Helm 4 and `--create-namespace`.
 
 ```bash
 helm upgrade --install lore oci://ghcr.io/re-cinq/charts/lore-install --version <new version> \
