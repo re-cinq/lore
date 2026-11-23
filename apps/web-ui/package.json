@@ -15,7 +15,7 @@
     "@codemirror/commands": "^6.11.1",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@google-cloud/storage": "^8.0.1",
+    "@google-cloud/storage": "^9.0.0",
     "@hocuspocus/provider": "^4.7.0",
     "@iconify/react": "^6.0.2",
     "@octokit/auth-app": "^8.3.1",
