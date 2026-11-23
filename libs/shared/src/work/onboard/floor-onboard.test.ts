@@ -54,4 +54,21 @@ describe("startOnboardRun", () => {
       }),
     ).toBe("run-new");
   });
+
+  it("hands the person's token to the run as a credential file item", async () => {
+    const { floor, requests } = recordedPlanFloor();
+
+    await startOnboardRun(floor, {
+      repo: "re-cinq/app",
+      branch: "lore/onboard/1234abcd",
+      taskId: TASK_ID,
+      ticket: "ticket",
+      credential: "ghu_person",
+    });
+
+    expect(
+      (requests.at(-1)?.body as { startItems: Record<string, unknown> })
+        .startItems.credential,
+    ).toEqual({ kind: "file", ref: PLAN_BLOB_HASH, by: "lore" });
+  });
 });

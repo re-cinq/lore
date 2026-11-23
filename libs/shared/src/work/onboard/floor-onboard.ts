@@ -23,6 +23,8 @@ export interface OnboardStart {
   branch: string;
   taskId: string;
   ticket: string;
+  /** The signed-in person's GitHub token, which `enrol` commits with (FR-296); left out, the App commits. */
+  credential?: string;
 }
 
 export function onboardBranchOf(taskId: string): string {
@@ -32,20 +34,40 @@ export function onboardBranchOf(taskId: string): string {
 /** The id of the run started, or of the open one this start joined. */
 export async function startOnboardRun(
   floor: OnboardFloor,
-  { repo, branch, taskId, ticket }: OnboardStart,
+  start: OnboardStart,
 ): Promise<string> {
+  const started = await startLine(floor.lines, ONBOARD_LINE, {
+    repo: floorRepoOf(start.repo),
+    startItems: await startItemsOf(floor, start),
+  });
+
+  return started.run.id;
+}
+
+async function startItemsOf(
+  floor: OnboardFloor,
+  { repo, branch, taskId, ticket, credential }: OnboardStart,
+) {
   const stored = await floor.blobs.put(
     new TextEncoder().encode(ticket),
     "text/markdown",
   );
-  const started = await startLine(floor.lines, ONBOARD_LINE, {
-    repo: floorRepoOf(repo),
-    startItems: {
-      repo: gitItem(repo, branch),
-      task_id: valueItem(taskId),
-      ticket: fileItem(stored.hash),
-    },
-  });
 
-  return started.run.id;
+  return {
+    repo: gitItem(repo, branch),
+    task_id: valueItem(taskId),
+    ticket: fileItem(stored.hash),
+    ...(credential
+      ? { credential: await credentialItem(floor, credential) }
+      : {}),
+  };
+}
+
+async function credentialItem(floor: OnboardFloor, credential: string) {
+  const stored = await floor.blobs.put(
+    new TextEncoder().encode(credential),
+    "text/plain",
+  );
+
+  return fileItem(stored.hash);
 }

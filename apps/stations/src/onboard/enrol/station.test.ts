@@ -68,4 +68,77 @@ describe("the onboard-enrol station", () => {
       error: "GitHub App not installed",
     });
   });
+
+  it("hands the carried onboarding credential to enrolment, and none when the run carries none", async () => {
+    const credentials: Array<string | undefined> = [];
+    const handle = enrolHandle({
+      enrol: (_target, credential) => {
+        credentials.push(credential);
+
+        return Promise.resolve({ committed: [], attention: "" });
+      },
+    });
+    const tools: Tools = {
+      ...TOOLS,
+      read: () => Promise.resolve(Buffer.from("person-token\n")),
+    };
+
+    await handle(
+      { ...BRIEF, needs: { ...BRIEF.needs, credential: "blob" } },
+      tools,
+    );
+    await handle(BRIEF, TOOLS);
+
+    expect(credentials).toEqual(["person-token", undefined]);
+  });
+
+  it("reports failed and enrols nothing when the carried credential cannot be read", async () => {
+    let enrolled = 0;
+    const handle = enrolHandle({
+      enrol: () => {
+        enrolled += 1;
+
+        return Promise.resolve({ committed: [], attention: "" });
+      },
+    });
+    const tools: Tools = {
+      ...TOOLS,
+      read: () => Promise.reject(new Error("blob store unavailable")),
+    };
+
+    const report = await handle(
+      { ...BRIEF, needs: { ...BRIEF.needs, credential: "blob" } },
+      tools,
+    );
+
+    expect({ outcome: report.outcome, enrolled }).toEqual({
+      outcome: "failed",
+      enrolled: 0,
+    });
+  });
+
+  it("reports failed and enrols nothing as the App when the run carries a blank credential", async () => {
+    let enrolled = 0;
+    const handle = enrolHandle({
+      enrol: () => {
+        enrolled += 1;
+
+        return Promise.resolve({ committed: [], attention: "" });
+      },
+    });
+    const tools: Tools = {
+      ...TOOLS,
+      read: () => Promise.resolve(Buffer.from("  \n")),
+    };
+
+    const report = await handle(
+      { ...BRIEF, needs: { ...BRIEF.needs, credential: "blob" } },
+      tools,
+    );
+
+    expect({ outcome: report.outcome, enrolled }).toEqual({
+      outcome: "failed",
+      enrolled: 0,
+    });
+  });
 });

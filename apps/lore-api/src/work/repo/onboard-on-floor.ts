@@ -28,6 +28,7 @@ export interface FloorOnboarding {
   repo: string;
   taskId: string;
   ticket: string;
+  credential?: string;
 }
 
 export async function startOnboardingOnFloor(

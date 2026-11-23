@@ -24,6 +24,10 @@ line:
       subject: true
     ticket:
       kind: file
+    # The person's token, when a person started the onboarding (FR-296).
+    credential:
+      kind: file
+      optional: true
   nodes:
     - id: enrol
       station: onboard-enrol
@@ -143,6 +147,11 @@ stations:
         access: read
       - name: task_id
         kind: value
+      # The token the person's request committed with (FR-296); absent when
+      # the onboarding was not started by a person, and the App commits.
+      - name: credential
+        kind: file
+        optional: true
     produces:
       # The "needs attention" section, empty when enrolment left no gap.
       - name: attention

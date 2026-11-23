@@ -30,6 +30,7 @@ import {
 import {
   floorStartFor,
   markRunningOnFloor,
+  type FloorOnboarding,
   type FloorStart,
 } from "./onboard-on-floor.js";
 import { ensuredWebhook } from "./ingest-access.js";
@@ -184,12 +185,25 @@ export async function onboardRepo(
   if ("blocked" in written) {
     return written;
   }
-  const { repoId, taskId, ticket } = written;
+  const { repoId, taskId } = written;
   const webhook = await ensuredWebhook(fullName, options.env);
 
-  await floorStart({ repo: fullName, taskId, ticket });
+  await floorStart(floorOnboardingOf(fullName, written, options.env));
 
   return onboarded({ repoId, taskId }, webhook);
+}
+
+function floorOnboardingOf(
+  repo: string,
+  written: { taskId: string; ticket: string },
+  env?: NodeJS.ProcessEnv,
+): FloorOnboarding {
+  return {
+    repo,
+    taskId: written.taskId,
+    ticket: written.ticket,
+    credential: env?.GITHUB_TOKEN,
+  };
 }
 
 function onboarded(
