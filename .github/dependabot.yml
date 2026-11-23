@@ -2,6 +2,10 @@
 # The web UI is not an npm workspace and has its own lockfile, so it is listed
 # separately from the root workspaces. Patch and minor updates arrive grouped
 # in one pull request per directory; majors arrive one by one.
+# The OpenTelemetry packages only build at matching versions, so they move
+# together in one pull request, majors included. A dependency goes to the first
+# group it matches, so that group comes first.
+# Lore runs on Node 22, so @types/node stays on its 22 line.
 # GitHub Actions are left out: several workflows are managed by Lore.
 version: 2
 updates:
@@ -11,6 +15,9 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       web-ui-minor-and-patch:
         update-types: [minor, patch]
@@ -20,6 +27,11 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
       workspaces-minor-and-patch:
         update-types: [minor, patch]
