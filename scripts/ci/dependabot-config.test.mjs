@@ -7,15 +7,22 @@ const config = parse(readFileSync(".github/dependabot.yml", "utf-8"));
 const updateFor = (directory) =>
   config.updates.find((update) => update.directory === directory);
 
-test("the root workspaces move every OpenTelemetry package together, majors included, before any other group", () => {
-  const [first, ...rest] = Object.entries(updateFor("/").groups);
+test("the root workspaces move every OpenTelemetry package together, majors included, in a group of its own", () => {
+  assert.deepEqual(updateFor("/").groups.opentelemetry, {
+    patterns: ["@opentelemetry/*"],
+  });
+});
 
-  assert.deepEqual(first, [
-    "opentelemetry",
-    { patterns: ["@opentelemetry/*"] },
-  ]);
-  assert.ok(
-    rest.every(([, group]) => !group.patterns?.includes("@opentelemetry/*")),
+test("the root workspaces move the team's own @re-cinq packages in a group of their own", () => {
+  assert.deepEqual(updateFor("/").groups["re-cinq"], {
+    patterns: ["@re-cinq/*"],
+  });
+});
+
+test("the root minor-and-patch group leaves out the OpenTelemetry and @re-cinq packages", () => {
+  assert.deepEqual(
+    updateFor("/").groups["workspaces-minor-and-patch"]["exclude-patterns"],
+    ["@opentelemetry/*", "@re-cinq/*"],
   );
 });
 

@@ -3,8 +3,9 @@
 # separately from the root workspaces. Patch and minor updates arrive grouped
 # in one pull request per directory; majors arrive one by one.
 # The OpenTelemetry packages only build at matching versions, so they move
-# together in one pull request, majors included. A dependency goes to the first
-# group it matches, so that group comes first.
+# together in one pull request, majors included. The team's own @re-cinq
+# packages, whose 0.x minors can break, move in a pull request of their own.
+# The minor-and-patch group excludes both, so neither lands there.
 # Lore runs on Node 22, so @types/node stays on its 22 line.
 # GitHub Actions are left out: several workflows are managed by Lore.
 version: 2
@@ -33,5 +34,8 @@ updates:
     groups:
       opentelemetry:
         patterns: ["@opentelemetry/*"]
+      re-cinq:
+        patterns: ["@re-cinq/*"]
       workspaces-minor-and-patch:
         update-types: [minor, patch]
+        exclude-patterns: ["@opentelemetry/*", "@re-cinq/*"]
