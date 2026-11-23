@@ -37,4 +37,18 @@ describe("the release announcement", () => {
       channelOf({ slack_channel_id: 7 }),
     ]).toEqual(["C123", null, null, null, null]);
   });
+
+  it("turns the heading, bold run, link and bullets of the notes into Slack mrkdwn", () => {
+    const [message] = announcementMessages({
+      name: "re-cinq/lore",
+      version: "v1.2.0",
+      url: null,
+      summary:
+        "### Release\n\nA **Changelog** tab, see [the docs](https://lore.example/docs).\n\n- one\n* two",
+    });
+
+    expect(message?.text).toBe(
+      "*re-cinq/lore* v1.2.0\n\n*Release*\n\nA *Changelog* tab, see <https://lore.example/docs|the docs>.\n\n• one\n• two",
+    );
+  });
 });

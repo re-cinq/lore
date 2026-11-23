@@ -29,5 +29,20 @@ export function announcementMessages({
 }: Announcement): SlackMessage[] {
   const link = url === null ? version : `<${url}|${version}>`;
 
-  return toSlackMessages(`*${name}* ${link}\n\n${summary.trim()}`);
+  return toSlackMessages(`*${name}* ${link}\n\n${slackMrkdwn(summary.trim())}`);
+}
+
+const MARKDOWN_TO_MRKDWN: [RegExp, string][] = [
+  [/^[ \t]*[-*][ \t]+/gm, "• "],
+  [/^#{1,6}[ \t]+(.+?)[ \t]*#*$/gm, "*$1*"],
+  [/\*\*(.+?)\*\*/g, "*$1*"],
+  [/\[([^\]]+)\]\(([^)\s]+)\)/g, "<$2|$1>"],
+];
+
+/** The release notes are Markdown for the GitHub release; Slack reads its own mrkdwn, with no headings, single-star bold and <url|text> links. */
+function slackMrkdwn(markdown: string): string {
+  return MARKDOWN_TO_MRKDWN.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    markdown,
+  );
 }
