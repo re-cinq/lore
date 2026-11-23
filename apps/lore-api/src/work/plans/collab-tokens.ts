@@ -28,7 +28,7 @@ const INSERT_TOKEN = `INSERT INTO ${TABLE} (${COLUMNS.tokenHash}, ${COLUMNS.plan
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`;
 const SWEEP_EXPIRED = `DELETE FROM ${TABLE} WHERE ${COLUMNS.expiresAt} < now()`;
 const SELECT_PRINCIPAL = `SELECT t.${COLUMNS.userId} AS id, t.${COLUMNS.userName} AS name,
-  t.${COLUMNS.role} AS role FROM ${TABLE} t
+  t.${COLUMNS.role} AS role, t.${COLUMNS.sessionId} AS "sessionId" FROM ${TABLE} t
   WHERE t.${COLUMNS.tokenHash} = $1 AND t.${COLUMNS.planId}::text = $2
     AND t.${COLUMNS.repo} = $3 AND t.${COLUMNS.expiresAt} > now()
     AND (t.${COLUMNS.sessionId} IS NULL OR EXISTS (
@@ -36,18 +36,21 @@ const SELECT_PRINCIPAL = `SELECT t.${COLUMNS.userId} AS id, t.${COLUMNS.userName
       WHERE s.id::text = t.${COLUMNS.sessionId} AND s.revoked_at IS NULL
         AND (s.expires_at IS NULL OR s.expires_at > now())))`;
 
+/** The session each token this replica minted was minted for, until it expires: what a connection opened with it is closed by when that session ends (FR-304). */
+const mintedFor = new Map<string, { sessionId: string; expiresAt: Date }>();
+
 const hashOf = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 
 /** A fresh opaque token for one plan and one person; only its sha256 is stored, and expired ones are swept as new ones are minted. */
 export async function mintCollabToken(
   db: Db,
-  grant: CollabGrant,
+  { planId, repo, user, role, sessionId }: CollabGrant,
   expiresAt = new Date(Date.now() + COLLAB_TOKEN_TTL_MS),
 ): Promise<string> {
   const token = randomBytes(32).toString("base64url");
-  const { planId, repo, user, role, sessionId } = grant;
 
+  rememberSession(hashOf(token), sessionId, expiresAt);
   await db().query(SWEEP_EXPIRED);
   await db().query(INSERT_TOKEN, [
     hashOf(token),
@@ -63,6 +66,22 @@ export async function mintCollabToken(
   return token;
 }
 
+function rememberSession(
+  hash: string,
+  sessionId: string | null | undefined,
+  expiresAt: Date,
+): void {
+  for (const [key, entry] of mintedFor) {
+    if (entry.expiresAt.getTime() < Date.now()) {
+      mintedFor.delete(key);
+    }
+  }
+
+  if (sessionId) {
+    mintedFor.set(hash, { sessionId, expiresAt });
+  }
+}
+
 /** The CollabAuthenticator planning-sync asks: a live token minted for exactly this plan of this repo, or nobody. */
 export function collabAuthenticator(db: Db): CollabAuthenticator {
   return {
@@ -73,7 +92,16 @@ export function collabAuthenticator(db: Db): CollabAuthenticator {
         repo,
       ]);
 
-      return rows[0] ?? null;
+      return rows.length === 0 ? null : withSession(rows[0], hashOf(token));
     },
   };
+}
+
+function withSession(principal: Principal, hash: string): Principal {
+  const { sessionId: stored, ...rest } = principal as Principal & {
+    sessionId?: string | null;
+  };
+  const sessionId = stored ?? mintedFor.get(hash)?.sessionId;
+
+  return (sessionId ? { ...rest, sessionId } : rest) as Principal;
 }

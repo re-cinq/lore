@@ -25,13 +25,13 @@ describe("lockPerson", () => {
   });
 });
 
-function transactionalPool(generationRows: Array<{ generation: number }> = []) {
+function transactionalPool(revokedRows: Array<{ id: string }> = []) {
   const statements: Array<{ sql: string; params: unknown[] }> = [];
   const client = {
     query: vi.fn(async (sql: string, params: unknown[] = []) => {
       statements.push({ sql: sql.trim(), params });
 
-      return { rows: sql.includes("SELECT generation") ? generationRows : [] };
+      return { rows: sql.includes("RETURNING id") ? revokedRows : [] };
     }),
     release: vi.fn(),
   };
@@ -85,6 +85,16 @@ describe("revokePersonAccess", () => {
       },
       { sql: "COMMIT", params: [] },
     ]);
+  });
+
+  it("answers the count of sessions and tokens it ended, including 0 when none were open", async () => {
+    const empty = transactionalPool();
+    const two = transactionalPool([{ id: "row-1" }, { id: "row-2" }]);
+
+    expect({
+      none: await revokePersonAccess(empty.pool, 4242),
+      two: await revokePersonAccess(two.pool, 4242),
+    }).toEqual({ none: 0, two: 2 });
   });
 });
 

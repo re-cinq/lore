@@ -31,11 +31,11 @@ export async function generationOf(
   return rows[0]?.generation ?? 0;
 }
 
-/** Ends every session of the person and revokes every token they minted, and adds one to their generation, all under the person's lock; each ended row is announced once it committed (FR-390, FR-394, FR-279). */
+/** Ends every session of the person and revokes every token they minted, and adds one to their generation, all under the person's lock; each ended row is announced once it committed, and the count of them is answered (FR-390, FR-394, FR-279). */
 export async function revokePersonAccess(
   db: PgPool,
   githubId: number,
-): Promise<void> {
+): Promise<number> {
   const ended = await runInTransaction(db, async (tx) => {
     await lockPerson(tx, githubId);
 
@@ -45,6 +45,8 @@ export async function revokePersonAccess(
   for (const { id } of ended) {
     announceSessionEnded(String(id));
   }
+
+  return ended.length;
 }
 
 /** Adds one to the person's generation and revokes their tokens, answering the ids of the rows it revoked. */

@@ -133,4 +133,41 @@ describe("plan collab tokens", () => {
       ]);
     }
   });
+
+  it("carries the minting session on the authenticated principal when the session is active", async () => {
+    const activeSession = "00000000-0000-0000-0000-0000000000a1";
+
+    await pool.query(
+      `INSERT INTO pipeline.api_tokens (id, name, token_hash, created_by, kind)
+       VALUES ($1, 'active-session', 'plan-collab-active-session', 'ana', 'user')
+       ON CONFLICT (id) DO UPDATE SET expires_at = NULL, revoked_at = NULL`,
+      [activeSession],
+    );
+
+    try {
+      const token = await mintCollabToken(() => pool, {
+        planId,
+        repo: REPO,
+        user: ANA,
+        role: "write",
+        sessionId: activeSession,
+      });
+
+      expect(
+        await collabAuthenticator(() => pool).authenticate(token, {
+          repo: REPO,
+          planId,
+        }),
+      ).toEqual({
+        id: "ana",
+        name: "Ana",
+        role: "write",
+        sessionId: activeSession,
+      });
+    } finally {
+      await pool.query("DELETE FROM pipeline.api_tokens WHERE id = $1", [
+        activeSession,
+      ]);
+    }
+  });
 });

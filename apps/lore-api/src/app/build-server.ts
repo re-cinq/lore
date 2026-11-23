@@ -2,6 +2,7 @@ import "@re-cinq/lore-shared/http/hapi-params.js";
 /** Lore-api HTTP server construction (hapi, ADR-033); shared by production and tests via buildServer. */
 
 import type { Pool } from "pg";
+import { collabLivenessExtension } from "../work/plans/collab-liveness.js";
 import { routeList } from "../transport/route-list.js";
 import type { PlanVerbSeams } from "../transport/routes/plans/plan-verbs-for.js";
 import Hapi from "@hapi/hapi";
@@ -36,7 +37,12 @@ import {
   registerPlanning,
   type RegisteredPlanning,
 } from "./register-planning.js";
+import {
+  closeCollabSession,
+  type CollabConnections,
+} from "../work/plans/collab-sessions.js";
 import { onSessionEnded } from "../work/auth/session-ended.js";
+import { listenForSessionEnds } from "../work/auth/session-ended-listener.js";
 import {
   mountLiveSocket,
   type LiveSocketLimits,
@@ -172,18 +178,45 @@ function registerLiveSocket(
     limits: LIVE_SOCKET_LIMITS,
   });
 
-  closeOnSessionEnd(server, liveSocket);
+  closeOnSessionEnd(server, liveSocket, collab);
+  checkCollabSessions(getPool, collab);
+}
+
+/** FR-305: an open plan collaboration connection asks again whether its session is open at the first frame after five minutes. */
+function checkCollabSessions(
+  getPool: () => Pool | null,
+  collab: RegisteredPlanning["collab"],
+): void {
+  const extension = collabLivenessExtension(async (sessionId) => {
+    const { rows } = await poolOf(getPool).query(
+      `SELECT 1 FROM pipeline.api_tokens WHERE id::text = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
+      [sessionId],
+    );
+
+    return rows.length > 0;
+  });
+  const { configuration } = collab as unknown as {
+    configuration: { extensions: unknown[] };
+  };
+
+  configuration.extensions.push(extension);
 }
 
 /** FR-279: a session that ends closes the live sockets opened with it. */
 function closeOnSessionEnd(
   server: Hapi.Server,
   liveSocket: ReturnType<typeof mountLiveSocket>,
+  collab: RegisteredPlanning["collab"],
 ): void {
-  const unsubscribe = onSessionEnded((id) => liveSocket.closeSession(id));
+  const unsubscribe = onSessionEnded((id) => {
+    liveSocket.closeSession(id);
+    closeCollabSession(collab as unknown as CollabConnections, id);
+  });
+  const stopListening = listenForSessionEnds();
 
   server.ext("onPreStop", () => {
     unsubscribe();
+    stopListening();
     liveSocket.close();
   });
 }
