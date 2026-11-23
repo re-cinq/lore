@@ -29,16 +29,28 @@ test("the root minor-and-patch group leaves out the OpenTelemetry and @re-cinq p
 test("both directories keep @types/node on the Node major Lore runs on", () => {
   for (const directory of ["/", "/apps/web-ui"]) {
     assert.deepEqual(
-      updateFor(directory).ignore,
-      [
-        {
-          "dependency-name": "@types/node",
-          "update-types": ["version-update:semver-major"],
-        },
-      ],
+      updateFor(directory).ignore[0],
+      {
+        "dependency-name": "@types/node",
+        "update-types": ["version-update:semver-major"],
+      },
       directory,
     );
   }
+});
+
+test("the root workspaces hold web-tree-sitter, whose newer releases cannot load the tree-sitter-wasms grammars", () => {
+  assert.deepEqual(updateFor("/").ignore.slice(1), [
+    { "dependency-name": "web-tree-sitter" },
+  ]);
+  assert.match(
+    readFileSync("libs/shared/package.json", "utf-8"),
+    /"web-tree-sitter": "\^0\.24\.\d+"/,
+  );
+});
+
+test("the web UI ignores nothing but the @types/node majors", () => {
+  assert.equal(updateFor("/apps/web-ui").ignore.length, 1);
 });
 
 test("Lore runs on Node 22, the line @types/node is held to", () => {

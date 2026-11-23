@@ -7,6 +7,9 @@
 # packages, whose 0.x minors can break, move in a pull request of their own.
 # The minor-and-patch group excludes both, so neither lands there.
 # Lore runs on Node 22, so @types/node stays on its 22 line.
+# web-tree-sitter is held at 0.24: from 0.25 on it cannot load the grammars of
+# tree-sitter-wasms 0.1.x, the newest there is, and the chunker and spec-trace
+# would quietly fall back. It moves once the grammars come from elsewhere.
 # GitHub Actions are left out: several workflows are managed by Lore.
 version: 2
 updates:
@@ -31,6 +34,7 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
+      - dependency-name: web-tree-sitter
     groups:
       opentelemetry:
         patterns: ["@opentelemetry/*"]
