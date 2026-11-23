@@ -113,7 +113,14 @@ interface HeldApp {
 
 /** The principal an authenticated request carries; read it only in a route guarded by `bearerScope`. */
 export function principalOf(request: Request): Principal {
-  const { scope, user, app } = request.auth.credentials;
+  return principalOfCredentials(request.auth.credentials);
+}
+
+/** The principal behind this strategy's credentials, as a route carries them or as `server.auth.test` answers them. */
+export function principalOfCredentials(
+  credentials: Request["auth"]["credentials"],
+): Principal {
+  const { scope, user, app } = credentials;
   const held = (app ?? { tokenHash: null }) as HeldApp;
 
   return {

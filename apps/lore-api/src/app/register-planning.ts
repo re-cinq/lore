@@ -1,4 +1,4 @@
-import type { Lifecycle, Server } from "@hapi/hapi";
+import type { Server } from "@hapi/hapi";
 import type { Pool } from "pg";
 import {
   registerPlanningSync,
@@ -41,9 +41,10 @@ import {
 } from "@re-cinq/lore-shared/floor/floor-client.js";
 import { planAgentPresenceOn } from "../work/plans/plan-agent-presence-floor.js";
 import type { PresenceWriter } from "../work/plans/plan-agent-presence.js";
-import type { TokenScope } from "../transport/http/auth.js";
+import { planRouteGuard } from "../transport/http/plan-route-guard.js";
+import { planRepoOf } from "../work/plans/plan-repo.js";
 
-export const PLANS_PREFIX = "/api/plans";
+export { PLANS_PREFIX } from "../transport/http/plan-route-guard.js";
 
 /** What the plans registration hands the rest of the server: the collaboration server the live socket tunnels to (ADR-048) and what the plan routes need to run their verbs. */
 export interface RegisteredPlanning {
@@ -88,7 +89,11 @@ function routePlans(
     planFileRoutes(filePorts(livePlanOf(sync), sync, pool, stories)),
   );
   server.route(planStoryRoutes(stories));
-  server.ext("onPreHandler", planRouteGuard(server));
+  // The library's routes carry no hapi auth of their own, so every /api/plans call is held to lore's bearer tokens here. The socket is an upgrade, not a route, and answers to its collab token instead.
+  server.ext(
+    "onPreHandler",
+    planRouteGuard(server, (planId) => planRepoOf(pool(), planId)),
+  );
 }
 
 // The agent is shown on its plan from the floor's own runs, so a deployment with no floor shows it nowhere.
@@ -152,27 +157,6 @@ async function startSpecWork(
     meta.approval?.approvedBy ?? meta.createdBy,
   );
 }
-
-// The library's routes carry no hapi auth of their own, so every /api/plans call is held to lore's bearer tokens here: any valid token reads, a write needs the `write` scope. The socket is an upgrade, not a route, and answers to its collab token instead.
-const planRouteGuard =
-  (server: Server): Lifecycle.Method =>
-  async (request, h) => {
-    if (!request.path.startsWith(PLANS_PREFIX)) {
-      return h.continue;
-    }
-    const { credentials } = await server.auth.test("bearer-scope", request);
-    const scopes = credentials.scope as TokenScope[];
-
-    enforceTrue(
-      request.method === "get" ||
-        scopes.includes("write") ||
-        scopes.includes("admin"),
-      apiError(403),
-      "insufficient scope",
-    );
-
-    return h.continue;
-  };
 
 function filePorts(
   livePlan: PlanFilePorts["livePlan"],
