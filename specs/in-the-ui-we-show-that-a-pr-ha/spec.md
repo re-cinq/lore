@@ -4,7 +4,7 @@
 |-------------------|--------------------------------------------|
 | Feature           | PR State Visibility                        |
 | Branch            | feat/pr-state-visibility                   |
-| Status            | In Progress                                |
+| Status            | Draft                                      |
 | Created           | 2026-03-26                                 |
 | Updated           | 2026-04-01                                 |
 | Owner             | Platform Engineering                       |
@@ -128,11 +128,11 @@ show a small status indicator next to the PR link (fetched client-side).
 
 ## Acceptance Criteria
 
-1. The run list shows a live PR status badge when a PR exists ([validated by `github.test.ts@a3d87739`](apps/web-ui/src/lib/github.test.ts#L108))
+1. The run list shows a live PR status badge when a PR exists
 
-2. Check results (pass/fail) visible without going to GitHub ([validated by `github.test.ts@4585fb9d`](apps/web-ui/src/lib/github.test.ts#L51))
+2. Check results (pass/fail) visible without going to GitHub
 
-3. Review status (who approved, who requested changes) visible ([validated by `github.test.ts@fa751062`](apps/web-ui/src/lib/github.test.ts#L63))
+3. Review status (who approved, who requested changes) visible
 
 4. MCP tool `lore_get_pr_status` returns structured PR state
 5. _(Removed 2026-10-05 with the task page and its PR status card: the run list keeps the badge.)_

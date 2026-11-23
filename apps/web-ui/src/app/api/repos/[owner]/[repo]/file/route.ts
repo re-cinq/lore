@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getRepoFileContent } from "@/lib/github";
+import { readRepoFile } from "@/lib/repo-file";
 import { serverError } from "@/lib/api-error";
 
 const MAX_LINES = 60;
@@ -46,7 +46,7 @@ async function fileSlice(
   start: number,
   end: number,
 ) {
-  const content = await getRepoFileContent(fullName, path);
+  const content = await readRepoFile(fullName, path);
 
   if (content === null) {
     return NextResponse.json({ error: "file unavailable" }, { status: 404 });

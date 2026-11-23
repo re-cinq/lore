@@ -11,9 +11,10 @@ import { orgSettingsRoutes } from "./routes/repos/org-settings.js";
 import { repoSettingsRoute } from "./routes/repos/repo-settings.js";
 import { utopiaRoutes } from "./routes/repos/utopia/routes.js";
 import { prStatusRoute } from "./routes/repos/pr-status.js";
+import { pullFilesRoute } from "./routes/repos/pull-files.js";
+import { githubReadRoutes } from "./routes/repos/github-file.js";
 import { ciFailuresRoute } from "./routes/repos/ci-failures.js";
 import { ciJobLogRoute } from "./routes/repos/ci-job-log.js";
-import { pullFilesRoute } from "./routes/repos/pull-files.js";
 import { issueRoute } from "./routes/repos/issue.js";
 import { ticketSearchRoute } from "./routes/tickets/ticket-search.js";
 import { autoMergeKpisRoute } from "./routes/repos/auto-merge-kpis.js";
@@ -169,15 +170,23 @@ function repoRoutes(getPool: PoolGetter): ServerRoute[] {
     repoSettingsRoute(getPool),
     ...utopiaRoutes(getPool),
     prStatusRoute(getPool),
-    pullFilesRoute(),
-    ciFailuresRoute(),
-    ciJobLogRoute(),
+    ...githubRoutes(),
     issueRoute(),
     autoMergeKpisRoute(getPool),
     triageRoute(),
     onboardRoute(getPool),
     ...blockedReasonsRoutes(getPool),
     ...contextAndGraphRoutes(getPool),
+  ];
+}
+
+/** What a repo's pull requests, files and CI say on GitHub. */
+function githubRoutes(): ServerRoute[] {
+  return [
+    pullFilesRoute(),
+    ...githubReadRoutes(),
+    ciFailuresRoute(),
+    ciJobLogRoute(),
   ];
 }
 

@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 import { listRepos, reposOrThrow } from "@/lib/api/repos";
-import { getRepoFileContent, isGitHubConfigured } from "@/lib/github";
+import { getRepoFileContent } from "@/lib/github";
 import {
   LORE_INGEST_WORKFLOW_PATH,
   ingestWorkflowStatus,
-  type IngestWorkflowStatus,
 } from "@/lib/ingest-workflow";
 import {
   TRACE_IMPACT_WORKFLOW_PATH,
@@ -49,11 +48,8 @@ export default async function HomePage(props: HomePageProps) {
   );
 }
 
-/** Both workflow checks, or empty maps. Skipped entirely when the GitHub App is unconfigured — that path made zero GitHub calls (#1027). */
+/** Both workflow checks, read through lore-api. */
 async function readWorkflowStatuses(repos: Repo[]) {
-  if (!isGitHubConfigured()) {
-    return noWorkflowStatuses();
-  }
   const names = repos.map((r) => r.full_name);
   const [ingestStatus, impactStatus] = await Promise.all([
     getIngestStatuses(names, (repo) =>
@@ -69,12 +65,4 @@ async function readWorkflowStatuses(repos: Repo[]) {
   ]);
 
   return { ingestStatus, impactStatus };
-}
-
-/** What an unconfigured GitHub App answers with: empty maps, which read downstream as "nothing to fix" rather than as an error. */
-function noWorkflowStatuses() {
-  return {
-    ingestStatus: new Map<string, IngestWorkflowStatus>(),
-    impactStatus: new Map<string, IngestWorkflowStatus>(),
-  };
 }

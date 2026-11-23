@@ -90,12 +90,6 @@ dbPasswordSecret:
   name: lore-db-password
   key: password
 
-githubAppSecret:
-  name: github-app-credentials
-  appIdKey: app-id
-  privateKeyKey: private-key
-  installationIdKey: installation-id
-
 # The UI holds no service token and no OAuth secret: a person signs in through
 # lore-api, which keeps the GitHub OAuth app (ADR-053), and the UI sends that
 # person's session token with every call.

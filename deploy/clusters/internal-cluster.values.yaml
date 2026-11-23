@@ -145,9 +145,6 @@ platform:
       namespace: lore-api
       keys: {token: lore-utopia-lore-api-token}
     # lore-ui
-    - name: github-app-credentials
-      namespace: lore-ui
-      keys: {app-id: lore-github-app-id, private-key: lore-github-app-private-key, installation-id: lore-github-app-installation-id}
     - name: lore-db-password
       namespace: lore-ui
       keys: {password: lore-db-password}

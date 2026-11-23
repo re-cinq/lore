@@ -1,8 +1,7 @@
-/** GitHub API client for web-ui (GitHub App auth, PR state visibility). */
+/** GitHub reads for the web UI, made through lore-api as the signed-in person (FR-037, FR-141, FR-230, FR-232, FR-234): this workload holds no GitHub credential. */
 
-import { split, octokit, isGitHubConfigured } from "./github-client";
-
-export { split, octokit, isGitHubConfigured } from "./github-client";
+import { apiFetch } from "./api/client";
+import { readRepoFile } from "./repo-file";
 
 export type PRStatus =
   | "draft"
@@ -26,85 +25,7 @@ export interface PRDetails {
   computed_status: PRStatus;
 }
 
-type CheckSignal = { status?: string | null; conclusion: string | null };
-
-export function computeStatus(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<CheckSignal>,
-  reviews: Array<{ state: string }>,
-): PRStatus {
-  const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
-
-  return match ? match[1] : "open";
-}
-
-/** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
-function statusRules(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<CheckSignal>,
-  reviews: Array<{ state: string }>,
-): Array<[boolean, PRStatus]> {
-  return [
-    [pr.merged, "merged"],
-    [pr.state === "closed", "closed"],
-    [!!pr.draft, "draft"],
-    [hasFailingChecks(checks), "checks-failing"],
-    [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
-    [
-      reviews.some((r) => r.state === "APPROVED") &&
-        checks.some(isPendingCheck),
-      "open",
-    ],
-    [isApprovedAndPassing(reviews, checks), "approved"],
-  ];
-}
-
-function isPendingCheck(check: CheckSignal) {
-  return check.status === "queued" || check.status === "in_progress";
-}
-
-function hasFailingChecks(checks: Array<CheckSignal>) {
-  return checks.some(
-    (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
-  );
-}
-
-function isApprovedAndPassing(
-  reviews: Array<{ state: string }>,
-  checks: Array<CheckSignal>,
-) {
-  return (
-    reviews.some((r) => r.state === "APPROVED") &&
-    checks.every(
-      (c) =>
-        !isPendingCheck(c) &&
-        (c.conclusion === "success" ||
-          c.conclusion === "skipped" ||
-          c.conclusion === null),
-    )
-  );
-}
-
 export type RepoAccess = "ok" | "not-found" | "unknown";
-
-type RestApi = Awaited<ReturnType<typeof octokit>>["rest"];
-
-/** Probe: can App see this repo? Definitive 404 or unknown. */
-export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
-  if (!isGitHubConfigured()) {
-    return "unknown";
-  }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
-
-  try {
-    await repos.get({ owner, repo: name });
-
-    return "ok";
-  } catch (e) {
-    return (e as { status?: number }).status === 404 ? "not-found" : "unknown";
-  }
-}
 
 // GitHub's own repo-response shape (description/default_branch/html_url), not a Lore table row.
 // eslint-disable-next-line re-lint/no-row-types-outside-models
@@ -114,247 +35,91 @@ export interface RepoMeta {
   html_url: string;
 }
 
-interface FileAt {
-  owner: string;
-  name: string;
-  path: string;
-}
-
-/** Check if paths exist on repo's default branch; fail-soft. */
-export async function checkRepoFiles(
-  repo: string,
-  paths: string[],
-): Promise<Record<string, boolean | null>> {
-  if (!isGitHubConfigured()) {
-    return allUnknown(paths);
-  }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
-  const result: Record<string, boolean | null> = {};
-
-  await Promise.all(
-    paths.map(async (path) => {
-      result[path] = await fileExists(repos, { owner, name, path });
-    }),
-  );
-
-  return result;
-}
-
-function allUnknown(paths: string[]): Record<string, boolean | null> {
-  const result: Record<string, boolean | null> = {};
-
-  for (const p of paths) {
-    result[p] = null;
-  }
-
-  return result;
-}
-
-/** true, false on a definitive 404, null when GitHub answered anything else. */
-async function fileExists(
-  repos: RestApi["repos"],
-  at: FileAt,
-): Promise<boolean | null> {
-  try {
-    await repos.getContent({ owner: at.owner, repo: at.name, path: at.path });
-
-    return true;
-  } catch (e) {
-    return (e as { status?: number }).status === 404 ? false : null;
-  }
-}
-
-/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
-export async function getRepoFileContent(
-  repo: string,
-  path: string,
-): Promise<string | null> {
-  if (!isGitHubConfigured()) {
-    return null;
-  }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
-
-  try {
-    return await decodedContent(repos, { owner, name, path });
-  } catch (e) {
-    return nullOnNotFound(e);
-  }
-}
-
-/** Decoded UTF-8 body, or null when the path is a directory or a non-string blob. */
-async function decodedContent(
-  repos: RestApi["repos"],
-  at: FileAt,
-): Promise<string | null> {
-  const { data: content } = await repos.getContent({
-    owner: at.owner,
-    repo: at.name,
-    path: at.path,
-  });
-
-  if (!isFileWithStringContent(content)) {
-    return null;
-  }
-
-  return Buffer.from(content.content, "base64").toString("utf-8");
-}
-
-function isFileWithStringContent(
-  content: unknown,
-): content is { content: string } {
-  if (Array.isArray(content)) {
-    return false;
-  }
-  const c = content as { type?: string; content?: unknown };
-
-  return c.type === "file" && typeof c.content === "string";
-}
-
-function nullOnNotFound(e: unknown): null {
-  if ((e as { status?: number }).status === 404) {
-    return null;
-  }
-  throw e;
-}
-
-export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
-  if (!isGitHubConfigured()) {
-    return null;
-  }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
-  const { data: repository } = await repos.get({ owner, repo: name });
-
-  return {
-    description: repository.description ?? null,
-    default_branch: repository.default_branch,
-    html_url: repository.html_url,
-  };
-}
-
 export interface RepoReadme {
   markdown: string;
   rawBaseUrl: string;
   htmlUrl: string;
 }
 
-export async function getReadme(repo: string): Promise<RepoReadme | null> {
-  if (!isGitHubConfigured()) {
-    return null;
-  }
-  const { repos } = (await octokit()).rest;
-  const [owner, name] = split(repo);
+/** Probe: can the signed-in person see this repo? Definitive 404 or unknown. */
+export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
+  const result = await apiFetch<RepoMeta>(
+    "lore-api",
+    `/api/repos/${repo}/github/details`,
+  );
 
-  try {
-    const { data: readme } = await repos.getReadme({
-      owner,
-      repo: name,
-    });
-    const markdown = Buffer.from(readme.content, "base64").toString("utf-8");
-    const rawBaseUrl = (readme.download_url ?? "").replace(/[^/]+$/, "");
-
-    return { markdown, rawBaseUrl, htmlUrl: readme.html_url ?? "" };
-  } catch {
-    return null;
+  if (result.status === "ok") {
+    return "ok";
   }
+
+  return result.status === "error" && result.code === 404
+    ? "not-found"
+    : "unknown";
 }
 
-interface PrAt {
-  owner: string;
-  repoName: string;
-  prNumber: number;
-  headSha: string;
+/** Whether each path exists on the repo's default branch: false on a definitive 404, null when the read failed otherwise. */
+export async function checkRepoFiles(
+  repo: string,
+  paths: string[],
+): Promise<Record<string, boolean | null>> {
+  const entries = await Promise.all(
+    paths.map(async (path) => [path, await fileExists(repo, path)] as const),
+  );
+
+  return Object.fromEntries(entries);
+}
+
+async function fileExists(repo: string, path: string): Promise<boolean | null> {
+  const result = await apiFetch<{ content: string }>(
+    "lore-api",
+    `/api/repos/${repo}/github/file?path=${encodeURIComponent(path)}`,
+  );
+
+  if (result.status === "ok") {
+    return true;
+  }
+
+  return result.status === "error" && result.code === 404 ? false : null;
+}
+
+/** Decoded UTF-8 file content from the repo's default branch; null when it cannot be read. */
+export function getRepoFileContent(
+  repo: string,
+  path: string,
+): Promise<string | null> {
+  return readRepoFile(repo, path);
+}
+
+export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
+  const result = await apiFetch<RepoMeta>(
+    "lore-api",
+    `/api/repos/${repo}/github/details`,
+  );
+
+  return result.status === "ok" ? result.data : null;
+}
+
+export async function getReadme(repo: string): Promise<RepoReadme | null> {
+  const result = await apiFetch<RepoReadme>(
+    "lore-api",
+    `/api/repos/${repo}/github/readme`,
+  );
+
+  return result.status === "ok" ? result.data : null;
 }
 
 export async function getPRDetails(
   repo: string,
   prNumber: number,
 ): Promise<PRDetails> {
-  const rest = (await octokit()).rest;
-  const [owner, repoName] = split(repo);
-  const pr = await fetchPr(rest.pulls, { owner, repoName, prNumber });
-  const signals = await prSignals(rest, {
-    owner,
-    repoName,
-    prNumber,
-    headSha: pr.head.sha,
-  });
+  const result = await apiFetch<PRDetails>(
+    "lore-api",
+    `/api/repos/${repo}/github/pulls/${prNumber}`,
+  );
 
-  return toPrDetails(pr, signals);
-}
+  if (result.status !== "ok") {
+    throw new Error(`pull request ${repo}#${prNumber} could not be read`);
+  }
 
-async function fetchPr(
-  pulls: RestApi["pulls"],
-  at: { owner: string; repoName: string; prNumber: number },
-) {
-  const { data: pr } = await pulls.get({
-    owner: at.owner,
-    repo: at.repoName,
-    pull_number: at.prNumber,
-  });
-
-  return pr;
-}
-
-/** Checks and reviews for a PR, fetched together. */
-async function prSignals(api: Pick<RestApi, "checks" | "pulls">, at: PrAt) {
-  const [checks, reviews] = await Promise.all([
-    fetchChecks(api.checks, at),
-    fetchReviews(api.pulls, at),
-  ]);
-
-  return { checks, reviews };
-}
-
-type PrPayload = Awaited<ReturnType<typeof fetchPr>>;
-type PrSignals = Awaited<ReturnType<typeof prSignals>>;
-
-function toPrDetails(pr: PrPayload, signals: PrSignals): PRDetails {
-  const { checks, reviews } = signals;
-
-  return {
-    number: pr.number,
-    title: pr.title,
-    state: pr.state,
-    draft: pr.draft ?? false,
-    merged: pr.merged,
-    mergeable: pr.mergeable ?? null,
-    html_url: pr.html_url,
-    checks,
-    reviews,
-    computed_status: computeStatus(pr, checks, reviews),
-  };
-}
-
-/** Degrades to an empty list rather than failing the read: a card that renders without its check list beats one that does not render at all. */
-async function fetchChecks(checks: RestApi["checks"], at: PrAt) {
-  const result = await checks
-    .listForRef({ owner: at.owner, repo: at.repoName, ref: at.headSha })
-    .catch(() => ({ data: { check_runs: [] } }));
-  const { check_runs: checkRuns } = result.data;
-
-  return checkRuns.map((c) => ({
-    name: c.name,
-    status: c.status,
-    conclusion: c.conclusion ?? null,
-  }));
-}
-
-/** Degrades to an empty list for the same reason `fetchChecks` does. */
-async function fetchReviews(pulls: RestApi["pulls"], at: PrAt) {
-  const result = await pulls
-    .listReviews({
-      owner: at.owner,
-      repo: at.repoName,
-      pull_number: at.prNumber,
-    })
-    .catch(() => ({ data: [] }));
-
-  return result.data.map((r) => ({
-    user: r.user?.login || "unknown",
-    state: r.state,
-    submitted_at: r.submitted_at || "",
-  }));
+  return result.data;
 }
