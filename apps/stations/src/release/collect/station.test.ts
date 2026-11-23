@@ -36,6 +36,7 @@ function scene(over: Partial<ReleaseCollectDeps> = {}) {
   };
   const deps: ReleaseCollectDeps = {
     head: () => Promise.resolve(HEAD),
+    mirror: () => Promise.resolve(null),
     tags: () => Promise.resolve([{ name: "v1.2.0", sha: TAGGED.sha }]),
     commit: () => Promise.resolve(TAGGED),
     closedWork: (repo, bounds) => {
@@ -165,6 +166,25 @@ describe("the release-collect station", () => {
     expect(await handle(brief({}), tools)).toEqual({
       outcome: "failed",
       error: NOT_A_RELEASE,
+    });
+  });
+
+  it("counts from the mirror's v1.1.1 when the repo itself holds only v0.1.0", async () => {
+    const tagsOf: Record<string, { name: string; sha: string }[]> = {
+      "re-cinq/lore": [{ name: "v0.1.0", sha: "ccc333" }],
+      "re-cinq/lore-public": [{ name: "v1.1.1", sha: TAGGED.sha }],
+    };
+    const { handle, tools } = scene({
+      mirror: () => Promise.resolve("re-cinq/lore-public"),
+      tags: (repo) => Promise.resolve(tagsOf[repo] ?? []),
+    });
+
+    expect(await handle(brief(NEEDS), tools)).toMatchObject({
+      outcome: "success",
+      produced: {
+        previous_tag: "v1.1.1",
+        range_from: "2026-11-02T08:00:00.000Z",
+      },
     });
   });
 });

@@ -5,6 +5,7 @@ import { SlackPosterHttp } from "@re-cinq/lore-shared/project/notify/slack-poste
 import { GitMirrorPush } from "@re-cinq/lore-shared/project/workspace/mirror-push-git.js";
 import type { ChangelogReleasesPort } from "@re-cinq/lore-shared/project/changelog-releases/changelog-releases-port.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { mirrorOf } from "@re-cinq/lore-shared/release/mirror-sync.js";
 import { syncMirror } from "../outbound/mirror-sync.js";
 import { closedWorkSince } from "../outbound/closed-work.js";
 import type { CommitAt, ReleaseCollectDeps } from "./collect/station.js";
@@ -24,6 +25,7 @@ export function collectDeps(): ReleaseCollectDeps {
 
   return {
     head: async (repo) => commitAt(repo, await github.getDefaultBranch(repo)),
+    mirror: async (repo) => mirrorOf(await settings().rawSettings(repo)),
     tags: (repo) => github.listTags(repo),
     commit: commitAt,
     closedWork: closedWorkSince,

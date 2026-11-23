@@ -25,6 +25,8 @@ export interface CommitAt {
 
 export interface ReleaseCollectDeps {
   head(repo: string): Promise<CommitAt>;
+  /** The public mirror the repository publishes to, whose tags hold the releases made before it did; null when it names none. */
+  mirror(repo: string): Promise<string | null>;
   tags(repo: string): Promise<TagEntry[]>;
   commit(repo: string, sha: string): Promise<CommitAt>;
   closedWork(repo: string, bounds: { from: string }): Promise<ClosedWork>;
@@ -71,7 +73,7 @@ async function collectRelease(
   repo: string,
 ): Promise<CollectedRelease | null> {
   const head = await deps.head(repo);
-  const previous = previousRelease(await deps.tags(repo));
+  const previous = previousRelease(await releaseTags(deps, repo));
 
   if (previous?.sha === head.sha) {
     return null;
@@ -85,6 +87,17 @@ async function collectRelease(
   return changes.length === 0
     ? null
     : { release: { sha: head.sha, ...range }, changes };
+}
+
+async function releaseTags(
+  deps: ReleaseCollectDeps,
+  repo: string,
+): Promise<TagEntry[]> {
+  const mirror = await deps.mirror(repo);
+  const owners = mirror === null ? [repo] : [repo, mirror];
+  const tags = await Promise.all(owners.map((owner) => deps.tags(owner)));
+
+  return tags.flat();
 }
 
 async function rangeOf(
