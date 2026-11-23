@@ -1,0 +1,25 @@
+# Weekly dependency update pull requests for the two npm lockfiles.
+# The web UI is not an npm workspace and has its own lockfile, so it is listed
+# separately from the root workspaces. Patch and minor updates arrive grouped
+# in one pull request per directory; majors arrive one by one.
+# GitHub Actions are left out: several workflows are managed by Lore.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /apps/web-ui
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      web-ui-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      workspaces-minor-and-patch:
+        update-types: [minor, patch]
