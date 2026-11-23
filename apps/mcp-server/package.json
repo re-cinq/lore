@@ -18,7 +18,7 @@
     "@re-cinq/lore-shared": "*",
     "@re-cinq/lore-server-core": "*",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "glob": "^13.0.6",
+    "glob": "^14.0.6",
     "yaml": "^2.7.0",
     "zod": "^4.5.4"
   },
