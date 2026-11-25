@@ -135,9 +135,9 @@ secrets:
 
 # ---- The floor, with the agent subsystem it bundles ---------------------------
 # Any value of the floor chart can be set here:
-#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.5.6
+#   helm show values oci://ghcr.io/re-cinq/charts/floor --version 0.8.0
 floor:
-  version: "0.5.6"
+  version: "0.8.0"
   # The agent subsystem: controller and CRDs. Agents run in the release namespace.
   subsystem:
     enabled: true
@@ -192,8 +192,8 @@ utopia:
     allowedDomains: ""
   image:
     repository: ghcr.io/re-cinq/utopia
-    tag: 0.1.0-re.37
-    digest: sha256:810aa58e56239e3a5d1d207d193be19901e6217acf8659726a184e9f9deaa13c
+    tag: 0.1.0-re.45
+    digest: sha256:330990f9d9c84bdbd294cdec2d1e4c5a4edc0feaf93565a862a94b4e1278b54c
   # This chart renders Utopia's Secrets from secrets.utopia above.
   secrets:
     external: false
