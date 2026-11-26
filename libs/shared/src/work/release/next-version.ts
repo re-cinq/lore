@@ -43,12 +43,12 @@ export function nextVersion(lastTag: string | null, bump: Bump): string {
   return `v${next[bump].join(".")}`;
 }
 
-function versionOf(tag: string): Version | null {
+export function versionOf(tag: string): Version | null {
   const match = VERSION_TAG.exec(tag);
 
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
 }
 
-function compareVersions(a: Version, b: Version): number {
+export function compareVersions(a: Version, b: Version): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }

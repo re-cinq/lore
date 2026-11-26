@@ -5088,6 +5088,54 @@
         ]
       }
     },
+    "/api/release": {
+      "get": {
+        "operationId": "get_api_release",
+        "summary": "GET /api/release",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The latest GitHub release of the public repository, and whether it is newer than the running version given as `running`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestRelease"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "running",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repo-status": {
       "get": {
         "operationId": "get_api_repo-status",
@@ -19680,6 +19728,25 @@
           }
         },
         "required": ["logs", "complete"],
+        "additionalProperties": false
+      },
+      "LatestRelease": {
+        "type": "object",
+        "properties": {
+          "latest": {
+            "type": ["string", "null"]
+          },
+          "url": {
+            "type": ["string", "null"]
+          },
+          "releasesUrl": {
+            "type": "string"
+          },
+          "updateAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": ["latest", "url", "releasesUrl", "updateAvailable"],
         "additionalProperties": false
       },
       "LiveClientMessage": {
