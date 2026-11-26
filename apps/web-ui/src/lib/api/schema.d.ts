@@ -1283,6 +1283,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/release */
+    get: operations["get_api_release"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repo-status": {
     parameters: {
       query?: never;
@@ -4639,6 +4656,12 @@ export interface components {
     JobRunLogs: {
       logs: string;
       complete: boolean;
+    };
+    LatestRelease: {
+      latest: string | null;
+      url: string | null;
+      releasesUrl: string;
+      updateAvailable: boolean;
     };
     LiveClientMessage:
       | {
@@ -9609,6 +9632,32 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  get_api_release: {
+    parameters: {
+      query?: {
+        running?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The latest GitHub release of the public repository, and whether it is newer than the running version given as `running` */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LatestRelease"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

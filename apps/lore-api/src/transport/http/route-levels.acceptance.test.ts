@@ -56,6 +56,7 @@ const ORG_WIDE_ROUTES = new Set<string>([
   "* /api/tokens",
   "GET /api/platform/llm-status",
   "GET /api/versions",
+  "GET /api/release",
   "GET /api/service-versions",
   "POST /api/service-versions",
   "PUT /api/inbox/items/{item_id}/state",

@@ -4,6 +4,7 @@ import AppShell from "./AppShell";
 import BrandLockup from "@/components/BrandLockup";
 import SidebarNav from "./SidebarNav";
 import UserMenu from "./UserMenu";
+import SidebarVersion from "./SidebarVersion";
 import SessionWatch from "./SessionWatch";
 import { RailToggle, SidebarSearch } from "@/components/shell/SidebarTools";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/theme/fonts";
 import { THEME_SCRIPT } from "@/lib/theme/theme-script";
 import { getInbox, openInboxCount } from "@/lib/api/inbox";
+import { getRelease, type LatestRelease } from "@/lib/api/release";
 import { getSession } from "@/lib/session";
 import "./theme.css";
 import "highlight.js/styles/github.css";
@@ -38,6 +40,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
 };
+
+const DEFAULT_RELEASES_URL = "https://github.com/re-cinq/lore/releases";
 
 interface RootLayoutProps {
   children: React.ReactNode;
@@ -79,9 +83,34 @@ async function Sidebar() {
         grafanaUrl={grafanaUrl(process.env)}
         utopiaUrl={utopiaUrl(process.env)}
       />
+      <SidebarRelease />
       <SidebarFoot />
     </>
   );
+}
+
+/** The release the pod runs (the chart's image tag, a short SHA off a release install) beside the newest public one; the build SHA stands in when the chart gave none. */
+async function SidebarRelease() {
+  const running = runningRelease(process.env);
+  const release = await getRelease(running);
+
+  return (
+    <SidebarVersion
+      running={running}
+      releasesUrl={release?.releasesUrl ?? DEFAULT_RELEASES_URL}
+      update={newerRelease(release)}
+    />
+  );
+}
+
+function runningRelease(env: NodeJS.ProcessEnv): string {
+  return env.LORE_RELEASE || env.LORE_UI_VERSION || "dev";
+}
+
+function newerRelease(release: LatestRelease | null) {
+  const tag = release?.updateAvailable ? release.latest : null;
+
+  return tag && release?.url ? { tag, url: release.url } : null;
 }
 
 function SidebarHead() {

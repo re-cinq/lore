@@ -72,6 +72,8 @@ resources:
 env:
   # The GitHub host this install talks to; empty is github.com. A GitHub Enterprise Server is its bare host name, e.g. ghe.example.com.
   GITHUB_HOST: ""
+  # The public repository whose latest GitHub release the sidebar compares the running version with ("owner/name"). Always read from github.com, whatever GITHUB_HOST says.
+  LORE_PUBLIC_REPO: re-cinq/lore
   # The client's pack repository (specs/client-packs), "owner/name"; empty is no pack. LORE_PACK_REF is the branch or tag to read, empty is the repository's default branch.
   LORE_PACK_REPO: ""
   LORE_PACK_REF: ""

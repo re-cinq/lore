@@ -3,4 +3,5 @@ export * from "./decide-release-due.js";
 export * from "./floor-release.js";
 export * from "./mirror-sync.js";
 export * from "./next-version.js";
+export * from "./update-available.js";
 export * from "./release-changes.js";

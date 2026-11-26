@@ -1,0 +1,36 @@
+.version {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5) 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.build {
+  font-family: var(--font-mono);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.badge {
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+.dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  margin: var(--space-3) auto 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+:global(.sidebar-rail) .dot {
+  display: block;
+}
