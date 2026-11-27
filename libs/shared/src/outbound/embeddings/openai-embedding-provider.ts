@@ -6,6 +6,11 @@ import {
 } from "./embedding-batches.js";
 import { recordEmbeddingOutcome } from "./embedding-health.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";
+import {
+  openAiAuthInit,
+  type OpenAiAuthHeader,
+  type OpenAiAuthInit,
+} from "../openai/openai-auth.js";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "text-embedding-3-small";
@@ -16,6 +21,8 @@ export interface OpenAiEmbeddingProviderOptions {
   model?: string;
   apiKey?: string;
   baseUrl?: string;
+  /** The header that carries the key (`LORE_OPENAI_AUTH_HEADER`); a bearer token when unset. */
+  authHeader?: OpenAiAuthHeader;
   fetchFn?: typeof fetch;
 }
 
@@ -35,17 +42,23 @@ export class OpenAiEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embed(texts: string[]): Promise<Array<number[] | null>> {
-    if (!this.opts.apiKey) {
+    const { apiKey } = this.opts;
+
+    if (!apiKey) {
       return refused(texts, null);
     }
+    const auth = openAiAuthInit(apiKey, this.opts.authHeader);
 
-    return embedBatchwise(texts, (batch) => this.embedBatch(batch));
+    return embedBatchwise(texts, (batch) => this.embedBatch(batch, auth));
   }
 
-  private async embedBatch(batch: string[]): Promise<Array<number[] | null>> {
+  private async embedBatch(
+    batch: string[],
+    auth: OpenAiAuthInit,
+  ): Promise<Array<number[] | null>> {
     const res = await (this.opts.fetchFn ?? fetch)(
       `${this.baseUrl}/embeddings`,
-      this.requestInit(batch),
+      this.requestInit(batch, auth),
     );
 
     if (!res.ok) {
@@ -75,13 +88,10 @@ export class OpenAiEmbeddingProvider implements EmbeddingProvider {
     return vectors;
   }
 
-  private requestInit(batch: string[]): RequestInit {
+  private requestInit(batch: string[], auth: OpenAiAuthInit): RequestInit {
     return {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.opts.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      ...auth,
       body: JSON.stringify({
         model: this.model,
         input: batch.map((text) => text.substring(0, MAX_EMBEDDING_TEXT_CHARS)),

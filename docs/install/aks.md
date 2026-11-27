@@ -89,6 +89,8 @@ Replace each placeholder and every `example.com` (the chart stops on a leftover 
 | `floor.agentNetworkPolicy.nodeLocalDnsAddress` | optional. The default `169.254.20.10` lets agent pods reach a NodeLocal DNSCache. If your cluster runs none, set it to `""` so they reach only the cluster's DNS pods. If it runs one on another address, put that address here |
 | Utopia lines | see the last section, or set `utopia.enabled` and `lore-platform.lore-api.utopia.enabled` to `false` and delete the `global.oidc`, `utopia` and `secrets.oidc` blocks |
 
+Lore sends `OPENAI_API_KEY` as `Authorization: Bearer` by default. If your gateway requires `x-api-key`, set `LORE_OPENAI_AUTH_HEADER: x-api-key` beside `OPENAI_BASE_URL` under both `lore-api` and `lore-stations`. In this mode chat and embedding requests stop on redirects. Set `OPENAI_BASE_URL` to the final gateway URL. Remove the header setting to restore Bearer. Chat models must support `/chat/completions`.
+
 For an Anthropic key instead of Foundry for Lore's own calls, set `secrets.anthropicApiKey`, delete `secrets.openaiApiKey`, and delete `OPENAI_BASE_URL` and every line ending in `_PROVIDER` or `_MODEL` under `lore-api` and `lore-stations`. Search is then keyword-only, and `/healthz` can report `degraded` with HTTP 200.
 
 **GitHub Enterprise.** For a Server or a data-residency tenant (`<name>.ghe.com`), create both GitHub apps there and uncomment `GITHUB_HOST` in the three `env:` blocks, with the bare host name. A Server on a private address needs a rule under `floor.agentNetworkPolicy.extraEgress`, which `values.yaml` shows. github.com needs nothing. Your onboarded repositories' Actions runners must reach the API host.
@@ -126,7 +128,7 @@ kubectl -n lore-floor patch secret agent-secrets --type merge -p "{\"stringData\
 unset FOUNDRY_KEY MCP_TOKEN
 ```
 
-It prints `secret/agent-secrets patched`. A cluster runs one provider. Entra ID sign-in to Foundry is not supported, only keys. Lore's own calls send the key as `Authorization: Bearer`; an endpoint that takes the key only in another header is not supported yet. Agent pods reach only public addresses on port 443, so a Foundry resource behind a private endpoint needs a rule under `floor.agentNetworkPolicy.extraEgress`, like the one `values.yaml` shows for a GitHub Enterprise Server. Each agent needs a deployment named exactly after its model id, and agents that name Gemini models do not go through Foundry, so change their model on the `/agents` page. For an Anthropic key, set `ANTHROPIC_API_KEY` instead and omit `AGENT_PROVIDER`.
+It prints `secret/agent-secrets patched`. A cluster runs one provider. Entra ID sign-in to Foundry is not supported, only keys. Agent pods reach only public addresses on port 443, so a Foundry resource behind a private endpoint needs a rule under `floor.agentNetworkPolicy.extraEgress`, like the one `values.yaml` shows for a GitHub Enterprise Server. Each agent needs a deployment named exactly after its model id, and agents that name Gemini models do not go through Foundry, so change their model on the `/agents` page. For an Anthropic key, set `ANTHROPIC_API_KEY` instead and omit `AGENT_PROVIDER`.
 
 ## Verify the install
 

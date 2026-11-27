@@ -174,4 +174,37 @@ describe("OpenAiEmbeddingProvider", () => {
     expect(await provider.embed(["a"])).toEqual([null]);
     expect(embeddingHealth().consecutiveFailures).toBe(1);
   });
+
+  it("posts the same body to /embeddings with the key only in x-api-key when built with authHeader x-api-key, and returns the vectors in input order", async () => {
+    const requests: RecordedRequest[] = [];
+    const provider = new OpenAiEmbeddingProvider({
+      apiKey: "dummy-key",
+      baseUrl: BASE_URL,
+      authHeader: "x-api-key",
+      model: "emb-deployment",
+      fetchFn: echoingLengths(requests),
+    });
+
+    const firstBatch = Array<string>(250).fill("a");
+    const inputs = [...firstBatch, "bbb"];
+    const vectors = await provider.embed(inputs);
+
+    expect(requests).toEqual(
+      [firstBatch, ["bbb"]].map((input) => ({
+        url: `${BASE_URL}/embeddings`,
+        headers: {
+          "x-api-key": "dummy-key",
+          "Content-Type": "application/json",
+        },
+        body: {
+          model: "emb-deployment",
+          input,
+          dimensions: 768,
+        },
+      })),
+    );
+    expect(vectors.map((vector) => vector?.[0])).toEqual(
+      inputs.map((text) => text.length),
+    );
+  });
 });

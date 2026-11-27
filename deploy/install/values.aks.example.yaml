@@ -90,6 +90,7 @@ lore-platform:
       # OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.monitoring.svc.cluster.local:4318
       # Lore's own model calls and embeddings on a Microsoft Foundry resource.
       OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      # LORE_OPENAI_AUTH_HEADER: x-api-key  # Uncomment if the gateway requires this header.
       LORE_LLM_PROVIDER: openai
       LORE_FACT_MODEL: CHANGE-ME        # the chat deployment for Lore's own calls
       LORE_EVAL_LLM_PROVIDER: openai
@@ -113,6 +114,7 @@ lore-platform:
     env:
       LORE_UI_URL: https://lore.example.com
       OPENAI_BASE_URL: https://CHANGE-ME.openai.azure.com/openai/v1
+      # LORE_OPENAI_AUTH_HEADER: x-api-key   # set it here as well when lore-api sets it
       LORE_LLM_PROVIDER: openai
       LORE_FACT_MODEL: CHANGE-ME
       # GITHUB_HOST: ghe.example.com
