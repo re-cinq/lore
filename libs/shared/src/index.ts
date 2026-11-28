@@ -287,6 +287,7 @@ export * from "./lib/truncate-for-storage.js";
 export * from "./lib/wire-schema.js";
 export * from "./outbound/db/pg-pool.js";
 export * from "./outbound/google/access-token.js";
+export * from "./outbound/openai/openai-auth.js";
 export * from "./outbound/llm/index.js";
 export * from "./outbound/postgres-memory-upsert.js";
 export * from "./outbound/setup-spec-trace-schema.schema.js";

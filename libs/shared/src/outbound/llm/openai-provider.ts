@@ -1,6 +1,10 @@
 // OpenAI-compatible provider: raw `fetch` against `{baseUrl}/chat/completions`, so it serves OpenAI, Azure/Microsoft Foundry's `/openai/v1` and any other host that speaks the same body. Structured output is a forced function call.
 
 import { enforceTrue } from "../../lib/enforce.js";
+import {
+  openAiAuthInit,
+  type OpenAiAuthHeader,
+} from "../openai/openai-auth.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
 import {
   recordCall,
@@ -23,6 +27,8 @@ export interface OpenAiProviderOptions {
   model?: string;
   apiKey?: string;
   baseUrl?: string;
+  /** The header that carries the key (`LORE_OPENAI_AUTH_HEADER`); a bearer token when unset. */
+  authHeader?: OpenAiAuthHeader;
   usage?: UsagePort;
   fetchFn?: typeof fetch;
   /** How long one call may take before it fails; a stalled call otherwise hangs its caller for good. */
@@ -180,15 +186,12 @@ export class OpenAiProvider implements LlmProvider {
   private async post(body: ChatBody): Promise<ChatResponse> {
     const { apiKey } = this.opts;
 
-    enforceTrue(Boolean(apiKey), Error, "OPENAI_API_KEY not set");
+    enforceTrue(apiKey, Error, "OPENAI_API_KEY not set");
 
     const doFetch = this.opts.fetchFn ?? fetch;
     const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      ...openAiAuthInit(apiKey, this.opts.authHeader),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.opts.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
