@@ -299,4 +299,67 @@ describe("OpenAiProvider", () => {
       },
     ]);
   });
+
+  it("posts the same URL and body with the key only in x-api-key when built with authHeader x-api-key", async () => {
+    const { fetchFn, requests } = recordingFetch(
+      chatReply({ content: "answer" }),
+    );
+    const provider = new OpenAiProvider({
+      model: "gpt-5-mini",
+      apiKey: "dummy-key",
+      baseUrl: BASE_URL,
+      authHeader: "x-api-key",
+      fetchFn,
+    });
+
+    const result = await provider.complete({ prompt: "user-text" });
+
+    expect(requests).toEqual([
+      {
+        url: `${BASE_URL}/chat/completions`,
+        headers: {
+          "x-api-key": "dummy-key",
+          "Content-Type": "application/json",
+        },
+        body: {
+          model: "gpt-5-mini",
+          messages: [{ role: "user", content: "user-text" }],
+        },
+      },
+    ]);
+    expect(result).toMatchObject({ text: "answer", inputTokens: 11 });
+  });
+
+  it("sends the key only in x-api-key on the forced tool call of completeWithTool when built with authHeader x-api-key", async () => {
+    const { fetchFn, requests } = recordingFetch(
+      chatReply({
+        content: null,
+        tool_calls: [
+          {
+            type: "function",
+            function: { name: "emit", arguments: '{"ok":true}' },
+          },
+        ],
+      }),
+    );
+    const provider = new OpenAiProvider({
+      model: "m",
+      apiKey: "dummy-key",
+      authHeader: "x-api-key",
+      fetchFn,
+    });
+
+    const result = await provider.completeWithTool<{ ok: boolean }>({
+      prompt: "u",
+      toolName: "emit",
+      toolDescription: "emit the result",
+      toolSchema: {},
+    });
+
+    expect(requests[0].headers).toEqual({
+      "x-api-key": "dummy-key",
+      "Content-Type": "application/json",
+    });
+    expect(result.parsed).toEqual({ ok: true });
+  });
 });

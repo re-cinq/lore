@@ -8,6 +8,7 @@ import { GeminiProvider } from "./gemini-provider.js";
 import { CliProvider } from "./cli-provider.js";
 import { VertexProvider } from "./vertex-provider.js";
 import { OpenAiProvider } from "./openai-provider.js";
+import { openAiAuthHeader } from "../openai/openai-auth.js";
 import { enforceTrue } from "../../lib/enforce.js";
 
 // No API key → fall back to the `claude` CLI (subscription, zero API spend).
@@ -49,6 +50,7 @@ const PROVIDER_FACTORIES: Partial<Record<string, ProviderFactory>> = {
       model: env.LORE_FACT_MODEL,
       apiKey: env.OPENAI_API_KEY,
       baseUrl: env.OPENAI_BASE_URL,
+      authHeader: openAiAuthHeader(env),
       usage: opts.usage,
     }),
   cli: () => new CliProvider(),

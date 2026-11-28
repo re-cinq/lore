@@ -190,6 +190,8 @@ utopia:
 # LORE_EMBEDDING_PROVIDER=openai and LORE_EMBEDDING_MODEL; leave those unset
 # (they are not listed in env above on purpose, an empty value would still be
 # exported) and the secret is unused.
+# Set LORE_OPENAI_AUTH_HEADER=x-api-key in env if your gateway requires the
+# x-api-key header. By default Lore sends the key as a Bearer token.
 openaiKeySecret:
   name: lore-openai-key
   key: api-key
